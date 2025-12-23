@@ -1,12 +1,12 @@
 /* eslint-disable */
-import React from "react";
+// src/components/home/WinningTeamsSection.jsx
+import React, { useEffect, useMemo, useRef } from "react";
 import styled from "styled-components";
-import { WINNING_TEAMS } from "../../mock/teamsMock";
 import { images } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
 
 const SectionWrap = styled.section`
-  margin-top: 8px; /* 🔥 위쪽 여백 조금 추가 */
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -15,172 +15,178 @@ const SectionWrap = styled.section`
 const HeaderRow = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
 `;
 
 const SectionTitle = styled.h2`
   margin: 0;
-  font-size: 15px;
-  font-weight: ${({ theme }) => theme.fontWeights.bold};
+  font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
+  font-family: "GmarketSans";
 `;
 
-const MoreButton = styled.button`
-  border: none;
-  background: none;
-  padding: 0;
-  color: ${({ theme }) => theme.colors.muted || "#888"};
-  font-size: 13px;
+/* 🔥 가로 슬라이드 컨테이너 */
+const SlideRow = styled.div`
   display: flex;
-  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  scroll-snap-type: x mandatory;
+
+  & > * {
+    scroll-snap-align: start;
+  }
+
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #e5e7eb;
+    border-radius: 999px;
+  }
+`;
+
+/* 카드: 위 이미지, 아래 텍스트/버튼 (컴팩트 높이) */
+const Card = styled.div`
+  flex: 0 0 calc((100% - 20px) / 3);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   cursor: pointer;
 `;
 
-/* 🔥 슬라이드/스크롤 제거 — 고정 3컬럼 그리드 */
-const ListGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+const ImageArea = styled.div`
+  width: 100%;
 `;
 
-// 카드 3장 기준으로 살짝 컴팩트하게
+const TeamImage = styled.img`
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+`;
 
-
-
-const Card = styled.div`
-  padding: 10px 8px 10px;
-  border-radius: 14px;
-  background: #f9fafb; /* 너무 새하얀 느낌 피해서 살짝 톤다운 */
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+const CardBody = styled.div`
+  padding: 6px 8px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 3px;
+`;
+
+const NameRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
-`;
-
-/* 로고 + 왕관 */
-const LogoOuter = styled.div`
-  position: relative;
-  width: 52px;
-  height: 52px;
-`;
-
-const LogoBase = styled.div`
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
-  overflow: hidden;
-  background: #f4f4ff;
-`;
-
-const LogoImg = styled.img`
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const CrownWrap = styled.div`
-  position: absolute;
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 32px;
-  height: 32px;
-`;
-
-const CrownImg = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-`;
-
-const CrownNumber = styled.span`
-  position: absolute;
-  bottom: 5px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  font-weight: 700;
-  color: #ffffff;
 `;
 
 const TeamName = styled.div`
-  margin-top: 4px;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.textStrong};
   font-weight: 500;
-  text-align: center;
+  color: ${({ theme }) => theme.colors.textStrong};
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 1.2;
+  font-family: "GmarketSans";
 `;
 
+/* ✅ 기존 streakLabel 없을 수 있으니 winRate로 표시 */
 const StreakText = styled.div`
   font-size: 12px;
   margin-top: 1px;
   color: ${({ theme }) => theme.colors.primary};
   font-weight: 700;
   text-align: center;
+  font-family: "GmarketSans";
 `;
 
-const MatchButton = styled.button`
-  margin-top: 6px;
-  padding: 5px 0;
-  width: 100%;
-  border-radius: 999px;
-  background: ${({ theme }) => theme.colors.primary};
-  color: #ffffff;
-  border: none;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-`;
+function toNum(n, fallback = 0) {
+  const v = Number(n);
+  return Number.isFinite(v) ? v : fallback;
+}
 
-export default function WinningTeamsSection() {
+function formatWinRate(t) {
+  const wr = toNum(t?.winRate, NaN);
+  if (Number.isFinite(wr)) return `승률 ${(wr * 100).toFixed(0)}%`;
+
+  const wins = toNum(t?.wins, 0);
+  const total = toNum(t?.totalMatches, NaN);
+  if (Number.isFinite(total) && total > 0) return `승률 ${Math.round((wins / total) * 100)}%`;
+
+  return "기록 준비중";
+}
+
+// ✅ props로 목록을 받는 버전
+// items: [{ clubId/id, logoUrl/logoKey, name, winRate/wins/totalMatches, streakLabel? ... }]
+export default function WinningTeamsSection({ items = [] }) {
   const navigate = useNavigate();
+  const slideRef = useRef(null);
 
-  const handleMore = () => {
-    // TODO: 전체 연승팀 페이지로 이동
-  };
+  // 최대 5팀까지만 사용
+  const limitedItems = useMemo(() => {
+    return (items || []).slice(0, 5);
+  }, [items]);
 
-  const handleRequestMatch = (clubId) => {
-    // TODO: 매칭 요청 페이지로 이동
-  };
+  useEffect(() => {
+    const el = slideRef.current;
+    if (!el) return;
+    if (!limitedItems.length) return;
 
-  if (!WINNING_TEAMS.length) return null;
+    const pageSize = 3;
+    const pageCount = Math.ceil(limitedItems.length / pageSize);
+    if (pageCount <= 1) return;
+
+    let page = 0;
+    const interval = setInterval(() => {
+      page = (page + 1) % pageCount;
+      const pageWidth = el.clientWidth;
+      el.scrollTo({
+        left: pageWidth * page,
+        behavior: "smooth",
+      });
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [limitedItems]);
+
+  if (!limitedItems.length) return null;
 
   return (
     <SectionWrap>
       <HeaderRow>
         <SectionTitle>연승팀 대결 신청하기</SectionTitle>
-        <MoreButton type="button" onClick={handleMore}>
-          전체보기
-        </MoreButton>
       </HeaderRow>
 
-      <ListGrid>
-        {WINNING_TEAMS.slice(0, 3).map((t, idx) => (
-          <Card key={t.clubId}>
-            <LogoOuter>
-              <LogoBase>
-                <LogoImg src={images[t.logoKey]} alt={t.name} />
-              </LogoBase>
+      <SlideRow ref={slideRef}>
+        {limitedItems.map((t) => {
+          const teamId = t.clubId || t.id;
+          const imgSrc = (t.logoUrl && String(t.logoUrl).trim()) || (t.logoKey && images[t.logoKey]) || images.logo;
 
-              <CrownWrap>
-                <CrownImg src={images.logo} alt="왕관" />
-                <CrownNumber>{idx + 1}</CrownNumber>
-              </CrownWrap>
-            </LogoOuter>
+          return (
+            <Card key={teamId} onClick={() => navigate(`/team/${teamId}`)}>
+              <ImageArea>
+                <TeamImage src={imgSrc} alt={t.name} />
+              </ImageArea>
 
-            <TeamName>{t.name}</TeamName>
-            <StreakText>{t.streakLabel}</StreakText>
+              <CardBody>
+                <NameRow>
+                  <TeamName>{t.name}</TeamName>
+                </NameRow>
 
-            <MatchButton
-              type="button"
-              onClick={() => handleRequestMatch(t.clubId)}
-            >
-              매칭 요청
-            </MatchButton>
-          </Card>
-        ))}
-      </ListGrid>
+                <StreakText>{t.streakLabel || formatWinRate(t)}</StreakText>
+              </CardBody>
+            </Card>
+          );
+        })}
+      </SlideRow>
     </SectionWrap>
   );
 }

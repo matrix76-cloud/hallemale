@@ -86,7 +86,7 @@ export default function MyMatchedMatchesPage() {
     <PageWrap>
 
 
-      <SubHeaderBar title="매칭된 경기" onBack={handleBack} />
+
 
       <Inner>
         {dummyMatchedMatches.length === 0 ? (

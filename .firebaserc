@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "hallaemallae-381fe"
-  }
+    "halle-bf789": "halle-bf789",
+    "default": "halle-bf789"
+  },
+  "targets": {},
+  "etags": {}
 }

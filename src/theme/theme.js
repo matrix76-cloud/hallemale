@@ -2,9 +2,9 @@
 
 const theme = {
   colors: {
-    primary: "#346EF6",      // 메인 블루
-    primaryWeak: "#5E8EFF",  // 연한 블루
-    bg: "#F3F4F6",           // 기본 배경
+    primary: "#4f46e5",      // 메인 블루
+    primaryWeak: "#5c55e8ff",  // 연한 블루
+    bg: "#FFF",           // 기본 배경
     card: "#FFFFFF",         // 카드/폼 배경
     textStrong: "#111827",   // 진한 텍스트
     textNormal: "#374151",

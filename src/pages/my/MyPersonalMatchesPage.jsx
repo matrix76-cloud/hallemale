@@ -64,7 +64,7 @@ export default function MyPersonalMatchesPage() {
 
   return (
     <PageWrap>
-     <SubHeaderBar title="개인 활동 경기" onBack={handleBack} />
+
 
       <Inner>
         {dummyPersonalMatches.length === 0 ? (

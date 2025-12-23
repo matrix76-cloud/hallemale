@@ -7,6 +7,8 @@ import { AuthProvider } from "./context/AuthContext";
 import { ClubProvider } from "./context/ClubContext";
 import { UIProvider } from "./context/UIContext";
 import { WebviewBridgeProvider } from "./context/WebviewBridgeContext";
+import { HomeDataProvider } from "./context/HomeDataContext";
+import { MatchingDataProvider } from "./context/MatchingDataContext";
 
 export default function App() {
   return (
@@ -15,9 +17,13 @@ export default function App() {
       <AuthProvider>
         <ClubProvider>
           <UIProvider>
-            <WebviewBridgeProvider>
-              <AppRoutes />
-            </WebviewBridgeProvider>
+            <HomeDataProvider>
+              <MatchingDataProvider>
+                <WebviewBridgeProvider>
+                  <AppRoutes />
+                </WebviewBridgeProvider>
+              </MatchingDataProvider>
+            </HomeDataProvider>
           </UIProvider>
         </ClubProvider>
       </AuthProvider>

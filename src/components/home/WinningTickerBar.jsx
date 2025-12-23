@@ -6,23 +6,21 @@ import { TEAMS } from "../../mock/teamsMock";
 
 // 왼쪽 → 오른쪽으로 계속 흐르는 애니메이션
 const scroll = keyframes`
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 `;
 
 const Bar = styled.div`
   width: 100%;
   height: 32px;
-  background: linear-gradient(90deg, #3b82f6, #22c1c3);
-  color: #ffffff;
+  background: linear-gradient(90deg, #0b0f1a, #111827, #0b0f1a);
+  color: rgba(255, 255, 255, 0.92);
   display: flex;
   align-items: center;
   overflow: hidden;
   font-size: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 `;
 
 const Inner = styled.div`
@@ -45,7 +43,6 @@ export default function WinningTickerBar() {
     return items.join("  ·  ");
   }, []);
 
-  // 두 번 반복해서 끝없이 이어지는 느낌
   return (
     <Bar>
       <Inner>

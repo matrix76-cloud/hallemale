@@ -1,36 +1,40 @@
-// src/layouts/components/TopHeader.jsx
 /* eslint-disable */
+// src/layouts/components/TopHeader.jsx
 import React from "react";
 import styled from "styled-components";
-import { AiOutlineBell, AiOutlineMessage } from "react-icons/ai";
+import {
+  AiOutlineMessage,
+  AiOutlineLeft,
+} from "react-icons/ai";
+import { useNavigate } from "react-router-dom";
 import BrandHeader from "../../components/auth/BrandHeader";
+import { PiBellLight } from "react-icons/pi";
+
+import useUnreadChatCount from "../../hooks/useUnreadChatCount";
 
 const Wrap = styled.header`
   height: 52px;
   padding: 0 16px;
   display: flex;
   align-items: center;
-  justify-content: ${({ isHome }) => (isHome ? "space-between" : "center")};
   background: ${({ theme }) => theme.colors.card};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
-// 홈이 아닐 때 가운데 타이틀
-const Title = styled.h1`
+const Title = styled.h3`
   font-size: 16px;
-  font-weight: 600;
   margin: 0;
   color: ${({ theme }) => theme.colors.textStrong};
+  font-family: "GmarketSans";
+  font-weight: 500;
 `;
 
-// 홈일 때 우측 아이콘 래퍼
 const RightIcons = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
 `;
 
-// 공통 아이콘 버튼
 const IconButton = styled.button`
   position: relative;
   border: none;
@@ -41,62 +45,131 @@ const IconButton = styled.button`
   justify-content: center;
   cursor: pointer;
   color: ${({ theme }) => theme.colors.textStrong || "#111"};
-  font-size: 22px;
+  font-size: 20px;
 `;
 
-// 안읽음 뱃지
 const Badge = styled.span`
   position: absolute;
-  top: 2px;
-  right: 0;
-  min-width: 16px;
-  height: 16px;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
   padding: 0 4px;
   border-radius: 999px;
-  background: #ef4444;
+  background: #f97316;
   color: #ffffff;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.card || "#fff"};
+  border: 1px solid #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
 `;
 
-export default function TopHeader({ title }) {
+const LeftArea = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+`;
+
+const RightArea = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const TabHeaderWrap = styled(Wrap)`
+  justify-content: space-between;
+`;
+
+const LeftSpacer = styled.div`
+  width: 48px;
+`;
+
+export default function TopHeader({
+  title,
+  showBack = false,
+  onBack,
+  rightActions = [],
+}) {
+  const navigate = useNavigate();
+  const unreadChatCount = useUnreadChatCount();
+
   const isHome = title === "할래말래";
 
+  const handleDefaultBack = () => {
+    if (onBack) onBack();
+    else navigate(-1);
+  };
+
   const handleBellClick = () => {
-    // TODO: 알림 페이지/모달 연결
+    navigate("/notifications");
   };
 
   const handleChatClick = () => {
-    // TODO: 채팅 목록/알림 페이지로 이동
+    navigate("/chats");
   };
 
-  if (isHome) {
-    // 홈 헤더: 로고 + 알림/채팅 아이콘 2개
+  if (showBack || (rightActions && rightActions.length > 0)) {
     return (
-      <Wrap isHome>
-        <BrandHeader />
-        <RightIcons>
-          <IconButton type="button" onClick={handleBellClick}>
-            <AiOutlineBell />
-            <Badge>2</Badge>
-          </IconButton>
-          <IconButton type="button" onClick={handleChatClick}>
-            <AiOutlineMessage />
-            <Badge>3</Badge>
-          </IconButton>
-        </RightIcons>
+      <Wrap>
+        <LeftArea>
+          {showBack && (
+            <IconButton type="button" onClick={handleDefaultBack}>
+              <AiOutlineLeft />
+            </IconButton>
+          )}
+          <Title>{title}</Title>
+        </LeftArea>
+        <RightArea>
+          {rightActions.map((act) => (
+            <IconButton key={act.key} type="button" onClick={act.onClick}>
+              {act.icon}
+            </IconButton>
+          ))}
+        </RightArea>
       </Wrap>
     );
   }
 
-  // 그 외: 가운데 타이틀만
+  if (isHome) {
+    return (
+      <TabHeaderWrap>
+        <BrandHeader />
+        <RightIcons>
+          <IconButton type="button" onClick={handleBellClick}>
+            <PiBellLight />
+          </IconButton>
+
+          <IconButton type="button" onClick={handleChatClick}>
+            <AiOutlineMessage />
+            {unreadChatCount > 0 && (
+              <Badge>{unreadChatCount > 99 ? "99+" : unreadChatCount}</Badge>
+            )}
+          </IconButton>
+        </RightIcons>
+      </TabHeaderWrap>
+    );
+  }
+
   return (
-    <Wrap>
+    <TabHeaderWrap>
+      <LeftSpacer />
       <Title>{title}</Title>
-    </Wrap>
+      <RightIcons>
+        <IconButton type="button" onClick={handleBellClick}>
+          <PiBellLight />
+        </IconButton>
+
+        <IconButton type="button" onClick={handleChatClick}>
+          <AiOutlineMessage />
+          {unreadChatCount > 0 && (
+            <Badge>{unreadChatCount > 99 ? "99+" : unreadChatCount}</Badge>
+          )}
+        </IconButton>
+      </RightIcons>
+    </TabHeaderWrap>
   );
 }

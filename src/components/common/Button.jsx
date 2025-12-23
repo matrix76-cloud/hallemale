@@ -3,11 +3,11 @@ import styled from "styled-components";
 
 const StyledButton = styled.button`
   width: ${({ fullWidth }) => (fullWidth ? "100%" : "auto")};
-  padding: 10px 16px;
+  padding: 16px 16px;
   border-radius: 999px;
   border: none;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 700;
   background: ${({ variant, theme }) =>
     variant === "secondary" ? theme.colors.primaryWeak : theme.colors.primary};
   color: ${({ variant, theme }) =>

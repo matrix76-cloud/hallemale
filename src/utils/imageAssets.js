@@ -68,6 +68,18 @@ import avatarUserBulldogsSongWoojin from "../assets/players/user_bulldogs_song_w
 import avatarUserBulldogsChoMinseo from "../assets/players/user_bulldogs_cho_minseo.png";
 
 
+
+import teamIntroIcon from "../assets/teams/teamIntroIcon.png";
+import teamStatsIcon from "../assets/teams/teamStatsIcon.png";
+import teamMembersIcon from "../assets/teams/teamMembersIcon.png";
+import teamRecruitIcon from "../assets/teams/teamRecruitIcon.png";
+import teamHighlightIcon from "../assets/teams/teamHighlightIcon.png";
+import teamMediaIcon from "../assets/teams/teamMediaIcon.png";
+
+import teamMediaSamplePhoto1 from "../assets/teams/sampleplay1.png";
+import teamMediaSamplePhoto2 from "../assets/teams/sampleplay2.png";
+
+
 import homeBanner1 from "../assets/images/home-banner-1.png";
 import homeBanner2 from "../assets/images/home-banner-2.png";
 import homeBanner3 from "../assets/images/home-banner-3.png";
@@ -75,6 +87,7 @@ import homeBanner4 from "../assets/images/home-banner-4.png";
 
 import teamActionManage from "../assets/images/teamActionManage.png";
 import teamActionPool from "../assets/images/teamActionPool.png";
+
 
 /* =========================
  * export 모음
@@ -94,10 +107,15 @@ import tabMyInactive from "../assets/btab/my_inactive.png";
 import peopleMatch from "../assets/icons/people_match.png";
 import pinRegion from "../assets/icons/pin_region.png";
 
+import TeamProfilePage from "../assets/images/teamprofile.png";
+
+import teamHeroBasket from "../assets/images/teamHeroBasket.png";
+
+
 export const bottomTabIcons = {
   home: { active: tabHomeActive, inactive: tabHomeInactive },
-  matching: { active: tabMatchActive, inactive: tabMatchInactive },
-  gym: { active: tabGymActive, inactive: tabGymInactive },
+  matchingmanage: { active: tabMatchActive, inactive: tabMatchInactive },
+  community: { active: tabGymActive, inactive: tabGymInactive },
   my: { active: tabMyActive, inactive: tabMyInactive },
 };
 
@@ -122,7 +140,23 @@ export const images = {
   homeBanner3,
   homeBanner4,
   teamActionManage,
-  teamActionPool
+  teamActionPool,
+  TeamProfilePage,
+  teamHeroBasket,
+  teamIntroIcon,
+  teamStatsIcon,
+  teamHighlightIcon,
+  teamMembersIcon,
+  teamRecruitIcon,
+  teamMediaIcon,
+  teamMediaSamplePhoto1,
+  teamMediaSamplePhoto2,
+  playerHeroBasket: require("../assets/players/player-hero-basket.png"), // 녹색 히어로 우측 일러스트
+  playerInfoIcon: require("../assets/players/player-info.png"),          // 기본 정보 아이콘
+  playerStatsIcon: require("../assets/players/player-stats.png"),        // 플레이 스타일/스탯
+  playerRecordIcon: require("../assets/players/player-stats.png"),        // 플레이 스타일/스탯
+  playerCareerIcon: require("../assets/players/player-career.png"),      // (PlayerCareerSection 안에서 쓰고 싶으면)
+  playerTeamsIcon: require("../assets/players/player-teams.png"),        // 소속 팀
 
 };
 

@@ -51,8 +51,6 @@ export default function MyPostsPage() {
     <PageWrap>
 
 
-      <SubHeaderBar title="내가 쓴 게시글" onBack={handleBack} />
-      
 
       <Inner>
         {dummyPosts.length === 0 ? (
