@@ -1,18 +1,19 @@
 /* eslint-disable */
 // src/pages/ranking/TeamRankingFullPage.jsx
 // ✅ 팀랭킹 필터: regionSido/regionGu(2단계) + winRate만 적용
+// ✅ 배치/랭킹: 점수(승리 +5점, 무승부 +2점, 패배 +1점) desc → 승률 desc → 승수 desc → 경기수 desc → 이름 asc 기준 정렬
+// ✅ 점수 표시는 "등수 뱃지(RankBadge)" 내부 2줄(등수/점수)로 표시
 
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { images } from "../../utils/imageAssets";
-import { listTeamRankingPage } from "../../services/teamRankingService";
+import { listAllTeamsForRanking } from "../../services/teamRankingService";
 import Spinner from "../../components/common/Spinner";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 
 import FilterSearchBar from "../../components/common/FilterSearchBar";
 import TeamRankingFilterBottomSheet from "../../components/common/TeamRankingFilterBottomSheet";
-
 
 const PageWrap = styled.div`
   min-height: 100vh;
@@ -28,7 +29,7 @@ const Inner = styled.div`
 
 const Card = styled.div`
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 4px 0;
   display: flex;
   flex-direction: column;
@@ -63,7 +64,7 @@ const LogoWrap = styled.div`
   height: 100%;
   overflow: hidden;
   background: #e5e7eb;
-  border-radius: 15px;
+  border-radius: 8px;
 `;
 
 const LogoImg = styled.img`
@@ -73,19 +74,30 @@ const LogoImg = styled.img`
   object-fit: cover;
 `;
 
+/* ✅ 등수 뱃지: 2줄(등수/점수) */
 const RankBadge = styled.div`
   position: absolute;
   right: 6px;
   bottom: 6px;
-  padding: 2px 8px;
+  padding: 4px 8px;
   border-radius: 999px;
   background: #6366f1;
   color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
+  line-height: 1.05;
+`;
+
+const RankBadgeTop = styled.div`
+  font-size: 11px;
+`;
+
+const RankBadgeBottom = styled.div`
+  font-size: 10px;
+  opacity: 0.92;
 `;
 
 const ContentArea = styled.div`
@@ -99,22 +111,24 @@ const ContentArea = styled.div`
 const TeamNameRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 `;
 
 const TeamName = styled.div`
   font-size: 14px;
-  font-weight: 600;
   color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 `;
 
-const MedalInline = styled.span`
-  font-size: 14px;
-  line-height: 1;
+const CrownInline = styled.img`
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.12));
 `;
 
 const TeamRegion = styled.div`
@@ -143,7 +157,6 @@ const WinRateBadge = styled.span`
   background: #eef2ff;
   color: #2563eb;
   font-size: 12px;
-  font-weight: 500;
 `;
 
 const RecentLabel = styled.span`
@@ -179,12 +192,15 @@ const ErrorText = styled.div`
   line-height: 1.5;
 `;
 
-const statMedal = (rank) => {
-  if (rank === 1) return "🥇";
-  if (rank === 2) return "🥈";
-  if (rank === 3) return "🥉";
-  return null;
-};
+const RankInfoBox = styled.div`
+  margin: 6px 16px 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+`;
 
 function toNum(n, fallback = 0) {
   const v = Number(n);
@@ -196,19 +212,17 @@ function calcWinRatePercent({ wins, losses, draws }) {
   const l = toNum(losses, 0);
   const d = toNum(draws, 0);
   const total = w + l + d;
-  if (total <= 0) return 100;
+  if (total <= 0) return 0;
   return Math.round((w / total) * 100);
 }
 
 function normalizeRecentResult(x) {
   const v = String(x || "").trim();
 
-  // ✅ 이미 W/L/D 로 저장된 케이스
   if (v === "W" || v.toLowerCase() === "w" || v.toLowerCase() === "win") return "W";
   if (v === "L" || v.toLowerCase() === "l" || v.toLowerCase() === "lose") return "L";
   if (v === "D" || v.toLowerCase() === "d" || v.toLowerCase() === "draw") return "D";
 
-  // ✅ 한글/기타 케이스 (실데이터에서 흔함)
   if (v.includes("승")) return "W";
   if (v.includes("패")) return "L";
   if (v.includes("무")) return "D";
@@ -217,7 +231,6 @@ function normalizeRecentResult(x) {
 }
 
 function getRecentFormsSafe(t, count = 5) {
-  // ✅ 실데이터는 stats.recentResults에 들어가는 경우가 많음
   const src =
     (Array.isArray(t?.stats?.recentResults) && t.stats.recentResults) ||
     (Array.isArray(t?.recentResults) && t.recentResults) ||
@@ -225,11 +238,8 @@ function getRecentFormsSafe(t, count = 5) {
     [];
 
   const norm = src.map(normalizeRecentResult).filter(Boolean);
-  return norm.slice(0, count);
+  return norm.slice(-count).reverse();
 }
-
-
-
 
 function buildRegionText(t) {
   const region = String(t?.region || "").trim();
@@ -250,6 +260,35 @@ function countAppliedFilters(f) {
   if (safeString(f.regionSido) && f.regionSido !== "all") c += 1;
   if (safeString(f.regionGu) && f.regionGu !== "all") c += 1;
   return c;
+}
+
+/* ✅ 점수 계산: 승 +5, 무 +2, 패 +1 */
+function calcPointsFromTeam(t) {
+  const wins = toNum(t?.stats?.wins ?? t?.wins, 0);
+  const losses = toNum(t?.stats?.losses ?? t?.losses, 0);
+  const draws = toNum(t?.stats?.draws ?? t?.draws, 0);
+  return wins * 5 + draws * 2 + losses * 1;
+}
+
+// ✅ 점수/승률/승수/경기수/이름 기반 퍼포먼스 키
+function getPerfKey(t) {
+  const wins = toNum(t?.stats?.wins ?? t?.wins, 0);
+  const losses = toNum(t?.stats?.losses ?? t?.losses, 0);
+  const draws = toNum(t?.stats?.draws ?? t?.draws, 0);
+  const total = wins + losses + draws;
+
+  const points = wins * 5 + draws * 2 + losses * 1;
+
+  const rawWinRate = typeof t?.stats?.winRate === "number" ? t.stats.winRate : null;
+  const winRatePct = rawWinRate != null ? Math.round(rawWinRate * 100) : calcWinRatePercent({ wins, losses, draws });
+
+  return {
+    points,
+    winRatePct,
+    wins,
+    total,
+    name: safeString(t?.name).toLowerCase(),
+  };
 }
 
 export default function TeamRankingFullPage() {
@@ -283,26 +322,15 @@ export default function TeamRankingFullPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await listTeamRankingPage({
-        pageSize,
-        cursor: reset ? null : cursor,
-        debugLog: false,
-      });
-
+      const res = await listAllTeamsForRanking({ debugLog: false });
       const nextRows = Array.isArray(res?.rows) ? res.rows : [];
-      const nextCursor = res?.nextCursor || null;
 
-      setRows((prev) => {
-        const base = reset ? [] : prev;
-        return [...base, ...nextRows];
-      });
-
-      setCursor(nextCursor);
-
-      if (!nextCursor || nextRows.length < pageSize) setDone(true);
+      setRows(nextRows);
+      setCursor(null);
+      setDone(true);
     } catch (e) {
-      console.warn("[TeamRankingFullPage] listTeamRankingPage failed:", e?.code || "", e?.message || e);
-      setError("인덱스가 필요합니다. 콘솔에 뜬 인덱스 생성 링크를 눌러 생성해 주세요.");
+      console.warn("[TeamRankingFullPage] listAllTeamsForRanking failed:", e?.code || "", e?.message || e);
+      setError("팀 랭킹을 불러오지 못했습니다.");
       setDone(true);
     } finally {
       setLoading(false);
@@ -314,9 +342,8 @@ export default function TeamRankingFullPage() {
   }, []);
 
   const rankedRows = useMemo(() => {
-    const base = (rows || []).map((t, idx) => ({ ...t, rank: idx + 1 }));
+    const base = Array.isArray(rows) ? rows : [];
 
-    // 상단 검색(팀명/지역 문자열)
     const queryText = safeString(q).toLowerCase();
     const searched = queryText
       ? base.filter((t) => {
@@ -326,12 +353,12 @@ export default function TeamRankingFullPage() {
         })
       : base;
 
-    // 지역 필터(2단계)
     const sido = safeString(filters.regionSido);
     const gu = safeString(filters.regionGu);
 
     const regionFiltered = searched.filter((t) => {
       if (!sido || sido === "all") return true;
+
       const tsido = safeString(t?.regionSido) || safeString(buildRegionText(t)).split(" ")[0];
       if (tsido !== sido) return false;
 
@@ -341,25 +368,41 @@ export default function TeamRankingFullPage() {
       return text.includes(gu);
     });
 
-    // 승률 필터
-    const filtered = regionFiltered.filter((t) => {
+    const rateFiltered = regionFiltered.filter((t) => {
       const wins = toNum(t?.stats?.wins ?? t?.wins, 0);
       const losses = toNum(t?.stats?.losses ?? t?.losses, 0);
       const draws = toNum(t?.stats?.draws ?? t?.draws, 0);
-      const winRate = calcWinRatePercent({ wins, losses, draws });
+
+      const rawWinRate = typeof t?.stats?.winRate === "number" ? t.stats.winRate : null;
+      const winRate = rawWinRate != null ? Math.round(rawWinRate * 100) : calcWinRatePercent({ wins, losses, draws });
 
       if (filters.winRate === "70" && winRate < 70) return false;
       if (filters.winRate === "50" && winRate < 50) return false;
       return true;
     });
 
-    return filtered;
+    // ✅ 정렬: 점수 desc → 승률 desc → 승수 desc → 경기수 desc → 이름 asc
+    const sorted = [...rateFiltered].sort((a, b) => {
+      const ka = getPerfKey(a);
+      const kb = getPerfKey(b);
+
+      if (kb.points !== ka.points) return kb.points - ka.points;
+      if (kb.winRatePct !== ka.winRatePct) return kb.winRatePct - ka.winRatePct;
+      if (kb.wins !== ka.wins) return kb.wins - ka.wins;
+      if (kb.total !== ka.total) return kb.total - ka.total;
+      if (ka.name === kb.name) return 0;
+      return ka.name > kb.name ? 1 : -1;
+    });
+
+    return sorted.map((t, idx) => ({ ...t, rank: idx + 1 }));
   }, [rows, q, filters]);
 
   const handleTeamClick = (clubId) => {
     if (!clubId) return;
     nav(`/team/${clubId}`);
   };
+
+  const crownSrc = images.logo || "";
 
   return (
     <PageWrap>
@@ -375,19 +418,29 @@ export default function TeamRankingFullPage() {
           placeholder="팀명/지역 검색"
         />
 
+        <RankInfoBox>
+          <strong>랭킹 산정 기준</strong>
+          <br />
+          경기 승리 시 +5점, 무승부 시 +2점, 패배 시 +1점이 누적되며 총 점수 기준으로 순위가 계산됩니다.
+        </RankInfoBox>
+
         <Card>
           {rankedRows.map((t, index) => {
-            const medal = statMedal(t.rank);
-
             const wins = toNum(t?.stats?.wins ?? t?.wins, 0);
             const losses = toNum(t?.stats?.losses ?? t?.losses, 0);
             const draws = toNum(t?.stats?.draws ?? t?.draws, 0);
 
-            const winRatePercent = calcWinRatePercent({ wins, losses, draws });
-            const recentForms = getRecentFormsSafe(t, 5);
+            const points = calcPointsFromTeam(t);
 
+            const rawWinRate = typeof t?.stats?.winRate === "number" ? t.stats.winRate : null;
+            const winRatePercent =
+              rawWinRate != null ? Math.round(rawWinRate * 100) : calcWinRatePercent({ wins, losses, draws });
+
+            const recentForms = getRecentFormsSafe(t, 5);
             const logoSrc = (t.logoUrl && String(t.logoUrl).trim()) || images.logo;
             const regionText = buildRegionText(t);
+
+            const showCrown = t.rank <= 3;
 
             return (
               <React.Fragment key={t.clubId || t.id || index}>
@@ -398,14 +451,18 @@ export default function TeamRankingFullPage() {
                         <LogoWrap>
                           <LogoImg src={logoSrc} alt={t.name || "team"} />
                         </LogoWrap>
-                        <RankBadge>{t.rank}위</RankBadge>
+
+                        <RankBadge>
+                          <RankBadgeTop>{t.rank}위</RankBadgeTop>
+                          <RankBadgeBottom>{points}점</RankBadgeBottom>
+                        </RankBadge>
                       </LogoOuter>
                     </LogoArea>
 
                     <ContentArea>
                       <TeamNameRow>
                         <TeamName title={t.name}>{t.name || "팀"}</TeamName>
-                        {medal && <MedalInline>{medal}</MedalInline>}
+                        {showCrown && crownSrc ? <CrownInline src={crownSrc} alt="crown" /> : null}
                       </TeamNameRow>
 
                       <TeamRegion>{regionText || "지역 미등록"}</TeamRegion>

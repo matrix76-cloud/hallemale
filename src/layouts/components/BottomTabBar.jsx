@@ -9,7 +9,8 @@ const Wrap = styled.nav`
   left: 0;
   right: 0;
   bottom: 0;
-  height: ${({ theme }) => theme.layout.bottomTabHeight}px;
+  height: calc(${({ theme }) => theme.layout.bottomTabHeight}px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
   background: ${({ theme }) => theme.colors.card};
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   display: flex;
@@ -28,7 +29,6 @@ const Item = styled.button`
   color: ${({ $active, theme }) =>
     $active ? theme.colors.primary : theme.colors.textWeak};
   cursor: pointer;
-  font-family: "GmarketSans";
 `;
 
 const blink = keyframes`
@@ -74,7 +74,7 @@ const Badge = styled.span`
   height: 16px;
   padding: 0 4px;
   border-radius: 999px;
-  background: #f97316;
+  background: #2563eb;
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;

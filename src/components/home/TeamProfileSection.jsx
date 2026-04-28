@@ -14,16 +14,15 @@ const SectionWrap = styled.section`
 const SectionTitle = styled.h2`
   margin: 0;
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
-  font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
+  font-weight: 600;
 `;
 
 /* ============ 위: 팀 프로필 카드 ============ */
 
 const ProfileCard = styled.div`
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 8px;
   padding: 16px 18px 18px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
   display: flex;
@@ -66,7 +65,7 @@ const LogoImg = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 8px;
 `;
 
 const TeamMeta = styled.div`
@@ -80,13 +79,11 @@ const TeamNameRow = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: "GmarketSans";
-  font-weight: 500;
+  font-weight: 600;
 `;
 
 const TeamName = styled.div`
   font-size: 18px;
-  font-weight: 500;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
@@ -108,12 +105,10 @@ const MemberIcon = styled.span`
 const TeamDesc = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.muted || "#6b7280"};
-
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-
   word-break: keep-all;
 `;
 
@@ -129,108 +124,205 @@ const Tag = styled.span`
   color: #6366f1;
 `;
 
-/* ============ 아래: 기능 카드 2개 (1안: 타이틀/서브 2줄 리듬 통일) ============ */
+/* ============ 아래: 홈 액션 ============ */
 
-const ActionsRow = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+const ActionsCol = styled.div`
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 `;
 
-const ActionCard = styled.button`
-  border: none;
-  border-radius: 16px;
+/* 매칭하기 카드(이미 적용된 버전과 맞춰둠) */
+const BigActionCard = styled.button`
+  width: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
-  padding: 12px 12px 12px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+  padding: 14px 14px 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   text-align: left;
-  min-width: 0;
 
   &:active {
     transform: translateY(1px);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
   }
 `;
 
-const ActionIconWrap = styled.div`
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
+const BigTop = styled.div`
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: ${({ $tone }) =>
-    $tone === "primary" ? "rgba(99, 102, 241, 0.12)" : "rgba(2, 132, 199, 0.10)"};
+  gap: 12px;
+`;
+
+const BigIconWrap = styled.div`
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: ${({ theme }) =>
+    theme.colors.primary ? `${theme.colors.primary}18` : "rgba(99, 102, 241, 0.12)"};
   flex: 0 0 auto;
 `;
 
-const ActionIcon = styled.div`
-  font-size: 24px;
+const BigIcon = styled.div`
+  font-size: 26px;
 `;
 
-const ActionBody = styled.div`
+const BigBody = styled.div`
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 `;
 
-const ActionTitle = styled.div`
-  font-size: 14px;
+const BigTitle = styled.div`
+  font-size: 16px;
   color: ${({ theme }) => theme.colors.textStrong || "#111827"};
-  font-family: "GmarketSans";
+  font-weight: 600;
   letter-spacing: -0.2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 `;
 
-const ActionSubLine = styled.div`
+const BigSub = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.muted || "#6b7280"};
   line-height: 1.25;
-
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  white-space: nowrap;
-  overflow: hidden;
 `;
 
-const SubItem = styled.span`
+const GoPill = styled.div`
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
-`;
-
-const SubDot = styled.span`
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: ${({ $tone }) => ($tone === "primary" ? "#2563eb" : "#9ca3af")};
+  justify-content: center;
+  background: ${({ theme }) => theme.colors.primary || "#2563eb"};
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
   flex: 0 0 auto;
 `;
 
-const SubText = styled.span`
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  min-width: 0;
+/* ✅ 매칭룸 카드(문구/숫자 멋내기) */
+const MatchRoomCard = styled.div`
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+  padding: 12px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 `;
 
-const SubLabel = styled.span`
+const MatchRoomHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+`;
+
+const MatchRoomTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: ${({ theme }) => theme.colors.textStrong || "#111827"};
+  font-weight: 600;
+`;
+
+const FolderIconWrap = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(2, 132, 199, 0.1);
+`;
+
+const FolderIcon = styled.div`
+  font-size: 22px;
+`;
+
+const MatchRoomLinkText = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.primary || "#2563eb"};
+  cursor: pointer;
+  white-space: nowrap;
+`;
+
+/* ✅ 3개 박스 업그레이드 */
+const StatRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+`;
+
+const StatValue = styled.div`
+  font-size: 12px;
   color: ${({ theme }) => theme.colors.muted || "#6b7280"};
 `;
 
-const SubCount = styled.span`
-  color: ${({ $tone }) => ($tone === "primary" ? "#2563eb" : "#111827")};
+const NumberBadge = styled.div`
+  width: 62px;
+  height: 48px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: #f3f4f6;
+  border: 1px solid rgba(15, 23, 42, 0.06);
 `;
+
+const NumberText = styled.div`
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.8px;
+  color: #111111;
+  font-weight: 700;
+`;
+
+const StatHint = styled.div`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+`;
+
+
+
+const StatItem = styled.button`
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+  border-radius: 8px;
+  padding: 12px 12px 12px;
+  cursor: pointer;
+  text-align: left;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  min-height: 98px;
+
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+
+  &:active {
+    transform: translateY(1px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  }
+`;
+
+const StatLabel = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+`;
+
+
 
 function toInt(n, fallback = 0) {
   const v = Number(n);
@@ -250,27 +342,59 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts }) 
   const memberCount = toInt(team.memberCount, NaN) ?? toInt(team.players?.length, NaN) ?? 0;
   const memberCountLabel = `${Number.isFinite(memberCount) ? memberCount : 0}명`;
 
-  // ✅ 목업: 실데이터 아직이면 샘플로 보이게
-  const ongoing = Number.isFinite(Number(matchRoomCounts?.ongoing))
-    ? Number(matchRoomCounts.ongoing)
-    : 2;
+  console.log(matchRoomCounts);
 
-  const confirmed = Number.isFinite(Number(matchRoomCounts?.confirmed))
-    ? Number(matchRoomCounts.confirmed)
-    : 1;
 
-  const handleManageClick = () => {
-    navigate("/matching");
-  };
+    const safeCount = (v, fallback = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+    };
 
-  const handleGoMatchingRoomList = () => {
-    navigate("/match-roomlist");
-  };
+    const ongoing = safeCount(
+      matchRoomCounts?.ongoing ??
+        matchRoomCounts?.adjusting ??
+        matchRoomCounts?.proposed ??
+        matchRoomCounts?.pending,
+      0
+    );
+
+    const confirmed = safeCount(
+      matchRoomCounts?.confirmed ??
+        matchRoomCounts?.scheduled ??
+        matchRoomCounts?.upcoming,
+      0
+    );
+
+    // ✅ 지난 경기: 실제 프로젝트에서 흔히 쓰는 키들을 전부 커버
+    const past = safeCount(
+      matchRoomCounts?.past ??
+        matchRoomCounts?.finished ??
+        matchRoomCounts?.history ??
+        matchRoomCounts?.previous ??
+        matchRoomCounts?.prev ??
+        matchRoomCounts?.done,
+      0
+    );
+
+
 
   const handleGoMyTeamDetail = () => {
     const teamId = team.clubId || team.id;
     if (!teamId) return;
     navigate(`/team/${teamId}`);
+  };
+
+  const handleGoMatching = () => {
+    navigate("/matching");
+  };
+
+  const goMatchRoomList = (tab) => {
+    const t = String(tab || "").trim();
+    if (!t) {
+      navigate("/match-roomlist");
+      return;
+    }
+    navigate(`/match-roomlist?tab=${encodeURIComponent(t)}`);
   };
 
   return (
@@ -307,44 +431,66 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts }) 
         </TopRow>
       </ProfileCard>
 
-      <ActionsRow>
-        <ActionCard type="button" onClick={handleManageClick}>
-          <ActionIconWrap $tone="primary">
-            <ActionIcon>🏀</ActionIcon>
-          </ActionIconWrap>
-          <ActionBody>
-            <ActionTitle>매칭하기</ActionTitle>
-            <ActionSubLine>다른팀에 신청</ActionSubLine>
-          </ActionBody>
-        </ActionCard>
+      <ActionsCol>
+        <BigActionCard type="button" onClick={handleGoMatching}>
+          <BigTop>
+            <BigIconWrap>
+              <BigIcon>🏀</BigIcon>
+            </BigIconWrap>
 
-        <ActionCard type="button" onClick={handleGoMatchingRoomList}>
-          <ActionIconWrap $tone="secondary">
-            <ActionIcon>🗂️</ActionIcon>
-          </ActionIconWrap>
-          <ActionBody>
-            <ActionTitle>매칭룸</ActionTitle>
+            <BigBody>
+              <BigTitle>매칭하기</BigTitle>
+              <BigSub>다른 팀에게 연습경기 대결을 신청해요</BigSub>
+            </BigBody>
+          </BigTop>
 
-            <ActionSubLine>
-              <SubItem>
-  
-                <SubText>
-                  <SubLabel>조율중</SubLabel>
-                  <SubCount $tone="secondary">{ongoing}</SubCount>
-                </SubText>
-              </SubItem>
+          <GoPill>GO</GoPill>
+        </BigActionCard>
 
-              <SubItem>
+        <MatchRoomCard>
+          <MatchRoomHeader>
+            <MatchRoomTitle>
+              <FolderIconWrap>
+                <FolderIcon>🗂️</FolderIcon>
+              </FolderIconWrap>
+              <span>매칭룸</span>
+            </MatchRoomTitle>
 
-                <SubText>
-                  <SubLabel>확정</SubLabel>
-                  <SubCount $tone="primary">{confirmed}</SubCount>
-                </SubText>
-              </SubItem>
-            </ActionSubLine>
-          </ActionBody>
-        </ActionCard>
-      </ActionsRow>
+
+
+            <MatchRoomLinkText onClick={() => navigate("/matches/finished")}>
+              내 팀 경기 기록 보기
+            </MatchRoomLinkText>
+
+          </MatchRoomHeader>
+
+          <StatRow>
+            <StatItem type="button" onClick={() => goMatchRoomList("ongoing")}>
+              <StatLabel>조율중 경기</StatLabel>
+              <NumberBadge>
+                <NumberText>{ongoing}</NumberText>
+              </NumberBadge>
+     
+            </StatItem>
+
+            <StatItem type="button" onClick={() => goMatchRoomList("confirmed")}>
+              <StatLabel>확정된 경기</StatLabel>
+              <NumberBadge>
+                <NumberText>{confirmed}</NumberText>
+              </NumberBadge>
+   
+            </StatItem>
+
+            <StatItem type="button" onClick={() => goMatchRoomList("past")}>
+              <StatLabel>지난 경기</StatLabel>
+              <NumberBadge>
+                <NumberText>{past}</NumberText>
+              </NumberBadge>
+
+            </StatItem>
+          </StatRow>
+        </MatchRoomCard>
+      </ActionsCol>
     </SectionWrap>
   );
 }

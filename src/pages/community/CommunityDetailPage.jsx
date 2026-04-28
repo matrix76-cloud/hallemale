@@ -5,7 +5,12 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import { loadCommunityPostDetail } from "../../services/communityService";
+import {
+  loadCommunityPostDetail,
+  addCommunityComment,
+  toggleCommunityLike,
+  incrementCommunityPostViews,
+} from "../../services/communityService";
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
 
@@ -136,7 +141,7 @@ const PostContent = styled.p`
 
 const PostImageBox = styled.div`
   margin-top: 4px;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   background: #e5e7eb;
   max-height: 280px;
@@ -240,7 +245,7 @@ const CommentBubble = styled.div`
   flex: 1;
   min-width: 0;
   background: #f9fafb;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 6px 8px;
 `;
 
@@ -373,6 +378,10 @@ export default function CommunityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
+  const [commentText, setCommentText] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+
   const reload = async () => {
     setLoading(true);
     setLoadError("");
@@ -403,6 +412,58 @@ export default function CommunityDetailPage() {
       alive = false;
     };
   }, [postId, myUid]);
+
+  // ✅ 게시글 진입 시 조회수 +1 (세션당 1회)
+  useEffect(() => {
+    if (!postId) return;
+    incrementCommunityPostViews(postId).catch(() => {});
+  }, [postId]);
+
+  const handleToggleLike = async () => {
+    if (!myUid) {
+      alert("로그인 후 이용해주세요.");
+      return;
+    }
+    if (likeBusy) return;
+    setLikeBusy(true);
+    const prev = post;
+    const nextLiked = !post.likedByMe;
+    setPost({
+      ...post,
+      likedByMe: nextLiked,
+      likes: Math.max(0, (post.likes || 0) + (nextLiked ? 1 : -1)),
+    });
+    try {
+      await toggleCommunityLike({ postId, uid: myUid });
+    } catch (e) {
+      console.error("[CommunityDetailPage] like failed:", e?.message || e);
+      setPost(prev);
+      alert("좋아요 처리에 실패했습니다.");
+    } finally {
+      setLikeBusy(false);
+    }
+  };
+
+  const handleSubmitComment = async () => {
+    const text = commentText.trim();
+    if (!text) return;
+    if (!myUid) {
+      alert("로그인 후 이용해주세요.");
+      return;
+    }
+    if (submittingComment) return;
+    setSubmittingComment(true);
+    try {
+      await addCommunityComment({ postId, authorUid: myUid, content: text });
+      setCommentText("");
+      await reload();
+    } catch (e) {
+      console.error("[CommunityDetailPage] comment failed:", e?.message || e);
+      alert("댓글 등록에 실패했습니다.");
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -480,7 +541,8 @@ export default function CommunityDetailPage() {
             <LikeButton
               type="button"
               liked={post.likedByMe}
-              onClick={() => alert("좋아요 토글은 추후 API 연동 예정입니다.")}
+              onClick={handleToggleLike}
+              disabled={likeBusy}
             >
               <span>{post.likedByMe ? "♥" : "♡"}</span>
               <ActionText>좋아요</ActionText>
@@ -545,12 +607,24 @@ export default function CommunityDetailPage() {
       </Inner>
 
       <CommentInputBar>
-        <CommentInput placeholder="댓글을 입력하세요 (목업)" />
+        <CommentInput
+          placeholder="댓글을 입력하세요"
+          value={commentText}
+          onChange={(e) => setCommentText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
+              e.preventDefault();
+              handleSubmitComment();
+            }
+          }}
+          disabled={submittingComment}
+        />
         <CommentSendButton
           type="button"
-          onClick={() => alert("댓글 작성은 추후 API 연동 예정입니다.")}
+          onClick={handleSubmitComment}
+          disabled={!commentText.trim() || submittingComment}
         >
-          등록
+          {submittingComment ? "등록중" : "등록"}
         </CommentSendButton>
       </CommentInputBar>
     </PageWrap>

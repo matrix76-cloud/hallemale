@@ -6,6 +6,7 @@ import { Outlet } from "react-router-dom";
 
 const Wrap = styled.div`
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   background: ${({ theme }) => theme.colors.bg};
   display: flex;
@@ -16,10 +17,13 @@ const Card = styled.div`
   width: 100%;
   max-width: 420px;
   background: ${({ theme }) => theme.colors.card};
-  /* 피그마처럼 전체 화면 카드 느낌 */
   border-radius: 0;
-  padding: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
   min-height: 100vh;
+  min-height: 100dvh;
 
   display: flex;
   flex-direction: column;

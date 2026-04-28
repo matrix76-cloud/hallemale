@@ -4,7 +4,7 @@
 // - ✅ SSOT: pending/accepted/proposed/confirmed/cancelled/finished
 // - ✅ 결과 흐름:
 //   - submitResult: status=confirmed 유지 + resultState=waiting_accept (상대 승인 대기)
-//   - acceptResult: resultState=confirmed + status=finished + clubs.stats 트랜잭션 반영(중복 방지)
+//   - acceptResult: resultState=confirmed + status=finished + clubs.stats + users.stats 트랜잭션 반영(중복 방지)
 // - ✅ 사진/코멘트: match_requests.result.{comment, photoUrls, submittedByClubId, submittedAt} 저장
 
 import { db } from "./firebase";
@@ -19,6 +19,10 @@ import {
   updateDoc,
   serverTimestamp,
   runTransaction,
+  orderBy,
+  startAfter,
+  documentId,
+  addDoc,
 } from "firebase/firestore";
 import { uploadCompressedImageMedia } from "./mediaService";
 
@@ -46,6 +50,19 @@ function uniqById(list) {
     map[id] = x;
   }
   return Object.values(map);
+}
+
+function uniqStr(list) {
+  const out = [];
+  const seen = new Set();
+  (Array.isArray(list) ? list : []).forEach((x) => {
+    const v = toStr(x);
+    if (!v) return;
+    if (seen.has(v)) return;
+    seen.add(v);
+    out.push(v);
+  });
+  return out;
 }
 
 function normalizeRoomStatus(matchReqStatus) {
@@ -156,6 +173,81 @@ async function safeGetClubTeamSummary(clubId) {
   } catch (e) {
     return null;
   }
+}
+
+/* ========================= lineup helpers (SSOT) ========================= */
+
+function parseMatchSizeKeyToLimit(matchSizeKey) {
+  const k = toStr(matchSizeKey).toLowerCase();
+  const m = k.match(/^(\d+)\s*v\s*\d+$/);
+  if (m && m[1]) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n > 0) return Math.min(Math.max(n, 1), 20);
+  }
+  return null;
+}
+
+function pickPreviewMembersFromUsers(usersById, memberIds, limit) {
+  const ids = Array.isArray(memberIds) ? memberIds : [];
+  const take = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : ids.length;
+
+  const out = [];
+  for (let i = 0; i < ids.length && out.length < take; i += 1) {
+    const uid = toStr(ids[i]);
+    if (!uid) continue;
+    const u = usersById[uid] || null;
+    if (!u) {
+      out.push({
+        userId: uid,
+        nickname: "선수",
+        photoUrl: "",
+        mainPosition: "",
+      });
+      continue;
+    }
+    out.push({
+      userId: uid,
+      nickname: toStr(u.nickname) || "선수",
+      photoUrl: toStr(u.avatarUrl),
+      mainPosition: toStr(u.mainPosition),
+    });
+  }
+  return out;
+}
+
+/**
+ * ✅ 라인업 스냅샷 정합성 강제(저장 시 사용)
+ * - memberIds SSOT
+ * - memberCount = memberIds.length
+ * - previewMembers = memberIds 기준(최대 matchSize 인원)
+ *
+ * @param {object} args
+ * @param {string[]} args.memberIds
+ * @param {string} args.matchSizeKey
+ * @param {object} args.usersById  // { [uid]: usersDocData }
+ * @param {string} args.id
+ * @param {string} args.name
+ */
+export function buildLineupSnapshotSSOT({
+  memberIds = [],
+  matchSizeKey = "",
+  usersById = {},
+  id = "",
+  name = "",
+} = {}) {
+  const ids = uniqStr(memberIds);
+  const limit = parseMatchSizeKeyToLimit(matchSizeKey) || ids.length;
+
+  const previewMembers = pickPreviewMembersFromUsers(usersById, ids, limit);
+
+  return {
+    id: toStr(id) || "",
+    name: toStr(name) || "",
+    matchSizeKey: toStr(matchSizeKey) || "",
+    memberIds: ids,
+    memberCount: ids.length,
+    previewMembers,
+  };
 }
 
 /* ========================= list loader ========================= */
@@ -308,6 +400,7 @@ function normalizeLineupSnapshot(snap) {
     id: toStr(s.id),
     matchSizeKey: toStr(s.matchSizeKey),
     memberCount: safeNum(s.memberCount, players.length),
+    memberIds: Array.isArray(s.memberIds) ? s.memberIds.map((x) => toStr(x)).filter(Boolean) : [],
     players,
   };
 }
@@ -454,16 +547,26 @@ export async function submitMatchResultWithMedia({
   comment = "",
   files = [],
   submittedByClubId,
+
+  // ✅ 추가: 작성자 메타(선택)
+  authorUid = "",
+  authorName = "",
+  authorRole = "", // "owner" | "member" 등 (선택)
 } = {}) {
   const id = toStr(matchRequestId);
   const by = toStr(submittedByClubId);
+
+  const auid = toStr(authorUid);
+  const aname = toStr(authorName);
+  const arole = toStr(authorRole);
 
   if (!id) throw new Error("submitMatchResultWithMedia: matchRequestId is required");
   if (!by) throw new Error("submitMatchResultWithMedia: submittedByClubId is required");
 
   const as = safeNum(actorScore, NaN);
   const ts = safeNum(targetScore, NaN);
-  if (!Number.isFinite(as) || !Number.isFinite(ts)) throw new Error("submitMatchResultWithMedia: scores are required");
+  if (!Number.isFinite(as) || !Number.isFinite(ts))
+    throw new Error("submitMatchResultWithMedia: scores are required");
 
   const cleanComment = String(comment || "").trim();
 
@@ -494,8 +597,8 @@ export async function submitMatchResultWithMedia({
 
   await updateDoc(ref, {
     // score SSOT
-    myScore: as,   // actorScore
-    oppScore: ts,  // targetScore
+    myScore: as, // actorScore
+    oppScore: ts, // targetScore
 
     // ✅ confirmed 상태 유지(확정된 게임에서 결과 입력)
     status: "confirmed",
@@ -503,6 +606,12 @@ export async function submitMatchResultWithMedia({
 
     result: {
       submittedByClubId: by,
+
+      // ✅ 작성자 메타 (있으면 저장, 없으면 빈값)
+      authorUid: auid,
+      authorName: aname,
+      authorRole: arole,
+
       comment: cleanComment,
       photoUrls: uploadedUrls,
       submittedAt: serverTimestamp(),
@@ -516,7 +625,52 @@ export async function submitMatchResultWithMedia({
 
 /* ========================= result + stats (client transaction) ========================= */
 
-// ✅ 결과 인정 + clubs.stats 트랜잭션 반영(중복 방지 statsAppliedAt)
+function normalizeRecentArray(list) {
+  const arr = Array.isArray(list) ? list : [];
+  return arr
+    .map((x) => {
+      const v = toStr(x).toUpperCase();
+      if (v === "W" || v === "L" || v === "D") return v;
+      return "";
+    })
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function computeNextStats(prevStats, nextResult) {
+  const prev = prevStats && typeof prevStats === "object" ? prevStats : {};
+  const wins = safeNum(prev.wins, 0) + (nextResult === "W" ? 1 : 0);
+  const losses = safeNum(prev.losses, 0) + (nextResult === "L" ? 1 : 0);
+  const draws = safeNum(prev.draws, 0) + (nextResult === "D" ? 1 : 0);
+  const prevTotal = safeNum(prev.totalMatches, safeNum(prev.wins, 0) + safeNum(prev.losses, 0) + safeNum(prev.draws, 0));
+  const totalMatches = prevTotal + 1;
+  const winRate = totalMatches > 0 ? wins / totalMatches : 0;
+
+  const recent = normalizeRecentArray(prev.recentResults);
+  const recentResults = [nextResult, ...recent].slice(0, 5);
+
+  return { wins, losses, draws, totalMatches, winRate, recentResults };
+}
+
+function extractMemberIdsStrict(lineupSnap, labelForLog) {
+  const snap = lineupSnap && typeof lineupSnap === "object" ? lineupSnap : {};
+  const ids = Array.isArray(snap.memberIds) ? snap.memberIds.map((x) => toStr(x)).filter(Boolean) : [];
+  if (ids.length > 0) return uniqStr(ids);
+
+  const preview = Array.isArray(snap.previewMembers) ? snap.previewMembers : [];
+  const legacy = preview.map((m) => toStr(m?.userId || m?.uid || m?.id)).filter(Boolean);
+  if (legacy.length > 0) {
+    console.warn(
+      `[matchRoomService][acceptMatchResult] lineup.memberIds missing -> using previewMembers as legacy source (${labelForLog}). ` +
+        `PLEASE FIX lineup writer to always set memberIds.`
+    );
+    return uniqStr(legacy);
+  }
+
+  return [];
+}
+
+// ✅ 결과 인정 + clubs.stats + users.stats 트랜잭션 반영(중복 방지 statsAppliedAt)
 // - 승인되면 status=finished 로 내려감 (지난 게임 탭)
 export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = {}) {
   const id = toStr(matchRequestId);
@@ -528,11 +682,15 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
   const mrRef = doc(db, "match_requests", id);
 
   await runTransaction(db, async (tx) => {
+    // =========================
+    // 0) READS (무조건 먼저 전부)
+    // =========================
     const mrSnap = await tx.get(mrRef);
     if (!mrSnap.exists()) throw new Error("매칭 정보를 찾을 수 없습니다.");
 
     const mr = mrSnap.data() || {};
 
+    // 이미 적용된 케이스면 mr만 마무리(추가 READ 없음)
     if (mr.statsAppliedAt) {
       tx.update(mrRef, {
         resultState: "confirmed",
@@ -571,10 +729,41 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
     const targetRef = doc(db, "clubs", targetClubId);
 
     const [aClubSnap, tClubSnap] = await Promise.all([tx.get(actorRef), tx.get(targetRef)]);
-
     const aClub = aClubSnap.exists() ? aClubSnap.data() || {} : {};
     const tClub = tClubSnap.exists() ? tClubSnap.data() || {} : {};
 
+    // users.stats 업데이트 대상 uid 수집 (READ만)
+    const fromLineup = mr.fromLineupSnapshot || null;
+    const toLineup = mr.toLineupSnapshot || null;
+
+    const actorMemberIds = extractMemberIdsStrict(fromLineup, "fromLineupSnapshot(actor)");
+    const targetMemberIds = extractMemberIdsStrict(toLineup, "toLineupSnapshot(target)");
+
+    if (!actorMemberIds.length || !targetMemberIds.length) {
+      console.warn(
+        "[matchRoomService][acceptMatchResult] memberIds missing/empty. " +
+          "users.stats will be partially applied. " +
+          "actorMemberIds=",
+        actorMemberIds,
+        "targetMemberIds=",
+        targetMemberIds
+      );
+    }
+
+    const allUserIds = uniqStr([...(actorMemberIds || []), ...(targetMemberIds || [])]);
+    const userRefs = allUserIds.map((uid) => ({ uid, ref: doc(db, "users", uid) }));
+    const userSnaps = await Promise.all(userRefs.map((x) => tx.get(x.ref)));
+
+    const userDataById = {};
+    for (let i = 0; i < userRefs.length; i += 1) {
+      const uid = userRefs[i].uid;
+      const snap = userSnaps[i];
+      userDataById[uid] = snap && snap.exists() ? snap.data() || {} : null;
+    }
+
+    // =========================
+    // 1) COMPUTE (메모리에서만)
+    // =========================
     const aStats = aClub.stats || {};
     const tStats = tClub.stats || {};
 
@@ -593,12 +782,36 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
     const aWinRate = aTotal > 0 ? aWins / aTotal : 0;
     const tWinRate = tTotal > 0 ? tWins / tTotal : 0;
 
-    const aRecent = Array.isArray(aStats.recentResults) ? aStats.recentResults : [];
-    const tRecent = Array.isArray(tStats.recentResults) ? tStats.recentResults : [];
+    const aRecent = normalizeRecentArray(aStats.recentResults);
+    const tRecent = normalizeRecentArray(tStats.recentResults);
 
     const nextARecent = [actorResult, ...aRecent].slice(0, 5);
     const nextTRecent = [targetResult, ...tRecent].slice(0, 5);
 
+    // users별 next stats 계산도 메모리에서 미리
+    const nextUserStatsById = {};
+    actorMemberIds.forEach((uid) => {
+      const u = userDataById[uid];
+      const prevStats = u && typeof u === "object" ? u.stats : null;
+      nextUserStatsById[uid] = {
+        prevStats: prevStats && typeof prevStats === "object" ? prevStats : {},
+        next: computeNextStats(prevStats, actorResult),
+      };
+    });
+    targetMemberIds.forEach((uid) => {
+      const u = userDataById[uid];
+      const prevStats = u && typeof u === "object" ? u.stats : null;
+      nextUserStatsById[uid] = {
+        prevStats: prevStats && typeof prevStats === "object" ? prevStats : {},
+        next: computeNextStats(prevStats, targetResult),
+      };
+    });
+
+    // =========================
+    // 2) WRITES (여기부터는 tx.get 절대 금지)
+    // =========================
+
+    // clubs.stats 업데이트
     tx.set(
       actorRef,
       {
@@ -635,6 +848,27 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
       { merge: true }
     );
 
+    // users.stats 업데이트
+    allUserIds.forEach((uid) => {
+      const pack = nextUserStatsById[uid];
+      if (!pack) return;
+
+      const uRef = doc(db, "users", uid);
+      tx.set(
+        uRef,
+        {
+          stats: {
+            ...(pack.prevStats || {}),
+            ...(pack.next || {}),
+            updatedAt: serverTimestamp(),
+          },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
+
+    // match_requests 마무리
     tx.update(mrRef, {
       resultState: "confirmed",
       status: "finished",
@@ -645,8 +879,40 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
     });
   });
 
+  // ✅ 결과 확정 알림 (양 팀)
+  try {
+    const mrSnap = await getDoc(mrRef);
+    const mr = mrSnap.exists() ? mrSnap.data() || {} : {};
+    const aClubId = toStr(mr.actorClubId);
+    const tClubId = toStr(mr.targetClubId);
+    const teamIds = [aClubId, tClubId].filter(Boolean);
+    if (teamIds.length) {
+      await addDoc(collection(db, "notifications"), {
+        kind: "match",
+        subType: "matchResultConfirmed",
+        type: "match_result_confirmed",
+        title: "경기 결과가 확정되었어요",
+        body: "경기 결과가 양 팀 모두 확정되었습니다.",
+        targetType: "TEAM",
+        targetIds: teamIds,
+        actorClubId: confirmer,
+        linkType: "match",
+        linkTargetId: id,
+        meta: { matchId: id, deepLink: `/matchroom/${id}` },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "match",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        readBy: {},
+      });
+    }
+  } catch (e) {
+    console.warn("[match] result-confirmed notification failed:", e?.message || e);
+  }
+
   return true;
 }
+
 
 export async function disputeMatchResult({ matchRequestId }) {
   const id = toStr(matchRequestId);
@@ -660,4 +926,320 @@ export async function disputeMatchResult({ matchRequestId }) {
   });
 
   return true;
+}
+
+// ✅ 결과에 코멘트 추가(append)
+// - 기존 result.comment 뒤에 구분선 + 새 코멘트가 붙음
+export async function appendMatchResultComment({
+  matchRequestId,
+  comment = "",
+  submittedByClubId,
+  authorUid = "",
+  authorName = "",
+  authorRole = "",
+} = {}) {
+  const id = toStr(matchRequestId);
+  const by = toStr(submittedByClubId);
+  const clean = String(comment || "").trim();
+
+  if (!id) throw new Error("appendMatchResultComment: matchRequestId is required");
+  if (!by) throw new Error("appendMatchResultComment: submittedByClubId is required");
+  if (!clean) throw new Error("appendMatchResultComment: comment is required");
+
+  const auid = toStr(authorUid);
+  const aname = toStr(authorName);
+  const arole = toStr(authorRole);
+
+  const ref = doc(db, "match_requests", id);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("매칭 정보를 찾을 수 없습니다.");
+
+    const mr = snap.data() || {};
+    const prevResult = mr.result && typeof mr.result === "object" ? mr.result : {};
+    const prevComment = String(prevResult.comment || "").trim();
+
+    const metaLine = `[추가 기록] ${aname ? aname : "참가자"} · ${by}`;
+    const nextChunk = `${metaLine}\n${clean}`;
+
+    const nextComment = prevComment ? `${prevComment}\n\n${nextChunk}` : nextChunk;
+
+    tx.update(ref, {
+      result: {
+        ...prevResult,
+        submittedByClubId: prevResult.submittedByClubId || by,
+        authorUid: auid || prevResult.authorUid || "",
+        authorName: aname || prevResult.authorName || "",
+        authorRole: arole || prevResult.authorRole || "",
+        comment: nextComment,
+      },
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  return true;
+}
+
+// ✅ 결과에 사진 추가(append)
+// - 기존 result.photoUrls 뒤에 업로드된 사진 URL을 덧붙임
+export async function appendMatchResultPhotos({
+  matchRequestId,
+  files = [],
+  submittedByClubId,
+  authorUid = "",
+  authorName = "",
+  authorRole = "",
+} = {}) {
+  const id = toStr(matchRequestId);
+  const by = toStr(submittedByClubId);
+
+  if (!id) throw new Error("appendMatchResultPhotos: matchRequestId is required");
+  if (!by) throw new Error("appendMatchResultPhotos: submittedByClubId is required");
+
+  const fileList = Array.isArray(files) ? files.filter(Boolean) : [];
+  if (!fileList.length) throw new Error("appendMatchResultPhotos: files are required");
+
+  const auid = toStr(authorUid);
+  const aname = toStr(authorName);
+  const arole = toStr(authorRole);
+
+  const uploadedUrls = [];
+  const uploaded = await Promise.all(
+    fileList.slice(0, 6).map(async (file) => {
+      const res = await uploadCompressedImageMedia({
+        scope: "match_requests",
+        ownerId: id,
+        file,
+        kind: "result",
+      });
+      return res?.url || "";
+    })
+  );
+
+  uploaded.forEach((u) => {
+    const url = toStr(u);
+    if (url) uploadedUrls.push(url);
+  });
+
+  const ref = doc(db, "match_requests", id);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("매칭 정보를 찾을 수 없습니다.");
+
+    const mr = snap.data() || {};
+    const prevResult = mr.result && typeof mr.result === "object" ? mr.result : {};
+    const prevUrls = Array.isArray(prevResult.photoUrls) ? prevResult.photoUrls : [];
+
+    const nextUrls = [...prevUrls, ...uploadedUrls].slice(0, 30);
+
+    tx.update(ref, {
+      result: {
+        ...prevResult,
+        submittedByClubId: prevResult.submittedByClubId || by,
+        authorUid: auid || prevResult.authorUid || "",
+        authorName: aname || prevResult.authorName || "",
+        authorRole: arole || prevResult.authorRole || "",
+        photoUrls: nextUrls,
+      },
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  return { ok: true, photoUrls: uploadedUrls };
+}
+
+/* ========================= finished feed helpers ========================= */
+function mapFinishedDoc(d) {
+  const data = d.data() || {};
+  const fromTeam = data?.fromTeamSnapshot || {};
+  const toTeam = data?.toTeamSnapshot || {};
+
+  return {
+    id: d.id,
+    status: toStr(data?.status),
+
+    actorClubId: toStr(data?.actorClubId),
+    targetClubId: toStr(data?.targetClubId),
+
+    scheduledAt: data?.scheduledAt || null,
+    updatedAt: data?.updatedAt || null,
+
+    fieldAddress: toStr(data?.field?.address || data?.fieldAddress || ""),
+
+    actorScore: data?.myScore ?? null,
+    targetScore: data?.oppScore ?? null,
+
+    actorTeam: {
+      clubId: toStr(fromTeam?.clubId || fromTeam?.id),
+      name: toStr(fromTeam?.name) || "팀",
+      logoUrl: toStr(fromTeam?.logoUrl || ""),
+      region: toStr(fromTeam?.region),
+      regionSido: toStr(fromTeam?.regionSido),
+      regionGu: toStr(fromTeam?.regionGu),
+    },
+    targetTeam: {
+      clubId: toStr(toTeam?.clubId || toTeam?.id),
+      name: toStr(toTeam?.name) || "팀",
+      logoUrl: toStr(toTeam?.logoUrl || ""),
+      region: toStr(toTeam?.region),
+      regionSido: toStr(toTeam?.regionSido),
+      regionGu: toStr(toTeam?.regionGu),
+    },
+
+    result: data?.result && typeof data.result === "object" ? data.result : null,
+  };
+}
+
+/* ========================= finished feed ========================= */
+// ✅ finished 경기 피드
+// - status == "finished"
+// - clubId 지정 시: 해당 팀이 actor 또는 target 인 경기만 (두 쿼리 병합)
+// - 미지정 시: 전체 (기존 동작)
+export async function listFinishedMatchesPage({ pageSize = 20, cursor = null, clubId = "", debugLog = false } = {}) {
+  const size = Number(pageSize);
+  const take = Number.isFinite(size) && size > 0 ? Math.min(size, 50) : 20;
+  const myClubId = toStr(clubId);
+
+  const col = collection(db, "match_requests");
+
+  // 내 팀 필터: actor/target 두 쿼리 병합 후 클라이언트 정렬
+  if (myClubId) {
+    const buildQ = (field) => {
+      const base = [
+        where("status", "==", "finished"),
+        where(field, "==", myClubId),
+        orderBy("updatedAt", "desc"),
+        orderBy(documentId(), "desc"),
+      ];
+      const c = cursor?.[field];
+      return c?.updatedAt && c?.id
+        ? query(col, ...base, startAfter(c.updatedAt, c.id), limit(take))
+        : query(col, ...base, limit(take));
+    };
+
+    try {
+      const [snapA, snapT] = await Promise.all([getDocs(buildQ("actorClubId")), getDocs(buildQ("targetClubId"))]);
+      const docsA = snapA?.docs || [];
+      const docsT = snapT?.docs || [];
+
+      const seen = new Set();
+      const merged = [];
+      [...docsA, ...docsT].forEach((d) => {
+        if (seen.has(d.id)) return;
+        seen.add(d.id);
+        merged.push(d);
+      });
+
+      // updatedAt desc 정렬
+      merged.sort((a, b) => {
+        const ua = a.data()?.updatedAt || "";
+        const ub = b.data()?.updatedAt || "";
+        if (ua === ub) return a.id < b.id ? 1 : -1;
+        return ua < ub ? 1 : -1;
+      });
+
+      const sliced = merged.slice(0, take);
+      const rows = sliced.map(mapFinishedDoc);
+
+      const lastA = docsA[docsA.length - 1];
+      const lastT = docsT[docsT.length - 1];
+      const nextCursor =
+        docsA.length < take && docsT.length < take
+          ? null
+          : {
+              actorClubId: lastA ? { updatedAt: lastA.data()?.updatedAt || null, id: lastA.id } : null,
+              targetClubId: lastT ? { updatedAt: lastT.data()?.updatedAt || null, id: lastT.id } : null,
+            };
+
+      return { rows, nextCursor };
+    } catch (e) {
+      const err = new Error(e?.message || "Firestore query failed");
+      err.code = e?.code || "";
+      throw err;
+    }
+  }
+
+  const base = [
+    where("status", "==", "finished"),
+    orderBy("updatedAt", "desc"),
+    orderBy(documentId(), "desc"),
+  ];
+
+  const qFinal =
+    cursor && cursor.updatedAt && cursor.id
+      ? query(col, ...base, startAfter(cursor.updatedAt, cursor.id), limit(take))
+      : query(col, ...base, limit(take));
+
+  const cursorLog = cursor ? { updatedAt: cursor.updatedAt || null, id: cursor.id || null } : null;
+
+  console.groupCollapsed("[listFinishedMatchesPage] START");
+  console.log("take:", take);
+  console.log("cursor:", cursorLog);
+  console.log("debugLog:", !!debugLog);
+  console.groupEnd();
+
+  const withTimeout = async (p, ms = 5000) => {
+    let t;
+    const timeout = new Promise((_, rej) => {
+      t = setTimeout(() => rej(new Error(`getDocs timeout after ${ms}ms`)), ms);
+    });
+    try {
+      const res = await Promise.race([p, timeout]);
+      return res;
+    } finally {
+      try {
+        clearTimeout(t);
+      } catch (e) {}
+    }
+  };
+
+  try {
+    console.log("[listFinishedMatchesPage] before getDocs");
+    const snap = await withTimeout(getDocs(qFinal), 8000);
+    console.log("[listFinishedMatchesPage] after getDocs");
+
+    const docs = snap?.docs || [];
+    console.log("[listFinishedMatchesPage] docs.length =", docs.length);
+
+    if (docs[0]) {
+      const d0 = docs[0];
+      const data0 = d0.data() || {};
+      console.log("[listFinishedMatchesPage] first.id:", d0.id);
+      console.log("[listFinishedMatchesPage] first.status:", data0?.status);
+      console.log("[listFinishedMatchesPage] first.updatedAt:", data0?.updatedAt);
+    }
+
+    if (debugLog) {
+      console.groupCollapsed("[listFinishedMatchesPage] OK(detail)");
+      console.log("take:", take);
+      console.log("cursor:", cursorLog);
+      console.log("docs.length:", docs.length);
+      console.groupEnd();
+    }
+
+    const rows = docs.map(mapFinishedDoc);
+
+    const last = docs[docs.length - 1] || null;
+    const nextCursor = last ? { updatedAt: last.data()?.updatedAt || null, id: last.id } : null;
+
+    console.log("[listFinishedMatchesPage] DONE -> rows:", rows.length, "nextCursor:", nextCursor);
+    return { rows, nextCursor };
+  } catch (e) {
+    const code = e?.code || "";
+    const msg = e?.message || String(e || "");
+
+    console.groupCollapsed("[listFinishedMatchesPage] FAILED");
+    console.log("code:", code);
+    console.log("message:", msg);
+    console.log("take:", take);
+    console.log("cursor:", cursorLog);
+    console.log("rawError:", e);
+    console.groupEnd();
+
+    const err = new Error(msg || "Firestore query failed");
+    err.code = code;
+    throw err;
+  }
 }

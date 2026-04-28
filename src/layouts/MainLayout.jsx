@@ -11,6 +11,7 @@ import useMatchBadgeCount from "../hooks/useMatchBadgeCount";
 
 const Wrap = styled.div`
   min-height: 100vh;
+  min-height: 100dvh;
   background: ${({ theme }) => theme.colors.bg};
   display: flex;
   flex-direction: column;
@@ -25,7 +26,7 @@ const Main = styled.main`
 const ToastWrap = styled.div`
   position: fixed;
   left: 50%;
-  bottom: 80px;
+  bottom: calc(80px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   background: rgba(17, 24, 39, 0.9);
   color: #ffffff;
@@ -49,7 +50,7 @@ const ModalCard = styled.div`
   width: 88%;
   max-width: 360px;
   background: ${({ theme }) => theme.colors.card};
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 20px 18px;
   box-shadow: ${({ theme }) => theme.shadows.card};
 `;
@@ -76,9 +77,9 @@ const SheetWrap = styled.div`
   right: 0;
   bottom: 0;
   background: ${({ theme }) => theme.colors.card};
-  border-radius: 16px 16px 0 0;
+  border-radius: 8px 16px 0 0;
   box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.12);
-  padding: 16px;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
   z-index: 950;
 `;
 
@@ -87,7 +88,6 @@ export default function MainLayout({ hideHeader = false }) {
   const navigate = useNavigate();
   const { toast, modal, hideModal, bottomSheet, hideBottomSheet, globalLoading } = useUI();
 
-  // ✅ 매칭 배지 카운트(팀단위 notifications)
   const { count: matchingCount, refresh: refreshMatchBadge, uid, clubId } = useMatchBadgeCount();
 
   const path = location.pathname || "/";
@@ -96,9 +96,12 @@ export default function MainLayout({ hideHeader = false }) {
   const getTitle = () => {
     if (p.startsWith("/home")) return "할래말래";
     if (p.startsWith("/matchingmanage")) return "할래말래 매칭관리";
-    if (p === "/matching") return "매칭하기	";
+    if (p === "/matching") return "매칭하기";
     if (p === "/match-roomlist") return "매칭룸";
     if (p.startsWith("/match-roomdetail")) return "매칭공간";
+
+    // ✅ 새 페이지 타이틀
+    if (p === "/matches/finished") return "내 팀 경기 기록";
 
     if (p.startsWith("/matching/analysis")) return "AI 분석";
 
@@ -164,7 +167,9 @@ export default function MainLayout({ hideHeader = false }) {
     p === "/terms" ||
     p === "/privacy" ||
     p === "/impact" ||
-    p.startsWith("/settings/");
+    p.startsWith("/settings/") ||
+    // ✅ 새 페이지 back
+    p === "/matches/finished";
 
   const isFullScreenPage =
     p.startsWith("/team") ||
@@ -181,7 +186,6 @@ export default function MainLayout({ hideHeader = false }) {
 
   const title = getTitle();
 
-  // ✅ 매칭관리 화면 들어가면 배지 갱신 한 번(읽음 처리 후 0 반영 빠르게)
   useEffect(() => {
     if (!refreshMatchBadge) return;
     if (!uid || !clubId) return;
@@ -205,11 +209,7 @@ export default function MainLayout({ hideHeader = false }) {
       </Main>
 
       {!hideHeader && !showBack && (
-        <BottomTabBar
-          currentPath={location.pathname}
-          onNavigate={navigate}
-          matchingCount={matchingCount}
-        />
+        <BottomTabBar currentPath={location.pathname} onNavigate={navigate} matchingCount={matchingCount} />
       )}
 
       {toast && <ToastWrap>{toast.message}</ToastWrap>}
@@ -236,9 +236,7 @@ export default function MainLayout({ hideHeader = false }) {
 
       {bottomSheet && (
         <ModalOverlay onClick={hideBottomSheet}>
-          <SheetWrap onClick={(e) => e.stopPropagation()}>
-            {bottomSheet()}
-          </SheetWrap>
+          <SheetWrap onClick={(e) => e.stopPropagation()}>{bottomSheet()}</SheetWrap>
         </ModalOverlay>
       )}
 

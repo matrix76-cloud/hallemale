@@ -1,142 +1,161 @@
 // src/pages/my/MyPersonalMatchesPage.jsx
 /* eslint-disable */
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { FiArrowLeft } from "react-icons/fi";
 import { images } from "../../utils/imageAssets";
-import { TEAMS } from "../../mock/teamsMock";
-import SubHeaderBar from "../../layouts/components/SubHeaderBar";
+import { useClub } from "../../hooks/useClub";
+import { loadMatchRoomListPageData } from "../../services/matchRoomService";
+import Spinner from "../../components/common/Spinner";
 
 /**
  * 개인 활동 경기 목록 페이지
- * - 픽업게임, 개인 참가 경기 기록
+ * - 내 팀이 참여하고 종료된 경기 (status=finished) 중심
  */
 
-const dummyPersonalMatches = [
-  {
-    id: "pm-1",
-    myTeamId: "cheongcho_tigers",
-    oppTeamId: "deokso_eagles",
-    date: "2025.11.21 (금)",
-    time: "19:00",
-    place: "덕소 체육관 A코트",
-    result: "win",
-    score: "68 : 62",
-    status: "done",
-  },
-  {
-    id: "pm-2",
-    myTeamId: "cheongcho_tigers",
-    oppTeamId: "li_lion",
-    date: "2025.11.15 (토)",
-    time: "17:00",
-    place: "마포 실내체육관 B코트",
-    result: "lose",
-    score: "54 : 60",
-    status: "done",
-  },
-  {
-    id: "pm-3",
-    myTeamId: "cheongcho_tigers",
-    oppTeamId: "shinchon_sharks",
-    date: "2025.11.10 (월)",
-    time: "20:00",
-    place: "신촌 실내 코트",
-    result: "none",
-    score: "-",
-    status: "cancelled",
-  },
-];
+const formatDateTime = (iso) => {
+  if (!iso) return { date: "", time: "" };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { date: "", time: "" };
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const day = dayNames[d.getDay()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return { date: `${yyyy}.${mm}.${dd} (${day})`, time: `${hh}:${mi}` };
+};
 
-function findTeamById(id) {
-  return TEAMS.find((t) => t.clubId === id) || TEAMS[0];
-}
+const resolveResult = (myScore, oppScore) => {
+  const a = Number(myScore);
+  const b = Number(oppScore);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return "none";
+  if (a > b) return "win";
+  if (a < b) return "lose";
+  return "draw";
+};
 
 export default function MyPersonalMatchesPage() {
   const navigate = useNavigate();
-  const handleBack = () => navigate(-1);
+  const { club } = useClub();
+  const myClubId = String(club?.clubId || club?.id || "").trim();
+
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+
+    if (!myClubId) {
+      setRooms([]);
+      setLoading(false);
+      return () => {};
+    }
+
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const { rooms: list } = await loadMatchRoomListPageData(myClubId);
+        if (!alive) return;
+        setRooms(Array.isArray(list) ? list : []);
+      } catch (e) {
+        if (!alive) return;
+        setError(e?.message || "경기 기록을 불러오지 못했습니다.");
+        setRooms([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [myClubId]);
+
+  const view = useMemo(() => {
+    return (rooms || [])
+      .filter((r) => r.status === "finished")
+      .map((r) => {
+        const { date, time } = formatDateTime(r.scheduledAt);
+        const result = resolveResult(r.myScore, r.oppScore);
+        return {
+          id: r.id,
+          myTeamName: r?.myTeam?.name || "내 팀",
+          myLogo: r?.myTeam?.logoUrl || images.logo,
+          oppTeamName: r?.oppTeam?.name || "상대 팀",
+          oppLogo: r?.oppTeam?.logoUrl || images.logo,
+          date,
+          time,
+          place: r.fieldAddress || "-",
+          status: r.status,
+          result,
+          score: r.myScore != null && r.oppScore != null ? `${r.myScore} : ${r.oppScore}` : "-",
+        };
+      });
+  }, [rooms]);
 
   const handleClickMatch = (id) => {
-    // TODO: 상세 페이지로 이동
-    console.log("go personal match detail:", id);
+    if (!id) return;
+    navigate(`/match-roomdetail/${id}`);
   };
 
   return (
     <PageWrap>
-
-
       <Inner>
-        {dummyPersonalMatches.length === 0 ? (
+        {loading ? (
+          <CenterBox>
+            <Spinner />
+          </CenterBox>
+        ) : error ? (
+          <EmptyWrap>{error}</EmptyWrap>
+        ) : view.length === 0 ? (
           <EmptyWrap>아직 기록된 개인 활동 경기가 없습니다.</EmptyWrap>
         ) : (
           <MatchList>
-            {dummyPersonalMatches.map((m) => {
-              const myTeam = findTeamById(m.myTeamId);
-              const oppTeam = findTeamById(m.oppTeamId);
+            {view.map((m) => (
+              <MatchCard key={m.id} type="button" onClick={() => handleClickMatch(m.id)}>
+                <TopRow>
+                  <TeamRow>
+                    <TeamSide>
+                      <TeamLogoWrap>
+                        <TeamLogo src={m.myLogo} alt={m.myTeamName} />
+                      </TeamLogoWrap>
+                      <TeamName>{m.myTeamName}</TeamName>
+                    </TeamSide>
+                    <VsText>VS</VsText>
+                    <TeamSide style={{ justifyContent: "flex-end" }}>
+                      <TeamName style={{ textAlign: "right" }}>{m.oppTeamName}</TeamName>
+                      <TeamLogoWrap>
+                        <TeamLogo src={m.oppLogo} alt={m.oppTeamName} />
+                      </TeamLogoWrap>
+                    </TeamSide>
+                  </TeamRow>
+                </TopRow>
 
-              return (
-                <MatchCard
-                  key={m.id}
-                  type="button"
-                  onClick={() => handleClickMatch(m.id)}
-                >
-                  <TopRow>
-                    <TeamRow>
-                      <TeamSide>
-                        <TeamLogoWrap>
-                          <TeamLogo
-                            src={images[myTeam.logoKey] || images.logo}
-                            alt={myTeam.name}
-                          />
-                        </TeamLogoWrap>
-                        <TeamName>{myTeam.name}</TeamName>
-                      </TeamSide>
-                      <VsText>VS</VsText>
-                      <TeamSide style={{ justifyContent: "flex-end" }}>
-                        <TeamName style={{ textAlign: "right" }}>
-                          {oppTeam.name}
-                        </TeamName>
-                        <TeamLogoWrap>
-                          <TeamLogo
-                            src={images[oppTeam.logoKey] || images.logo}
-                            alt={oppTeam.name}
-                          />
-                        </TeamLogoWrap>
-                      </TeamSide>
-                    </TeamRow>
-                  </TopRow>
+                <MiddleRow>
+                  <InfoCol>
+                    <InfoLabel>경기 일시</InfoLabel>
+                    <InfoValue>
+                      {m.date} {m.time}
+                    </InfoValue>
+                  </InfoCol>
+                  <InfoCol>
+                    <InfoLabel>장소</InfoLabel>
+                    <InfoValue>{m.place}</InfoValue>
+                  </InfoCol>
+                </MiddleRow>
 
-                  <MiddleRow>
-                    <InfoCol>
-                      <InfoLabel>경기 일시</InfoLabel>
-                      <InfoValue>
-                        {m.date} {m.time}
-                      </InfoValue>
-                    </InfoCol>
-                    <InfoCol>
-                      <InfoLabel>장소</InfoLabel>
-                      <InfoValue>{m.place}</InfoValue>
-                    </InfoCol>
-                  </MiddleRow>
-
-                  <BottomRow>
-                    <ResultBadge result={m.result}>
-                      {m.status === "cancelled"
-                        ? "취소"
-                        : m.result === "win"
-                        ? "승"
-                        : m.result === "lose"
-                        ? "패"
-                        : "-"}
-                    </ResultBadge>
-                    <ScoreText>
-                      {m.status === "cancelled" ? "-" : m.score}
-                    </ScoreText>
-                  </BottomRow>
-                </MatchCard>
-              );
-            })}
+                <BottomRow>
+                  <ResultBadge result={m.result}>
+                    {m.result === "win" ? "승" : m.result === "lose" ? "패" : m.result === "draw" ? "무" : "-"}
+                  </ResultBadge>
+                  <ScoreText>{m.score}</ScoreText>
+                </BottomRow>
+              </MatchCard>
+            ))}
           </MatchList>
         )}
       </Inner>
@@ -153,34 +172,15 @@ const PageWrap = styled.div`
   flex-direction: column;
 `;
 
-const HeaderBar = styled.div`
-  height: 48px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`;
-
-const IconButton = styled.button`
-  border: none;
-  background: transparent;
-  padding: 4px;
-  cursor: pointer;
-  color: #4b5563;
-`;
-
-const HeaderTitle = styled.div`
-  font-size: 16px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-
-const HeaderRightPlaceholder = styled.div`
-  width: 24px;
-`;
-
 const Inner = styled.div`
   padding: 0 14px 20px;
+`;
+
+const CenterBox = styled.div`
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const EmptyWrap = styled.div`
@@ -200,7 +200,7 @@ const MatchList = styled.div`
 const MatchCard = styled.button`
   width: 100%;
   border: none;
-  border-radius: 18px;
+  border-radius: 8px;
   background: #ffffff;
   padding: 10px 12px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
@@ -294,6 +294,7 @@ const ResultBadge = styled.div`
   ${({ result }) => {
     if (result === "win") return `background:#22c55e;`;
     if (result === "lose") return `background:#ef4444;`;
+    if (result === "draw") return `background:#f59e0b;`;
     return `background:#9ca3af;`;
   }}
 `;

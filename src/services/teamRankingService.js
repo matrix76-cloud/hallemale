@@ -145,3 +145,19 @@ export async function listTeamRankingPage({ pageSize = 30, cursor = null, debugL
 
   return { rows, nextCursor };
 }
+
+/**
+ * ✅ 전체 팀을 한번에 로드 (랭킹 정렬용)
+ * - 홈 Top과 동일한 후보 풀에서 정렬되도록 페이지네이션 없이 전체를 가져옴
+ */
+export async function listAllTeamsForRanking({ debugLog = false } = {}) {
+  const col = collection(db, "clubs");
+  const snap = await getDocs(col);
+  const rows = (snap.docs || []).map((d) => normalizeClubDoc(d.id, d.data()));
+
+  if (debugLog) {
+    console.log("[teamRankingService] listAllTeamsForRanking rows:", rows.length);
+  }
+
+  return { rows };
+}

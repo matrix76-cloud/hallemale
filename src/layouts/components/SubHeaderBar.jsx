@@ -30,8 +30,10 @@ export default function SubHeaderBar({
 /* ================= styled ================= */
 
 const HeaderBar = styled.div`
-  height: 48px;
-  padding: 0 12px;
+  height: calc(48px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-left: calc(12px + env(safe-area-inset-left));
+  padding-right: calc(12px + env(safe-area-inset-right));
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -10,6 +10,7 @@ import {
   query,
   limit,
 } from "firebase/firestore";
+import { listPlayerRankingTopApprox } from "./rankingService";
 
 let _countApiChecked = false;
 let _getCountFromServer = null;
@@ -36,6 +37,36 @@ function logJson(label, obj) {
 function safeNumber(n, fallback = 0) {
   const v = Number(n);
   return Number.isFinite(v) ? v : fallback;
+}
+
+// ✅ 전체보기와 동일한 정렬 기준 (점수 → 승률 → 승수 → 경기수 → 이름)
+function teamRankingComparator(a, b) {
+  const sa = a?.stats || {};
+  const sb = b?.stats || {};
+  const winsA = safeNumber(sa.wins, 0);
+  const lossA = safeNumber(sa.losses, 0);
+  const drawA = safeNumber(sa.draws, 0);
+  const winsB = safeNumber(sb.wins, 0);
+  const lossB = safeNumber(sb.losses, 0);
+  const drawB = safeNumber(sb.draws, 0);
+
+  const pa = winsA * 5 + drawA * 2 + lossA * 1;
+  const pb = winsB * 5 + drawB * 2 + lossB * 1;
+  if (pb !== pa) return pb - pa;
+
+  const totalA = winsA + lossA + drawA;
+  const totalB = winsB + lossB + drawB;
+  const wrA = totalA > 0 ? winsA / totalA : 0;
+  const wrB = totalB > 0 ? winsB / totalB : 0;
+  if (wrB !== wrA) return wrB - wrA;
+
+  if (winsB !== winsA) return winsB - winsA;
+  if (totalB !== totalA) return totalB - totalA;
+
+  const na = String(a?.name || "").toLowerCase();
+  const nb = String(b?.name || "").toLowerCase();
+  if (na === nb) return 0;
+  return na > nb ? 1 : -1;
 }
 
 function calcWinRate(stats) {
@@ -178,7 +209,7 @@ async function listUsersForRanking(db) {
 async function buildPlayerRankingTop5(db) {
   const users = await listUsersForRanking(db);
 
-  logJson("[homeService] users(sample-for-ranking)", users.slice(0, 2));
+  // logJson("[homeService] users(sample-for-ranking)", users.slice(0, 2));
 
   const ranked = [...users]
     .map((u) => ({ ...u, _score: calcPlayerScore(u) }))
@@ -263,9 +294,7 @@ export async function loadHomePageData({ uid } = {}) {
       const memberCount = await getMembersCount(db, myTeam.clubId);
       myTeam = { ...myTeam, memberCount };
 
-      const rankedTeams = [...allClubs].sort(
-        (a, b) => (b.stats?.winRate || 0) - (a.stats?.winRate || 0)
-      );
+      const rankedTeams = [...allClubs].sort(teamRankingComparator);
       const idx = rankedTeams.findIndex((t) => t.clubId === myTeam.clubId);
       myTeamRank = idx >= 0 ? idx + 1 : null;
     }
@@ -273,9 +302,9 @@ export async function loadHomePageData({ uid } = {}) {
 
   // logJson("[homeService] myTeam(clubDoc)", myTeam);
 
-  // 팀 랭킹 Top5
+  // 팀 랭킹 Top5 (전체보기와 동일 기준)
   const teamRankingTop5 = [...allClubs]
-    .sort((a, b) => (b.stats?.winRate || 0) - (a.stats?.winRate || 0))
+    .sort(teamRankingComparator)
     .slice(0, 5)
     .map((t, idx) => ({
       rank: idx + 1,
@@ -295,7 +324,14 @@ export async function loadHomePageData({ uid } = {}) {
   const winningTeamsHighlight = [...teamRankingTop5].slice(0, 5);
 
   // 개인 랭킹 Top5
-  const playerRankingTop5 = await buildPlayerRankingTop5(db);
+  // const playerRankingTop5 = await buildPlayerRankingTop5(db);
+
+
+  const playerRankingTop5 = await listPlayerRankingTopApprox({
+    top: 5,
+    candidateSize: 200,
+    debugLog: false,
+  });
 
   // ✅ 즐겨찾기 로드
   const favoriteTeamIds = Array.isArray(me?.favoriteTeamIds)

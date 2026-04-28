@@ -16,6 +16,10 @@ import {
   serverTimestamp,
   addDoc,
   updateDoc,
+  increment,
+  setDoc,
+  deleteDoc,
+  where,
 } from "firebase/firestore";
 
 import {
@@ -293,4 +297,194 @@ export async function createCommunityPost({
   }
 
   return { postId };
+}
+
+/* =========================
+   댓글 / 좋아요 (+ 알림)
+   ========================= */
+
+async function notifyPostAuthor({ postId, post, actorUid, kind, body }) {
+  try {
+    const authorUid = String(post?.authorUid || post?.authorId || "").trim();
+    if (!authorUid || authorUid === String(actorUid)) return;
+
+    await addDoc(collection(db, "notifications"), {
+      kind: "community",
+      subType: kind,
+      type: kind,
+      title:
+        kind === "community_comment"
+          ? "내 글에 댓글이 달렸어요"
+          : "내 글이 좋아요를 받았어요",
+      body: String(body || "").slice(0, 140),
+      targetType: "USER",
+      targetIds: [authorUid],
+      actorUid: String(actorUid || ""),
+      linkType: "community",
+      linkTargetId: postId,
+      meta: { postId, deepLink: `/community/${postId}` },
+      push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      prefsCategory: "community",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      readBy: {},
+    });
+  } catch (e) {
+    console.warn("[community] notifyPostAuthor failed:", e?.message || e);
+  }
+}
+
+export async function addCommunityComment({ postId, authorUid, content, parentId = null } = {}) {
+  const pid = String(postId || "").trim();
+  const uid = String(authorUid || "").trim();
+  const txt = String(content || "").trim();
+  if (!pid) throw new Error("addCommunityComment: postId is required");
+  if (!uid) throw new Error("addCommunityComment: authorUid is required");
+  if (!txt) throw new Error("addCommunityComment: content is required");
+
+  const postRef = doc(db, "community_posts", pid);
+  const postSnap = await getDoc(postRef);
+  if (!postSnap.exists()) throw new Error("post not found");
+  const post = postSnap.data() || {};
+
+  const cRef = await addDoc(collection(db, "community_posts", pid, "comments"), {
+    authorUid: uid,
+    content: txt,
+    parentId: parentId ? String(parentId) : null,
+    createdAt: serverTimestamp(),
+    stats: { likes: 0 },
+  });
+
+  try {
+    await updateDoc(postRef, {
+      "stats.commentsCount": increment(1),
+      updatedAt: serverTimestamp(),
+    });
+  } catch {}
+
+  await notifyPostAuthor({
+    postId: pid,
+    post,
+    actorUid: uid,
+    kind: "community_comment",
+    body: txt,
+  });
+
+  return { commentId: cRef.id };
+}
+
+export async function toggleCommunityLike({ postId, uid } = {}) {
+  const pid = String(postId || "").trim();
+  const u = String(uid || "").trim();
+  if (!pid) throw new Error("toggleCommunityLike: postId is required");
+  if (!u) throw new Error("toggleCommunityLike: uid is required");
+
+  const postRef = doc(db, "community_posts", pid);
+  const likeRef = doc(db, "community_posts", pid, "likes", u);
+
+  const [postSnap, likeSnap] = await Promise.all([getDoc(postRef), getDoc(likeRef)]);
+  if (!postSnap.exists()) throw new Error("post not found");
+  const post = postSnap.data() || {};
+
+  if (likeSnap.exists()) {
+    await deleteDoc(likeRef);
+    await updateDoc(postRef, {
+      "stats.likes": increment(-1),
+      updatedAt: serverTimestamp(),
+    });
+    return { liked: false };
+  }
+
+  await setDoc(likeRef, { uid: u, createdAt: serverTimestamp() });
+  await updateDoc(postRef, {
+    "stats.likes": increment(1),
+    updatedAt: serverTimestamp(),
+  });
+
+  await notifyPostAuthor({
+    postId: pid,
+    post,
+    actorUid: u,
+    kind: "community_like",
+    body: String(post?.title || "내 글에 좋아요가 눌렸어요"),
+  });
+
+  return { liked: true };
+}
+
+/**
+ * ✅ 내가 쓴 게시글 목록
+ * - community_posts where authorUid == uid
+ * - createdAt desc 정렬 (인덱스 필요할 수 있음)
+ */
+export async function listMyCommunityPosts({ uid, limitCount = 50 } = {}) {
+  const u = String(uid || "").trim();
+  if (!u) return { posts: [] };
+
+  const take = Math.max(1, Math.min(100, Number(limitCount) || 50));
+  const col = collection(db, "community_posts");
+
+  let snap;
+  try {
+    snap = await getDocs(query(col, where("authorUid", "==", u), orderBy("createdAt", "desc"), fsLimit(take)));
+  } catch (e) {
+    // 복합 인덱스 누락 시 fallback: 정렬은 클라에서 처리
+    snap = await getDocs(query(col, where("authorUid", "==", u), fsLimit(take)));
+  }
+
+  const raws = [];
+  snap.forEach((d) => raws.push({ id: d.id, ...d.data() }));
+
+  raws.sort((a, b) => {
+    const ad = toDate(a?.createdAt)?.getTime() || 0;
+    const bd = toDate(b?.createdAt)?.getTime() || 0;
+    return bd - ad;
+  });
+
+  const posts = raws.map((p) => {
+    const stats = safeStats(p);
+    return {
+      id: p.id,
+      title: String(p.title || "").trim(),
+      content: String(p.content || "").trim(),
+      image: pickThumb(p),
+      createdAt: formatKST(p.createdAt),
+      views: stats.views,
+      commentsCount: stats.commentsCount,
+      likes: stats.likes,
+    };
+  });
+
+  return { posts };
+}
+
+/**
+ * ✅ 게시글 조회수 +1
+ * - 세션 단위 중복 방지(sessionStorage) — 같은 세션에서 같은 글을 여러번 열어도 1회만 증가
+ */
+export async function incrementCommunityPostViews(postId) {
+  const pid = String(postId || "").trim();
+  if (!pid) return { ok: false };
+
+  try {
+    const key = "halle.viewedPosts";
+    const raw = typeof window !== "undefined" ? window.sessionStorage?.getItem(key) : null;
+    const seen = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(seen) && seen.includes(pid)) {
+      return { ok: true, skipped: true };
+    }
+
+    await updateDoc(doc(db, "community_posts", pid), {
+      "stats.views": increment(1),
+    });
+
+    try {
+      const next = Array.isArray(seen) ? [...seen, pid].slice(-200) : [pid];
+      window.sessionStorage?.setItem(key, JSON.stringify(next));
+    } catch (e) {}
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
 }

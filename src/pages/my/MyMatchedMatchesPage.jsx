@@ -1,71 +1,34 @@
 // src/pages/my/MyMatchedMatchesPage.jsx
 /* eslint-disable */
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { FiArrowLeft } from "react-icons/fi";
 import { images } from "../../utils/imageAssets";
-import { TEAMS } from "../../mock/teamsMock";
-import SubHeaderBar from "../../layouts/components/SubHeaderBar";
+import { useClub } from "../../hooks/useClub";
+import { loadMatchRoomListPageData } from "../../services/matchRoomService";
+import Spinner from "../../components/common/Spinner";
 
 /**
  * 매칭된 경기 목록 페이지
- * - 팀 매칭을 통해 생성된 경기 기록
+ * - 내 팀이 참여한 모든 매칭 경기 (status accepted/proposed/confirmed/finished/cancelled)
  */
 
-const dummyMatchedMatches = [
-  {
-    id: "mm-1",
-    myTeamId: "cheongcho_tigers",
-    oppTeamId: "deokso_eagles",
-    date: "2025.11.21 (목)",
-    time: "15:00",
-    place: "성북구 스카이 풋살파크",
-    status: "confirmed", // confirmed | pending | cancelled | finished
-    result: "none",
-    score: "-",
-  },
-  {
-    id: "mm-2",
-    myTeamId: "cheongcho_tigers",
-    oppTeamId: "li_lion",
-    date: "2025.11.25 (화)",
-    time: "16:00",
-    place: "마포 농구장 A코트",
-    status: "pending",
-    result: "none",
-    score: "-",
-  },
-  {
-    id: "mm-3",
-    myTeamId: "cheongcho_tigers",
-    oppTeamId: "shinchon_sharks",
-    date: "2025.11.26 (수)",
-    time: "19:00",
-    place: "신촌 실내체육관",
-    status: "finished",
-    result: "win",
-    score: "62 : 57",
-  },
-  {
-    id: "mm-4",
-    myTeamId: "cheongcho_tigers",
-    oppTeamId: "hangang_bulldogs",
-    date: "2025.11.21 (목)",
-    time: "19:00",
-    place: "여의도 실내 코트",
-    status: "cancelled",
-    result: "none",
-    score: "-",
-  },
-];
-
-function findTeamById(id) {
-  return TEAMS.find((t) => t.clubId === id) || TEAMS[0];
-}
+const formatDateTime = (iso) => {
+  if (!iso) return { date: "", time: "" };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { date: "", time: "" };
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const day = dayNames[d.getDay()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return { date: `${yyyy}.${mm}.${dd} (${day})`, time: `${hh}:${mi}` };
+};
 
 const statusLabelTone = (status) => {
-  if (status === "pending") return { label: "매칭 신청중", tone: "pending" };
+  if (status === "accepted" || status === "proposed") return { label: "매칭 신청중", tone: "pending" };
   if (status === "confirmed") return { label: "확정", tone: "confirmed" };
   if (status === "finished") return { label: "종료", tone: "finished" };
   if (status === "cancelled") return { label: "취소", tone: "cancelled" };
@@ -74,87 +37,125 @@ const statusLabelTone = (status) => {
 
 export default function MyMatchedMatchesPage() {
   const navigate = useNavigate();
-  const handleBack = () => navigate(-1);
+  const { club } = useClub();
+  const myClubId = String(club?.clubId || club?.id || "").trim();
+
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+
+    if (!myClubId) {
+      setRooms([]);
+      setLoading(false);
+      return () => {};
+    }
+
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const { rooms: list } = await loadMatchRoomListPageData(myClubId);
+        if (!alive) return;
+        setRooms(Array.isArray(list) ? list : []);
+      } catch (e) {
+        if (!alive) return;
+        setError(e?.message || "매칭된 경기를 불러오지 못했습니다.");
+        setRooms([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [myClubId]);
+
+  const view = useMemo(() => {
+    return (rooms || []).map((r) => {
+      const { date, time } = formatDateTime(r.scheduledAt);
+      const { label: statusLabel, tone } = statusLabelTone(r.status);
+      const score = r.myScore != null && r.oppScore != null ? `${r.myScore} : ${r.oppScore}` : "-";
+      return {
+        id: r.id,
+        myTeamName: r?.myTeam?.name || "내 팀",
+        myLogo: r?.myTeam?.logoUrl || images.logo,
+        oppTeamName: r?.oppTeam?.name || "상대 팀",
+        oppLogo: r?.oppTeam?.logoUrl || images.logo,
+        date,
+        time,
+        place: r.fieldAddress || "-",
+        status: r.status,
+        statusLabel,
+        tone,
+        score,
+      };
+    });
+  }, [rooms]);
 
   const handleClickMatch = (id) => {
-    // TODO: 매칭룸 상세로 이동
-    console.log("go matched match detail:", id);
-    navigate(`/match-room/${id}`);
+    if (!id) return;
+    navigate(`/match-roomdetail/${id}`);
   };
 
   return (
     <PageWrap>
-
-
-
-
       <Inner>
-        {dummyMatchedMatches.length === 0 ? (
+        {loading ? (
+          <CenterBox>
+            <Spinner />
+          </CenterBox>
+        ) : error ? (
+          <EmptyWrap>{error}</EmptyWrap>
+        ) : view.length === 0 ? (
           <EmptyWrap>아직 매칭된 경기 기록이 없습니다.</EmptyWrap>
         ) : (
           <MatchList>
-            {dummyMatchedMatches.map((m) => {
-              const myTeam = findTeamById(m.myTeamId);
-              const oppTeam = findTeamById(m.oppTeamId);
-              const { label: statusLabel, tone } = statusLabelTone(m.status);
+            {view.map((m) => (
+              <MatchCard key={m.id} type="button" onClick={() => handleClickMatch(m.id)}>
+                <TopRow>
+                  <TeamRow>
+                    <TeamSide>
+                      <TeamLogoWrap>
+                        <TeamLogo src={m.myLogo} alt={m.myTeamName} />
+                      </TeamLogoWrap>
+                      <TeamName>{m.myTeamName}</TeamName>
+                    </TeamSide>
+                    <VsText>VS</VsText>
+                    <TeamSide style={{ justifyContent: "flex-end" }}>
+                      <TeamName style={{ textAlign: "right" }}>{m.oppTeamName}</TeamName>
+                      <TeamLogoWrap>
+                        <TeamLogo src={m.oppLogo} alt={m.oppTeamName} />
+                      </TeamLogoWrap>
+                    </TeamSide>
+                  </TeamRow>
+                </TopRow>
 
-              return (
-                <MatchCard
-                  key={m.id}
-                  type="button"
-                  onClick={() => handleClickMatch(m.id)}
-                >
-                  <TopRow>
-                    <TeamRow>
-                      <TeamSide>
-                        <TeamLogoWrap>
-                          <TeamLogo
-                            src={images[myTeam.logoKey] || images.logo}
-                            alt={myTeam.name}
-                          />
-                        </TeamLogoWrap>
-                        <TeamName>{myTeam.name}</TeamName>
-                      </TeamSide>
-                      <VsText>VS</VsText>
-                      <TeamSide style={{ justifyContent: "flex-end" }}>
-                        <TeamName style={{ textAlign: "right" }}>
-                          {oppTeam.name}
-                        </TeamName>
-                        <TeamLogoWrap>
-                          <TeamLogo
-                            src={images[oppTeam.logoKey] || images.logo}
-                            alt={oppTeam.name}
-                          />
-                        </TeamLogoWrap>
-                      </TeamSide>
-                    </TeamRow>
-                  </TopRow>
+                <MiddleRow>
+                  <InfoCol>
+                    <InfoLabel>경기 일시</InfoLabel>
+                    <InfoValue>
+                      {m.date} {m.time}
+                    </InfoValue>
+                  </InfoCol>
+                  <InfoCol>
+                    <InfoLabel>장소</InfoLabel>
+                    <InfoValue>{m.place}</InfoValue>
+                  </InfoCol>
+                </MiddleRow>
 
-                  <MiddleRow>
-                    <InfoCol>
-                      <InfoLabel>경기 일시</InfoLabel>
-                      <InfoValue>
-                        {m.date} {m.time}
-                      </InfoValue>
-                    </InfoCol>
-                    <InfoCol>
-                      <InfoLabel>장소</InfoLabel>
-                      <InfoValue>{m.place}</InfoValue>
-                    </InfoCol>
-                  </MiddleRow>
-
-                  <BottomRow>
-                    <StatusBadge tone={tone}>{statusLabel}</StatusBadge>
-                    <ResultRight>
-                      <ResultLabel>결과</ResultLabel>
-                      <ResultValue>
-                        {m.status === "finished" ? m.score : "-"}
-                      </ResultValue>
-                    </ResultRight>
-                  </BottomRow>
-                </MatchCard>
-              );
-            })}
+                <BottomRow>
+                  <StatusBadge tone={m.tone}>{m.statusLabel}</StatusBadge>
+                  <ResultRight>
+                    <ResultLabel>결과</ResultLabel>
+                    <ResultValue>{m.status === "finished" ? m.score : "-"}</ResultValue>
+                  </ResultRight>
+                </BottomRow>
+              </MatchCard>
+            ))}
           </MatchList>
         )}
       </Inner>
@@ -171,34 +172,15 @@ const PageWrap = styled.div`
   flex-direction: column;
 `;
 
-const HeaderBar = styled.div`
-  height: 48px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`;
-
-const IconButton = styled.button`
-  border: none;
-  background: transparent;
-  padding: 4px;
-  cursor: pointer;
-  color: #4b5563;
-`;
-
-const HeaderTitle = styled.div`
-  font-size: 16px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-
-const HeaderRightPlaceholder = styled.div`
-  width: 24px;
-`;
-
 const Inner = styled.div`
   padding: 0 14px 20px;
+`;
+
+const CenterBox = styled.div`
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const EmptyWrap = styled.div`
@@ -218,7 +200,7 @@ const MatchList = styled.div`
 const MatchCard = styled.button`
   width: 100%;
   border: none;
-  border-radius: 18px;
+  border-radius: 8px;
   background: #ffffff;
   padding: 10px 12px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
@@ -309,14 +291,10 @@ const StatusBadge = styled.div`
   text-align: center;
 
   ${({ tone }) => {
-    if (tone === "pending")
-      return `background:#fef3c7;color:#b45309;`;
-    if (tone === "confirmed")
-      return `background:#dcfce7;color:#166534;`;
-    if (tone === "finished")
-      return `background:#e5e7eb;color:#111827;`;
-    if (tone === "cancelled")
-      return `background:#fee2e2;color:#b91c1c;`;
+    if (tone === "pending") return `background:#fef3c7;color:#b45309;`;
+    if (tone === "confirmed") return `background:#dcfce7;color:#166534;`;
+    if (tone === "finished") return `background:#e5e7eb;color:#111827;`;
+    if (tone === "cancelled") return `background:#fee2e2;color:#b91c1c;`;
     return `background:#e5e7eb;color:#4b5563;`;
   }}
 `;

@@ -13,8 +13,10 @@ import { PiBellLight } from "react-icons/pi";
 import useUnreadChatCount from "../../hooks/useUnreadChatCount";
 
 const Wrap = styled.header`
-  height: 52px;
-  padding: 0 16px;
+  height: calc(52px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
   display: flex;
   align-items: center;
   background: ${({ theme }) => theme.colors.card};
@@ -25,8 +27,7 @@ const Title = styled.h3`
   font-size: 16px;
   margin: 0;
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
-  font-weight: 500;
+  font-weight: 600;
 `;
 
 const RightIcons = styled.div`
@@ -56,7 +57,7 @@ const Badge = styled.span`
   height: 18px;
   padding: 0 4px;
   border-radius: 999px;
-  background: #f97316;
+  background: #2563eb;
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
