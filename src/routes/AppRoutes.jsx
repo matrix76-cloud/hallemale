@@ -1,11 +1,9 @@
 /* eslint-disable */
 // src/routes/AppRoutes.jsx
-// ✅ /admin 라우팅 추가(한 앱에 admin 포함)
-// ✅ /admin/login 은 RequireAdmin 제외, 나머지 /admin/* 은 RequireAdmin + AdminShell
-// ✅ /admin/users 같은 섹션 루트는 list로 리다이렉트 추가
-
-import React from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import React, { useEffect, useRef } from "react";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useWebviewBridgeContext } from "../context/WebviewBridgeContext";
+import { useUI } from "../hooks/useUI";
 
 import MainLayout from "../layouts/MainLayout";
 import AuthLayout from "../layouts/AuthLayout";
@@ -56,6 +54,11 @@ import TeamCreatePage from "../pages/team/TeamCreatePage";
 import TeamManagePage from "../pages/team/TeamManagePage";
 
 import MyProfileEditPage from "../pages/my/MyProfileEditPage";
+import MyProfileSkillsEditPage from "../pages/my/MyProfileSkillsEditPage";
+import MyProfileBodyEditPage from "../pages/my/MyProfileBodyEditPage";
+import MyProfileIntroEditPage from "../pages/my/MyProfileIntroEditPage";
+import MyProfileMediaEditPage from "../pages/my/MyProfileMediaEditPage";
+import MyProfileTeamJoinEditPage from "../pages/my/MyProfileTeamJoinEditPage";
 import { hardScrollReset } from "../utils/hardScrollReset";
 import MyTeamInvitesPage from "../pages/my/MyTeamInvitesPage";
 import MyTeamInviteDetailPage from "../pages/my/MyTeamInviteDetailPage";
@@ -68,6 +71,13 @@ import PlayerRankingFullPage from "../pages/player/PlayerRankingFullPage";
 import TeamRankingFullPage from "../pages/team/TeamRankingFullPage";
 import ImpactCampaignPage from "../pages/home/ImpactCampaignPage";
 import MatchAnalysisPage from "../pages/matching/MatchAnalysisPage";
+
+// ✅ Find ID / Password
+import FindIdPage from "../pages/auth/FindIdPage";
+import FindPasswordPage from "../pages/auth/FindPasswordPage";
+
+// ✅ Phone Linking
+import LinkPhonePage from "../pages/auth/LinkPhonePage";
 
 // ✅ Admin
 import AdminShell from "../admin/layout/AdminShell";
@@ -89,44 +99,121 @@ import AdminSettingsPolicyPage from "../pages/admin/AdminSettingsPolicyPage";
 import AdminGamesUpcomingPage from "../pages/admin/AdminGamesUpcomingPage";
 import AdminGamesPastPage from "../pages/admin/AdminGamesPastPage";
 import AdminPlayersListPage from "../pages/admin/AdminPlayersListPage";
+import FinishedMatchesPage from "../pages/matching/FinishedMatchesPage";
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
-
   if (loading) return <AppLoadingPage />;
   if (!isLoggedIn) return <Navigate to="/login" replace />;
+  return children;
+}
 
+function RequirePhone({ children }) {
+  const { userDoc, loading } = useAuth();
+  if (loading) return <AppLoadingPage />;
+  if (!userDoc?.phoneE164) return <Navigate to="/link-phone" replace />;
   return children;
 }
 
 function RequireClub({ children }) {
-  const { club, loading } = useClub();
-
+  const { loading } = useClub();
   if (loading) return <AppLoadingPage />;
   return children;
 }
 
 function RequireAdmin({ children }) {
   const { isLoggedIn, loading, userDoc } = useAuth();
-
   if (loading) return <AppLoadingPage />;
 
-  // ✅ 개발용 관리자 세션(아이디 1 / 비번 1)
   let devAdminAuthed = false;
   try {
     devAdminAuthed = localStorage.getItem("HALLE_ADMIN_AUTHED") === "1";
   } catch (e) {}
 
-  // ✅ dev 세션이면 Firebase 로그인/role 체크 없이 통과
   if (devAdminAuthed) return children;
-
-  // ✅ 운영 모드(나중에): Firebase 로그인 + isAdmin
   if (!isLoggedIn) return <Navigate to="/admin/login" replace />;
 
   const isAdmin = userDoc?.isAdmin === true || userDoc?.role === "admin";
   if (!isAdmin) return <Navigate to="/home" replace />;
 
   return children;
+}
+
+// ── 종료 모달이 뜨는 페이지 (백스택 없는 진입점) ──
+const ROOT_PATHS = ["/", "/welcome", "/home"];
+// ── 하단 탭바 중 홈이 아닌 탭 (뒤로가기 시 홈으로 이동) ──
+const FOOTER_NON_HOME = ["/matchingmanage", "/community", "/my"];
+
+/**
+ * 라우트 변경 시 RN에 NAV_STATE 발송 + BACK_REQUEST / APP_EXIT_REQUEST 수신 처리
+ */
+function BridgeNavSync() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const bridge = useWebviewBridgeContext();
+  const { modal, bottomSheet, hideModal, hideBottomSheet, showModal } = useUI();
+
+  // 최신 UI 상태를 ref로 유지 (subscribe 콜백 안에서 stale closure 방지)
+  const uiRef = useRef({ modal, bottomSheet, hideModal, hideBottomSheet, showModal });
+  uiRef.current = { modal, bottomSheet, hideModal, hideBottomSheet, showModal };
+
+  const hasBlockingUI = !!(modal || bottomSheet);
+
+  // 라우트 또는 블로킹 UI 변경 시 NAV_STATE 발송
+  useEffect(() => {
+    if (!bridge?.isWebView) return;
+
+    const p = pathname.toLowerCase();
+    const isRoot = ROOT_PATHS.includes(p);
+
+    bridge.sendToApp("NAV_STATE", {
+      isRoot,
+      path: pathname,
+      canGoBackInWeb: !isRoot,
+      hasBlockingUI,
+    });
+  }, [pathname, hasBlockingUI, bridge]);
+
+  // BACK_REQUEST: 모달 닫기 또는 뒤로가기
+  useEffect(() => {
+    if (!bridge?.subscribe) return;
+
+    return bridge.subscribe("BACK_REQUEST", () => {
+      const ui = uiRef.current;
+      if (ui.modal) { ui.hideModal(); return; }
+      if (ui.bottomSheet) { ui.hideBottomSheet(); return; }
+      // 푸터 탭(홈 제외)에 있을 때는 홈으로 이동
+      const p = (typeof window !== "undefined" ? window.location.pathname : "").toLowerCase();
+      if (FOOTER_NON_HOME.includes(p)) {
+        navigate("/home");
+        return;
+      }
+      navigate(-1);
+    });
+  }, [bridge, navigate]);
+
+  // APP_EXIT_REQUEST: 루트에서 뒤로가기 → 종료 확인 모달
+  useEffect(() => {
+    if (!bridge?.subscribe) return;
+
+    return bridge.subscribe("APP_EXIT_REQUEST", () => {
+      const ui = uiRef.current;
+      // 이미 블로킹 UI가 떠 있으면 그것부터 닫기 (BACK_REQUEST와 동일 가드)
+      if (ui.modal) { ui.hideModal(); return; }
+      if (ui.bottomSheet) { ui.hideBottomSheet(); return; }
+      ui.showModal({
+        title: "앱 종료",
+        message: "앱을 종료하시겠습니까?",
+        onConfirm: () => {
+          ui.hideModal();
+          bridge.sendToApp("EXIT_APP");
+        },
+        onCancel: () => ui.hideModal(),
+      });
+    });
+  }, [bridge]);
+
+  return null;
 }
 
 function ScrollToTop() {
@@ -137,9 +224,7 @@ function ScrollToTop() {
       if ("scrollRestoration" in window.history) {
         window.history.scrollRestoration = "manual";
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
     hardScrollReset();
   }, [pathname]);
 
@@ -150,6 +235,7 @@ export default function AppRoutes() {
   return (
     <>
       <ScrollToTop />
+      <BridgeNavSync />
       <Routes>
         <Route path="/" element={<SplashPage />} />
 
@@ -159,18 +245,29 @@ export default function AppRoutes() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/signupsuccess" element={<SignupSuccessPage />} />
           <Route path="/onboarding/club" element={<ClubOnboardingPage />} />
+
+          {/* ✅ 아이디/비밀번호 찾기 */}
+          <Route path="/find-id" element={<FindIdPage />} />
+          <Route path="/find-password" element={<FindPasswordPage />} />
+
+          {/* ✅ 전화번호 연동 (로그인 필수, RequirePhone 밖) */}
+          <Route
+            path="/link-phone"
+            element={
+              <RequireAuth>
+                <LinkPhonePage />
+              </RequireAuth>
+            }
+          />
         </Route>
 
-        {/* Public MainLayout (약관/개인정보) */}
         <Route element={<MainLayout />}>
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
         </Route>
 
-        {/* ✅ Admin: login (public) */}
         <Route path="/admin/login" element={<AdminLoginPage />} />
 
-        {/* ✅ Admin: protected */}
         <Route
           element={
             <RequireAdmin>
@@ -181,7 +278,6 @@ export default function AppRoutes() {
           <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
 
-          {/* ✅ 섹션 루트 리다이렉트 (404 방지) */}
           <Route path="/admin/users" element={<Navigate to="/admin/users/list" replace />} />
           <Route path="/admin/teams" element={<Navigate to="/admin/teams/list" replace />} />
           <Route path="/admin/matches" element={<Navigate to="/admin/matches/list" replace />} />
@@ -210,20 +306,18 @@ export default function AppRoutes() {
           <Route path="/admin/settings/policy" element={<AdminSettingsPolicyPage />} />
 
           <Route path="/admin/games" element={<Navigate to="/admin/games/upcoming" replace />} />
-
-            {/* ✅ games */}
           <Route path="/admin/games/upcoming" element={<AdminGamesUpcomingPage />} />
           <Route path="/admin/games/past" element={<AdminGamesPastPage />} />
-
         </Route>
 
-        {/* Main app */}
         <Route
           element={
             <RequireAuth>
-              <RequireClub>
-                <MainLayout />
-              </RequireClub>
+              <RequirePhone>
+                <RequireClub>
+                  <MainLayout />
+                </RequireClub>
+              </RequirePhone>
             </RequireAuth>
           }
         >
@@ -234,9 +328,9 @@ export default function AppRoutes() {
 
           <Route path="/matching" element={<MatchingPage />} />
           <Route path="/match-roomlist" element={<MatchRoomListPage />} />
-  
-
           <Route path="/match-roomdetail/:roomId" element={<MatchRoomDetailPage />} />
+
+          <Route path="/matches/finished" element={<FinishedMatchesPage />} />
 
           <Route path="/team/:teamId" element={<TeamProfilePage />} />
           <Route path="/teamRanking" element={<TeamRankingFullPage />} />
@@ -250,23 +344,22 @@ export default function AppRoutes() {
           <Route path="/my/team-invites/:clubId/:inviteId" element={<MyTeamInviteDetailPage />} />
 
           <Route path="/team/:clubId/join-requests" element={<TeamJoinRequestsPage />} />
-          <Route
-            path="/team/:clubId/join-requests/:requestId"
-            element={<TeamJoinRequestDetailPage />}
-          />
+          <Route path="/team/:clubId/join-requests/:requestId" element={<TeamJoinRequestDetailPage />} />
 
           <Route path="/my/profile/detail" element={<MyProfileDetailPage />} />
           <Route path="/my/profile/edit" element={<MyProfileEditPage />} />
+          <Route path="/my/profile/edit/skills" element={<MyProfileSkillsEditPage />} />
+          <Route path="/my/profile/edit/body" element={<MyProfileBodyEditPage />} />
+          <Route path="/my/profile/edit/intro" element={<MyProfileIntroEditPage />} />
+          <Route path="/my/profile/edit/media" element={<MyProfileMediaEditPage />} />
+          <Route path="/my/profile/edit/team-join" element={<MyProfileTeamJoinEditPage />} />
 
           <Route path="/my/posts" element={<MyPostsPage />} />
           <Route path="/my/personal-matches" element={<MyPersonalMatchesPage />} />
           <Route path="/my/matched-matches" element={<MyMatchedMatchesPage />} />
 
           <Route path="/notifications" element={<NotificationsPage />} />
-          <Route
-            path="/notificationsdetail/:notificationId"
-            element={<NotificationDetailPage />}
-          />
+          <Route path="/notificationsdetail/:notificationId" element={<NotificationDetailPage />} />
           <Route path="/chats" element={<ChatListPage />} />
           <Route path="/chats/:chatId" element={<ChatRoomPage />} />
 
@@ -286,9 +379,11 @@ export default function AppRoutes() {
         <Route
           element={
             <RequireAuth>
-              <RequireClub>
-                <MainLayout hideHeader />
-              </RequireClub>
+              <RequirePhone>
+                <RequireClub>
+                  <MainLayout hideHeader />
+                </RequireClub>
+              </RequirePhone>
             </RequireAuth>
           }
         >

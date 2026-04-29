@@ -50,25 +50,50 @@ const ModalCard = styled.div`
   width: 88%;
   max-width: 360px;
   background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
-  padding: 20px 18px;
-  box-shadow: ${({ theme }) => theme.shadows.card};
+  border-radius: 14px;
+  padding: 22px 20px 16px;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.18);
 `;
 
 const ModalTitle = styled.h2`
-  font-size: 16px;
-  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: ${({ theme }) => theme.colors.text};
 `;
 
 const ModalBody = styled.p`
   font-size: 14px;
-  margin: 0 0 16px;
+  line-height: 1.5;
+  margin: 0 0 18px;
+  color: ${({ theme }) => theme.colors.textSub || theme.colors.text};
 `;
 
 const ModalActions = styled.div`
   display: flex;
-  justify-content: flex-end;
   gap: 8px;
+
+  & > button {
+    flex: 1;
+    height: 44px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: opacity 0.15s ease;
+  }
+  & > button:active { opacity: 0.85; }
+
+  & > button.cancel {
+    background: ${({ theme }) => theme.colors.surface || "#F1F3F5"};
+    color: ${({ theme }) => theme.colors.text};
+    border-color: ${({ theme }) => theme.colors.border || "#E5E7EB"};
+  }
+  & > button.confirm {
+    background: ${({ theme }) => theme.colors.primary};
+    color: #fff;
+  }
 `;
 
 const SheetWrap = styled.div`
@@ -220,8 +245,11 @@ export default function MainLayout({ hideHeader = false }) {
             {modal.title && <ModalTitle>{modal.title}</ModalTitle>}
             <ModalBody>{modal.message}</ModalBody>
             <ModalActions>
-              {modal.onCancel && <button onClick={modal.onCancel}>취소</button>}
+              {modal.onCancel && (
+                <button className="cancel" onClick={modal.onCancel}>취소</button>
+              )}
               <button
+                className="confirm"
                 onClick={() => {
                   if (modal.onConfirm) modal.onConfirm();
                   hideModal();

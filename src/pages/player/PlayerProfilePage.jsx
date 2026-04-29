@@ -14,6 +14,10 @@ import { getPlayerProfile } from "../../services/playerService";
 import { useAuth } from "../../hooks/useAuth";
 import { setFavoritePlayer } from "../../services/favoriteService";
 import { getOrCreateDmRoom } from "../../services/chatService";
+import PlayerActivitySection from "../../components/player/PlayerActivitySection";
+import PlayerAbilitySection from "../../components/player/PlayerAbilitySection";
+import PlayerHealthSection from "../../components/player/PlayerHealthSection";
+import PlayerMonthlyStatsSection from "../../components/player/PlayerMonthlyStatsSection";
 
 /* =============== 헬퍼: 포지션/실력 라벨 =============== */
 
@@ -132,7 +136,7 @@ const HeroTopBlock = styled.div`
 const AvatarCircle = styled.div`
   width: 62px;
   height: 62px;
-  border-radius: 24px;
+  border-radius: 8px;
   overflow: hidden;
   background: rgba(15, 23, 42, 0.35);
   display: flex;
@@ -263,7 +267,7 @@ const ContentWrap = styled.div`
 const Section = styled.section`
   margin-top: 12px;
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 8px;
   padding: 14px 16px 16px;
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
 `;
@@ -360,7 +364,7 @@ const TeamBasicRow = styled.div`
 const TeamLogoCircle = styled.div`
   width: 38px;
   height: 38px;
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
   background: #e5e7eb;
   display: flex;
@@ -406,7 +410,7 @@ const MediaItem = styled.div`
 const MediaCard = styled.div`
   width: 100%;
   height: 180px;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
   background: #e5e7eb;
   position: relative;
@@ -626,6 +630,7 @@ export default function PlayerProfilePage() {
   const teamLogoSrc = player.clubLogoUrl || images.logo;
 
   const mediaList = Array.isArray(player.media) ? player.media : [];
+  const playerSessions = Array.isArray(player.sessions) ? player.sessions : [];
 
   const onViewTeam = () => {
     if (!player.clubId) return;
@@ -759,6 +764,11 @@ export default function PlayerProfilePage() {
               </TeamInfoRow>
             </Section>
           ) : null}
+
+          <PlayerAbilitySection sessions={playerSessions} userProfile={player} />
+          <PlayerHealthSection sessions={playerSessions} userProfile={player} />
+          <PlayerMonthlyStatsSection sessions={playerSessions} />
+          <PlayerActivitySection playerId={playerId} isSelf={isSelf} />
 
           <Section>
             <SectionHeaderRow>

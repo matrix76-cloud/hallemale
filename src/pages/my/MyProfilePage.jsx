@@ -14,6 +14,12 @@ import InfoDialog from "../../components/common/InfoDialog";
 import Spinner from "../../components/common/Spinner";
 import { leaveClub } from "../../services/clubManageService";
 
+// ✅ 팀장 이임 서비스
+import {
+  listClubMembersForLeaderTransfer,
+  transferTeamLeader,
+} from "../../services/clubLeaderService";
+
 export default function MyProfilePage() {
   const nav = useNavigate();
   const { userDoc, loading, signOut } = useAuth();
@@ -145,6 +151,11 @@ export default function MyProfilePage() {
       return;
     }
 
+    if (key === "transfer-leader") {
+      openTransferLeader();
+      return;
+    }
+
     if (key === "leave") {
       openLeaveTeam();
       return;
@@ -224,6 +235,85 @@ export default function MyProfilePage() {
     }
   };
 
+  // =========================
+  // ✅ 팀장 권한 이임 (팀장만)
+  // =========================
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferDoneOpen, setTransferDoneOpen] = useState(false);
+
+  const [transferMembers, setTransferMembers] = useState([]);
+  const [selectedTargetUid, setSelectedTargetUid] = useState("");
+  const [transferErr, setTransferErr] = useState("");
+
+  const openTransferLeader = async () => {
+    if (!uid) {
+      window.alert("로그인이 필요합니다.");
+      return;
+    }
+    if (!hasTeam || !teamId) {
+      window.alert("팀 정보가 없습니다.");
+      return;
+    }
+    if (!isTeamLeader) {
+      window.alert("팀장만 권한을 이임할 수 있어요.");
+      return;
+    }
+
+    setTransferErr("");
+    setSelectedTargetUid("");
+    setTransferMembers([]);
+    setTransferOpen(true);
+
+    setTransferLoading(true);
+    try {
+      const list = await listClubMembersForLeaderTransfer({ clubId: teamId, excludeUid: uid });
+      setTransferMembers(Array.isArray(list) ? list : []);
+    } catch (e) {
+      setTransferMembers([]);
+      setTransferErr(String(e?.message || "팀원 목록을 불러올 수 없습니다."));
+    } finally {
+      setTransferLoading(false);
+    }
+  };
+
+  const closeTransferLeader = () => {
+    if (transferBusy) return;
+    setTransferOpen(false);
+    setTransferErr("");
+    setSelectedTargetUid("");
+    setTransferMembers([]);
+  };
+
+  const runTransferLeader = async () => {
+    if (!uid || !teamId) return;
+    if (!selectedTargetUid) {
+      window.alert("이임할 팀원을 선택해 주세요.");
+      return;
+    }
+
+    const ok = window.confirm("팀장 권한을 이임할까요? 이 작업은 되돌릴 수 없습니다.");
+    if (!ok) return;
+
+    setTransferBusy(true);
+    setTransferErr("");
+    try {
+      await transferTeamLeader({
+        clubId: teamId,
+        fromUid: uid,
+        toUid: selectedTargetUid,
+      });
+
+      setTransferOpen(false);
+      setTransferDoneOpen(true);
+    } catch (e) {
+      setTransferErr(String(e?.message || "팀장 권한 이임에 실패했습니다."));
+    } finally {
+      setTransferBusy(false);
+    }
+  };
+
   return (
     <>
       <InfoDialog
@@ -278,16 +368,134 @@ export default function MyProfilePage() {
         title="팀 탈퇴가 완료됐어요"
         message={"팀에서 정상적으로 탈퇴했습니다."}
         primaryText="확인"
-        onPrimary={() => setLeaveDoneOpen(false)}
+        onPrimary={() => {
+          setLeaveDoneOpen(false);
+          nav("/my", { replace: true });
+        }}
         secondaryText="닫기"
-        onClose={() => setLeaveDoneOpen(false)}
+        onClose={() => {
+          setLeaveDoneOpen(false);
+          nav("/my", { replace: true });
+        }}
         hideSecondary={true}
         showClose={true}
         closeOnOverlay={false}
       />
 
+      {/* ✅ 팀장 권한 이임 완료 */}
+      <InfoDialog
+        open={transferDoneOpen}
+        tone="success"
+        title="팀장 권한이 이임됐어요"
+        message={"새 팀장이 지정되었습니다.\n화면이 새로고침됩니다."}
+        primaryText="확인"
+        onPrimary={() => {
+          setTransferDoneOpen(false);
+          nav("/my", { replace: true });
+          try {
+            window.location.reload();
+          } catch {}
+        }}
+        secondaryText="닫기"
+        onClose={() => {
+          setTransferDoneOpen(false);
+          nav("/my", { replace: true });
+          try {
+            window.location.reload();
+          } catch {}
+        }}
+        hideSecondary={true}
+        showClose={true}
+        closeOnOverlay={false}
+      />
+
+      {/* ✅ 팀장 이임 모달 */}
+      {transferOpen && (
+        <ModalOverlay onClick={closeTransferLeader}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalTopRow>
+              <ModalTitle>팀장 권한 이임</ModalTitle>
+              <ModalCloseBtn type="button" onClick={closeTransferLeader} disabled={transferBusy}>
+                ×
+              </ModalCloseBtn>
+            </ModalTopRow>
+
+            <ModalSub>
+              팀장 권한을 넘길 팀원을 선택해 주세요.
+            </ModalSub>
+
+            {transferLoading ? (
+              <ModalCenter>
+                <Spinner />
+                <ModalHint>불러오는 중…</ModalHint>
+              </ModalCenter>
+            ) : transferMembers.length === 0 ? (
+              <ModalCenter>
+                <ModalHint>
+                  {transferErr ? transferErr : "이임 가능한 팀원이 없습니다."}
+                </ModalHint>
+              </ModalCenter>
+            ) : (
+              <MemberList>
+                {transferMembers.map((m) => {
+                  const mid = String(m?.uid || m?.id || "").trim();
+                  const name = String(m?.nickname || "").trim() || "(닉네임 없음)";
+                  const avatar = String(m?.avatarUrl || "").trim();
+                  const selected = mid && mid === selectedTargetUid;
+
+                  return (
+                    <MemberRow
+                      key={mid || name}
+                      type="button"
+                      $selected={selected}
+                      onClick={() => setSelectedTargetUid(mid)}
+                      disabled={transferBusy}
+                    >
+                      <MemberLeft>
+                        <MemberAvatarWrap>
+                          {avatar ? <MemberAvatar src={avatar} alt={name} /> : <AvatarPlaceholder size={34} />}
+                        </MemberAvatarWrap>
+                        <MemberText>
+                          <MemberName>{name}</MemberName>
+                          {m?.region ? <MemberMeta>{String(m.region)}</MemberMeta> : null}
+                        </MemberText>
+                      </MemberLeft>
+
+                      <MemberRadio $selected={selected}>{selected ? "✓" : ""}</MemberRadio>
+                    </MemberRow>
+                  );
+                })}
+              </MemberList>
+            )}
+
+            {transferErr ? <ModalError>{transferErr}</ModalError> : null}
+
+            <ModalActions>
+              <ModalGhostBtn type="button" onClick={closeTransferLeader} disabled={transferBusy}>
+                취소
+              </ModalGhostBtn>
+              <ModalPrimaryBtn
+                type="button"
+                onClick={runTransferLeader}
+                disabled={transferBusy || transferLoading || !selectedTargetUid}
+              >
+                {transferBusy ? "처리 중..." : "이임하기"}
+              </ModalPrimaryBtn>
+            </ModalActions>
+          </ModalCard>
+        </ModalOverlay>
+      )}
+
+      {transferBusy && (
+        <BusyOverlay>
+          <BusyCard>
+            <Spinner />
+            <BusyText>팀장 권한 이임 중…</BusyText>
+          </BusyCard>
+        </BusyOverlay>
+      )}
+
       <PageWrap>
-        {/* ✅ 프로필 영역: 톱니 아이콘 제거 → "내프로필 설정" 버튼 */}
         <ProfileHeader>
           <ProfileHeaderInner>
             <ProfileLeft>
@@ -316,30 +524,6 @@ export default function MyProfilePage() {
             <ProfileSettingBtn type="button" onClick={handleGoEditProfile}>
               내프로필 설정
             </ProfileSettingBtn>
-
-            {!loading && needSetup ? (
-              <SetupOverlay
-                role="button"
-                tabIndex={0}
-                onClick={handleGoEditProfile}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") handleGoEditProfile();
-                }}
-                aria-label="프로필 설정 필요"
-              >
-                <SetupCard
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleGoEditProfile();
-                  }}
-                >
-                  <SetupPill>설정 필요</SetupPill>
-                  <SetupSub>프로필을 입력하면 매칭이 쉬워져요</SetupSub>
-                  <SetupCta>지금 설정하기</SetupCta>
-                </SetupCard>
-              </SetupOverlay>
-            ) : null}
           </ProfileHeaderInner>
         </ProfileHeader>
 
@@ -359,19 +543,21 @@ export default function MyProfilePage() {
                 </MenuItemButton>
               ) : null}
 
-              {hasTeam ? (
-                <MenuItemButton onClick={() => handleTeamMenuClick("view")}>
+   
+              {hasTeam && isTeamLeader ? (
+                <MenuItemButton onClick={() => handleTeamMenuClick("manage")}>
                   <MenuTextWrap>
-                    <MenuTitle>{clubLoading ? "팀 불러오는 중..." : "팀 보기"}</MenuTitle>
+                    <MenuTitle>팀 관리</MenuTitle>
                   </MenuTextWrap>
                   <MenuArrow>›</MenuArrow>
                 </MenuItemButton>
               ) : null}
 
+              {/* ✅ 팀장만: 팀장 권한 이임 */}
               {hasTeam && isTeamLeader ? (
-                <MenuItemButton onClick={() => handleTeamMenuClick("manage")}>
+                <MenuItemButton onClick={() => handleTeamMenuClick("transfer-leader")}>
                   <MenuTextWrap>
-                    <MenuTitle>팀 관리</MenuTitle>
+                    <MenuTitle>팀장 권한 이임</MenuTitle>
                   </MenuTextWrap>
                   <MenuArrow>›</MenuArrow>
                 </MenuItemButton>
@@ -441,13 +627,6 @@ export default function MyProfilePage() {
           </SectionInner>
           <SectionBody>
             <MenuList>
-              <MenuItemButton onClick={() => handleSettingMenuClick("alarm")}>
-                <MenuTextWrap>
-                  <MenuTitle>알림 설정</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
-              </MenuItemButton>
-
               <MenuItemButton onClick={() => handleSettingMenuClick("faq")}>
                 <MenuTextWrap>
                   <MenuTitle>FAQ</MenuTitle>
@@ -497,7 +676,7 @@ const BusyOverlay = styled.div`
 
 const BusyCard = styled.div`
   width: min(420px, 90vw);
-  border-radius: 18px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(229, 231, 235, 0.9);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
@@ -510,6 +689,200 @@ const BusyCard = styled.div`
 const BusyText = styled.div`
   font-size: 13px;
   color: #6b7280;
+`;
+
+/* ===== 팀장 이임 모달 ===== */
+const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.35);
+`;
+
+const ModalCard = styled.div`
+  width: min(520px, 92vw);
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 16px 14px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const ModalTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const ModalTitle = styled.div`
+  font-size: 16px;
+  color: #111827;
+`;
+
+const ModalCloseBtn = styled.button`
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  cursor: pointer;
+  color: #6b7280;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const ModalSub = styled.div`
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.45;
+`;
+
+const ModalCenter = styled.div`
+  padding: 14px 0;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+`;
+
+const ModalHint = styled.div`
+  font-size: 12px;
+  color: #9ca3af;
+`;
+
+const ModalError = styled.div`
+  font-size: 12px;
+  color: #ef4444;
+`;
+
+const MemberList = styled.div`
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const MemberRow = styled.button`
+  width: 100%;
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#e5e7eb")};
+  background: ${({ $selected }) => ($selected ? "#eef2ff" : "#ffffff")};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;
+
+const MemberLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+`;
+
+const MemberAvatarWrap = styled.div`
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+`;
+
+const MemberAvatar = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const MemberText = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const MemberName = styled.div`
+  font-size: 14px;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const MemberMeta = styled.div`
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const MemberRadio = styled.div`
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#d1d5db")};
+  background: ${({ $selected }) => ($selected ? "#4f46e5" : "#ffffff")};
+  color: #ffffff;
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+`;
+
+const ModalActions = styled.div`
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+`;
+
+const ModalGhostBtn = styled.button`
+  flex: 1;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const ModalPrimaryBtn = styled.button`
+  flex: 1;
+  height: 42px;
+  border-radius: 999px;
+  border: none;
+  background: #4f46e5;
+  color: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
 `;
 
 /* ==================== 기존 styled (원본 유지) ==================== */
@@ -589,8 +962,6 @@ const MetaRow = styled.div`
 const MetaItem = styled.span``;
 const MetaDot = styled.span``;
 
-/* ✅ 톱니 버튼 제거 (기존 SettingsButton 삭제해도 됨) */
-
 const ProfileSettingBtn = styled.button`
   position: absolute;
   top: 2px;
@@ -630,7 +1001,7 @@ const SetupCard = styled.button`
   width: min(560px, 94vw);
   border: none;
   cursor: pointer;
-  border-radius: 22px;
+  border-radius: 8px;
   padding: 28px 22px 22px;
   display: grid;
   place-items: center;
@@ -683,9 +1054,8 @@ const SectionInner = styled.div`
 const SectionTitle = styled.h2`
   margin: 0;
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
-  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  font-weight: 600;
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
 `;
 
 const SectionBody = styled.div`
