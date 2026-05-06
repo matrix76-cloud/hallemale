@@ -41,6 +41,52 @@ async function safeCount(qq) {
   }
 }
 
+/* ============== region ============== */
+const SIDO_LIST = [
+  "서울","경기","인천","부산","대구","광주","대전","울산","세종",
+  "강원","충북","충남","전북","전남","경북","경남","제주",
+];
+
+function normalizeSido(s) {
+  const v = String(s || "").trim();
+  if (!v) return "";
+  for (const sido of SIDO_LIST) {
+    if (v.startsWith(sido)) return sido;
+  }
+  return "";
+}
+
+/**
+ * 지역별 팀 수 (clubs 컬렉션 regionSido 그룹핑)
+ * - 17개 시도 + "기타" 합산
+ */
+export async function fetchAdminRegionCounts() {
+  const col = collection(db, "clubs");
+  const snap = await getDocs(col);
+  const docs = snap?.docs || [];
+
+  const counts = new Map();
+  SIDO_LIST.forEach((s) => counts.set(s, 0));
+  let etc = 0;
+
+  for (const d of docs) {
+    const data = d.data() || {};
+    const sido =
+      normalizeSido(data?.regionSido) ||
+      normalizeSido(data?.region) ||
+      normalizeSido(data?.regionFull);
+    if (sido && counts.has(sido)) {
+      counts.set(sido, counts.get(sido) + 1);
+    } else {
+      etc += 1;
+    }
+  }
+
+  const rows = SIDO_LIST.map((s) => ({ key: s, label: s, count: counts.get(s) || 0 }));
+  rows.push({ key: "etc", label: "기타", count: etc });
+  return rows;
+}
+
 /* ============== public ============== */
 
 /**

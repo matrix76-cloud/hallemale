@@ -2,7 +2,10 @@
 // src/pages/admin/AdminDashboardPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import { fetchAdminDashboardKpi } from "../../services/adminDashboardService";
+import {
+  fetchAdminDashboardKpi,
+  fetchAdminRegionCounts,
+} from "../../services/adminDashboardService";
 
 /* ===================== Layout ===================== */
 
@@ -447,18 +450,26 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
-  // ✅ 지역 버튼(더미): 등록된 팀 수
-  const regionCounts = useMemo(() => {
-    return [
-      { key: "seoul", label: "서울", count: 12 },
-      { key: "gyeonggi", label: "경기", count: 18 },
-      { key: "incheon", label: "인천", count: 6 },
-      { key: "busan", label: "부산", count: 4 },
-      { key: "etc", label: "기타", count: 9 },
-    ];
+  // ✅ 지역별 등록된 팀 수 (실데이터)
+  const [regionCounts, setRegionCounts] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const rows = await fetchAdminRegionCounts();
+        if (!alive) return;
+        setRegionCounts(rows);
+      } catch (e) {
+        console.error("[AdminDashboardPage] regionCounts load failed", e);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const [regionKey, setRegionKey] = useState("seoul");
+  const [regionKey, setRegionKey] = useState("서울");
 
   // ✅ 3번째 라인: 총득점 + 누적기부금 (더미)
   const scoreTotal = 32840;
