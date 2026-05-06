@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { playerAvatars } from "../../utils/imageAssets";
 import { useAuth } from "../../hooks/useAuth";
 import { useClub } from "../../hooks/useClub";
+import { useThemeMode } from "../../context/ThemeContext";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { countPendingInvitesForUser } from "../../services/inviteService";
 import { countPendingJoinRequestsForClub } from "../../services/joinRequestService";
@@ -23,6 +24,7 @@ import {
 export default function MyProfilePage() {
   const nav = useNavigate();
   const { userDoc, loading, signOut } = useAuth();
+  const { mode: themeMode, toggleMode: toggleThemeMode } = useThemeMode();
 
   const { club, activeTeamId, isTeamLeader: isTeamLeaderFromCtx, loading: clubLoading } =
     useClub();
@@ -627,6 +629,23 @@ export default function MyProfilePage() {
           </SectionInner>
           <SectionBody>
             <MenuList>
+              <MenuItemButton onClick={toggleThemeMode}>
+                <MenuTextWrap>
+                  <MenuTitle>화면 모드</MenuTitle>
+                </MenuTextWrap>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#6b7280",
+                    marginRight: 8,
+                  }}
+                >
+                  {themeMode === "dark" ? "다크" : "라이트"}
+                </span>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
               <MenuItemButton onClick={() => handleSettingMenuClick("faq")}>
                 <MenuTextWrap>
                   <MenuTitle>FAQ</MenuTitle>

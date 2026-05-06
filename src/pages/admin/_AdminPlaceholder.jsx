@@ -6,7 +6,7 @@ import styled from "styled-components";
 const Wrap = styled.div`
   background: #fff;
   border: 1px solid rgba(0,0,0,.08);
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 18px;
 `;
 
@@ -17,7 +17,7 @@ const Title = styled.h2`
 `;
 
 const Sub = styled.div`
-  color: #6b7280;
+  color: #4b5563;
   font-size: 13px;
   line-height: 1.6;
 `;

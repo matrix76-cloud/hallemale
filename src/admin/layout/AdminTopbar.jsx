@@ -1,113 +1,105 @@
 /* eslint-disable */
 // src/admin/layout/AdminTopbar.jsx
+// 얇은 상단바 (jogun 레이아웃 참고): 접속시간 / 관리자명 / 로그아웃
 import React from "react";
 import styled from "styled-components";
-import { useLocation, useNavigate } from "react-router-dom";
-import { TOP_MENUS } from "../../utils/menus";
+import { useNavigate } from "react-router-dom";
+import { IoTimeOutline, IoLogOutOutline } from "react-icons/io5";
 
-const BAR_H = 64;
-const TAB_H = 40;
+const ADMIN_SESSION_KEY = "HALLE_ADMIN_AUTHED";
 
 const Bar = styled.header`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 50;
+`;
+
+const Left = styled.div`
   display: flex;
   align-items: center;
-  height: ${BAR_H}px;
-  min-height: ${BAR_H}px;
-  padding: 0 16px;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  svg {
+    font-size: 15px;
+  }
+`;
+
+const Right = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 14px;
+`;
+
+const AdminName = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+`;
+
+const LogoutBtn = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid #d1d5db;
   background: #fff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-`;
-
-const Title = styled.div`
-  flex: 0 0 auto;
-  font-size: 18px;
-  letter-spacing: -0.2px;
-  margin-right: 14px;
-`;
-
-const Rail = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1 1 auto;
-  min-width: 0;
-`;
-
-const TabsWrap = styled.nav`
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  height: ${BAR_H}px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`;
-
-const TabBtn = styled.button`
-  border: none;
-  background: transparent;
-  display: inline-flex;
-  align-items: center;
-  height: ${TAB_H}px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-size: 18px;
-  letter-spacing: -0.2px;
-
-  color: ${({ $active, theme }) =>
-    $active
-      ? theme?.colors?.primary || theme?.primary || "#4f46e5"
-      : "#2a2e37"};
-
-  font-weight: ${({ $active }) => ($active ? 700 : 600)};
-
-  &:hover {
-    color: #111;
-  }
-`;
-
-const Grow = styled.div`
-  flex: 1;
-  min-width: 40px;
-`;
-
-const Hint = styled.div`
+  border-radius: 6px;
   font-size: 12px;
-  color: #6b7280;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover {
+    background: #f5f6fa;
+    color: #111827;
+  }
+  svg {
+    font-size: 14px;
+  }
 `;
+
+function formatNow() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${mm}/${dd} ${hh}:${mi}`;
+}
 
 export default function AdminTopbar() {
-  const { pathname } = useLocation();
   const nav = useNavigate();
-  const p = String(pathname || "").toLowerCase();
+  const [loginTime] = React.useState(() => formatNow());
+
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      localStorage.removeItem(`${ADMIN_SESSION_KEY}_AUTO`);
+    } catch (e) {}
+    nav("/admin/login", { replace: true });
+  };
 
   return (
     <Bar>
-      <Title>할래말래 Admin</Title>
-
-      <Rail>
-        <TabsWrap>
-          {TOP_MENUS.map((m) => {
-            const to = m.to || "/admin/dashboard";
-            const toLower = String(to).toLowerCase();
-            const active = p === toLower || p.startsWith(`${toLower}/`);
-
-            return (
-              <TabBtn key={m.key} type="button" $active={active} onClick={() => nav(to)}>
-                {m.label}
-              </TabBtn>
-            );
-          })}
-        </TabsWrap>
-
-        <Grow />
-        <Hint>운영자 전용</Hint>
-      </Rail>
+      <Left>
+        <IoTimeOutline />
+        접속: {loginTime}
+      </Left>
+      <Right>
+        <AdminName>관리자님</AdminName>
+        <LogoutBtn onClick={handleLogout}>
+          <IoLogOutOutline />
+          로그아웃
+        </LogoutBtn>
+      </Right>
     </Bar>
   );
 }

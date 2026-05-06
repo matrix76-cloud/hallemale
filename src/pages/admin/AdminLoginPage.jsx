@@ -46,7 +46,7 @@ const Sub = styled.small`
 const Field = styled.input`
   width: 100%;
   height: 48px;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 0 14px;
   border: 1px solid #e2e6ef;
   font-size: 15px;
@@ -64,7 +64,7 @@ const Row = styled.div`
 
 const Btn = styled.button`
   height: 52px;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 0;
   cursor: pointer;
   width: 100%;
@@ -169,8 +169,8 @@ export default function AdminLoginPage() {
 
     setBusy(true);
     try {
-      // ✅ 개발용 관리자 로그인: id=1, pw=1
-      if (cleanId === "1" && cleanPw === "1") {
+      // ✅ 개발용 관리자 로그인: id=admin, pw=admin
+      if (cleanId === "admin" && cleanPw === "admin") {
         try {
           localStorage.setItem(ADMIN_SESSION_KEY, "1");
           if (auto) localStorage.setItem(`${ADMIN_SESSION_KEY}_AUTO`, "1");

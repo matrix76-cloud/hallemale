@@ -1,7 +1,8 @@
 /* eslint-disable */
 // src/pages/admin/AdminGamesUpcomingPage.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+import AdminPager from "../../components/admin/AdminPager";
 
 const Page = styled.div`
   display: flex;
@@ -24,13 +25,13 @@ const H1 = styled.h1`
 
 const Sub = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const Card = styled.div`
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border-radius: 8px;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 `;
@@ -48,7 +49,7 @@ const FilterRow = styled.div`
 
 const Input = styled.input`
   height: 34px;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0 10px;
   border: 1px solid #e5e7eb;
   font-size: 13px;
@@ -63,7 +64,7 @@ const Input = styled.input`
 
 const Select = styled.select`
   height: 34px;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0 10px;
   border: 1px solid #e5e7eb;
   font-size: 13px;
@@ -87,7 +88,7 @@ const Head = styled.div`
   background: #f8fafc;
   border-bottom: 1px solid #eef2f7;
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const Row = styled.div`
@@ -117,7 +118,7 @@ const Status = styled.div`
 
 const Btn = styled.button`
   height: 30px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e5e7eb;
   background: #fff;
   cursor: pointer;
@@ -132,6 +133,8 @@ const Btn = styled.button`
 export default function AdminGamesUpcomingPage() {
   const [q, setQ] = useState("");
   const [region, setRegion] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const rows = useMemo(() => {
     // ✅ 더미: 예정 경기
@@ -180,6 +183,15 @@ export default function AdminGamesUpcomingPage() {
     });
   }, [rows, q, region]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [q, region, pageSize]);
+
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
   return (
     <Page>
       <TitleRow>
@@ -221,12 +233,12 @@ export default function AdminGamesUpcomingPage() {
               <div>상태</div>
             </Head>
 
-            {filtered.map((r) => (
+            {pagedRows.map((r) => (
               <Row key={r.id}>
                 <div>{r.when}</div>
                 <div>{r.home}</div>
                 <div>{r.away}</div>
-                <div style={{ color: "#6b7280" }}>{r.place}</div>
+                <div style={{ color: "#4b5563" }}>{r.place}</div>
                 <div>{r.type}</div>
                 <div>
                   <Status>{r.status}</Status>
@@ -236,11 +248,18 @@ export default function AdminGamesUpcomingPage() {
 
             {!filtered.length ? (
               <Row style={{ gridTemplateColumns: "1fr" }}>
-                <div style={{ color: "#6b7280" }}>결과가 없습니다.</div>
+                <div style={{ color: "#4b5563" }}>결과가 없습니다.</div>
               </Row>
             ) : null}
           </Table>
         </TableWrap>
+        <AdminPager
+          totalCount={filtered.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </Card>
     </Page>
   );

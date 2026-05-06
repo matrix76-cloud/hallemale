@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminFilterSummaryBar from "../../components/admin/AdminFilterSummaryBar";
+import AdminLoading from "../../components/admin/AdminLoading";
+import AdminPager from "../../components/admin/AdminPager";
 import { fetchTeamsAdminView } from "../../services/adminTeamsService";
 
 const Page = styled.div`
@@ -14,7 +16,7 @@ const Page = styled.div`
 const Card = styled.div`
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border-radius: 8px;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 `;
@@ -46,7 +48,7 @@ const Head = styled.div`
   background: #f8fafc;
   border-bottom: 1px solid #eef2f7;
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
   white-space: nowrap;
 `;
 
@@ -79,13 +81,13 @@ const Mono = styled.div`
 
 const Muted = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const Logo = styled.img`
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 8px;
   object-fit: cover;
   background: #e5e7eb;
   border: 1px solid #eef2f7;
@@ -94,7 +96,7 @@ const Logo = styled.img`
 const LogoFallback = styled.div`
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #e5e7eb;
   border: 1px solid #eef2f7;
 `;
@@ -177,7 +179,7 @@ const OwnerName = styled.div`
 
 const OwnerUid = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -198,7 +200,7 @@ const Modal = styled.div`
   max-height: 82vh;
   overflow: auto;
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 8px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
   padding: 16px 16px 18px;
@@ -236,7 +238,7 @@ const ModalRow = styled.div`
     width: 120px;
     flex-shrink: 0;
     font-size: 12px;
-    color: #6b7280;
+    color: #4b5563;
   }
   .right {
     min-width: 0;
@@ -264,7 +266,7 @@ const ModalActions = styled.div`
 
 const Btn = styled.button`
   height: 34px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e5e7eb;
   background: ${({ $primary }) => ($primary ? BLUE : "#ffffff")};
   color: ${({ $primary }) => ($primary ? "#ffffff" : "#111827")};
@@ -304,7 +306,7 @@ const PagerRight = styled.div`
 
 const PagerInfo = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const PageChip = styled.span`
@@ -381,8 +383,8 @@ export default function AdminTeamsListPage() {
   const [modalBody, setModalBody] = useState("");
   const [modalList, setModalList] = useState(null);
 
-  /* ✅ 페이지네이션: 기본 15개 */
-  const [pageSize, setPageSize] = useState(15);
+  /* ✅ 페이지네이션: 기본 25개 */
+  const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
 
   const openTextModal = (title, text) => {
@@ -473,12 +475,12 @@ export default function AdminTeamsListPage() {
   };
 
   const totalCount = rows.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / Math.max(1, Number(pageSize) || 15)));
+  const totalPages = Math.max(1, Math.ceil(totalCount / Math.max(1, Number(pageSize) || 25)));
 
   const safePage = Math.min(Math.max(1, page), totalPages);
 
   const pagedRows = useMemo(() => {
-    const size = Math.max(1, Number(pageSize) || 15);
+    const size = Math.max(1, Number(pageSize) || 25);
     const p = Math.min(Math.max(1, safePage), totalPages);
     const start = (p - 1) * size;
     return rows.slice(start, start + size);
@@ -486,7 +488,7 @@ export default function AdminTeamsListPage() {
 
   const rangeLabel = useMemo(() => {
     if (!totalCount) return "0 / 0";
-    const size = Math.max(1, Number(pageSize) || 15);
+    const size = Math.max(1, Number(pageSize) || 25);
     const p = Math.min(Math.max(1, safePage), totalPages);
     const start = (p - 1) * size + 1;
     const end = Math.min(p * size, totalCount);
@@ -513,82 +515,17 @@ export default function AdminTeamsListPage() {
         extraFilters={extraFilters}
       />
 
-      <Card>
-        <CardBody>
-          {loading ? <Muted>불러오는 중…</Muted> : null}
-          {!loading && err ? <Muted style={{ color: "#b91c1c" }}>{err}</Muted> : null}
-          {!loading && !err ? (
-            <>
-              <Muted>전체 로드: {rawRows.length} · 필터 결과: {rows.length}</Muted>
-
-              <PagerBar>
-                <PagerLeft>
-                  <PagerInfo>표시</PagerInfo>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      const next = Number(e.target.value) || 15;
-                      setPageSize(next);
-                      setPage(1);
-                    }}
-                    style={{
-                      height: 34,
-                      borderRadius: 10,
-                      padding: "0 10px",
-                      border: "1px solid #e5e7eb",
-                      fontSize: 13,
-                      background: "#fff",
-                    }}
-                  >
-                    <option value={15}>15개</option>
-                    <option value={30}>30개</option>
-                    <option value={50}>50개</option>
-                  </select>
-
-                  <PageChip>{rangeLabel}</PageChip>
-                </PagerLeft>
-
-                <PagerRight>
-                  <Btn
-                    type="button"
-                    onClick={() => setPage(1)}
-                    disabled={safePage <= 1}
-                  >
-                    처음
-                  </Btn>
-                  <Btn
-                    type="button"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={safePage <= 1}
-                  >
-                    이전
-                  </Btn>
-
-                  <PageChip>
-                    {safePage} / {totalPages}
-                  </PageChip>
-
-                  <Btn
-                    type="button"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={safePage >= totalPages}
-                  >
-                    다음
-                  </Btn>
-                  <Btn
-                    type="button"
-                    onClick={() => setPage(totalPages)}
-                    disabled={safePage >= totalPages}
-                  >
-                    끝
-                  </Btn>
-                </PagerRight>
-              </PagerBar>
-            </>
-          ) : null}
-        </CardBody>
-      </Card>
-
+      {loading ? (
+        <Card>
+          <AdminLoading />
+        </Card>
+      ) : err ? (
+        <Card>
+          <CardBody>
+            <Muted style={{ color: "#b91c1c" }}>{err}</Muted>
+          </CardBody>
+        </Card>
+      ) : (
       <Card>
         <TableWrap>
           <Table>
@@ -796,14 +733,21 @@ export default function AdminTeamsListPage() {
               );
             })}
 
-            {!loading && !pagedRows.length ? (
+            {!pagedRows.length ? (
               <Row style={{ gridTemplateColumns: "1fr" }}>
-                <div style={{ color: "#6b7280" }}>결과가 없습니다.</div>
+                <div style={{ color: "#4b5563" }}>결과가 없습니다.</div>
               </Row>
             ) : null}
           </Table>
         </TableWrap>
+        <AdminPager
+          totalCount={totalCount}
+          page={safePage}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </Card>
+      )}
 
       {modalOpen && (
         <Overlay
@@ -845,7 +789,7 @@ export default function AdminTeamsListPage() {
                 {!modalList.length ? (
                   <ModalRow>
                     <div className="left">-</div>
-                    <div className="right" style={{ color: "#6b7280" }}>
+                    <div className="right" style={{ color: "#4b5563" }}>
                       항목이 없습니다.
                     </div>
                   </ModalRow>

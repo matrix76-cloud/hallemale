@@ -183,7 +183,7 @@ export async function fetchPlayersAdminView({
 
   constraints.push(orderBy("updatedAt", "desc"));
 
-  const size = Math.min(Math.max(Number(limitCount) || 15, 1), 50);
+  const size = Math.min(Math.max(Number(limitCount) || 25, 1), 500);
   constraints.push(limit(size));
 
   const baseQ = query(usersCol, ...constraints);

@@ -1,69 +1,90 @@
 // src/theme/theme.js
 
-const theme = {
-  colors: {
-    primary: "#4f46e5",      // 메인 블루
-    primaryWeak: "#5c55e8ff",  // 연한 블루
-    bg: "#FFF",           // 기본 배경
-    card: "#FFFFFF",         // 카드/폼 배경
-    textStrong: "#111827",   // 진한 텍스트
-    textNormal: "#374151",
-    textWeak: "#9CA3AF",
-    accent: "#0FA464",       // 포인트 그린 (완료 등)
-    danger: "#DC2626",
-    border: "#E5E7EB"
-  },
-
-  // 폰트 사이즈 스케일
+const sharedTokens = {
   fontSizes: {
-    caption: 11,      // 아주 작은 설명, 라벨
+    caption: 11,
     bodySm: 12,
-    body: 13,         // 기본 본문
+    body: 13,
     bodyLg: 14,
-    titleSm: 16,      // 섹션 타이틀
-    title: 18,        // 페이지 타이틀
-    titleLg: 22,      // 온보딩 큰 타이틀
-    display: 26       // 정말 크게 쓸 때
+    titleSm: 16,
+    title: 18,
+    titleLg: 22,
+    display: 26,
   },
-
-  // 폰트 weight 통일
   fontWeights: {
     regular: 400,
     medium: 500,
     semibold: 600,
-    bold: 700
+    bold: 700,
   },
-
   lineHeights: {
     tight: 1.15,
     normal: 1.4,
-    relaxed: 1.6
+    relaxed: 1.6,
   },
-
   radius: {
     sm: 8,
     md: 16,
     lg: 24,
-    pill: 999
+    pill: 999,
   },
-
   spacing: {
     xs: 4,
     sm: 8,
     md: 12,
     lg: 16,
     xl: 24,
-    xxl: 32
+    xxl: 32,
   },
-
-  shadows: {
-    card: "0 6px 16px rgba(15, 23, 42, 0.08)"
-  },
-
   layout: {
     bottomTabHeight: 60,
-    maxWidth: 480
-  }
+    maxWidth: 480,
+  },
 };
 
+export const lightTheme = {
+  mode: "light",
+  ...sharedTokens,
+  colors: {
+    primary: "#4f46e5",
+    primaryWeak: "#5c55e8ff",
+    bg: "#f9fafb",
+    card: "#FFFFFF",
+    surface: "#FFFFFF",
+    textStrong: "#111827",
+    textNormal: "#374151",
+    textWeak: "#6b7280",
+    accent: "#0FA464",
+    danger: "#DC2626",
+    border: "#E5E7EB",
+    divider: "#F1F5F9",
+  },
+  shadows: {
+    card: "0 6px 16px rgba(15, 23, 42, 0.08)",
+  },
+};
+
+export const darkTheme = {
+  mode: "dark",
+  ...sharedTokens,
+  colors: {
+    primary: "#6366f1",
+    primaryWeak: "#4f46e5",
+    bg: "#0b1220",
+    card: "#111827",
+    surface: "#1f2937",
+    textStrong: "#f9fafb",
+    textNormal: "#e5e7eb",
+    textWeak: "#9ca3af",
+    accent: "#22c55e",
+    danger: "#f87171",
+    border: "#1f2937",
+    divider: "#1f2937",
+  },
+  shadows: {
+    card: "0 6px 16px rgba(0, 0, 0, 0.40)",
+  },
+};
+
+const theme = lightTheme;
 export default theme;

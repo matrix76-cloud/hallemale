@@ -26,7 +26,7 @@ const H1 = styled.h1`
 
 const Sub = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const Pill = styled.span`
@@ -116,7 +116,7 @@ const Grid = styled.div`
 const Card = styled.div`
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border-radius: 8px;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 `;
@@ -154,7 +154,7 @@ const StatTop = styled.div`
 
 const StatTitle = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 
   ${AccentStat} & {
     color: rgba(255, 255, 255, 0.85);
@@ -175,7 +175,7 @@ const StatValue = styled.div`
 const StatSub = styled.div`
   margin-top: 6px;
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 
   ${AccentStat} & {
     color: rgba(255, 255, 255, 0.85);
@@ -231,13 +231,13 @@ const MatchRow = styled.div`
   align-items: center;
   padding: 10px 10px;
   border: 1px solid #f3f4f6;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #ffffff;
 `;
 
 const MatchTime = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const MatchMain = styled.div`
@@ -257,7 +257,7 @@ const MatchTeams = styled.div`
 
 const MatchMeta = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -318,7 +318,7 @@ const THead = styled.div`
   gap: 8px;
   padding: 10px 0;
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const TRow = styled.div`
@@ -339,7 +339,7 @@ const Tabs = styled.div`
   button {
     border: 1px solid #e5e7eb;
     background: #fff;
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 6px 10px;
     font-size: 12px;
     cursor: pointer;
@@ -384,7 +384,7 @@ const Item = styled.div`
   .right {
     flex-shrink: 0;
     font-size: 12px;
-    color: #6b7280;
+    color: #4b5563;
     white-space: nowrap;
   }
 `;
@@ -741,7 +741,7 @@ export default function AdminDashboardPage() {
               {["오늘", "어제", "3일", "4일", "5일", "6일", "7일"].map(
                 (label, idx) => (
                   <TRow key={idx}>
-                    <div style={{ color: "#6b7280" }}>{label}</div>
+                    <div style={{ color: "#4b5563" }}>{label}</div>
                     <div>{Math.max(0, 3 - idx)}</div>
                     <div>{Math.max(0, 2 - (idx % 2))}</div>
                     <div>{idx === 0 ? 1 : 0}</div>

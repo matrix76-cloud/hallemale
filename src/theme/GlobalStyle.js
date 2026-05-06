@@ -65,12 +65,13 @@ const GlobalStyle = createGlobalStyle`
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont,
       system-ui, 'Segoe UI', sans-serif;
     font-size: 14px;
-    font-weight: 400;
+    font-weight: 500;
     background: ${({ theme }) => theme.colors.bg || "#ffffff"};
-    color: ${({ theme }) => theme.colors.text || "#111111"};
+    color: ${({ theme }) => theme.colors.textStrong || "#111111"};
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing:-0.025em;
+    transition: background 0.2s ease, color 0.2s ease;
   }
 
   img {

@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminFilterSummaryBar from "../../components/admin/AdminFilterSummaryBar";
+import AdminLoading from "../../components/admin/AdminLoading";
+import AdminPager from "../../components/admin/AdminPager";
 import { fetchPlayersAdminView } from "../../services/adminPlayersService";
 
 const Page = styled.div`
@@ -14,7 +16,7 @@ const Page = styled.div`
 const Card = styled.div`
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border-radius: 8px;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 `;
@@ -44,7 +46,7 @@ const Head = styled.div`
   background: #f8fafc;
   border-bottom: 1px solid #eef2f7;
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
   white-space: nowrap;
 `;
 
@@ -70,7 +72,7 @@ const Cell = styled.div`
 
 const Muted = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const Trunc = styled.div`
@@ -90,7 +92,7 @@ const Mono = styled.div`
 const Avatar = styled.img`
   width: 42px;
   height: 42px;
-  border-radius: 12px;
+  border-radius: 8px;
   object-fit: cover;
   background: #e5e7eb;
   border: 1px solid #eef2f7;
@@ -99,7 +101,7 @@ const Avatar = styled.img`
 const AvatarFallback = styled.div`
   width: 42px;
   height: 42px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #e5e7eb;
   border: 1px solid #eef2f7;
 `;
@@ -107,7 +109,7 @@ const AvatarFallback = styled.div`
 const TeamLogo = styled.img`
   width: 28px;
   height: 28px;
-  border-radius: 10px;
+  border-radius: 8px;
   object-fit: cover;
   background: #e5e7eb;
   border: 1px solid #eef2f7;
@@ -117,7 +119,7 @@ const TeamLogo = styled.img`
 const TeamLogoFallback = styled.div`
   width: 28px;
   height: 28px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #e5e7eb;
   border: 1px solid #eef2f7;
   flex-shrink: 0;
@@ -148,7 +150,7 @@ const TeamName = styled.div`
 
 const TeamMeta = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -240,7 +242,7 @@ const PageChip = styled.span`
 
 const Btn = styled.button`
   height: 34px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e5e7eb;
   background: ${({ $primary }) => ($primary ? BLUE : "#ffffff")};
   color: ${({ $primary }) => ($primary ? "#ffffff" : "#111827")};
@@ -273,7 +275,7 @@ const Modal = styled.div`
   max-height: 82vh;
   overflow: auto;
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 8px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
   padding: 16px 16px 18px;
@@ -341,11 +343,9 @@ export default function AdminPlayersListPage() {
   const [err, setErr] = useState("");
 
   const [rows, setRows] = useState([]);
-  const [hasMore, setHasMore] = useState(false);
 
-  const pageSize = 15;
-  const [pageIndex, setPageIndex] = useState(0);
-  const [lastDocs, setLastDocs] = useState([]);
+  const pageSize = 25;
+  const [page, setPage] = useState(1);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
@@ -357,67 +357,35 @@ export default function AdminPlayersListPage() {
     setModalOpen(true);
   };
 
-  const buildCursorForPage = (idx, lastDocArr) => {
-    if (!idx) return null;
-    return lastDocArr[idx - 1] || null;
-  };
-
-  const loadPage = async ({ targetPageIndex = 0, resetStack = false } = {}) => {
-    const nextIndex = Math.max(0, Number(targetPageIndex) || 0);
-
+  const load = async () => {
     setLoading(true);
     setErr("");
-
     try {
-      const stack = resetStack ? [] : lastDocs;
-      const cursor = buildCursorForPage(nextIndex, stack);
-
       const res = await fetchPlayersAdminView({
-        limitCount: pageSize,
-        cursor,
+        limitCount: 200,
         regionSido,
         mainPosition,
         skillLevel,
         onlyCaptains,
       });
-
       const list = Array.isArray(res?.rows) ? res.rows : [];
       setRows(list);
-
-      setHasMore(!!res?.hasMore);
-
-      if (resetStack) {
-        const nextLastDocs = [];
-        if (res?.nextCursor) nextLastDocs[0] = res.nextCursor;
-        setLastDocs(nextLastDocs);
-        setPageIndex(0);
-        return;
-      }
-
-      const nextLastDocs = Array.isArray(stack) ? [...stack] : [];
-      if (res?.nextCursor) nextLastDocs[nextIndex] = res.nextCursor;
-      setLastDocs(nextLastDocs);
-      setPageIndex(nextIndex);
+      setPage(1);
     } catch (e) {
       console.error("[AdminPlayersListPage] load failed", e);
       setRows([]);
-      setHasMore(false);
       setErr(e?.message || "불러오기에 실패했습니다.");
-      if (resetStack) {
-        setLastDocs([]);
-        setPageIndex(0);
-      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadPage({ targetPageIndex: 0, resetStack: true });
+    load();
   }, []);
 
   const onSubmit = () => {
-    loadPage({ targetPageIndex: 0, resetStack: true });
+    load();
   };
 
   const onReset = () => {
@@ -426,18 +394,28 @@ export default function AdminPlayersListPage() {
     setMainPosition("all");
     setSkillLevel("all");
     setOnlyCaptains(false);
-    setTimeout(() => loadPage({ targetPageIndex: 0, resetStack: true }), 0);
+    setTimeout(() => load(), 0);
   };
 
   const keywordLower = useMemo(() => normalizeText(keyword), [keyword]);
 
-  const viewRows = useMemo(() => {
+  const filteredRows = useMemo(() => {
     if (!keywordLower) return rows;
     return rows.filter((r) => normalizeText(r?.nickname).includes(keywordLower));
   }, [rows, keywordLower]);
 
-  const canPrev = pageIndex > 0;
-  const canNext = hasMore;
+  useEffect(() => {
+    setPage(1);
+  }, [keywordLower]);
+
+  const totalCount = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+
+  const viewRows = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, safePage]);
 
   const extraFilters = (
     <>
@@ -524,7 +502,7 @@ export default function AdminPlayersListPage() {
     <Page>
       <AdminFilterSummaryBar
         title="선수 목록"
-        subtitle={`users 컬렉션 기준 · 커서 페이지네이션(${pageSize}개) · 팀명/로고는 clubs에서 채움 · 닉네임 검색은 페이지 내`}
+        subtitle={`users 컬렉션 기준 · 페이지당 ${pageSize}개 · 팀명/로고는 clubs에서 채움 · 닉네임 검색은 클라 필터`}
         dateFrom=""
         dateTo=""
         onChangeDateFrom={() => {}}
@@ -536,49 +514,17 @@ export default function AdminPlayersListPage() {
         extraFilters={extraFilters}
       />
 
-      <Card>
-        <CardBody>
-          {loading ? <Muted>불러오는 중…</Muted> : null}
-          {!loading && err ? <Muted style={{ color: "#b91c1c" }}>{err}</Muted> : null}
-
-          {!loading && !err ? (
-            <>
-              <Muted>
-                현재 페이지: {rows.length} · 검색 결과(페이지 내): {viewRows.length}
-              </Muted>
-
-              <PagerBar>
-                <PagerLeft>
-                  <PageChip>page {pageIndex + 1}</PageChip>
-                  {keyword ? <Muted>검색은 페이지 내 필터</Muted> : null}
-                </PagerLeft>
-
-                <PagerRight>
-                  <Btn type="button" onClick={() => loadPage({ targetPageIndex: 0, resetStack: true })} disabled={loading}>
-                    처음
-                  </Btn>
-                  <Btn
-                    type="button"
-                    onClick={() => loadPage({ targetPageIndex: pageIndex - 1, resetStack: false })}
-                    disabled={loading || !canPrev}
-                  >
-                    이전
-                  </Btn>
-                  <Btn
-                    type="button"
-                    onClick={() => loadPage({ targetPageIndex: pageIndex + 1, resetStack: false })}
-                    disabled={loading || !canNext}
-                    $primary
-                  >
-                    다음
-                  </Btn>
-                </PagerRight>
-              </PagerBar>
-            </>
-          ) : null}
-        </CardBody>
-      </Card>
-
+      {loading ? (
+        <Card>
+          <AdminLoading />
+        </Card>
+      ) : err ? (
+        <Card>
+          <CardBody>
+            <Muted style={{ color: "#b91c1c" }}>{err}</Muted>
+          </CardBody>
+        </Card>
+      ) : (
       <Card>
         <TableWrap>
           <Table>
@@ -621,7 +567,7 @@ export default function AdminPlayersListPage() {
               const mediaYoutube = Number(r?.mediaYoutube) || 0;
 
               return (
-                <Row key={uid || `${pageIndex}-${idx}`}>
+                <Row key={uid || `${safePage}-${idx}`}>
                   <Cell>
                     {r.avatarUrl ? (
                       <Avatar
@@ -739,14 +685,21 @@ export default function AdminPlayersListPage() {
               );
             })}
 
-            {!loading && !viewRows.length ? (
+            {!viewRows.length ? (
               <Row style={{ gridTemplateColumns: "1fr" }}>
-                <div style={{ color: "#6b7280" }}>결과가 없습니다.</div>
+                <div style={{ color: "#4b5563" }}>결과가 없습니다.</div>
               </Row>
             ) : null}
           </Table>
         </TableWrap>
+        <AdminPager
+          totalCount={totalCount}
+          page={safePage}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </Card>
+      )}
 
       {modalOpen && (
         <Overlay

@@ -51,7 +51,7 @@ const Title = styled.div`
 
 const Sub = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const Actions = styled.div`
@@ -64,7 +64,7 @@ const Actions = styled.div`
 const Card = styled.div`
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border-radius: 8px;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 `;
@@ -86,7 +86,7 @@ const FilterGrid = styled.div`
 
 const Label = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const FieldRow = styled.div`
@@ -98,7 +98,7 @@ const FieldRow = styled.div`
 
 const Input = styled.input`
   height: 34px;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0 10px;
   border: 1px solid #e5e7eb;
   font-size: 13px;
@@ -123,7 +123,7 @@ const DateInput = styled(Input)`
 
 const Btn = styled.button`
   height: 34px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e5e7eb;
   background: ${({ $primary, theme }) =>
     $primary ? theme?.colors?.primary || theme?.primary || "#4f46e5" : "#ffffff"};
@@ -152,7 +152,7 @@ const SummaryCard = styled.button`
   text-align: left;
   border: 1px solid #e5e7eb;
   background: #ffffff;
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 12px 12px;
   cursor: ${({ $clickable }) => ($clickable ? "pointer" : "default")};
 
@@ -163,7 +163,7 @@ const SummaryCard = styled.button`
 
 const SummaryLabel = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: #4b5563;
 `;
 
 const SummaryValue = styled.div`

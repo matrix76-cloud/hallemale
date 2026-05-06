@@ -99,6 +99,9 @@ import AdminSettingsPolicyPage from "../pages/admin/AdminSettingsPolicyPage";
 import AdminGamesUpcomingPage from "../pages/admin/AdminGamesUpcomingPage";
 import AdminGamesPastPage from "../pages/admin/AdminGamesPastPage";
 import AdminPlayersListPage from "../pages/admin/AdminPlayersListPage";
+import AdminChatListPage from "../pages/admin/AdminChatListPage";
+import AdminBannersPage from "../pages/admin/AdminBannersPage";
+import AdminUpdatesPage from "../pages/admin/AdminUpdatesPage";
 import FinishedMatchesPage from "../pages/matching/FinishedMatchesPage";
 
 function RequireAuth({ children }) {
@@ -308,6 +311,12 @@ export default function AppRoutes() {
           <Route path="/admin/games" element={<Navigate to="/admin/games/upcoming" replace />} />
           <Route path="/admin/games/upcoming" element={<AdminGamesUpcomingPage />} />
           <Route path="/admin/games/past" element={<AdminGamesPastPage />} />
+
+          {/* 신규: 채팅 / 배너 / 앱 업데이트 */}
+          <Route path="/admin/chat" element={<Navigate to="/admin/chat/list" replace />} />
+          <Route path="/admin/chat/list" element={<AdminChatListPage />} />
+          <Route path="/admin/banners" element={<AdminBannersPage />} />
+          <Route path="/admin/updates" element={<AdminUpdatesPage />} />
         </Route>
 
         <Route
