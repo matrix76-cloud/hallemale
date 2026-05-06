@@ -43,6 +43,7 @@ export const MENUS = [
     label: "회원 관리",
     sub: [
       { to: `${A}/users/list`, label: "회원 목록" },
+      { to: `${A}/users/ranking`, label: "선수 순위" },
       { to: `${A}/users/reports`, label: "회원 신고" },
       { to: `${A}/users/blocks`, label: "차단 회원" },
     ],
@@ -53,6 +54,7 @@ export const MENUS = [
     label: "팀 관리",
     sub: [
       { to: `${A}/teams/list`, label: "팀 목록" },
+      { to: `${A}/teams/ranking`, label: "팀 순위" },
       { to: `${A}/teams/reports`, label: "팀 신고" },
       { to: `${A}/teams/blocks`, label: "차단 팀" },
     ],

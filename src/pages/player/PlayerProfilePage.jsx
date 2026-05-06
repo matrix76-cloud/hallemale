@@ -14,6 +14,8 @@ import { getPlayerProfile } from "../../services/playerService";
 import { useAuth } from "../../hooks/useAuth";
 import { setFavoritePlayer } from "../../services/favoriteService";
 import { getOrCreateDmRoom } from "../../services/chatService";
+import { createUserReport } from "../../services/userReportService";
+import BlockedOverlay from "../../components/common/BlockedOverlay";
 import PlayerActivitySection from "../../components/player/PlayerActivitySection";
 import PlayerAbilitySection from "../../components/player/PlayerAbilitySection";
 import PlayerHealthSection from "../../components/player/PlayerHealthSection";
@@ -56,7 +58,7 @@ const getAge = (birthYear) => {
 
 const Page = styled.div`
   min-height: 100vh;
-  background: #f3f4f6;
+  background: ${({ theme }) => theme.colors.bg};
   display: flex;
   flex-direction: column;
 `;
@@ -180,7 +182,7 @@ const CaptainPill = styled.span`
   height: 22px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
@@ -244,13 +246,14 @@ const FavoriteButton = styled.button`
   padding: 6px 6px;
   font-size: 11px;
   font-weight: 500;
-  background: #fef3c7;
-  color: #92400e;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(245,158,11,0.22)" : "#fef3c7"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fbbf24" : "#92400e")};
   display: inline-flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.35);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 
   &:disabled {
     opacity: 0.65;
@@ -266,10 +269,10 @@ const ContentWrap = styled.div`
 
 const Section = styled.section`
   margin-top: 12px;
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
   padding: 14px 16px 16px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 `;
 
 const SectionHeaderRow = styled.div`
@@ -290,7 +293,8 @@ const SectionIconCircle = styled.div`
   height: 28px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e0f2fe;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(14,165,233,0.18)" : "#e0f2fe"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -306,18 +310,18 @@ const SectionTitleText = styled.h2`
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SectionMeta = styled.span`
   font-size: 11px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const AboutText = styled.p`
   margin: 4px 0 0;
   font-size: 13px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
   line-height: 1.6;
   white-space: pre-line;
 `;
@@ -328,7 +332,7 @@ const MetaGrid = styled.div`
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px 12px;
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const MetaItem = styled.div`
@@ -338,17 +342,17 @@ const MetaItem = styled.div`
 `;
 
 const MetaLabel = styled.span`
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const MetaValue = styled.span`
-  color: #374151;
+  color: ${({ theme }) => theme.colors.textNormal};
   font-weight: 500;
 `;
 
 const TeamInfoRow = styled.div`
   font-size: 13px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -366,7 +370,8 @@ const TeamLogoCircle = styled.div`
   height: 38px;
   border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -381,12 +386,12 @@ const TeamLogoImg = styled.img`
 const TeamNameText = styled.div`
   font-size: 14px;
   font-weight: 600;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const TeamMetaText = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   display: flex;
   align-items: center;
   gap: 4px;
@@ -412,7 +417,8 @@ const MediaCard = styled.div`
   height: 180px;
   border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   position: relative;
   cursor: pointer;
 `;
@@ -425,13 +431,13 @@ const MediaImg = styled.img`
 
 const MediaTitle = styled.div`
   font-size: 11px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
   line-height: 1.4;
 `;
 
 const PlaceholderText = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   margin-top: 4px;
 `;
 
@@ -443,14 +449,21 @@ const BottomBar = styled.div`
   right: 0;
   bottom: 0;
   padding: 10px 16px 16px;
-  background: linear-gradient(to top, #ffffff, rgba(255, 255, 255, 0.92));
-  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.12);
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? theme.colors.card
+      : "linear-gradient(to top, #ffffff, rgba(255, 255, 255, 0.92))"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   z-index: 10;
 `;
 
 const CTAButton = styled.button`
   width: 100%;
-  border: 1px solid rgba(15, 118, 110, 0.35);
+  border: 1px solid
+    ${({ theme }) =>
+      theme.mode === "dark"
+        ? "rgba(94, 234, 212, 0.35)"
+        : "rgba(15, 118, 110, 0.35)"};
   border-radius: 999px;
   height: 44px;
   font-size: 13px;
@@ -459,8 +472,9 @@ const CTAButton = styled.button`
   justify-content: center;
   gap: 6px;
   cursor: pointer;
-  background: #ffffff;
-  color: #0f766e;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#5eead4" : "#0f766e")};
 
   &:active {
     transform: translateY(1px);
@@ -482,14 +496,135 @@ const StateWrap = styled.div`
   padding: 32px 16px;
   text-align: center;
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+/* =============== 신고 =============== */
+
+const ReportRow = styled.div`
+  margin-top: 24px;
+  padding: 0 4px 8px;
+  display: flex;
+  justify-content: center;
+`;
+
+const ReportLink = styled.button`
+  border: none;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px 12px;
+
+  &:hover {
+    color: ${({ theme }) =>
+      theme.mode === "dark" ? "#fca5a5" : theme.colors.danger};
+  }
+`;
+
+const ReportOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
+  display: grid;
+  place-items: center;
+  padding: 16px;
+`;
+
+const ReportModal = styled.div`
+  width: min(440px, 92vw);
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 12px;
+  padding: 18px 18px 16px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+`;
+
+const ReportTitle = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  margin-bottom: 4px;
+`;
+
+const ReportSub = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  margin-bottom: 12px;
+  line-height: 1.5;
+`;
+
+const ReportTextarea = styled.textarea`
+  width: 100%;
+  min-height: 110px;
+  padding: 10px 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const ReportActions = styled.div`
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+const ReportBtn = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ $danger, theme }) =>
+    $danger
+      ? theme.mode === "dark"
+        ? "rgba(248,113,113,0.18)"
+        : "#fef2f2"
+      : theme.colors.card};
+  color: ${({ $danger, theme }) =>
+    $danger
+      ? theme.mode === "dark"
+        ? "#fca5a5"
+        : "#b91c1c"
+      : theme.colors.textStrong};
+  ${({ $danger, theme }) =>
+    $danger
+      ? `border-color: ${
+          theme.mode === "dark" ? "rgba(248,113,113,0.45)" : "#fecaca"
+        };`
+      : ""}
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
 `;
 
 /* =============== 페이지 컴포넌트 =============== */
 
-export default function PlayerProfilePage() {
+export default function PlayerProfilePage({ playerId: propPlayerId, embed = false } = {}) {
   const nav = useNavigate();
-  const { playerId } = useParams();
+  const params = useParams();
+  const playerId = propPlayerId || params.playerId;
 
   const { firebaseUser, userDoc, refreshUser } = useAuth();
   const myUid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
@@ -501,6 +636,11 @@ export default function PlayerProfilePage() {
   const [favBusy, setFavBusy] = useState(false);
 
   const [chatBusy, setChatBusy] = useState(false);
+
+  // 신고 모달
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -565,6 +705,48 @@ export default function PlayerProfilePage() {
     }
   };
 
+  const openReport = () => {
+    if (!myUid) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+    setReportReason("");
+    setReportOpen(true);
+  };
+
+  const closeReport = () => {
+    if (reportBusy) return;
+    setReportOpen(false);
+    setReportReason("");
+  };
+
+  const handleSubmitReport = async () => {
+    const reason = String(reportReason || "").trim();
+    if (!reason) {
+      alert("신고 사유를 입력해주세요.");
+      return;
+    }
+    if (!playerId || !myUid) return;
+    setReportBusy(true);
+    try {
+      await createUserReport({
+        targetUid: String(playerId),
+        targetNickname: String(player?.nickname || player?.name || ""),
+        reporterUid: String(myUid),
+        reporterNickname: String(userDoc?.nickname || userDoc?.name || ""),
+        reason,
+      });
+      setReportOpen(false);
+      setReportReason("");
+      alert("신고가 접수되었습니다. 검토 후 조치합니다.");
+    } catch (e) {
+      console.error("[PlayerProfilePage] report failed", e);
+      alert(e?.message || "신고 접수에 실패했습니다.");
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   const onMatchWithPlayer = async () => {
     if (!playerId) return;
 
@@ -614,6 +796,31 @@ export default function PlayerProfilePage() {
     return (
       <Page>
         <StateWrap>선수 정보를 찾을 수 없습니다.</StateWrap>
+      </Page>
+    );
+  }
+
+  // 다른 사람이 차단된 사용자 프로필에 진입했을 때
+  // (자기 자신 프로필은 BlockedGate가 처리하므로 여기선 다른 사람이 보는 케이스만)
+  if (player.blocked === true && !isSelf) {
+    const goBack = () => {
+      try {
+        if (window.history.length > 1) {
+          nav(-1);
+          return;
+        }
+      } catch (e) {}
+      nav("/home");
+    };
+    return (
+      <Page>
+        <BlockedOverlay
+          title="차단된 회원입니다"
+          description="해당 회원은 관리자에 의해 이용이 제한되었습니다."
+          reason={player.blockedReason}
+          blockedAt={player.blockedAt}
+          onBack={goBack}
+        />
       </Page>
     );
   }
@@ -802,17 +1009,65 @@ export default function PlayerProfilePage() {
               <PlaceholderText>등록된 미디어가 없습니다.</PlaceholderText>
             )}
           </Section>
+
+          {!isSelf && (
+            <ReportRow>
+              <ReportLink type="button" onClick={openReport}>
+                🚩 부정 사용자 신고하기
+              </ReportLink>
+            </ReportRow>
+          )}
         </ContentWrap>
       </ScrollArea>
 
-      <BottomBar>
-        <BottomRow>
-          <CTAButton onClick={onMatchWithPlayer} disabled={chatBusy}>
-            <TbBallBasketball size={18} />
-            이 선수와 채팅
-          </CTAButton>
-        </BottomRow>
-      </BottomBar>
+      {!embed && (
+        <BottomBar>
+          <BottomRow>
+            <CTAButton onClick={onMatchWithPlayer} disabled={chatBusy}>
+              <TbBallBasketball size={18} />
+              이 선수와 채팅
+            </CTAButton>
+          </BottomRow>
+        </BottomBar>
+      )}
+
+      {reportOpen && (
+        <ReportOverlay
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeReport();
+          }}
+        >
+          <ReportModal onClick={(e) => e.stopPropagation()}>
+            <ReportTitle>부정 사용자 신고</ReportTitle>
+            <ReportSub>
+              신고 내용은 관리자가 검토 후 조치합니다.{"\n"}
+              허위 신고 시 서비스 이용이 제한될 수 있습니다.
+            </ReportSub>
+
+            <ReportTextarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="예: 욕설/비방, 노쇼 반복, 사기 의심 등"
+              disabled={reportBusy}
+              autoFocus
+            />
+
+            <ReportActions>
+              <ReportBtn type="button" onClick={closeReport} disabled={reportBusy}>
+                취소
+              </ReportBtn>
+              <ReportBtn
+                type="button"
+                $danger
+                onClick={handleSubmitReport}
+                disabled={reportBusy || !reportReason.trim()}
+              >
+                {reportBusy ? "전송중…" : "신고하기"}
+              </ReportBtn>
+            </ReportActions>
+          </ReportModal>
+        </ReportOverlay>
+      )}
     </Page>
   );
 }

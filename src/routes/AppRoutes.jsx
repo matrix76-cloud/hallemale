@@ -100,6 +100,8 @@ import AdminSettingsPolicyPage from "../pages/admin/AdminSettingsPolicyPage";
 import AdminGamesUpcomingPage from "../pages/admin/AdminGamesUpcomingPage";
 import AdminGamesPastPage from "../pages/admin/AdminGamesPastPage";
 import AdminPlayersListPage from "../pages/admin/AdminPlayersListPage";
+import AdminPlayersRankingPage from "../pages/admin/AdminPlayersRankingPage";
+import AdminTeamsRankingPage from "../pages/admin/AdminTeamsRankingPage";
 import AdminChatListPage from "../pages/admin/AdminChatListPage";
 import AdminChatRoomDetailPage from "../pages/admin/AdminChatRoomDetailPage";
 import AdminBannersPage from "../pages/admin/AdminBannersPage";
@@ -295,10 +297,12 @@ export default function AppRoutes() {
           <Route path="/admin/settings" element={<Navigate to="/admin/settings/admins" replace />} />
 
           <Route path="/admin/users/list" element={<AdminPlayersListPage />} />
+          <Route path="/admin/users/ranking" element={<AdminPlayersRankingPage />} />
           <Route path="/admin/users/reports" element={<AdminUsersReportsPage />} />
           <Route path="/admin/users/blocks" element={<AdminUsersBlocksPage />} />
 
           <Route path="/admin/teams/list" element={<AdminTeamsListPage />} />
+          <Route path="/admin/teams/ranking" element={<AdminTeamsRankingPage />} />
           <Route path="/admin/teams/reports" element={<AdminTeamsReportsPage />} />
           <Route path="/admin/teams/blocks" element={<AdminTeamsBlocksPage />} />
 

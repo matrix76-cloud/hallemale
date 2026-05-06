@@ -1,11 +1,14 @@
 /* eslint-disable */
 // src/pages/admin/AdminPlayersListPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import AdminFilterSummaryBar from "../../components/admin/AdminFilterSummaryBar";
 import AdminLoading from "../../components/admin/AdminLoading";
 import AdminPager from "../../components/admin/AdminPager";
 import { fetchPlayersAdminView } from "../../services/adminPlayersService";
+import { blockUser } from "../../services/adminUserBlockService";
+import PlayerProfilePage from "../player/PlayerProfilePage";
 
 const Page = styled.div`
   display: flex;
@@ -14,10 +17,10 @@ const Page = styled.div`
 `;
 
 const Card = styled.div`
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+  box-shadow: ${({ theme }) => theme?.shadows?.card || "0 6px 14px rgba(15, 23, 42, 0.04)"};
   overflow: hidden;
 `;
 
@@ -33,20 +36,22 @@ const TableWrap = styled.div`
 `;
 
 const Table = styled.div`
-  min-width: 1820px;
+  min-width: 2040px;
 `;
 
-const COLS = "72px 160px 210px 160px 120px 120px 260px 110px 110px 240px 160px 170px";
+const COLS = "72px 160px 100px 210px 160px 120px 120px 260px 110px 110px 240px 160px 170px 120px";
 
 const Head = styled.div`
   display: grid;
   grid-template-columns: ${COLS};
   gap: 10px;
   padding: 12px 14px;
-  background: #f8fafc;
-  border-bottom: 1px solid #eef2f7;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#f8fafc"};
+  border-bottom: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#eef2f7"};
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
   white-space: nowrap;
 `;
 
@@ -55,13 +60,19 @@ const Row = styled.div`
   grid-template-columns: ${COLS};
   gap: 10px;
   padding: 12px 14px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.divider : "#f3f4f6"};
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 
   &:hover {
-    background: #fafbff;
+    background: ${({ theme }) =>
+      theme?.mode === "dark" ? "rgba(99,102,241,0.08)" : "#fafbff"};
   }
+`;
+
+const EmptyText = styled.div`
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const Cell = styled.div`
@@ -72,7 +83,7 @@ const Cell = styled.div`
 
 const Muted = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const Trunc = styled.div`
@@ -86,7 +97,7 @@ const Mono = styled.div`
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
   font-size: 12px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const Avatar = styled.img`
@@ -94,16 +105,20 @@ const Avatar = styled.img`
   height: 42px;
   border-radius: 8px;
   object-fit: cover;
-  background: #e5e7eb;
-  border: 1px solid #eef2f7;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#e5e7eb"};
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#eef2f7"};
 `;
 
 const AvatarFallback = styled.div`
   width: 42px;
   height: 42px;
   border-radius: 8px;
-  background: #e5e7eb;
-  border: 1px solid #eef2f7;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#e5e7eb"};
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#eef2f7"};
 `;
 
 const TeamLogo = styled.img`
@@ -111,8 +126,10 @@ const TeamLogo = styled.img`
   height: 28px;
   border-radius: 8px;
   object-fit: cover;
-  background: #e5e7eb;
-  border: 1px solid #eef2f7;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#e5e7eb"};
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#eef2f7"};
   flex-shrink: 0;
 `;
 
@@ -120,8 +137,10 @@ const TeamLogoFallback = styled.div`
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: #e5e7eb;
-  border: 1px solid #eef2f7;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#e5e7eb"};
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#eef2f7"};
   flex-shrink: 0;
 `;
 
@@ -141,7 +160,7 @@ const TeamTexts = styled.div`
 
 const TeamName = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -150,7 +169,7 @@ const TeamName = styled.div`
 
 const TeamMeta = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -162,7 +181,7 @@ const LinkText = styled.button`
   background: transparent;
   padding: 0;
   cursor: pointer;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   text-align: left;
   min-width: 0;
 
@@ -243,9 +262,15 @@ const PageChip = styled.span`
 const Btn = styled.button`
   height: 34px;
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: ${({ $primary }) => ($primary ? BLUE : "#ffffff")};
-  color: ${({ $primary }) => ($primary ? "#ffffff" : "#111827")};
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  background: ${({ $primary, theme }) =>
+    $primary
+      ? theme?.mode === "dark"
+        ? theme?.colors?.primary
+        : BLUE
+      : theme?.colors?.card || "#ffffff"};
+  color: ${({ $primary, theme }) =>
+    $primary ? "#ffffff" : theme?.colors?.textStrong || "#111827"};
   cursor: pointer;
   font-size: 12px;
   padding: 0 12px;
@@ -264,7 +289,8 @@ const Overlay = styled.div`
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: rgba(15, 23, 42, 0.45);
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
   display: grid;
   place-items: center;
   padding: 16px;
@@ -274,22 +300,22 @@ const Modal = styled.div`
   width: min(760px, 92vw);
   max-height: 82vh;
   overflow: auto;
-  background: #ffffff;
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  box-shadow: ${({ theme }) => theme?.shadows?.card || "0 24px 64px rgba(15, 23, 42, 0.35)"};
   padding: 16px 16px 18px;
 `;
 
 const ModalTitle = styled.div`
   font-size: 16px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   margin-bottom: 8px;
 `;
 
 const ModalBody = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   line-height: 1.7;
   white-space: pre-line;
 `;
@@ -299,6 +325,134 @@ const ModalActions = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+`;
+
+const BlockBtn = styled.button`
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(248,113,113,0.45)" : "#fecaca"};
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(248,113,113,0.16)" : "#fef2f2"};
+  color: ${({ theme }) => (theme?.mode === "dark" ? "#fca5a5" : "#b91c1c")};
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 12px;
+  cursor: pointer;
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+`;
+
+const InfoBtn = styled.button`
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(99,102,241,0.45)" : "rgba(11, 18, 34, 0.18)"};
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(99,102,241,0.16)" : "rgba(11, 18, 34, 0.06)"};
+  color: ${({ theme }) => (theme?.mode === "dark" ? "#c7d2fe" : "#0B1222")};
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 10px;
+  cursor: pointer;
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+`;
+
+const PreviewModal = styled.div`
+  width: min(460px, 96vw);
+  max-height: 92vh;
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  box-shadow: ${({ theme }) =>
+    theme?.shadows?.card || "0 24px 64px rgba(15, 23, 42, 0.35)"};
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+const PreviewHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#f8fafc"};
+`;
+
+const PreviewTitle = styled.div`
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const PreviewBody = styled.div`
+  flex: 1;
+  min-height: 0;
+  max-height: 82vh;
+  overflow-y: auto;
+  background: ${({ theme }) => theme?.colors?.surface || "#f9fafb"};
+`;
+
+const ModalLabel = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
+  margin-bottom: 6px;
+`;
+
+const ReasonTextarea = styled.textarea`
+  width: 100%;
+  min-height: 110px;
+  padding: 10px 12px;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  border-radius: 8px;
+  background: ${({ theme }) => theme?.colors?.surface || "#f9fafb"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
+  }
+`;
+
+const TargetLine = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#f8fafc"};
+
+  strong {
+    color: ${({ theme }) => (theme?.mode === "dark" ? "#fca5a5" : "#b91c1c")};
+  }
 `;
 
 function toDate(v) {
@@ -333,6 +487,8 @@ function normalizeText(s) {
 }
 
 export default function AdminPlayersListPage() {
+  const navigate = useNavigate();
+
   const [keyword, setKeyword] = useState("");
   const [regionSido, setRegionSido] = useState("all");
   const [mainPosition, setMainPosition] = useState("all");
@@ -351,10 +507,72 @@ export default function AdminPlayersListPage() {
   const [modalTitle, setModalTitle] = useState("");
   const [modalBody, setModalBody] = useState("");
 
+  // 차단 모달 상태
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [blockTarget, setBlockTarget] = useState(null); // { uid, nickname }
+  const [blockReason, setBlockReason] = useState("");
+  const [blockBusy, setBlockBusy] = useState(false);
+
+  // 회원 정보 미리보기 모달
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTarget, setPreviewTarget] = useState(null); // { uid, nickname }
+
+  const openPreviewModal = (uid, nickname) => {
+    if (!uid) return;
+    setPreviewTarget({ uid: String(uid), nickname: String(nickname || "") });
+    setPreviewOpen(true);
+  };
+
+  const closePreviewModal = () => {
+    setPreviewOpen(false);
+    setPreviewTarget(null);
+  };
+
   const openTextModal = (title, text) => {
     setModalTitle(String(title || ""));
     setModalBody(String(text || ""));
     setModalOpen(true);
+  };
+
+  const openBlockModal = (uid, nickname) => {
+    setBlockTarget({ uid: String(uid || ""), nickname: String(nickname || "") });
+    setBlockReason("");
+    setBlockOpen(true);
+  };
+
+  const closeBlockModal = () => {
+    if (blockBusy) return;
+    setBlockOpen(false);
+    setBlockTarget(null);
+    setBlockReason("");
+  };
+
+  const handleConfirmBlock = async () => {
+    const uid = blockTarget?.uid;
+    const reason = String(blockReason || "").trim();
+    if (!uid) return;
+    if (!reason) {
+      window.alert("차단 사유를 입력해주세요.");
+      return;
+    }
+
+    if (!window.confirm(`${blockTarget?.nickname || uid} 회원을 차단하시겠습니까?`)) {
+      return;
+    }
+
+    setBlockBusy(true);
+    try {
+      await blockUser({ uid, reason, byAdmin: "admin" });
+      setBlockOpen(false);
+      setBlockTarget(null);
+      setBlockReason("");
+      navigate("/admin/users/blocks");
+    } catch (e) {
+      console.error("[AdminPlayersListPage] block failed", e);
+      window.alert(e?.message || "차단 처리에 실패했습니다.");
+    } finally {
+      setBlockBusy(false);
+    }
   };
 
   const load = async () => {
@@ -531,6 +749,7 @@ export default function AdminPlayersListPage() {
             <Head>
               <div>아바타</div>
               <div>닉네임</div>
+              <div>회원 정보</div>
               <div>uid</div>
               <div>지역</div>
               <div>포지션</div>
@@ -541,6 +760,7 @@ export default function AdminPlayersListPage() {
               <div>소개</div>
               <div>생성</div>
               <div>업데이트</div>
+              <div>관리</div>
             </Head>
 
             {viewRows.map((r, idx) => {
@@ -588,12 +808,22 @@ export default function AdminPlayersListPage() {
                       type="button"
                       onClick={() => {
                         if (!uid) return;
-                        window.open(`/users/${uid}`, "_blank");
+                        window.open(`/player/${uid}`, "_blank");
                       }}
                       title={nickname}
                     >
                       <Trunc>{nickname}</Trunc>
                     </LinkText>
+                  </Cell>
+
+                  <Cell>
+                    <InfoBtn
+                      type="button"
+                      onClick={() => openPreviewModal(uid, nickname)}
+                      disabled={!uid}
+                    >
+                      회원 정보
+                    </InfoBtn>
                   </Cell>
 
                   <Cell title={uid}>
@@ -681,13 +911,23 @@ export default function AdminPlayersListPage() {
                   <Cell>
                     <Mono>{fmtYmdHm(r.updatedAt)}</Mono>
                   </Cell>
+
+                  <Cell>
+                    <BlockBtn
+                      type="button"
+                      onClick={() => openBlockModal(uid, nickname)}
+                      disabled={!uid}
+                    >
+                      차단
+                    </BlockBtn>
+                  </Cell>
                 </Row>
               );
             })}
 
             {!viewRows.length ? (
               <Row style={{ gridTemplateColumns: "1fr" }}>
-                <div style={{ color: "#4b5563" }}>결과가 없습니다.</div>
+                <EmptyText>결과가 없습니다.</EmptyText>
               </Row>
             ) : null}
           </Table>
@@ -716,6 +956,72 @@ export default function AdminPlayersListPage() {
               </Btn>
             </ModalActions>
           </Modal>
+        </Overlay>
+      )}
+
+      {blockOpen && (
+        <Overlay
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeBlockModal();
+          }}
+        >
+          <Modal onClick={(e) => e.stopPropagation()}>
+            <ModalTitle>회원 차단</ModalTitle>
+
+            <TargetLine>
+              대상: <strong>{blockTarget?.nickname || "-"}</strong>{" "}
+              <span style={{ opacity: 0.6, fontSize: 12 }}>({blockTarget?.uid})</span>
+            </TargetLine>
+
+            <ModalLabel>차단 사유 (필수)</ModalLabel>
+            <ReasonTextarea
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="예: 욕설/비방 다수 신고, 노쇼 반복 등"
+              disabled={blockBusy}
+              autoFocus
+            />
+
+            <ModalActions>
+              <Btn type="button" onClick={closeBlockModal} disabled={blockBusy}>
+                취소
+              </Btn>
+              <Btn
+                type="button"
+                onClick={handleConfirmBlock}
+                disabled={blockBusy || !blockReason.trim()}
+                $primary
+              >
+                {blockBusy ? "처리중…" : "차단하기"}
+              </Btn>
+            </ModalActions>
+          </Modal>
+        </Overlay>
+      )}
+
+      {previewOpen && previewTarget?.uid && (
+        <Overlay
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closePreviewModal();
+          }}
+        >
+          <PreviewModal onClick={(e) => e.stopPropagation()}>
+            <PreviewHeader>
+              <PreviewTitle title={previewTarget?.nickname}>
+                {previewTarget?.nickname || "회원 정보"}
+              </PreviewTitle>
+              <Btn type="button" onClick={closePreviewModal} $primary>
+                닫기
+              </Btn>
+            </PreviewHeader>
+            <PreviewBody>
+              <PlayerProfilePage
+                key={previewTarget.uid}
+                playerId={previewTarget.uid}
+                embed
+              />
+            </PreviewBody>
+          </PreviewModal>
         </Overlay>
       )}
     </Page>

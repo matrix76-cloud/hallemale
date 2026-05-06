@@ -1,7 +1,8 @@
 /* eslint-disable */
 // src/pages/admin/AdminDashboardPage.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+import { fetchAdminDashboardKpi } from "../../services/adminDashboardService";
 
 /* ===================== Layout ===================== */
 
@@ -21,12 +22,12 @@ const TitleRow = styled.div`
 const H1 = styled.h1`
   margin: 0;
   font-size: 22px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const Sub = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const Pill = styled.span`
@@ -35,8 +36,9 @@ const Pill = styled.span`
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
-  background: #f3f4f6;
-  color: #374151;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+  color: ${({ theme }) => theme?.colors?.textNormal || "#374151"};
 `;
 
 const Row2 = styled.div`
@@ -54,10 +56,14 @@ const Chips = styled.div`
 `;
 
 const Chip = styled.button`
-  border: 1px solid ${({ $active }) => ($active ? "transparent" : "#e5e7eb")};
+  border: 1px solid ${({ $active, theme }) =>
+    $active ? "transparent" : theme?.colors?.border || "#e5e7eb"};
   background: ${({ $active, theme }) =>
-    $active ? theme?.colors?.primary || theme?.primary || "#4f46e5" : "#ffffff"};
-  color: ${({ $active }) => ($active ? "#ffffff" : "#111827")};
+    $active
+      ? theme?.colors?.primary || theme?.primary || "#4f46e5"
+      : theme?.colors?.card || "#ffffff"};
+  color: ${({ $active, theme }) =>
+    $active ? "#ffffff" : theme?.colors?.textStrong || "#111827"};
   border-radius: 999px;
   padding: 7px 10px;
   font-size: 12px;
@@ -90,8 +96,9 @@ const ChipCountOff = styled.span`
   height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  background: #f3f4f6;
-  color: #4b5563;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -114,10 +121,10 @@ const Grid = styled.div`
 `;
 
 const Card = styled.div`
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+  box-shadow: ${({ theme }) => theme?.shadows?.card || "0 6px 14px rgba(15, 23, 42, 0.04)"};
   overflow: hidden;
 `;
 
@@ -154,7 +161,7 @@ const StatTop = styled.div`
 
 const StatTitle = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 
   ${AccentStat} & {
     color: rgba(255, 255, 255, 0.85);
@@ -163,7 +170,7 @@ const StatTitle = styled.div`
 
 const StatValue = styled.div`
   font-size: 38px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   white-space: nowrap;
   font-weight :600;
 
@@ -175,7 +182,7 @@ const StatValue = styled.div`
 const StatSub = styled.div`
   margin-top: 6px;
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 
   ${AccentStat} & {
     color: rgba(255, 255, 255, 0.85);
@@ -201,13 +208,13 @@ const MatchTabs = styled.div`
   margin-bottom: 10px;
 
   button {
-    border: 1px solid #e5e7eb;
-    background: #fff;
+    border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+    background: ${({ theme }) => theme?.colors?.card || "#fff"};
     border-radius: 999px;
     padding: 6px 10px;
     font-size: 12px;
     cursor: pointer;
-    color: #111827;
+    color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   }
 
   button.on {
@@ -220,7 +227,7 @@ const MatchTabs = styled.div`
 const MatchList = styled.div`
   display: grid;
   gap: 10px;
-  border-top: 1px dashed #e5e7eb;
+  border-top: 1px dashed ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   padding-top: 12px;
 `;
 
@@ -230,14 +237,16 @@ const MatchRow = styled.div`
   gap: 10px;
   align-items: center;
   padding: 10px 10px;
-  border: 1px solid #f3f4f6;
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#f3f4f6"};
   border-radius: 8px;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#ffffff"};
 `;
 
 const MatchTime = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const MatchMain = styled.div`
@@ -249,7 +258,7 @@ const MatchMain = styled.div`
 
 const MatchTeams = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -257,7 +266,7 @@ const MatchTeams = styled.div`
 
 const MatchMeta = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -268,14 +277,18 @@ const StatusPill = styled.div`
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
-  background: ${({ $tone }) =>
-    $tone === "scheduled"
-      ? "rgba(37, 99, 235, 0.10)"
-      : $tone === "done"
-      ? "rgba(16, 185, 129, 0.10)"
-      : "rgba(107, 114, 128, 0.12)"};
-  color: ${({ $tone }) =>
-    $tone === "scheduled" ? "#1d4ed8" : $tone === "done" ? "#047857" : "#374151"};
+  background: ${({ $tone, theme }) => {
+    if ($tone === "scheduled")
+      return theme?.mode === "dark" ? "rgba(99,102,241,0.18)" : "rgba(37, 99, 235, 0.10)";
+    if ($tone === "done")
+      return theme?.mode === "dark" ? "rgba(34,197,94,0.18)" : "rgba(16, 185, 129, 0.10)";
+    return theme?.mode === "dark" ? "rgba(255,255,255,0.06)" : "rgba(107, 114, 128, 0.12)";
+  }};
+  color: ${({ $tone, theme }) => {
+    if ($tone === "scheduled") return theme?.mode === "dark" ? "#a5b4fc" : "#1d4ed8";
+    if ($tone === "done") return theme?.mode === "dark" ? "#86efac" : "#047857";
+    return theme?.mode === "dark" ? "#9ca3af" : "#374151";
+  }};
 `;
 
 /* ===================== Bottom Blocks ===================== */
@@ -304,12 +317,12 @@ const Side = styled(Card)`
 
 const SectionTitle = styled.div`
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   margin-bottom: 10px;
 `;
 
 const Table = styled.div`
-  border-top: 1px dashed #e5e7eb;
+  border-top: 1px dashed ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
 `;
 
 const THead = styled.div`
@@ -318,7 +331,7 @@ const THead = styled.div`
   gap: 8px;
   padding: 10px 0;
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const TRow = styled.div`
@@ -326,9 +339,14 @@ const TRow = styled.div`
   grid-template-columns: 120px repeat(5, 1fr);
   gap: 8px;
   padding: 10px 0;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.divider : "#f3f4f6"};
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
+`;
+
+const TLabel = styled.div`
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const Tabs = styled.div`
@@ -337,26 +355,28 @@ const Tabs = styled.div`
   margin: 0 0 10px;
 
   button {
-    border: 1px solid #e5e7eb;
-    background: #fff;
+    border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+    background: ${({ theme }) => theme?.colors?.card || "#fff"};
     border-radius: 8px;
     padding: 6px 10px;
     font-size: 12px;
     cursor: pointer;
-    color: #111827;
+    color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   }
 
   button.on {
-    background: #111827;
+    background: ${({ theme }) =>
+      theme?.mode === "dark" ? theme?.colors?.primary : "#111827"};
     color: #fff;
-    border-color: #111827;
+    border-color: ${({ theme }) =>
+      theme?.mode === "dark" ? theme?.colors?.primary : "#111827"};
   }
 `;
 
 const List = styled.div`
   display: flex;
   flex-direction: column;
-  border-top: 1px dashed #e5e7eb;
+  border-top: 1px dashed ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
 `;
 
 const Item = styled.div`
@@ -365,7 +385,8 @@ const Item = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 10px 2px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.divider : "#f3f4f6"};
 
   &:first-child {
     border-top: none;
@@ -373,7 +394,7 @@ const Item = styled.div`
 
   .left {
     min-width: 0;
-    color: #111827;
+    color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
     font-size: 13px;
     line-height: 1.4;
     overflow: hidden;
@@ -384,7 +405,7 @@ const Item = styled.div`
   .right {
     flex-shrink: 0;
     font-size: 12px;
-    color: #4b5563;
+    color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
     white-space: nowrap;
   }
 `;
@@ -396,22 +417,33 @@ const fmtKRW = (n) => {
 };
 
 export default function AdminDashboardPage() {
-  // ✅ KPI 더미 (추후 Firestore/Functions 연결)
-  const stats = useMemo(() => {
-    return {
-      todaySignups: 3,
-      todayMatches: 2,
-      pendingTeamApprovals: 1,
-      pendingPlayerApprovals: 4,
+  // ✅ KPI 실데이터 (Firestore 집계)
+  const [stats, setStats] = useState({
+    todaySignups: 0,
+    todayMatches: 0,
+    pendingTeamApprovals: 0,
+    pendingPlayerApprovals: 0,
+    totalW: 0,
+    totalD: 0,
+    totalL: 0,
+    todayNewTeams: 0,
+    totalMatches: 0,
+    createdChatRoomsToday: 0,
+  });
 
-      totalW: 128,
-      totalD: 12,
-      totalL: 96,
-
-      todayNewTeams: 2,
-      totalMatches: 584,
-
-      createdChatRoomsToday: 17,
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const k = await fetchAdminDashboardKpi();
+        if (!alive) return;
+        setStats(k);
+      } catch (e) {
+        console.error("[AdminDashboardPage] KPI load failed", e);
+      }
+    })();
+    return () => {
+      alive = false;
     };
   }, []);
 
@@ -741,7 +773,7 @@ export default function AdminDashboardPage() {
               {["오늘", "어제", "3일", "4일", "5일", "6일", "7일"].map(
                 (label, idx) => (
                   <TRow key={idx}>
-                    <div style={{ color: "#4b5563" }}>{label}</div>
+                    <TLabel>{label}</TLabel>
                     <div>{Math.max(0, 3 - idx)}</div>
                     <div>{Math.max(0, 2 - (idx % 2))}</div>
                     <div>{idx === 0 ? 1 : 0}</div>
