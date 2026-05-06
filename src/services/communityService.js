@@ -91,7 +91,11 @@ export async function loadCommunityList({
   const snap = await getDocs(q);
 
   const raws = [];
-  snap.forEach((d) => raws.push({ id: d.id, ...d.data() }));
+  snap.forEach((d) => {
+    const data = d.data() || {};
+    if (data.hidden) return; // 어드민이 숨김 처리한 글 제외
+    raws.push({ id: d.id, ...data });
+  });
 
   const uniqAuthorUids = Array.from(
     new Set(raws.map((p) => String(p.authorUid || p.authorId || "").trim()).filter(Boolean))
@@ -118,11 +122,22 @@ export async function loadCommunityList({
       title: String(p.title || "").trim(),
       content: String(p.content || "").trim(),
       image: pickThumb(p),
+      pinned: !!p.pinned,
       createdAt: formatKST(createdAt),
+      createdAtMs: (() => {
+        const d = toDate(createdAt);
+        return d ? d.getTime() : 0;
+      })(),
       views: stats.views,
       commentsCount: stats.commentsCount,
       likes: stats.likes,
     };
+  });
+
+  // 공지 우선 → 최신순
+  posts.sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return (b.createdAtMs || 0) - (a.createdAtMs || 0);
   });
 
   return { posts };

@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { IoTimeOutline, IoLogOutOutline } from "react-icons/io5";
 
 const ADMIN_SESSION_KEY = "HALLE_ADMIN_AUTHED";
+const ADMIN_SESSION_USER_KEY = "HALLE_ADMIN_USER";
 
 const Bar = styled.header`
   display: flex;
@@ -75,17 +76,31 @@ function formatNow() {
   return `${mm}/${dd} ${hh}:${mi}`;
 }
 
+function readAdminUser() {
+  try {
+    const raw = localStorage.getItem(ADMIN_SESSION_USER_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
 export default function AdminTopbar() {
   const nav = useNavigate();
   const [loginTime] = React.useState(() => formatNow());
+  const [user] = React.useState(() => readAdminUser());
 
   const handleLogout = () => {
     try {
       localStorage.removeItem(ADMIN_SESSION_KEY);
       localStorage.removeItem(`${ADMIN_SESSION_KEY}_AUTO`);
+      localStorage.removeItem(ADMIN_SESSION_USER_KEY);
     } catch (e) {}
     nav("/admin/login", { replace: true });
   };
+
+  const displayName = user?.name || user?.id || "관리자";
 
   return (
     <Bar>
@@ -94,7 +109,7 @@ export default function AdminTopbar() {
         접속: {loginTime}
       </Left>
       <Right>
-        <AdminName>관리자님</AdminName>
+        <AdminName>{displayName}님</AdminName>
         <LogoutBtn onClick={handleLogout}>
           <IoLogOutOutline />
           로그아웃

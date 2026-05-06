@@ -1,45 +1,24 @@
 /* eslint-disable */
-// src/pages/admin/AdminVenuesPage.jsx
-// 구장(venues) 등록/수정/삭제/순서 관리
+// src/pages/admin/AdminEventPopupsSection.jsx
+// 이벤트 팝업 등록/수정/삭제 (광고 관리 페이지의 한 섹션)
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
 import {
-  listAllVenues,
-  createVenue,
-  updateVenue,
-  deleteVenue,
-  uploadVenueImage,
-} from "../../services/venuesService";
+  listAllEventPopups,
+  createEventPopup,
+  updateEventPopup,
+  deleteEventPopup,
+  uploadEventPopupImage,
+} from "../../services/eventPopupsService";
 
-const Page = styled.div`
+const Wrap = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
 `;
 
-const HeaderRow = styled.div`
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-`;
-
-const Title = styled.h1`
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
-`;
-
-const Sub = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
-`;
-
 const SpecBox = styled.div`
-  margin-top: 10px;
   padding: 10px 12px;
   border-radius: 8px;
   background: ${({ theme }) =>
@@ -60,6 +39,11 @@ const Card = styled.section`
   box-shadow: ${({ theme }) =>
     theme?.shadows?.card || "0 6px 14px rgba(15, 23, 42, 0.04)"};
   padding: 16px;
+`;
+
+const CreateRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
 `;
 
 const PrimaryHeaderBtn = styled.button`
@@ -140,7 +124,7 @@ const FormGrid = styled.div`
 
 const ImageBox = styled.div`
   width: 220px;
-  height: 140px;
+  height: 280px;
   border-radius: 10px;
   border: 1.5px dashed ${({ theme }) => theme?.colors?.border || "#d1d5db"};
   display: grid;
@@ -148,7 +132,6 @@ const ImageBox = styled.div`
   background: ${({ theme }) => theme?.colors?.surface || "#f9fafb"};
   overflow: hidden;
   cursor: pointer;
-  position: relative;
 `;
 
 const ImagePreview = styled.img`
@@ -207,7 +190,7 @@ const Input = styled.input`
 `;
 
 const Textarea = styled.textarea`
-  min-height: 60px;
+  min-height: 72px;
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
@@ -221,16 +204,6 @@ const Textarea = styled.textarea`
     outline: none;
     border-color: ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
   }
-`;
-
-const Select = styled.select`
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
-  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
-  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
-  font-size: 13px;
 `;
 
 const ToggleRow = styled.label`
@@ -291,7 +264,7 @@ const ListWrap = styled.div`
 
 const Item = styled.div`
   display: grid;
-  grid-template-columns: 160px 1fr auto;
+  grid-template-columns: 120px 1fr auto;
   gap: 14px;
   padding: 12px;
   border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
@@ -301,8 +274,8 @@ const Item = styled.div`
 `;
 
 const Thumb = styled.div`
-  width: 160px;
-  height: 92px;
+  width: 120px;
+  height: 150px;
   border-radius: 8px;
   overflow: hidden;
   background: ${({ theme }) => theme?.colors?.surface || "#f3f4f6"};
@@ -327,9 +300,10 @@ const ItemTitle = styled.div`
   color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
-const ItemDesc = styled.div`
+const ItemBody = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
+  white-space: pre-wrap;
 `;
 
 const ItemMetaRow = styled.div`
@@ -338,35 +312,6 @@ const ItemMetaRow = styled.div`
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-`;
-
-const Badge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: ${({ $tone }) =>
-    $tone === "indoor"
-      ? "#dbeafe"
-      : $tone === "outdoor"
-      ? "#dcfce7"
-      : $tone === "free"
-      ? "#fef3c7"
-      : $tone === "paid"
-      ? "#fee2e2"
-      : "#f3f4f6"};
-  color: ${({ $tone }) =>
-    $tone === "indoor"
-      ? "#1d4ed8"
-      : $tone === "outdoor"
-      ? "#15803d"
-      : $tone === "free"
-      ? "#a16207"
-      : $tone === "paid"
-      ? "#b91c1c"
-      : "#6b7280"};
-  font-size: 11px;
-  font-weight: 600;
 `;
 
 const InactiveBadge = styled.span`
@@ -393,82 +338,37 @@ const EmptyText = styled.div`
   color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
-// ─── 일회용 샘플 시드 ───────────────────────────────────────────
-// 한 번 클릭하면 venues 컬렉션에 두 구장이 자동 등록됨.
-// 등록 후엔 이 영역(SeedCard / handleSeedSamples)과 public/sample-venues/* 삭제 권장.
-const SEED_SAMPLES = [
-  {
-    name: "동서울대학교 실내체육시설 체육관",
-    address: "경기 성남시 수정구 복정로 76",
-    addressDetail: "동서울대학교 체육관",
-    lat: 37.4671,
-    lng: 127.1264,
-    type: "indoor",
-    cost: "free",
-    memo: "동서울대학교 캠퍼스 내 실내체육관. 사전 협의 후 이용 가능.",
-    order: 1,
-    sampleImagePath: "/sample-venues/venue-dongseoul.png",
-    sampleImageName: "venue-dongseoul.png",
-  },
-  {
-    name: "한국외국어대학교 서울캠퍼스 미네르바콤플렉스 실내체육관",
-    address: "서울 동대문구 이문로 107",
-    addressDetail: "미네르바콤플렉스 내 실내체육관",
-    lat: 37.597,
-    lng: 127.0593,
-    type: "indoor",
-    cost: "free",
-    memo: "한국외대 서울캠퍼스 미네르바콤플렉스 시설. 사전 협의 후 이용 가능.",
-    order: 2,
-    sampleImagePath: "/sample-venues/venue-hufs.png",
-    sampleImageName: "venue-hufs.png",
-  },
-];
-
-const SeedCard = styled(Card)`
-  border: 1px dashed ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
-  background: ${({ theme }) =>
-    theme?.mode === "dark" ? "rgba(99,102,241,0.08)" : "#f5f3ff"};
-`;
-
-const SeedTitle = styled.div`
-  font-size: 14px;
-  font-weight: 700;
-  color: ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
-  margin-bottom: 6px;
-`;
-
-const SeedDesc = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
-  margin-bottom: 12px;
-  line-height: 1.6;
-`;
-
-async function fetchPublicAsFile(path, name) {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`이미지를 불러오지 못했습니다: ${path}`);
-  const blob = await res.blob();
-  const type = blob.type || "image/png";
-  return new File([blob], name, { type });
-}
-
 function makeEmptyForm() {
   return {
     id: null,
-    name: "",
-    address: "",
-    addressDetail: "",
-    lat: "",
-    lng: "",
+    title: "",
+    body: "",
     imageUrl: "",
     storagePath: "",
-    type: "indoor",
-    cost: "free",
-    memo: "",
+    linkUrl: "",
+    linkLabel: "",
     order: 0,
     active: true,
+    startAtStr: "",
+    endAtStr: "",
   };
+}
+
+function fmtDateTimeLocalInput(d) {
+  if (!d) return "";
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+function parseDateTimeLocal(s) {
+  const v = String(s || "").trim();
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function fmtYmdHm(d) {
@@ -481,7 +381,7 @@ function fmtYmdHm(d) {
   return `${yy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
-export default function AdminVenuesPage() {
+export default function AdminEventPopupsSection() {
   const fileRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
@@ -489,7 +389,6 @@ export default function AdminVenuesPage() {
   const [form, setForm] = useState(makeEmptyForm());
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
 
   const isEditing = !!form.id;
@@ -497,10 +396,10 @@ export default function AdminVenuesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const rows = await listAllVenues();
+      const rows = await listAllEventPopups();
       setList(rows);
     } catch (e) {
-      console.error("[AdminVenuesPage] load failed", e);
+      console.error("[AdminEventPopupsSection] load failed", e);
       setList([]);
     } finally {
       setLoading(false);
@@ -525,10 +424,10 @@ export default function AdminVenuesPage() {
 
     setUploading(true);
     try {
-      const { imageUrl, storagePath } = await uploadVenueImage(file);
+      const { imageUrl, storagePath } = await uploadEventPopupImage(file);
       updateForm({ imageUrl, storagePath });
     } catch (err) {
-      console.error("[AdminVenuesPage] upload failed", err);
+      console.error("[AdminEventPopupsSection] upload failed", err);
       window.alert(err?.message || "이미지 업로드에 실패했습니다.");
     } finally {
       setUploading(false);
@@ -543,18 +442,16 @@ export default function AdminVenuesPage() {
   const handleEdit = (row) => {
     setForm({
       id: row.id,
-      name: row.name,
-      address: row.address,
-      addressDetail: row.addressDetail,
-      lat: row.lat ?? "",
-      lng: row.lng ?? "",
+      title: row.title,
+      body: row.body,
       imageUrl: row.imageUrl,
       storagePath: row.storagePath,
-      type: row.type,
-      cost: row.cost,
-      memo: row.memo,
+      linkUrl: row.linkUrl,
+      linkLabel: row.linkLabel,
       order: row.order,
       active: row.active,
+      startAtStr: fmtDateTimeLocalInput(row.startAt),
+      endAtStr: fmtDateTimeLocalInput(row.endAt),
     });
     setFormOpen(true);
   };
@@ -565,26 +462,34 @@ export default function AdminVenuesPage() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      window.alert("구장명을 입력해주세요.");
-      return;
-    }
-    if (!form.address.trim()) {
-      window.alert("주소를 입력해주세요.");
+    if (!form.title.trim()) {
+      window.alert("제목을 입력해주세요.");
       return;
     }
     setBusy(true);
     try {
+      const payload = {
+        title: form.title,
+        body: form.body,
+        imageUrl: form.imageUrl,
+        storagePath: form.storagePath,
+        linkUrl: form.linkUrl,
+        linkLabel: form.linkLabel,
+        order: form.order,
+        active: form.active,
+        startAt: parseDateTimeLocal(form.startAtStr),
+        endAt: parseDateTimeLocal(form.endAtStr),
+      };
       if (isEditing) {
-        await updateVenue(form.id, form);
+        await updateEventPopup(form.id, payload);
       } else {
-        await createVenue(form);
+        await createEventPopup(payload);
       }
       setForm(makeEmptyForm());
       setFormOpen(false);
       await load();
     } catch (e) {
-      console.error("[AdminVenuesPage] save failed", e);
+      console.error("[AdminEventPopupsSection] save failed", e);
       window.alert(e?.message || "저장에 실패했습니다.");
     } finally {
       setBusy(false);
@@ -592,71 +497,30 @@ export default function AdminVenuesPage() {
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`"${row.name || row.id}" 구장을 삭제하시겠습니까?`))
-      return;
+    if (!window.confirm(`"${row.title || row.id}" 팝업을 삭제하시겠습니까?`)) return;
     setBusy(true);
     try {
-      await deleteVenue({ id: row.id, storagePath: row.storagePath });
+      await deleteEventPopup({ id: row.id, storagePath: row.storagePath });
       if (form.id === row.id) {
         setForm(makeEmptyForm());
         setFormOpen(false);
       }
       await load();
     } catch (e) {
-      console.error("[AdminVenuesPage] delete failed", e);
+      console.error("[AdminEventPopupsSection] delete failed", e);
       window.alert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusy(false);
     }
   };
 
-  const handleSeedSamples = async () => {
-    if (
-      !window.confirm(
-        "샘플 구장 2개를 자동으로 등록합니다. 계속하시겠습니까?\n(중복 등록 방지를 위해 한 번만 실행해주세요)"
-      )
-    )
-      return;
-    setSeeding(true);
-    try {
-      for (const sample of SEED_SAMPLES) {
-        const file = await fetchPublicAsFile(
-          sample.sampleImagePath,
-          sample.sampleImageName
-        );
-        const { imageUrl, storagePath } = await uploadVenueImage(file);
-        await createVenue({
-          name: sample.name,
-          address: sample.address,
-          addressDetail: sample.addressDetail,
-          lat: sample.lat,
-          lng: sample.lng,
-          imageUrl,
-          storagePath,
-          type: sample.type,
-          cost: sample.cost,
-          memo: sample.memo,
-          order: sample.order,
-          active: true,
-        });
-      }
-      window.alert("샘플 구장 2개가 등록되었습니다.");
-      await load();
-    } catch (e) {
-      console.error("[AdminVenuesPage] seed failed", e);
-      window.alert(e?.message || "샘플 등록에 실패했습니다.");
-    } finally {
-      setSeeding(false);
-    }
-  };
-
   const handleToggleActive = async (row) => {
     setBusy(true);
     try {
-      await updateVenue(row.id, { active: !row.active });
+      await updateEventPopup(row.id, { active: !row.active });
       await load();
     } catch (e) {
-      console.error("[AdminVenuesPage] toggle active failed", e);
+      console.error("[AdminEventPopupsSection] toggle active failed", e);
       window.alert(e?.message || "상태 변경에 실패했습니다.");
     } finally {
       setBusy(false);
@@ -664,47 +528,22 @@ export default function AdminVenuesPage() {
   };
 
   return (
-    <Page>
-      <HeaderRow>
-        <div>
-          <Title>구장 관리</Title>
-          <Sub style={{ marginTop: 4 }}>
-            할래말래에서 추천하는 구장을 등록·수정·삭제합니다. 비활성 구장은
-            사용자에게 노출되지 않습니다.
-          </Sub>
-        </div>
-        <PrimaryHeaderBtn type="button" onClick={handleOpenCreate}>
-          + 새 구장 등록
-        </PrimaryHeaderBtn>
-      </HeaderRow>
-
+    <Wrap>
       <SpecBox>
-        📐 권장 이미지 규격: <strong>1200 × 800 px (가로:세로 = 3:2)</strong> /
-        PNG·JPG / 5MB 이하<br />
-        업로드 시 자동으로 1080px로 압축됩니다.
+        📐 권장 이미지 규격: <strong>720 × 900 px (가로:세로 = 4:5)</strong> /
+        PNG·JPG / 5MB 이하 (이미지 없이 텍스트만으로도 등록 가능)
         <br />
-        좌표(위도/경도)는 비워둬도 등록 가능하지만, 지도 표시를 위해서는 입력을
-        권장합니다. (예: 위도 37.5896, 경도 127.0297)
+        ⏰ 시작/종료 일시를 비워두면 항상 노출, 채우면 해당 기간 동안만 노출됩니다.
+        <br />
+        🔁 사용자가 "오늘 하루 보지 않기"를 누르면 그 날 동안 다시 뜨지 않습니다.
       </SpecBox>
 
-      <SeedCard>
-        <SeedTitle>🌱 샘플 구장 시드 (1회용)</SeedTitle>
-        <SeedDesc>
-          개발 초기 테스트용. 클릭하면 <strong>동서울대 체육관</strong>,{" "}
-          <strong>한국외대 미네르바콤플렉스 체육관</strong> 두 구장이 자동으로
-          등록됩니다. 이미지·주소·좌표 포함. 한 번만 실행하세요.
-        </SeedDesc>
-        <Btn
-          type="button"
-          $primary
-          onClick={handleSeedSamples}
-          disabled={seeding || busy || uploading}
-        >
-          {seeding ? "샘플 등록 중…" : "샘플 2개 자동 등록"}
-        </Btn>
-      </SeedCard>
+      <CreateRow>
+        <PrimaryHeaderBtn type="button" onClick={handleOpenCreate}>
+          + 새 이벤트 팝업 등록
+        </PrimaryHeaderBtn>
+      </CreateRow>
 
-      {/* 등록/수정 폼 (모달) */}
       {formOpen && (
         <Overlay
           onClick={(e) => {
@@ -714,7 +553,7 @@ export default function AdminVenuesPage() {
           <ModalBox onClick={(e) => e.stopPropagation()}>
             <ModalHead>
               <CardTitle style={{ margin: 0 }}>
-                {isEditing ? "구장 수정" : "새 구장 등록"}
+                {isEditing ? "이벤트 팝업 수정" : "새 이벤트 팝업 등록"}
               </CardTitle>
               <CloseBtn type="button" onClick={handleCancelEdit} disabled={busy || uploading}>
                 ×
@@ -724,88 +563,70 @@ export default function AdminVenuesPage() {
         <FormGrid>
           <ImageBox onClick={handlePickImage}>
             {form.imageUrl ? (
-              <ImagePreview src={form.imageUrl} alt="venue preview" />
+              <ImagePreview src={form.imageUrl} alt="popup preview" />
             ) : (
               <ImagePlaceholder>
-                {uploading ? "업로드 중…" : "클릭해서\n이미지 선택"}
+                {uploading ? "업로드 중…" : "클릭해서\n이미지 선택\n(선택)"}
               </ImagePlaceholder>
             )}
           </ImageBox>
 
           <FormCol>
             <Field>
-              <Label>구장명</Label>
+              <Label>제목</Label>
               <Input
-                value={form.name}
-                onChange={(e) => updateForm({ name: e.target.value })}
-                placeholder="예: 고려대 화정체육관"
+                value={form.title}
+                onChange={(e) => updateForm({ title: e.target.value })}
+                placeholder="예: 신규 가입 이벤트 진행 중!"
               />
             </Field>
 
             <Field>
-              <Label>주소</Label>
-              <Input
-                value={form.address}
-                onChange={(e) => updateForm({ address: e.target.value })}
-                placeholder="예: 서울 성북구 고려대로 1"
-              />
-            </Field>
-
-            <Field>
-              <Label>상세 주소 (동/호수 등)</Label>
-              <Input
-                value={form.addressDetail}
-                onChange={(e) =>
-                  updateForm({ addressDetail: e.target.value })
-                }
-                placeholder="예: 지하 1층 농구코트"
+              <Label>본문 (선택)</Label>
+              <Textarea
+                value={form.body}
+                onChange={(e) => updateForm({ body: e.target.value })}
+                placeholder="팝업에 표시할 내용을 입력하세요."
               />
             </Field>
 
             <Row>
               <Field>
-                <Label>위도 (lat)</Label>
+                <Label>버튼 라벨 (선택)</Label>
                 <Input
-                  type="number"
-                  step="any"
-                  value={form.lat}
-                  onChange={(e) => updateForm({ lat: e.target.value })}
-                  placeholder="37.5896"
+                  value={form.linkLabel}
+                  onChange={(e) => updateForm({ linkLabel: e.target.value })}
+                  placeholder="예: 자세히 보기"
                 />
               </Field>
+
               <Field>
-                <Label>경도 (lng)</Label>
+                <Label>이동 URL (선택)</Label>
                 <Input
-                  type="number"
-                  step="any"
-                  value={form.lng}
-                  onChange={(e) => updateForm({ lng: e.target.value })}
-                  placeholder="127.0297"
+                  value={form.linkUrl}
+                  onChange={(e) => updateForm({ linkUrl: e.target.value })}
+                  placeholder="https:// 또는 /home/banners 같은 내부 경로"
                 />
               </Field>
             </Row>
 
             <Row>
               <Field>
-                <Label>종류</Label>
-                <Select
-                  value={form.type}
-                  onChange={(e) => updateForm({ type: e.target.value })}
-                >
-                  <option value="indoor">실내 (체육관)</option>
-                  <option value="outdoor">실외 (야외코트)</option>
-                </Select>
+                <Label>시작 일시 (비우면 항상)</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.startAtStr}
+                  onChange={(e) => updateForm({ startAtStr: e.target.value })}
+                />
               </Field>
 
               <Field>
-                <Label>이용 비용</Label>
-                <Select
-                  value={form.cost}
-                  onChange={(e) => updateForm({ cost: e.target.value })}
-                >
-                  <option value="free">무료</option>
-                  <option value="paid">유료</option>
-                </Select>
+                <Label>종료 일시 (비우면 항상)</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.endAtStr}
+                  onChange={(e) => updateForm({ endAtStr: e.target.value })}
+                />
               </Field>
 
               <Field>
@@ -817,15 +638,6 @@ export default function AdminVenuesPage() {
                 />
               </Field>
             </Row>
-
-            <Field>
-              <Label>메모 (이용 안내, 주차 등)</Label>
-              <Textarea
-                value={form.memo}
-                onChange={(e) => updateForm({ memo: e.target.value })}
-                placeholder="예: 평일 18시 이후 일반 개방 / 주차 가능"
-              />
-            </Field>
 
             <ToggleRow>
               <input
@@ -848,7 +660,7 @@ export default function AdminVenuesPage() {
                 onClick={handleSave}
                 disabled={busy || uploading}
               >
-                {busy ? "저장 중…" : isEditing ? "수정 저장" : "구장 등록"}
+                {busy ? "저장 중…" : isEditing ? "수정 저장" : "팝업 등록"}
               </Btn>
             </Actions>
           </FormCol>
@@ -864,14 +676,13 @@ export default function AdminVenuesPage() {
         </Overlay>
       )}
 
-      {/* 목록 */}
       <Card>
-        <CardTitle>등록된 구장 ({list.length})</CardTitle>
+        <CardTitle>등록된 이벤트 팝업 ({list.length})</CardTitle>
 
         {loading ? (
           <AdminLoading />
         ) : list.length === 0 ? (
-          <EmptyText>등록된 구장이 없습니다.</EmptyText>
+          <EmptyText>등록된 팝업이 없습니다.</EmptyText>
         ) : (
           <ListWrap>
             {list.map((row) => (
@@ -881,45 +692,24 @@ export default function AdminVenuesPage() {
                 </Thumb>
 
                 <ItemMeta>
-                  <ItemTitle>{row.name || "(이름 없음)"}</ItemTitle>
-                  <ItemDesc>
-                    {row.address}
-                    {row.addressDetail ? ` ${row.addressDetail}` : ""}
-                  </ItemDesc>
+                  <ItemTitle>{row.title || "(제목 없음)"}</ItemTitle>
+                  <ItemBody>{row.body || "-"}</ItemBody>
                   <ItemMetaRow>
-                    <Badge $tone={row.type}>
-                      {row.type === "outdoor" ? "실외" : "실내"}
-                    </Badge>
-                    <Badge $tone={row.cost}>
-                      {row.cost === "paid" ? "유료" : "무료"}
-                    </Badge>
                     <span>순서: {row.order}</span>
-                    {row.lat != null && row.lng != null && (
-                      <span>
-                        ({row.lat.toFixed(4)}, {row.lng.toFixed(4)})
-                      </span>
-                    )}
-                    <span>{fmtYmdHm(row.createdAt)}</span>
+                    <span>기간: {row.startAt ? fmtYmdHm(row.startAt) : "—"} ~ {row.endAt ? fmtYmdHm(row.endAt) : "—"}</span>
+                    {row.linkUrl ? <span>링크: {row.linkUrl}</span> : null}
                     {!row.active && <InactiveBadge>비활성</InactiveBadge>}
                   </ItemMetaRow>
                 </ItemMeta>
 
                 <ItemActions>
-                  <Btn
-                    type="button"
-                    onClick={() => handleToggleActive(row)}
-                    disabled={busy}
-                  >
+                  <Btn type="button" onClick={() => handleToggleActive(row)} disabled={busy}>
                     {row.active ? "비활성화" : "활성화"}
                   </Btn>
                   <Btn type="button" onClick={() => handleEdit(row)} disabled={busy}>
                     수정
                   </Btn>
-                  <DangerBtn
-                    type="button"
-                    onClick={() => handleDelete(row)}
-                    disabled={busy}
-                  >
+                  <DangerBtn type="button" onClick={() => handleDelete(row)} disabled={busy}>
                     삭제
                   </DangerBtn>
                 </ItemActions>
@@ -928,6 +718,6 @@ export default function AdminVenuesPage() {
           </ListWrap>
         )}
       </Card>
-    </Page>
+    </Wrap>
   );
 }

@@ -205,13 +205,48 @@ async function updateLastMessageMeta({
   });
 }
 
+async function notifyChatRecipients({ chatId, fromUid, preview } = {}) {
+  try {
+    const room = await getChatRoom({ chatId });
+    if (!room) return;
+    const participants = Array.isArray(room.participantUids) ? room.participantUids : [];
+    const targets = participants.filter((u) => String(u || "") && String(u) !== String(fromUid));
+    if (!targets.length) return;
+
+    await addDoc(collection(db, "notifications"), {
+      kind: "chat",
+      subType: "chatMessage",
+      type: "chat_message",
+      title: "새 메시지",
+      body: String(preview || "메시지가 도착했어요").slice(0, 140),
+      targetType: "USER",
+      targetIds: targets,
+      actorUid: String(fromUid || ""),
+      linkType: "chat",
+      linkTargetId: chatId,
+      meta: { chatId, fromUid, deepLink: `/chat/${chatId}` },
+      push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      prefsCategory: "chat",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      readBy: {},
+    });
+  } catch (e) {
+    console.warn("[chat] notifyChatRecipients failed:", e?.message || e);
+  }
+}
+
 export async function sendTextMessage({ chatId, fromUid, text } = {}) {
   if (!chatId) throw new Error("sendTextMessage: chatId is required");
   if (!fromUid) throw new Error("sendTextMessage: fromUid is required");
   const v = String(text || "").trim();
   if (!v) return;
 
-
+  // 어드민이 잠근 방은 송신 차단
+  const room = await getChatRoom({ chatId });
+  if (room?.locked) {
+    throw new Error("관리자가 잠근 채팅방입니다. 메시지를 보낼 수 없습니다.");
+  }
 
   await addDoc(collection(db, "chatRooms", chatId, "messages"), {
     chatId,
@@ -223,6 +258,7 @@ export async function sendTextMessage({ chatId, fromUid, text } = {}) {
   });
 
   await updateLastMessageMeta({ chatId, fromUid, lastMessageText: v });
+  await notifyChatRecipients({ chatId, fromUid, preview: v });
 }
 
 function safeExt(file) {
@@ -296,6 +332,11 @@ export async function sendImagesMessage({
 
   const vText = String(text || "").trim();
 
+  // 어드민이 잠근 방은 송신 차단
+  const room = await getChatRoom({ chatId });
+  if (room?.locked) {
+    throw new Error("관리자가 잠근 채팅방입니다. 메시지를 보낼 수 없습니다.");
+  }
 
   const images = [];
   for (const f of picked) {
@@ -321,4 +362,5 @@ export async function sendImagesMessage({
   const last = vText ? `${preview} · ${vText}` : preview;
 
   await updateLastMessageMeta({ chatId, fromUid, lastMessageText: last });
+  await notifyChatRecipients({ chatId, fromUid, preview: last });
 }

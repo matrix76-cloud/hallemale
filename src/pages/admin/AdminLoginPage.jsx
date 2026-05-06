@@ -1,16 +1,19 @@
 /* eslint-disable */
 // src/pages/admin/AdminLoginPage.jsx
-import styled, { keyframes } from "styled-components";
+import styled, { keyframes, ThemeProvider } from "styled-components";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { lightTheme } from "../../theme/theme";
+import { verifyAdminLogin } from "../../services/adminAccountService";
 
 const ADMIN_SESSION_KEY = "HALLE_ADMIN_AUTHED";
+const ADMIN_SESSION_USER_KEY = "HALLE_ADMIN_USER";
 
 const Wrap = styled.div`
   min-height: 100dvh;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background: #fff;
+  background: ${({ theme }) => theme?.colors?.bg || "#fff"};
   @media (max-width: 960px) {
     grid-template-columns: 1fr;
   }
@@ -36,11 +39,11 @@ const Body = styled.div`
 const Title = styled.h1`
   margin: 0;
   font-size: 40px;
-  color: #101318;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#101318"};
 `;
 
 const Sub = styled.small`
-  color: #8a93a4;
+  color: ${({ theme }) => theme?.colors?.textWeak || "#8a93a4"};
 `;
 
 const Field = styled.input`
@@ -48,7 +51,10 @@ const Field = styled.input`
   height: 48px;
   border-radius: 8px;
   padding: 0 14px;
-  border: 1px solid #e2e6ef;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e2e6ef"};
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#ffffff"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   font-size: 15px;
   &:focus {
     outline: 2px solid ${({ theme }) => theme.primarySoft || "#d6e4ff"};
@@ -169,10 +175,14 @@ export default function AdminLoginPage() {
 
     setBusy(true);
     try {
-      // ✅ 개발용 관리자 로그인: id=admin, pw=admin
-      if (cleanId === "admin" && cleanPw === "admin") {
+      const result = await verifyAdminLogin({ id: cleanId, password: cleanPw });
+      if (result?.ok) {
         try {
           localStorage.setItem(ADMIN_SESSION_KEY, "1");
+          localStorage.setItem(
+            ADMIN_SESSION_USER_KEY,
+            JSON.stringify({ id: result.id, name: result.name, role: result.role })
+          );
           if (auto) localStorage.setItem(`${ADMIN_SESSION_KEY}_AUTO`, "1");
           else localStorage.removeItem(`${ADMIN_SESSION_KEY}_AUTO`);
         } catch (e) {}
@@ -181,12 +191,16 @@ export default function AdminLoginPage() {
       }
 
       setErr("아이디 또는 비밀번호가 올바르지 않습니다.");
+    } catch (e) {
+      console.error("[AdminLoginPage] login failed", e);
+      setErr(e?.message || "로그인 처리 중 오류가 발생했습니다.");
     } finally {
       setBusy(false);
     }
   };
 
   return (
+    <ThemeProvider theme={lightTheme}>
     <Wrap>
       <Panel>
         <Gear>
@@ -288,5 +302,6 @@ export default function AdminLoginPage() {
         </Body>
       </div>
     </Wrap>
+    </ThemeProvider>
   );
 }

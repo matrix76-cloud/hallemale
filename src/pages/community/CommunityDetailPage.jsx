@@ -11,6 +11,7 @@ import {
   toggleCommunityLike,
   incrementCommunityPostViews,
 } from "../../services/communityService";
+import { createPostReport } from "../../services/postReportService";
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
 
@@ -46,7 +47,7 @@ const BackButton = styled.button`
   padding: 4px 6px;
   font-size: 14px;
   cursor: pointer;
-  color: ${({ theme }) => theme.colors?.text || "#111827"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
 
   &:active {
     opacity: 0.7;
@@ -63,7 +64,7 @@ const HeaderTitle = styled.h1`
 /* =============== 게시글 카드 =============== */
 
 const PostCard = styled.article`
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors?.card || "#ffffff"};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -79,7 +80,8 @@ const Avatar = styled.div`
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#e5e7eb"};
   overflow: hidden;
 `;
 
@@ -105,7 +107,7 @@ const AuthorName = styled.span`
 
 const MetaText = styled.span`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors?.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
 `;
 
 const ChatBadge = styled.button`
@@ -115,8 +117,10 @@ const ChatBadge = styled.button`
   border-radius: 999px;
   font-size: 11px;
   cursor: pointer;
-  background: ${({ theme }) => theme.colors?.primarySoft || "#eef2ff"};
-  color: ${({ theme }) => theme.colors?.primary || "#4f46e5"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : (theme.colors?.primarySoft || "#eef2ff")};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : (theme.colors?.primary || "#4f46e5")};
 
   &:active {
     opacity: 0.7;
@@ -135,7 +139,7 @@ const PostContent = styled.p`
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
-  color: ${({ theme }) => theme.colors?.text || "#111827"};
+  color: ${({ theme }) => theme.colors?.textNormal || "#111827"};
   white-space: pre-line;
 `;
 
@@ -143,7 +147,8 @@ const PostImageBox = styled.div`
   margin-top: 4px;
   border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#e5e7eb"};
   max-height: 280px;
 `;
 
@@ -160,7 +165,7 @@ const PostMetaRow = styled.div`
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: ${({ theme }) => theme.colors?.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
 `;
 
 const Dot = styled.span`
@@ -179,7 +184,20 @@ const ActionsRow = styled.div`
 
 const LikeButton = styled.button`
   border: none;
-  background: ${({ liked }) => (liked ? "#fee2e2" : "rgba(0,0,0,0.04)")};
+  background: ${({ liked, theme }) =>
+    liked
+      ? theme.mode === "dark"
+        ? "rgba(248,113,113,0.16)"
+        : "#fee2e2"
+      : theme.mode === "dark"
+        ? "rgba(255,255,255,0.06)"
+        : "rgba(0,0,0,0.04)"};
+  color: ${({ liked, theme }) =>
+    liked
+      ? theme.mode === "dark"
+        ? "#fca5a5"
+        : "#b91c1c"
+      : theme.colors?.textNormal || "#111827"};
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 11px;
@@ -195,7 +213,7 @@ const LikeButton = styled.button`
 
 const ActionText = styled.span`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors?.text || "#111827"};
+  color: inherit;
 `;
 
 /* =============== 댓글 섹션 =============== */
@@ -221,7 +239,7 @@ const CommentTitle = styled.h3`
 
 const CommentCount = styled.span`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors?.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
 `;
 
 const CommentList = styled.div`
@@ -244,7 +262,8 @@ const CommentAvatar = styled(Avatar)`
 const CommentBubble = styled.div`
   flex: 1;
   min-width: 0;
-  background: #f9fafb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#f9fafb"};
   border-radius: 8px;
   padding: 6px 8px;
 `;
@@ -264,14 +283,14 @@ const CommentAuthorName = styled.span`
 
 const CommentMeta = styled.span`
   font-size: 10px;
-  color: ${({ theme }) => theme.colors?.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors?.textWeak || "#9ca3af"};
 `;
 
 const CommentContent = styled.p`
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: ${({ theme }) => theme.colors?.text || "#111827"};
+  color: ${({ theme }) => theme.colors?.textNormal || "#111827"};
   white-space: pre-line;
 `;
 
@@ -296,8 +315,10 @@ const CommentInputBar = styled.div`
   width: 100%;
   max-width: 480px;
   padding: 8px 12px 12px;
-  background: #f9fafb;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.card : "#f9fafb"};
+  border-top: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.04)"};
   display: flex;
   gap: 8px;
 `;
@@ -305,7 +326,11 @@ const CommentInputBar = styled.div`
 const CommentInput = styled.input`
   flex: 1;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.08)"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#ffffff"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
   padding: 8px 12px;
   font-size: 12px;
   outline: none;
@@ -346,13 +371,14 @@ const ErrorBox = styled.div`
   gap: 10px;
   align-items: center;
   justify-content: center;
-  color: ${({ theme }) => theme.colors?.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
   padding: 24px 12px;
 `;
 
 const RetryButton = styled.button`
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: #fff;
+  border: 1px solid ${({ theme }) => theme.colors?.border || "rgba(0, 0, 0, 0.08)"};
+  background: ${({ theme }) => theme.colors?.card || "#fff"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 12px;
@@ -360,6 +386,128 @@ const RetryButton = styled.button`
 
   &:active {
     opacity: 0.8;
+  }
+`;
+
+/* =============== 신고 =============== */
+
+const ReportRow = styled.div`
+  margin-top: 8px;
+  padding: 0 4px 4px;
+  display: flex;
+  justify-content: center;
+`;
+
+const ReportLink = styled.button`
+  border: none;
+  background: transparent;
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px 12px;
+
+  &:hover {
+    color: ${({ theme }) =>
+      theme.mode === "dark" ? "#fca5a5" : theme.colors?.danger || "#b91c1c"};
+  }
+`;
+
+const ReportOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
+  display: grid;
+  place-items: center;
+  padding: 16px;
+`;
+
+const ReportModal = styled.div`
+  width: min(440px, 92vw);
+  background: ${({ theme }) => theme.colors?.card || "#ffffff"};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "transparent"};
+  border-radius: 12px;
+  padding: 18px 18px 16px;
+  box-shadow: ${({ theme }) =>
+    theme.shadows?.card || "0 24px 64px rgba(15, 23, 42, 0.35)"};
+`;
+
+const ReportTitle = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
+  margin-bottom: 4px;
+`;
+
+const ReportSub = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
+  margin-bottom: 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+`;
+
+const ReportTextarea = styled.textarea`
+  width: 100%;
+  min-height: 110px;
+  padding: 10px 12px;
+  border: 1px solid ${({ theme }) => theme.colors?.border || "#e5e7eb"};
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#f9fafb"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors?.primary || "#4f46e5"};
+  }
+`;
+
+const ReportActions = styled.div`
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+const ReportBtn = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid ${({ theme }) => theme.colors?.border || "#e5e7eb"};
+  background: ${({ $danger, theme }) =>
+    $danger
+      ? theme.mode === "dark"
+        ? "rgba(248,113,113,0.18)"
+        : "#fef2f2"
+      : theme.colors?.card || "#ffffff"};
+  color: ${({ $danger, theme }) =>
+    $danger
+      ? theme.mode === "dark"
+        ? "#fca5a5"
+        : "#b91c1c"
+      : theme.colors?.textStrong || "#111827"};
+  ${({ $danger, theme }) =>
+    $danger
+      ? `border-color: ${
+          theme.mode === "dark" ? "rgba(248,113,113,0.45)" : "#fecaca"
+        };`
+      : ""}
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
@@ -381,6 +529,11 @@ export default function CommunityDetailPage() {
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
+
+  // 신고 모달
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
 
   const reload = async () => {
     setLoading(true);
@@ -441,6 +594,54 @@ export default function CommunityDetailPage() {
       alert("좋아요 처리에 실패했습니다.");
     } finally {
       setLikeBusy(false);
+    }
+  };
+
+  const openReport = () => {
+    if (!myUid) {
+      alert("로그인 후 이용해주세요.");
+      return;
+    }
+    if (post?.isMine) {
+      alert("본인 게시글은 신고할 수 없습니다.");
+      return;
+    }
+    setReportReason("");
+    setReportOpen(true);
+  };
+
+  const closeReport = () => {
+    if (reportBusy) return;
+    setReportOpen(false);
+    setReportReason("");
+  };
+
+  const handleSubmitReport = async () => {
+    const reason = String(reportReason || "").trim();
+    if (!reason) {
+      alert("신고 사유를 입력해주세요.");
+      return;
+    }
+    if (!post || !myUid) return;
+    setReportBusy(true);
+    try {
+      await createPostReport({
+        postId: post.id,
+        postTitle: post.title,
+        postAuthorUid: post.authorId,
+        postAuthorNickname: post.authorName,
+        reporterUid: String(myUid),
+        reporterNickname: String(userDoc?.nickname || userDoc?.name || ""),
+        reason,
+      });
+      setReportOpen(false);
+      setReportReason("");
+      alert("신고가 접수되었습니다. 검토 후 조치합니다.");
+    } catch (e) {
+      console.error("[CommunityDetailPage] report failed", e);
+      alert(e?.message || "신고 접수에 실패했습니다.");
+    } finally {
+      setReportBusy(false);
     }
   };
 
@@ -565,6 +766,14 @@ export default function CommunityDetailPage() {
               </>
             )}
           </ActionsRow>
+
+          {!post.isMine && (
+            <ReportRow>
+              <ReportLink type="button" onClick={openReport}>
+                🚩 게시글 신고하기
+              </ReportLink>
+            </ReportRow>
+          )}
         </PostCard>
 
         <CommentSection>
@@ -627,6 +836,43 @@ export default function CommunityDetailPage() {
           {submittingComment ? "등록중" : "등록"}
         </CommentSendButton>
       </CommentInputBar>
+
+      {reportOpen && (
+        <ReportOverlay
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeReport();
+          }}
+        >
+          <ReportModal onClick={(e) => e.stopPropagation()}>
+            <ReportTitle>게시글 신고</ReportTitle>
+            <ReportSub>
+              {`신고 내용은 관리자가 검토 후 조치합니다.\n허위 신고 시 서비스 이용이 제한될 수 있습니다.`}
+            </ReportSub>
+
+            <ReportTextarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="예: 욕설/비방, 음란성, 광고/스팸, 사기 의심 등"
+              disabled={reportBusy}
+              autoFocus
+            />
+
+            <ReportActions>
+              <ReportBtn type="button" onClick={closeReport} disabled={reportBusy}>
+                취소
+              </ReportBtn>
+              <ReportBtn
+                type="button"
+                $danger
+                onClick={handleSubmitReport}
+                disabled={reportBusy || !reportReason.trim()}
+              >
+                {reportBusy ? "전송중…" : "신고하기"}
+              </ReportBtn>
+            </ReportActions>
+          </ReportModal>
+        </ReportOverlay>
+      )}
     </PageWrap>
   );
 }
