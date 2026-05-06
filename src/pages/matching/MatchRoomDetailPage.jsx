@@ -12,9 +12,12 @@ import {
   submitMatchResultWithMedia,
   acceptMatchResult,
   disputeMatchResult,
+  appendMatchResultComment,
+  appendMatchResultPhotos,
 } from "../../services/matchRoomService";
 import PositionChip from "../../components/common/PositionChip";
 import { useClub } from "../../hooks/useClub";
+import VenuePickerSheet from "../../components/common/VenuePickerSheet";
 
 /* ==================== 헬퍼 ==================== */
 
@@ -54,10 +57,10 @@ const Inner = styled.div`
 `;
 
 const MatchCard = styled.div`
-  background: #ffffff;
-  border-radius: 22px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 14px 14px 16px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -65,7 +68,8 @@ const MatchCard = styled.div`
 
 const TeamBlock = styled.div`
   padding: 8px 0 4px;
-  border-bottom: ${({ $withDivider }) => ($withDivider ? "1px solid #edf0f5" : "none")};
+  border-bottom: ${({ $withDivider, theme }) =>
+    $withDivider ? `1px solid ${theme.colors.divider}` : "none"};
 `;
 
 const TeamHeaderRow = styled.div`
@@ -87,7 +91,8 @@ const TeamLogoWrap = styled.div`
   height: 44px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex-shrink: 0;
 `;
 
@@ -113,7 +118,7 @@ const TeamStatsRow = styled.div`
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const WinRatePill = styled.span`
@@ -121,8 +126,10 @@ const WinRatePill = styled.span`
   align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #4f46e5;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : "#4f46e5"};
   font-size: 10px;
 `;
 
@@ -134,8 +141,9 @@ const TeamHeaderRight = styled.div`
 
 const TogglePlayersBtn = styled.button`
   border: none;
-  background: #f3f4f6;
-  color: #111827;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 12px;
   padding: 6px 10px;
   border-radius: 999px;
@@ -146,9 +154,10 @@ const TogglePlayersBtn = styled.button`
 const LineupBox = styled.div`
   margin-top: 10px;
   padding: 10px 10px;
-  border-radius: 14px;
-  background: #f9fafb;
-  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  border: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
 const LineupTitleRow = styled.div`
@@ -161,7 +170,7 @@ const LineupTitleRow = styled.div`
 
 const LineupTitle = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const LineupList = styled.div`
@@ -177,7 +186,7 @@ const PlayerRow = styled.div`
   padding: 8px 4px;
 
   & + & {
-    border-top: 1px solid #eef2f7;
+    border-top: 1px solid ${({ theme }) => theme.colors.divider};
   }
 `;
 
@@ -194,7 +203,8 @@ const PlayerAvatar = styled.img`
   height: 34px;
   border-radius: 999px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex-shrink: 0;
 `;
 
@@ -222,7 +232,7 @@ const PlayerName = styled.div`
 
 const PlayerBodyMeta = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
 `;
 
@@ -231,14 +241,14 @@ const VsDivider = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
+  color: ${({ theme }) => theme.colors.primary};
 `;
 
 const SectionCard = styled.div`
-  background: #ffffff;
-  border-radius: 22px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 14px 14px 16px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -247,22 +257,66 @@ const SectionCard = styled.div`
 const SectionTitleRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  justify-content: space-between;
+  gap: 10px;
+`;
+
+const SectionTitleLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 16px;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SectionIcon = styled.span`
-  font-size: 16px;
+  font-size: 20px;
+`;
+
+const SectionTitleActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const AddMiniButton = styled.button`
+  border: none;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #ffffff;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
 `;
 
 const MapBox = styled.div`
   margin-top: 4px;
   width: 100%;
   height: 140px;
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+`;
+
+const VenueImageBox = styled.div`
+  margin-top: 4px;
+  width: 100%;
+  height: 200px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+  position: relative;
+`;
+
+const VenueImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 `;
 
 const FieldRow = styled.div`
@@ -285,12 +339,37 @@ const FieldName = styled.div`
 
 const FieldEditButton = styled.button`
   border: none;
-  background: #111827;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 12px;
-  padding: 6px 14px;
+  padding: 7px 14px;
   border-radius: 999px;
   cursor: pointer;
+`;
+
+const PartnerVenueRow = styled.div`
+  margin-top: 10px;
+`;
+
+const PartnerVenueButton = styled.button`
+  width: 100%;
+  border: 1px dashed ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.10)" : "rgba(79,70,229,0.06)"};
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+
+  &:hover {
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "rgba(79,70,229,0.10)"};
+  }
+  &:active {
+    transform: translateY(1px);
+  }
 `;
 
 const DateTimeRow = styled.div`
@@ -302,24 +381,26 @@ const DateTimeRow = styled.div`
 
 const TimeInput = styled.input.attrs({ type: "time" })`
   width: 120px;
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 8px 10px;
   font-size: 13px;
-  color: #111827;
-  background: #f9fafb;
+  color: ${({ theme }) => theme.colors.textStrong};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
 `;
 
 const DateValue = styled.div`
   margin-top: 2px;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const CalendarWrap = styled.div`
-  border-radius: 14px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   padding: 8px 10px 10px;
 `;
 
@@ -332,7 +413,7 @@ const CalendarHeader = styled.div`
 
 const MonthLabel = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const MonthNavButton = styled.button`
@@ -342,14 +423,14 @@ const MonthNavButton = styled.button`
   line-height: 1;
   padding: 4px;
   cursor: pointer;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const WeekRow = styled.div`
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   font-size: 11px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   margin-bottom: 4px;
 `;
 
@@ -380,21 +461,21 @@ const DayCell = styled.button`
     background: transparent;
   `}
 
-  ${({ $isToday, $isSelected }) => {
+  ${({ $isToday, $isSelected, theme }) => {
     if ($isSelected) {
       return `
-        background:#2563eb;
+        background:${theme.colors.primary};
         color:#ffffff;
       `;
     }
     if ($isToday) {
       return `
-        border:1px solid #2563eb;
-        color:#2563eb;
+        border:1px solid ${theme.colors.primary};
+        color:${theme.colors.primary};
       `;
     }
     return `
-      color:#111827;
+      color:${theme.colors.textStrong};
     `;
   }}
 `;
@@ -402,7 +483,7 @@ const DayCell = styled.button`
 const NoticeText = styled.div`
   margin: 4px 10px 0;
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   text-align: center;
 `;
 
@@ -419,7 +500,12 @@ const PrimaryButton = styled.button`
   padding: 12px 0;
   border-radius: 999px;
   border: none;
-  background: ${({ theme, disabled }) => (disabled ? "#cbd5f5" : theme.colors.primary || "#2563eb")};
+  background: ${({ theme, disabled }) =>
+    disabled
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.35)"
+        : "#cbd5f5"
+      : theme.colors.primary};
   color: #ffffff;
   font-size: 15px;
   cursor: ${({ disabled }) => (disabled ? "default" : "pointer")};
@@ -431,7 +517,7 @@ const SecondaryButton = styled.button`
   border-radius: 999px;
   border: none;
   background: transparent;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   font-size: 13px;
   cursor: pointer;
 `;
@@ -441,8 +527,9 @@ const MutedButton = styled.button`
   padding: 10px 0;
   border-radius: 999px;
   border: none;
-  background: #f3f4f6;
-  color: #111827;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 13px;
   cursor: pointer;
 `;
@@ -463,13 +550,15 @@ const ScoreBlock = styled.div`
 
 const ScoreTeamLabel = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ScoreInput = styled.input`
   width: 100%;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   padding: 10px 12px;
   font-size: 16px;
   text-align: center;
@@ -477,13 +566,13 @@ const ScoreInput = styled.input`
 
 const ScoreSeparator = styled.div`
   font-size: 18px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ResultStatusText = styled.div`
   margin-top: 8px;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.5;
 `;
 
@@ -501,31 +590,32 @@ const ResultButton = styled.button`
   font-size: 13px;
   cursor: pointer;
 
-  ${({ variant }) =>
+  ${({ variant, theme }) =>
     variant === "primary"
       ? `
-    background:#2563eb;
+    background:${theme.colors.primary};
     color:#ffffff;
   `
       : `
-    background:#f3f4f6;
-    color:#4b5563;
+    background:${theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+    color:${theme.colors.textNormal};
   `}
 `;
 
 const TextArea = styled.textarea`
   width: 100%;
-  min-height: 84px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  padding: 10px 12px;
-  font-size: 13px;
-  background: #ffffff;
+  min-height: 120px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  padding: 12px 12px;
+  font-size: 14px;
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   outline: none;
   resize: none;
 
   &:focus {
-    border-color: #2563eb;
+    border-color: ${({ theme }) => theme.colors.primary};
   }
 `;
 
@@ -543,9 +633,10 @@ const PhotoRow = styled.div`
 const PhotoThumb = styled.div`
   width: 74px;
   height: 74px;
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex: 0 0 auto;
   position: relative;
 `;
@@ -564,7 +655,7 @@ const PhotoRemove = styled.button`
   height: 24px;
   border-radius: 999px;
   border: none;
-  background: rgba(15, 23, 42, 0.7);
+  background: rgba(0, 0, 0, 0.7);
   color: #ffffff;
   cursor: pointer;
 `;
@@ -572,14 +663,197 @@ const PhotoRemove = styled.button`
 const PhotoAdd = styled.button`
   width: 74px;
   height: 74px;
-  border-radius: 14px;
-  border: 1px dashed #d1d5db;
-  background: #ffffff;
+  border-radius: 8px;
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
   flex: 0 0 auto;
   cursor: pointer;
   display: grid;
   place-items: center;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+/* ====== 결과/기록 UI ====== */
+
+const ScoreHero = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 0 4px;
+`;
+
+const ScoreHeroNum = styled.div`
+  font-size: 34px;
+  color: ${({ theme }) => theme.colors.textStrong};
+  letter-spacing: -0.02em;
+`;
+
+const ScoreHeroSep = styled.div`
+  font-size: 22px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const ScoreHeroHint = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  text-align: center;
+`;
+
+const CommentStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const CommentItem = styled.div`
+  padding: 12px 12px;
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const CommentHeader = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  margin-bottom: 8px;
+`;
+
+const CommentBody = styled.div`
+  font-size: 15px;
+  color: ${({ theme }) => theme.colors.textStrong};
+  line-height: 1.6;
+  white-space: pre-wrap;
+`;
+
+const FullPhotoList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const FullPhotoItem = styled.div`
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: 8px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+`;
+
+const FullPhotoImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+`;
+
+/* ✅ 경기결과 입력 잠금 안내 박스 */
+const ResultInfoBox = styled.div`
+  margin-top: 8px;
+  padding: 12px 12px;
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f8fafc"};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 12px;
+  line-height: 1.55;
+`;
+
+/* ====== 추가 모달 ====== */
+
+const ModalDim = styled.div`
+  position: fixed;
+  inset: 0;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.42)"};
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 9999;
+`;
+
+const ModalSheet = styled.div`
+  width: 100%;
+  max-width: 520px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px 20px 0 0;
+  padding: 14px 14px 16px;
+  box-shadow: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "0 -12px 30px rgba(0, 0, 0, 0.5)"
+      : "0 -12px 30px rgba(15, 23, 42, 0.18)"};
+`;
+
+const ModalTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+`;
+
+const ModalTitle = styled.div`
+  font-size: 16px;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const ModalClose = styled.button`
+  border: none;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+`;
+
+const ModalBody = styled.div`
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const ModalActions = styled.div`
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+`;
+
+const ModalBtn = styled.button`
+  flex: 1;
+  border: none;
+  border-radius: 999px;
+  padding: 13px 0;
+  font-size: 14px;
+  cursor: pointer;
+
+  ${({ theme, $variant, disabled }) => {
+    if (disabled) {
+      const bg =
+        theme.mode === "dark" ? theme.colors.surface : "#e5e7eb";
+      return `
+        background:${bg};
+        color:${theme.colors.textWeak};
+        cursor: default;
+      `;
+    }
+    if ($variant === "primary") {
+      return `
+        background:${theme.colors.primary};
+        color:#ffffff;
+      `;
+    }
+    const bg =
+      theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6";
+    return `
+      background:${bg};
+      color:${theme.colors.textStrong};
+    `;
+  }}
 `;
 
 /* ==================== helpers ==================== */
@@ -603,6 +877,58 @@ function pickNowHHMM() {
   return `${hh}:${mm}`;
 }
 
+// ✅ comment 문자열을 "기존/추가" 블록으로 분리 렌더
+// - 과거 데이터에 남아있는 "· <clubId/uid>" 같은 토큰은 화면에서 제거/치환
+function parseCommentBlocks(raw, { actorClubId = "", targetClubId = "", actorTeamName = "", targetTeamName = "" } = {}) {
+  const text = String(raw || "").trim();
+  if (!text) return [];
+
+  const isLikelyId = (s) => {
+    const v = String(s || "").trim();
+    if (!v) return false;
+    if (v.length < 12) return false;
+    return /^[A-Za-z0-9_-]+$/.test(v);
+  };
+
+  const prettifyHeader = (h) => {
+    const headerRaw = String(h || "").trim();
+    if (!headerRaw) return "추가 기록";
+
+    const parts = headerRaw
+      .split("·")
+      .map((x) => String(x || "").trim())
+      .filter(Boolean);
+
+    const mapped = parts.map((p) => {
+      if (actorClubId && p === actorClubId) return actorTeamName || "참가팀";
+      if (targetClubId && p === targetClubId) return targetTeamName || "참가팀";
+      return p;
+    });
+
+    if (mapped.length >= 2 && isLikelyId(mapped[mapped.length - 1])) {
+      mapped.pop();
+    }
+
+    const cleaned = mapped.filter((p) => !isLikelyId(p));
+
+    return cleaned.join(" · ") || "추가 기록";
+  };
+
+  const parts = text.split(/\n\n(?=\[추가 기록\])/g).filter(Boolean);
+
+  return parts.map((p, idx) => {
+    const s = String(p || "").trim();
+    if (s.startsWith("[추가 기록]")) {
+      const lines = s.split("\n");
+      const headerLine = String(lines[0] || "").replace("[추가 기록]", "").trim();
+      const header = prettifyHeader(headerLine);
+      const body = lines.slice(1).join("\n").trim();
+      return { key: `add-${idx}`, header: `추가 기록 · ${header}`, body: body || "" };
+    }
+    return { key: `base-${idx}`, header: "기존 코멘트", body: s };
+  });
+}
+
 /* ==================== 페이지 ==================== */
 
 export default function MatchRoomDetailPage() {
@@ -612,6 +938,8 @@ export default function MatchRoomDetailPage() {
 
   const myClubId = toStr(club?.clubId || club?.id);
   const roomId = toStr(params?.roomId || params?.matchId);
+
+  const authorDisplayName = toStr(club?.name) || "참가자";
 
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -625,7 +953,9 @@ export default function MatchRoomDetailPage() {
   const [oppLineupOpen, setOppLineupOpen] = useState(false);
 
   const [fieldAddress, setFieldAddress] = useState("");
-  const [fieldLatLng, setFieldLatLng] = useState(null); // { lat, lng }
+  const [fieldLatLng, setFieldLatLng] = useState(null);
+  const [venuePickerOpen, setVenuePickerOpen] = useState(false);
+  const [venueImageUrl, setVenueImageUrl] = useState("");
   const mapRef = useRef(null);
   const mapObjRef = useRef(null);
   const markerRef = useRef(null);
@@ -633,14 +963,20 @@ export default function MatchRoomDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const initOnceRef = useRef(false);
 
-  // ✅ 결과 입력 UI 상태
   const [myScoreInput, setMyScoreInput] = useState("");
   const [oppScoreInput, setOppScoreInput] = useState("");
   const [resultComment, setResultComment] = useState("");
-  const [resultFiles, setResultFiles] = useState([]); // File[]
+  const [resultFiles, setResultFiles] = useState([]);
   const [resultBusy, setResultBusy] = useState(false);
 
   const fileRef = useRef(null);
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [addMode, setAddMode] = useState("");
+  const [addText, setAddText] = useState("");
+  const [addFiles, setAddFiles] = useState([]);
+  const addFileRef = useRef(null);
+  const [addBusy, setAddBusy] = useState(false);
 
   const refresh = async () => {
     if (!roomId) return;
@@ -697,14 +1033,12 @@ export default function MatchRoomDetailPage() {
     if (addr) setFieldAddress(addr);
     if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) setFieldLatLng({ lat: Number(lat), lng: Number(lng) });
 
-    // ✅ editMode 초기값
     const st = toStr(room?.status);
     const proposer = toStr(room?.proposedByClubId);
     if (st === "accepted") setEditMode(true);
     else if (st === "proposed") setEditMode(!!myClubId && proposer === myClubId);
     else setEditMode(false);
 
-    // ✅ 결과 입력 초기값(confirmed/finished에서)
     if (room.myScore != null) setMyScoreInput(String(room.myScore));
     if (room.oppScore != null) setOppScoreInput(String(room.oppScore));
 
@@ -712,7 +1046,6 @@ export default function MatchRoomDetailPage() {
     if (savedComment) setResultComment(savedComment);
   }, [room, myClubId]);
 
-  // ✅ 지도 초기화
   useEffect(() => {
     const kakao = window.kakao;
     const st = toStr(room?.status);
@@ -730,7 +1063,7 @@ export default function MatchRoomDetailPage() {
 
       const center = fieldLatLng
         ? new kakao.maps.LatLng(fieldLatLng.lat, fieldLatLng.lng)
-        : new kakao.maps.LatLng(37.5665, 126.9780);
+        : new kakao.maps.LatLng(37.5665, 126.978);
 
       const map = new kakao.maps.Map(mapRef.current, { center, level: 4 });
       const marker = new kakao.maps.Marker({ position: center });
@@ -781,6 +1114,19 @@ export default function MatchRoomDetailPage() {
     });
   }, [room?.status, room?.myTeam?.region, room?.myTeam?.regionSido, room?.myTeam?.regionGu, fieldLatLng, fieldAddress]);
 
+  const handlePickVenue = (venue) => {
+    if (!venue) return;
+    const addr = toStr(venue.address);
+    if (addr) setFieldAddress(addr);
+    if (
+      Number.isFinite(Number(venue.lat)) &&
+      Number.isFinite(Number(venue.lng))
+    ) {
+      setFieldLatLng({ lat: Number(venue.lat), lng: Number(venue.lng) });
+    }
+    setVenueImageUrl(toStr(venue.imageUrl));
+  };
+
   const openAddressSearch = () => {
     const daum = window.daum;
     const kakao = window.kakao;
@@ -802,6 +1148,7 @@ export default function MatchRoomDetailPage() {
         if (!address) return;
 
         setFieldAddress(address);
+        setVenueImageUrl(""); // 직접 주소 검색 시 제휴구장 이미지 해제
 
         const geocoder = new kakao.maps.services.Geocoder();
         geocoder.addressSearch(address, (result, status) => {
@@ -858,23 +1205,25 @@ export default function MatchRoomDetailPage() {
 
   const isActor = !!myClubId && !!actorClubId && myClubId === actorClubId;
 
-  // ✅ 화면용 우리/상대 팀(우리팀 기준)
   const myTeamView = isActor ? room.myTeam : room.oppTeam;
   const oppTeamView = isActor ? room.oppTeam : room.myTeam;
 
-  // ✅ score SSOT는 actor/target로 저장되어 있음
   const actorScoreSaved = room.myScore;
   const targetScoreSaved = room.oppScore;
 
-  const myStats = (myTeamView?.stats || {});
-  const oppStats = (oppTeamView?.stats || {});
+  const myStats = myTeamView?.stats || {};
+  const oppStats = oppTeamView?.stats || {};
   const myRecord = `${myStats.wins ?? 0}승 ${myStats.losses ?? 0}패`;
   const oppRecord = `${oppStats.wins ?? 0}승 ${oppStats.losses ?? 0}패`;
   const myWinRate = Math.round((myStats.winRate ?? 0) * 100);
   const oppWinRate = Math.round((oppStats.winRate ?? 0) * 100);
 
-  const myPlayers = Array.isArray((isActor ? room.myLineup?.players : room.oppLineup?.players)) ? (isActor ? room.myLineup.players : room.oppLineup.players).slice(0, 10) : [];
-  const oppPlayers = Array.isArray((isActor ? room.oppLineup?.players : room.myLineup?.players)) ? (isActor ? room.oppLineup.players : room.myLineup.players).slice(0, 10) : [];
+  const myPlayers = Array.isArray((isActor ? room.myLineup?.players : room.oppLineup?.players))
+    ? (isActor ? room.myLineup.players : room.oppLineup.players).slice(0, 10)
+    : [];
+  const oppPlayers = Array.isArray((isActor ? room.oppLineup?.players : room.myLineup?.players))
+    ? (isActor ? room.oppLineup.players : room.myLineup.players).slice(0, 10)
+    : [];
 
   const isAdjusting = status === "accepted" || status === "proposed";
   const proposerClubId = toStr(room.proposedByClubId);
@@ -886,7 +1235,6 @@ export default function MatchRoomDetailPage() {
   const isFinished = status === "finished";
   const isCancelled = status === "cancelled";
 
-  // ✅ 결과 상태
   const resultState = toStr(room.resultState);
   const resultSubmittedBy = toStr(room?.result?.submittedByClubId);
   const iSubmittedResult = !!myClubId && !!resultSubmittedBy && myClubId === resultSubmittedBy;
@@ -894,8 +1242,122 @@ export default function MatchRoomDetailPage() {
   const savedPhotoUrls = Array.isArray(room?.result?.photoUrls) ? room.result.photoUrls : [];
   const savedComment = toStr(room?.result?.comment);
 
-  const canSubmitResult = isConfirmed && !resultBusy && !resultState;
+  const commentBlocks = parseCommentBlocks(savedComment, {
+    actorClubId: toStr(room?.actorClubId),
+    targetClubId: toStr(room?.targetClubId),
+    actorTeamName: toStr(room?.myTeam?.name),
+    targetTeamName: toStr(room?.oppTeam?.name),
+  });
+
   const canAcceptResult = isConfirmed && resultState === "waiting_accept" && !iSubmittedResult && !resultBusy;
+
+  /* ✅ 경기 결과 입력 노출 타이밍: 경기 시작(확정 scheduledAt) + 1시간 후 */
+  const scheduledAtMs = (() => {
+    const t = room?.scheduledAt ? new Date(room.scheduledAt).getTime() : NaN;
+    return Number.isFinite(t) ? t : NaN;
+  })();
+
+  const resultOpenAtMs = Number.isFinite(scheduledAtMs) ? scheduledAtMs + 60 * 60 * 1000 : NaN;
+  const canOpenResultInput = !resultState && Number.isFinite(resultOpenAtMs) && Date.now() >= resultOpenAtMs;
+
+  const resultOpenAtLabel = Number.isFinite(resultOpenAtMs)
+    ? formatKoreanDateTime(new Date(resultOpenAtMs).toISOString())
+    : "";
+
+  const openAddComment = () => {
+    if (!myClubId) {
+      window.alert("팀 정보를 확인할 수 없습니다.");
+      return;
+    }
+    setAddMode("comment");
+    setAddText("");
+    setAddFiles([]);
+    setAddOpen(true);
+  };
+
+  const openAddPhotos = () => {
+    if (!myClubId) {
+      window.alert("팀 정보를 확인할 수 없습니다.");
+      return;
+    }
+    setAddMode("photo");
+    setAddText("");
+    setAddFiles([]);
+    setAddOpen(true);
+  };
+
+  const closeAdd = () => {
+    if (addBusy) return;
+    setAddOpen(false);
+    setAddMode("");
+    setAddText("");
+    setAddFiles([]);
+  };
+
+  const onPickAddPhotos = () => {
+    if (addBusy) return;
+    addFileRef.current?.click();
+  };
+
+  const onAddFilesChanged = (e) => {
+    const list = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!list.length) return;
+
+    setAddFiles((prev) => {
+      const next = [...(prev || []), ...list].slice(0, 6);
+      return next;
+    });
+  };
+
+  const removeAddFile = (idx) => {
+    setAddFiles((prev) => (prev || []).filter((_, i) => i !== idx));
+  };
+
+  const saveAdd = async () => {
+    if (!myClubId) return;
+    if (!room?.id) return;
+
+    setAddBusy(true);
+    try {
+      if (addMode === "comment") {
+        const c = String(addText || "").trim();
+        if (!c) {
+          window.alert("코멘트를 입력해 주세요.");
+          return;
+        }
+        await appendMatchResultComment({
+          matchRequestId: room.id,
+          comment: c,
+          submittedByClubId: myClubId,
+          authorDisplayName,
+        });
+        await refresh();
+        closeAdd();
+        return;
+      }
+
+      if (addMode === "photo") {
+        if (!addFiles.length) {
+          window.alert("사진을 선택해 주세요.");
+          return;
+        }
+        await appendMatchResultPhotos({
+          matchRequestId: room.id,
+          files: addFiles,
+          submittedByClubId: myClubId,
+          authorDisplayName,
+        });
+        await refresh();
+        closeAdd();
+        return;
+      }
+    } catch (e) {
+      window.alert(e?.message || "추가 저장에 실패했습니다.");
+    } finally {
+      setAddBusy(false);
+    }
+  };
 
   const handlePropose = async () => {
     if (!myClubId) {
@@ -942,7 +1404,6 @@ export default function MatchRoomDetailPage() {
     }
   };
 
-  // ✅ 사진 선택
   const onPickPhotos = () => {
     if (resultBusy) return;
     fileRef.current?.click();
@@ -963,7 +1424,6 @@ export default function MatchRoomDetailPage() {
     setResultFiles((prev) => (prev || []).filter((_, i) => i !== idx));
   };
 
-  // ✅ 결과 제출
   const handleSubmitResult = async () => {
     if (!myClubId) return;
 
@@ -983,7 +1443,6 @@ export default function MatchRoomDetailPage() {
       return;
     }
 
-    // ✅ SSOT 변환: actorScore/targetScore로 저장
     const actorScore = isActor ? myN : oppN;
     const targetScore = isActor ? oppN : myN;
 
@@ -996,6 +1455,7 @@ export default function MatchRoomDetailPage() {
         comment: resultComment,
         files: resultFiles,
         submittedByClubId: myClubId,
+        authorDisplayName,
       });
 
       setResultFiles([]);
@@ -1008,7 +1468,6 @@ export default function MatchRoomDetailPage() {
     }
   };
 
-  // ✅ 결과 인정(=status finished + stats 반영)
   const handleAcceptResult = async () => {
     if (!myClubId) return;
     setResultBusy(true);
@@ -1114,410 +1573,577 @@ export default function MatchRoomDetailPage() {
   };
 
   return (
-    <PageWrap>
-      <Inner>
-        <MatchCard>
-          <TeamBlock $withDivider>
-            <TeamHeaderRow>
-              <TeamHeaderLeft onClick={() => goTeamDetail(myTeamView)}>
-                <TeamLogoWrap>
-                  <TeamLogo src={myTeamView?.logoUrl || images.logo} alt={myTeamView?.name} />
-                </TeamLogoWrap>
-                <TeamText>
-                  <TeamName>{myTeamView?.name || "우리팀"}</TeamName>
-                  <TeamStatsRow>
-                    <span>{myRecord}</span>
-                    <WinRatePill>승률 {myWinRate}%</WinRatePill>
-                  </TeamStatsRow>
-                </TeamText>
-              </TeamHeaderLeft>
+    <>
+      <PageWrap>
+        <Inner>
+          <MatchCard>
+            <TeamBlock $withDivider>
+              <TeamHeaderRow>
+                <TeamHeaderLeft onClick={() => goTeamDetail(myTeamView)}>
+                  <TeamLogoWrap>
+                    <TeamLogo src={myTeamView?.logoUrl || images.logo} alt={myTeamView?.name} />
+                  </TeamLogoWrap>
+                  <TeamText>
+                    <TeamName>{myTeamView?.name || "우리팀"}</TeamName>
+                    <TeamStatsRow>
+                      <span>{myRecord}</span>
+                      <WinRatePill>승률 {myWinRate}%</WinRatePill>
+                    </TeamStatsRow>
+                  </TeamText>
+                </TeamHeaderLeft>
 
-              <TeamHeaderRight>
-                <TogglePlayersBtn type="button" onClick={() => setMyLineupOpen((v) => !v)}>
-                  {myLineupOpen ? "선수 접기" : "선수 보기"}
-                </TogglePlayersBtn>
-              </TeamHeaderRight>
-            </TeamHeaderRow>
+                <TeamHeaderRight>
+                  <TogglePlayersBtn type="button" onClick={() => setMyLineupOpen((v) => !v)}>
+                    {myLineupOpen ? "선수 접기" : "선수 보기"}
+                  </TogglePlayersBtn>
+                </TeamHeaderRight>
+              </TeamHeaderRow>
 
-            {myLineupOpen && (
-              <LineupBox>
-                <LineupTitleRow>
-                  <LineupTitle>우리팀 선수 명단</LineupTitle>
-                </LineupTitleRow>
-                <LineupList>{myPlayers.length > 0 ? myPlayers.map((p) => renderPlayerRow(p, myRecord)) : null}</LineupList>
-              </LineupBox>
-            )}
-          </TeamBlock>
+              {myLineupOpen && (
+                <LineupBox>
+                  <LineupTitleRow>
+                    <LineupTitle>우리팀 선수 명단</LineupTitle>
+                  </LineupTitleRow>
+                  <LineupList>{myPlayers.length > 0 ? myPlayers.map((p) => renderPlayerRow(p, myRecord)) : null}</LineupList>
+                </LineupBox>
+              )}
+            </TeamBlock>
 
-          <VsDivider>VS</VsDivider>
+            <VsDivider>VS</VsDivider>
 
-          <TeamBlock>
-            <TeamHeaderRow>
-              <TeamHeaderLeft onClick={() => goTeamDetail(oppTeamView)}>
-                <TeamLogoWrap>
-                  <TeamLogo src={oppTeamView?.logoUrl || images.logo} alt={oppTeamView?.name} />
-                </TeamLogoWrap>
-                <TeamText>
-                  <TeamName>{oppTeamView?.name || "상대팀"}</TeamName>
-                  <TeamStatsRow>
-                    <span>{oppRecord}</span>
-                    <WinRatePill>승률 {oppWinRate}%</WinRatePill>
-                  </TeamStatsRow>
-                </TeamText>
-              </TeamHeaderLeft>
+            <TeamBlock>
+              <TeamHeaderRow>
+                <TeamHeaderLeft onClick={() => goTeamDetail(oppTeamView)}>
+                  <TeamLogoWrap>
+                    <TeamLogo src={oppTeamView?.logoUrl || images.logo} alt={oppTeamView?.name} />
+                  </TeamLogoWrap>
+                  <TeamText>
+                    <TeamName>{oppTeamView?.name || "상대팀"}</TeamName>
+                    <TeamStatsRow>
+                      <span>{oppRecord}</span>
+                      <WinRatePill>승률 {oppWinRate}%</WinRatePill>
+                    </TeamStatsRow>
+                  </TeamText>
+                </TeamHeaderLeft>
 
-              <TeamHeaderRight>
-                <TogglePlayersBtn type="button" onClick={() => setOppLineupOpen((v) => !v)}>
-                  {oppLineupOpen ? "선수 접기" : "선수 보기"}
-                </TogglePlayersBtn>
-              </TeamHeaderRight>
-            </TeamHeaderRow>
+                <TeamHeaderRight>
+                  <TogglePlayersBtn type="button" onClick={() => setOppLineupOpen((v) => !v)}>
+                    {oppLineupOpen ? "선수 접기" : "선수 보기"}
+                  </TogglePlayersBtn>
+                </TeamHeaderRight>
+              </TeamHeaderRow>
 
-            {oppLineupOpen && (
-              <LineupBox>
-                <LineupTitleRow>
-                  <LineupTitle>상대팀 선수 명단</LineupTitle>
-                </LineupTitleRow>
-                <LineupList>{oppPlayers.length > 0 ? oppPlayers.map((p) => renderPlayerRow(p, oppRecord)) : null}</LineupList>
-              </LineupBox>
-            )}
-          </TeamBlock>
-        </MatchCard>
+              {oppLineupOpen && (
+                <LineupBox>
+                  <LineupTitleRow>
+                    <LineupTitle>상대팀 선수 명단</LineupTitle>
+                  </LineupTitleRow>
+                  <LineupList>{oppPlayers.length > 0 ? oppPlayers.map((p) => renderPlayerRow(p, oppRecord)) : null}</LineupList>
+                </LineupBox>
+              )}
+            </TeamBlock>
+          </MatchCard>
 
-        {/* ✅ 조율중 (accepted/proposed): 지도/시간 */}
-        {isAdjusting && (
-          <>
-            <SectionCard>
-              <SectionTitleRow>
-                <SectionIcon>🏟️</SectionIcon>
-                <span>구장</span>
-              </SectionTitleRow>
-
-              <MapBox ref={mapRef} />
-
-              <FieldRow>
-                <FieldName>{toStr(fieldAddress) || "구장 주소를 선택해 주세요."}</FieldName>
-
-                {canEdit ? (
-                  <FieldEditButton type="button" onClick={openAddressSearch}>
-                    수정
-                  </FieldEditButton>
-                ) : (
-                  <FieldEditButton type="button" onClick={() => setEditMode(true)}>
-                    수정 제안
-                  </FieldEditButton>
-                )}
-              </FieldRow>
-            </SectionCard>
-
-            {canEdit ? (
+          {isAdjusting && (
+            <>
               <SectionCard>
                 <SectionTitleRow>
-                  <SectionIcon>📅</SectionIcon>
-                  <span>날짜 선택</span>
+                  <SectionTitleLeft>
+                    <SectionIcon>🏟️</SectionIcon>
+                    <span>구장</span>
+                  </SectionTitleLeft>
+                  <SectionTitleActions />
                 </SectionTitleRow>
 
-                <DateTimeRow>
-                  <CalendarWrap>
-                    <CalendarHeader>
-                      <MonthNavButton type="button" onClick={goPrevMonth}>
-                        ‹
-                      </MonthNavButton>
-                      <MonthLabel>
-                        {calYear}년 {calMonth + 1}월
-                      </MonthLabel>
-                      <MonthNavButton type="button" onClick={goNextMonth}>
-                        ›
-                      </MonthNavButton>
-                    </CalendarHeader>
+                {venueImageUrl ? (
+                  <VenueImageBox>
+                    <VenueImage src={venueImageUrl} alt="구장 이미지" />
+                  </VenueImageBox>
+                ) : (
+                  <MapBox ref={mapRef} />
+                )}
 
-                    <WeekRow>
-                      {["일", "월", "화", "수", "목", "금", "토"].map((w) => (
-                        <WeekCell key={w}>{w}</WeekCell>
-                      ))}
-                    </WeekRow>
+                {canEdit && (
+                  <PartnerVenueRow>
+                    <PartnerVenueButton
+                      type="button"
+                      onClick={() => setVenuePickerOpen(true)}
+                    >
+                      🏟️ 할래말래 제휴구장에서 선택
+                    </PartnerVenueButton>
+                  </PartnerVenueRow>
+                )}
 
-                    <DaysGrid>
-                      {cells.map((day, idx) => {
-                        if (!day) return <DayCell key={idx} $isEmpty>{" "}</DayCell>;
+                <FieldRow>
+                  <FieldName>{toStr(fieldAddress) || "구장 주소를 선택해 주세요."}</FieldName>
 
-                        const isToday = calYear === todayY && calMonth === todayM && day === todayD;
-                        const dateStr = `${calYear}-${pad2(calMonth + 1)}-${pad2(day)}`;
-                        const isSelected = selectedDate === dateStr;
-
-                        return (
-                          <DayCell
-                            key={idx}
-                            type="button"
-                            onClick={() => handleDayClick(day)}
-                            $isToday={isToday}
-                            $isSelected={isSelected}
-                          >
-                            {day}
-                          </DayCell>
-                        );
-                      })}
-                    </DaysGrid>
-                  </CalendarWrap>
-
-                  <TimeInput value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} />
-                </DateTimeRow>
-
-                <DateValue>{combinedLabel}</DateValue>
+                  {canEdit ? (
+                    <FieldEditButton type="button" onClick={openAddressSearch}>
+                      수정
+                    </FieldEditButton>
+                  ) : (
+                    <FieldEditButton type="button" onClick={() => setEditMode(true)}>
+                      수정 제안
+                    </FieldEditButton>
+                  )}
+                </FieldRow>
               </SectionCard>
-            ) : (
+
+              {canEdit ? (
+                <SectionCard>
+                  <SectionTitleRow>
+                    <SectionTitleLeft>
+                      <SectionIcon>📅</SectionIcon>
+                      <span>날짜 선택</span>
+                    </SectionTitleLeft>
+                    <SectionTitleActions />
+                  </SectionTitleRow>
+
+                  <DateTimeRow>
+                    <CalendarWrap>
+                      <CalendarHeader>
+                        <MonthNavButton type="button" onClick={goPrevMonth}>
+                          ‹
+                        </MonthNavButton>
+                        <MonthLabel>
+                          {calYear}년 {calMonth + 1}월
+                        </MonthLabel>
+                        <MonthNavButton type="button" onClick={goNextMonth}>
+                          ›
+                        </MonthNavButton>
+                      </CalendarHeader>
+
+                      <WeekRow>
+                        {["일", "월", "화", "수", "목", "금", "토"].map((w) => (
+                          <WeekCell key={w}>{w}</WeekCell>
+                        ))}
+                      </WeekRow>
+
+                      <DaysGrid>
+                        {cells.map((day, idx) => {
+                          if (!day) return <DayCell key={idx} $isEmpty>{" "}</DayCell>;
+
+                          const isToday = calYear === todayY && calMonth === todayM && day === todayD;
+                          const dateStr = `${calYear}-${pad2(calMonth + 1)}-${pad2(day)}`;
+                          const isSelected = selectedDate === dateStr;
+
+                          return (
+                            <DayCell
+                              key={idx}
+                              type="button"
+                              onClick={() => handleDayClick(day)}
+                              $isToday={isToday}
+                              $isSelected={isSelected}
+                            >
+                              {day}
+                            </DayCell>
+                          );
+                        })}
+                      </DaysGrid>
+                    </CalendarWrap>
+
+                    <TimeInput value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} />
+                  </DateTimeRow>
+
+                  <DateValue>{combinedLabel}</DateValue>
+                </SectionCard>
+              ) : (
+                <SectionCard>
+                  <SectionTitleRow>
+                    <SectionTitleLeft>
+                      <SectionIcon>🕒</SectionIcon>
+                      <span>제안된 일정</span>
+                    </SectionTitleLeft>
+                    <SectionTitleActions />
+                  </SectionTitleRow>
+                  <ResultStatusText>{room.scheduledAt ? `${formatKoreanDateTime(room.scheduledAt)} 예정` : "일정 정보가 없습니다."}</ResultStatusText>
+                </SectionCard>
+              )}
+            </>
+          )}
+
+          {isConfirmed && (
+            <>
               <SectionCard>
                 <SectionTitleRow>
-                  <SectionIcon>🕒</SectionIcon>
-                  <span>제안된 일정</span>
+                  <SectionTitleLeft>
+                    <SectionIcon>✅</SectionIcon>
+                    <span>확정된 일정</span>
+                  </SectionTitleLeft>
+                  <SectionTitleActions />
                 </SectionTitleRow>
                 <ResultStatusText>{room.scheduledAt ? `${formatKoreanDateTime(room.scheduledAt)} 예정` : "일정 정보가 없습니다."}</ResultStatusText>
+                <ResultStatusText>{toStr(fieldAddress) ? `구장: ${fieldAddress}` : "구장 정보가 없습니다."}</ResultStatusText>
               </SectionCard>
-            )}
+
+              <SectionCard>
+                <SectionTitleRow>
+                  <SectionTitleLeft>
+                    <SectionIcon>📊</SectionIcon>
+                    <span>경기 결과</span>
+                  </SectionTitleLeft>
+                  <SectionTitleActions />
+                </SectionTitleRow>
+
+                {!resultState && !canOpenResultInput && (
+                  <ResultInfoBox>
+                    경기 시작 후 <strong>1시간</strong>이 지나면 경기 결과 입력 화면이 노출됩니다.
+                    {resultOpenAtLabel ? (
+                      <>
+                        <br />
+                        입력 가능 시간: <strong>{resultOpenAtLabel}</strong>
+                      </>
+                    ) : (
+                      <>
+                        <br />
+                        일정이 확정되면 입력 가능 시간이 자동으로 계산됩니다.
+                      </>
+                    )}
+                  </ResultInfoBox>
+                )}
+
+                {!resultState && canOpenResultInput && (
+                  <>
+                    <ResultScoreRow>
+                      <ScoreBlock>
+                        <ScoreTeamLabel>{myTeamView?.name || "우리팀"}</ScoreTeamLabel>
+                        <ScoreInput
+                          inputMode="numeric"
+                          pattern="\\d*"
+                          value={myScoreInput}
+                          onChange={(e) => setMyScoreInput(e.target.value.replace(/[^\d]/g, ""))}
+                        />
+                      </ScoreBlock>
+
+                      <ScoreSeparator>:</ScoreSeparator>
+
+                      <ScoreBlock>
+                        <ScoreTeamLabel>{oppTeamView?.name || "상대팀"}</ScoreTeamLabel>
+                        <ScoreInput
+                          inputMode="numeric"
+                          pattern="\\d*"
+                          value={oppScoreInput}
+                          onChange={(e) => setOppScoreInput(e.target.value.replace(/[^\d]/g, ""))}
+                        />
+                      </ScoreBlock>
+                    </ResultScoreRow>
+
+                    <ResultStatusText>사진(선택)과 코멘트를 남길 수 있어요.</ResultStatusText>
+
+                    <PhotoRow>
+                      {resultFiles.map((f, idx) => {
+                        const src = URL.createObjectURL(f);
+                        return (
+                          <PhotoThumb key={`${f.name}-${idx}`}>
+                            <PhotoImg src={src} alt="picked" />
+                            <PhotoRemove type="button" onClick={() => removePickedFile(idx)}>
+                              ×
+                            </PhotoRemove>
+                          </PhotoThumb>
+                        );
+                      })}
+                      {resultFiles.length < 6 && (
+                        <PhotoAdd type="button" onClick={() => fileRef.current?.click()}>
+                          ＋
+                        </PhotoAdd>
+                      )}
+                    </PhotoRow>
+
+                    <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onFilesChanged} />
+
+                    <TextArea
+                      value={resultComment}
+                      onChange={(e) => setResultComment(e.target.value)}
+                      placeholder="코멘트 (예: 매너 좋았습니다. 다음에 또 경기해요!)"
+                    />
+
+                    <ActionsWrap>
+                      <PrimaryButton
+                        type="button"
+                        onClick={handleSubmitResult}
+                        disabled={resultBusy || !toStr(myScoreInput) || !toStr(oppScoreInput)}
+                      >
+                        {resultBusy ? "처리중..." : "결과 제출"}
+                      </PrimaryButton>
+                    </ActionsWrap>
+                  </>
+                )}
+
+                {resultState === "waiting_accept" && (
+                  <>
+                    <ScoreHero>
+                      <ScoreHeroNum>{String(actorScoreSaved ?? "-")}</ScoreHeroNum>
+                      <ScoreHeroSep>:</ScoreHeroSep>
+                      <ScoreHeroNum>{String(targetScoreSaved ?? "-")}</ScoreHeroNum>
+                    </ScoreHero>
+                    <ScoreHeroHint>상대팀 승인을 기다리는 중입니다.</ScoreHeroHint>
+
+                    {savedComment ? (
+                      <CommentStack>
+                        {commentBlocks.map((b) => (
+                          <CommentItem key={b.key}>
+                            <CommentHeader>{b.header}</CommentHeader>
+                            <CommentBody>{b.body}</CommentBody>
+                          </CommentItem>
+                        ))}
+                      </CommentStack>
+                    ) : null}
+
+                    {savedPhotoUrls.length > 0 ? (
+                      <FullPhotoList>
+                        {savedPhotoUrls.map((url, idx) => (
+                          <FullPhotoItem key={`${url}-${idx}`}>
+                            <FullPhotoImg src={url} alt="result" />
+                          </FullPhotoItem>
+                        ))}
+                      </FullPhotoList>
+                    ) : null}
+
+                    {!iSubmittedResult ? (
+                      <>
+                        <ResultStatusText>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ResultStatusText>
+                        <ResultActionsRow>
+                          <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
+                            {resultBusy ? "처리중..." : "결과 인정"}
+                          </ResultButton>
+                          <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
+                            이의 제기
+                          </ResultButton>
+                        </ResultActionsRow>
+                      </>
+                    ) : (
+                      <ResultStatusText>상대팀 승인을 기다리는 중입니다.</ResultStatusText>
+                    )}
+                  </>
+                )}
+
+                {resultState === "disputed" && <ResultStatusText>이의 제기 상태입니다. 관리자 검토 후 처리됩니다.</ResultStatusText>}
+              </SectionCard>
+            </>
+          )}
+
+          {isFinished && (
+            <>
+              <SectionCard>
+                <SectionTitleRow>
+                  <SectionTitleLeft>
+                    <SectionIcon>🏁</SectionIcon>
+                    <span>확정된 경기 결과</span>
+                  </SectionTitleLeft>
+                  <SectionTitleActions />
+                </SectionTitleRow>
+
+                <ScoreHero>
+                  <ScoreHeroNum>{String(actorScoreSaved ?? "-")}</ScoreHeroNum>
+                  <ScoreHeroSep>:</ScoreHeroSep>
+                  <ScoreHeroNum>{String(targetScoreSaved ?? "-")}</ScoreHeroNum>
+                </ScoreHero>
+
+                <ScoreHeroHint>{room?.scheduledAt ? `${formatKoreanDateTime(room.scheduledAt)} 경기` : "경기 결과"}</ScoreHeroHint>
+              </SectionCard>
+
+              <SectionCard>
+                <SectionTitleRow>
+                  <SectionTitleLeft>
+                    <SectionIcon>📷</SectionIcon>
+                    <span>경기 사진</span>
+                  </SectionTitleLeft>
+                  <SectionTitleActions>
+                    <AddMiniButton
+                      type="button"
+                      onClick={() => {
+                        setAddMode("photo");
+                        setAddText("");
+                        setAddFiles([]);
+                        setAddOpen(true);
+                      }}
+                    >
+                      사진 추가하기
+                    </AddMiniButton>
+                  </SectionTitleActions>
+                </SectionTitleRow>
+
+                {savedPhotoUrls.length > 0 ? (
+                  <FullPhotoList>
+                    {savedPhotoUrls.map((url, idx) => (
+                      <FullPhotoItem key={`${url}-${idx}`}>
+                        <FullPhotoImg src={url} alt="result" />
+                      </FullPhotoItem>
+                    ))}
+                  </FullPhotoList>
+                ) : (
+                  <ResultStatusText>아직 등록된 사진이 없습니다.</ResultStatusText>
+                )}
+              </SectionCard>
+
+              <SectionCard>
+                <SectionTitleRow>
+                  <SectionTitleLeft>
+                    <SectionIcon>💬</SectionIcon>
+                    <span>코멘트</span>
+                  </SectionTitleLeft>
+                  <SectionTitleActions>
+                    <AddMiniButton
+                      type="button"
+                      onClick={() => {
+                        setAddMode("comment");
+                        setAddText("");
+                        setAddFiles([]);
+                        setAddOpen(true);
+                      }}
+                    >
+                      글 추가하기
+                    </AddMiniButton>
+                  </SectionTitleActions>
+                </SectionTitleRow>
+
+                {savedComment ? (
+                  <CommentStack>
+                    {commentBlocks.map((b) => (
+                      <CommentItem key={b.key}>
+                        <CommentHeader>{b.header}</CommentHeader>
+                        <CommentBody>{b.body}</CommentBody>
+                      </CommentItem>
+                    ))}
+                  </CommentStack>
+                ) : (
+                  <ResultStatusText>아직 등록된 코멘트가 없습니다.</ResultStatusText>
+                )}
+              </SectionCard>
+            </>
+          )}
+
+          {isCancelled && (
+            <SectionCard>
+              <SectionTitleRow>
+                <SectionTitleLeft>
+                  <SectionIcon>⚠️</SectionIcon>
+                  <span>취소된 매칭</span>
+                </SectionTitleLeft>
+                <SectionTitleActions />
+              </SectionTitleRow>
+              <ResultStatusText>이 매칭은 취소 처리되었습니다.</ResultStatusText>
+            </SectionCard>
+          )}
+        </Inner>
+
+        {status === "accepted" && (
+          <>
+            <NoticeText>제안하면 상대팀이 확인 후 확정할 수 있어요.</NoticeText>
+            <ActionsWrap>
+              <PrimaryButton type="button" onClick={handlePropose} disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng}>
+                매칭 일정·장소 제안
+              </PrimaryButton>
+              <SecondaryButton type="button" onClick={handleCancelMatch}>
+                매칭 취소
+              </SecondaryButton>
+            </ActionsWrap>
           </>
         )}
 
-        {/* ✅ 확정(confirmed): 일정은 읽기 + 결과 입력 UI */}
-        {isConfirmed && (
+        {status === "proposed" && (
           <>
-            <SectionCard>
-              <SectionTitleRow>
-                <SectionIcon>✅</SectionIcon>
-                <span>확정된 일정</span>
-              </SectionTitleRow>
-              <ResultStatusText>{room.scheduledAt ? `${formatKoreanDateTime(room.scheduledAt)} 예정` : "일정 정보가 없습니다."}</ResultStatusText>
-              <ResultStatusText>{toStr(fieldAddress) ? `구장: ${fieldAddress}` : "구장 정보가 없습니다."}</ResultStatusText>
-            </SectionCard>
+            {iAmProposer ? (
+              <>
+                <NoticeText>상대팀 확정을 기다리고 있어요.</NoticeText>
+                <ActionsWrap>
+                  {editMode ? (
+                    <PrimaryButton type="button" onClick={handlePropose} disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng}>
+                      수정 제안 보내기
+                    </PrimaryButton>
+                  ) : (
+                    <MutedButton type="button" onClick={() => setEditMode(true)}>
+                      제안 수정하기
+                    </MutedButton>
+                  )}
+                  <SecondaryButton type="button" onClick={handleCancelMatch}>
+                    매칭 취소
+                  </SecondaryButton>
+                </ActionsWrap>
+              </>
+            ) : (
+              <>
+                <NoticeText>상대팀이 일정/장소를 제안했어요. 확정하거나 수정 제안할 수 있어요.</NoticeText>
+                <ActionsWrap>
+                  <PrimaryButton type="button" onClick={handleConfirmSchedule} disabled={!canConfirm}>
+                    일정 확정
+                  </PrimaryButton>
+                  <MutedButton type="button" onClick={() => setEditMode(true)}>
+                    수정 제안
+                  </MutedButton>
+                  <SecondaryButton type="button" onClick={handleCancelMatch}>
+                    매칭 취소
+                  </SecondaryButton>
+                </ActionsWrap>
+              </>
+            )}
+          </>
+        )}
+      </PageWrap>
 
-            <SectionCard>
-              <SectionTitleRow>
-                <SectionIcon>📊</SectionIcon>
-                <span>경기 결과</span>
-              </SectionTitleRow>
+      {addOpen && (
+        <ModalDim onClick={closeAdd}>
+          <ModalSheet onClick={(e) => e.stopPropagation()}>
+            <ModalTopRow>
+              <ModalTitle>{addMode === "photo" ? "사진 추가하기" : "글 추가하기"}</ModalTitle>
+              <ModalClose type="button" onClick={closeAdd}>
+                닫기
+              </ModalClose>
+            </ModalTopRow>
 
-              {/* 1) 아직 제출 전 */}
-              {!resultState && (
+            <ModalBody>
+              {addMode === "photo" ? (
                 <>
-                  <ResultScoreRow>
-                    <ScoreBlock>
-                      <ScoreTeamLabel>{myTeamView?.name || "우리팀"}</ScoreTeamLabel>
-                      <ScoreInput
-                        inputMode="numeric"
-                        pattern="\\d*"
-                        value={myScoreInput}
-                        onChange={(e) => setMyScoreInput(e.target.value.replace(/[^\d]/g, ""))}
-                      />
-                    </ScoreBlock>
-
-                    <ScoreSeparator>:</ScoreSeparator>
-
-                    <ScoreBlock>
-                      <ScoreTeamLabel>{oppTeamView?.name || "상대팀"}</ScoreTeamLabel>
-                      <ScoreInput
-                        inputMode="numeric"
-                        pattern="\\d*"
-                        value={oppScoreInput}
-                        onChange={(e) => setOppScoreInput(e.target.value.replace(/[^\d]/g, ""))}
-                      />
-                    </ScoreBlock>
-                  </ResultScoreRow>
-
-                  <ResultStatusText>사진(선택)과 코멘트를 남길 수 있어요.</ResultStatusText>
-
                   <PhotoRow>
-                    {resultFiles.map((f, idx) => {
+                    {addFiles.map((f, idx) => {
                       const src = URL.createObjectURL(f);
                       return (
                         <PhotoThumb key={`${f.name}-${idx}`}>
                           <PhotoImg src={src} alt="picked" />
-                          <PhotoRemove type="button" onClick={() => removePickedFile(idx)}>
+                          <PhotoRemove type="button" onClick={() => removeAddFile(idx)}>
                             ×
                           </PhotoRemove>
                         </PhotoThumb>
                       );
                     })}
-                    {resultFiles.length < 6 && (
-                      <PhotoAdd type="button" onClick={onPickPhotos}>
+                    {addFiles.length < 6 && (
+                      <PhotoAdd type="button" onClick={onPickAddPhotos}>
                         ＋
                       </PhotoAdd>
                     )}
                   </PhotoRow>
 
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    style={{ display: "none" }}
-                    onChange={onFilesChanged}
-                  />
+                  <input ref={addFileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onAddFilesChanged} />
 
-                  <TextArea
-                    value={resultComment}
-                    onChange={(e) => setResultComment(e.target.value)}
-                    placeholder="코멘트 (예: 매너 좋았습니다. 다음에 또 경기해요!)"
-                  />
-
-                  <ActionsWrap>
-                    <PrimaryButton
-                      type="button"
-                      onClick={handleSubmitResult}
-                      disabled={resultBusy || !toStr(myScoreInput) || !toStr(oppScoreInput)}
-                    >
-                      {resultBusy ? "처리중..." : "결과 제출"}
-                    </PrimaryButton>
-                  </ActionsWrap>
+                  <ResultStatusText>최대 6장까지 추가할 수 있어요.</ResultStatusText>
                 </>
+              ) : (
+                <TextArea value={addText} onChange={(e) => setAddText(e.target.value)} placeholder="경기 코멘트를 추가해 주세요." />
               )}
+            </ModalBody>
 
-              {/* 2) 승인 대기 */}
-              {resultState === "waiting_accept" && (
-                <>
-                  <ResultScoreRow>
-                    <ScoreBlock>
-                      <ScoreTeamLabel>actor(제출기준) 점수</ScoreTeamLabel>
-                      <ScoreInput value={String(actorScoreSaved ?? "")} disabled />
-                    </ScoreBlock>
-                    <ScoreSeparator>:</ScoreSeparator>
-                    <ScoreBlock>
-                      <ScoreTeamLabel>target 점수</ScoreTeamLabel>
-                      <ScoreInput value={String(targetScoreSaved ?? "")} disabled />
-                    </ScoreBlock>
-                  </ResultScoreRow>
-
-                  {savedComment ? <ResultStatusText>코멘트: {savedComment}</ResultStatusText> : null}
-
-                  {savedPhotoUrls.length > 0 ? (
-                    <PhotoRow>
-                      {savedPhotoUrls.map((url, idx) => (
-                        <PhotoThumb key={`${url}-${idx}`}>
-                          <PhotoImg src={url} alt="result" />
-                        </PhotoThumb>
-                      ))}
-                    </PhotoRow>
-                  ) : null}
-
-                  {iSubmittedResult ? (
-                    <ResultStatusText>상대팀 승인을 기다리는 중입니다.</ResultStatusText>
-                  ) : (
-                    <>
-                      <ResultStatusText>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ResultStatusText>
-                      <ResultActionsRow>
-                        <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
-                          {resultBusy ? "처리중..." : "결과 인정"}
-                        </ResultButton>
-                        <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
-                          이의 제기
-                        </ResultButton>
-                      </ResultActionsRow>
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* 3) 이의 제기 */}
-              {resultState === "disputed" && (
-                <ResultStatusText>이의 제기 상태입니다. 관리자 검토 후 처리됩니다.</ResultStatusText>
-              )}
-            </SectionCard>
-          </>
-        )}
-
-        {/* ✅ finished: 읽기 전용 */}
-        {isFinished && (
-          <SectionCard>
-            <SectionTitleRow>
-              <SectionIcon>🏁</SectionIcon>
-              <span>확정된 경기 결과</span>
-            </SectionTitleRow>
-            <ResultStatusText>
-              점수: {String(actorScoreSaved ?? "-")} : {String(targetScoreSaved ?? "-")}
-            </ResultStatusText>
-            {savedComment ? <ResultStatusText>코멘트: {savedComment}</ResultStatusText> : null}
-            {savedPhotoUrls.length > 0 ? (
-              <PhotoRow>
-                {savedPhotoUrls.map((url, idx) => (
-                  <PhotoThumb key={`${url}-${idx}`}>
-                    <PhotoImg src={url} alt="result" />
-                  </PhotoThumb>
-                ))}
-              </PhotoRow>
-            ) : null}
-          </SectionCard>
-        )}
-
-        {isCancelled && (
-          <SectionCard>
-            <SectionTitleRow>
-              <SectionIcon>⚠️</SectionIcon>
-              <span>취소된 매칭</span>
-            </SectionTitleRow>
-            <ResultStatusText>이 매칭은 취소 처리되었습니다.</ResultStatusText>
-          </SectionCard>
-        )}
-      </Inner>
-
-      {/* ✅ 하단 액션 */}
-      {status === "accepted" && (
-        <>
-          <NoticeText>제안하면 상대팀이 확인 후 확정할 수 있어요.</NoticeText>
-          <ActionsWrap>
-            <PrimaryButton
-              type="button"
-              onClick={handlePropose}
-              disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng}
-            >
-              매칭 일정·장소 제안
-            </PrimaryButton>
-            <SecondaryButton type="button" onClick={handleCancelMatch}>
-              매칭 취소
-            </SecondaryButton>
-          </ActionsWrap>
-        </>
+            <ModalActions>
+              <ModalBtn type="button" onClick={closeAdd} disabled={addBusy}>
+                취소
+              </ModalBtn>
+              <ModalBtn
+                type="button"
+                $variant="primary"
+                onClick={saveAdd}
+                disabled={addBusy || (addMode === "comment" ? !String(addText || "").trim() : addMode === "photo" ? !addFiles.length : true)}
+              >
+                {addBusy ? "저장중..." : "추가 저장"}
+              </ModalBtn>
+            </ModalActions>
+          </ModalSheet>
+        </ModalDim>
       )}
 
-      {status === "proposed" && (
-        <>
-          {iAmProposer ? (
-            <>
-              <NoticeText>상대팀 확정을 기다리고 있어요.</NoticeText>
-              <ActionsWrap>
-                {editMode ? (
-                  <PrimaryButton
-                    type="button"
-                    onClick={handlePropose}
-                    disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng}
-                  >
-                    수정 제안 보내기
-                  </PrimaryButton>
-                ) : (
-                  <MutedButton type="button" onClick={() => setEditMode(true)}>
-                    제안 수정하기
-                  </MutedButton>
-                )}
-                <SecondaryButton type="button" onClick={handleCancelMatch}>
-                  매칭 취소
-                </SecondaryButton>
-              </ActionsWrap>
-            </>
-          ) : (
-            <>
-              <NoticeText>상대팀이 일정/장소를 제안했어요. 확정하거나 수정 제안할 수 있어요.</NoticeText>
-              <ActionsWrap>
-                <PrimaryButton type="button" onClick={handleConfirmSchedule} disabled={!canConfirm}>
-                  일정 확정
-                </PrimaryButton>
-                <MutedButton type="button" onClick={() => setEditMode(true)}>
-                  수정 제안
-                </MutedButton>
-                <SecondaryButton type="button" onClick={handleCancelMatch}>
-                  매칭 취소
-                </SecondaryButton>
-              </ActionsWrap>
-            </>
-          )}
-        </>
-      )}
-    </PageWrap>
+      <VenuePickerSheet
+        open={venuePickerOpen}
+        onClose={() => setVenuePickerOpen(false)}
+        onPick={handlePickVenue}
+      />
+    </>
   );
 }

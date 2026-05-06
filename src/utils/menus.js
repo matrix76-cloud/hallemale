@@ -21,6 +21,7 @@ import {
   IoCloudDownloadOutline,
   IoSettingsOutline,
   IoImageOutline,
+  IoLocationOutline,
 } from "react-icons/io5";
 
 const A = "/admin";
@@ -42,8 +43,8 @@ export const MENUS = [
     label: "회원 관리",
     sub: [
       { to: `${A}/users/list`, label: "회원 목록" },
-      { to: `${A}/users/player-approvals`, label: "회원 승인" },
-      { to: `${A}/users/reports`, label: "신고/차단" },
+      { to: `${A}/users/reports`, label: "회원 신고" },
+      { to: `${A}/users/blocks`, label: "차단 회원" },
     ],
   },
   {
@@ -52,7 +53,8 @@ export const MENUS = [
     label: "팀 관리",
     sub: [
       { to: `${A}/teams/list`, label: "팀 목록" },
-      { to: `${A}/teams/approvals`, label: "팀 승인" },
+      { to: `${A}/teams/reports`, label: "팀 신고" },
+      { to: `${A}/teams/blocks`, label: "차단 팀" },
     ],
   },
   {
@@ -72,6 +74,12 @@ export const MENUS = [
       { to: `${A}/matches/list`, label: "매칭 목록" },
       { to: `${A}/matches/issues`, label: "분쟁/신고" },
     ],
+  },
+  {
+    key: "venues",
+    to: `${A}/venues`,
+    icon: IoLocationOutline,
+    label: "구장 관리",
   },
 
   // ━━━ 커뮤니티 ━━━
@@ -96,9 +104,12 @@ export const MENUS = [
   { section: "콘텐츠" },
   {
     key: "banners",
-    to: `${A}/banners`,
     icon: IoImageOutline,
-    label: "홈 배너/광고",
+    label: "광고 관리",
+    sub: [
+      { to: `${A}/banners`, label: "홈 배너" },
+      { to: `${A}/popups`, label: "이벤트 팝업" },
+    ],
   },
   {
     key: "notify",
@@ -107,7 +118,6 @@ export const MENUS = [
     sub: [
       { to: `${A}/notify/notices`, label: "공지 작성" },
       { to: `${A}/notify/push`, label: "푸시 발송" },
-      { to: `${A}/notify/history`, label: "발송 로그" },
     ],
   },
   {

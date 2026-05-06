@@ -84,25 +84,31 @@ import AdminShell from "../admin/layout/AdminShell";
 import AdminLoginPage from "../pages/admin/AdminLoginPage";
 import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
 import AdminUsersReportsPage from "../pages/admin/AdminUsersReportsPage";
-import AdminPlayerApprovalsPage from "../pages/admin/AdminPlayerApprovalsPage";
+import AdminUsersBlocksPage from "../pages/admin/AdminUsersBlocksPage";
 import AdminTeamsListPage from "../pages/admin/AdminTeamsListPage";
-import AdminTeamsApprovalsPage from "../pages/admin/AdminTeamsApprovalsPage";
+import AdminTeamsReportsPage from "../pages/admin/AdminTeamsReportsPage";
+import AdminTeamsBlocksPage from "../pages/admin/AdminTeamsBlocksPage";
 import AdminMatchesListPage from "../pages/admin/AdminMatchesListPage";
 import AdminMatchesIssuesPage from "../pages/admin/AdminMatchesIssuesPage";
 import AdminCommunityPostsPage from "../pages/admin/AdminCommunityPostsPage";
+import AdminCommunityPostDetailPage from "../pages/admin/AdminCommunityPostDetailPage";
 import AdminCommunityReportsPage from "../pages/admin/AdminCommunityReportsPage";
 import AdminNotifyNoticesPage from "../pages/admin/AdminNotifyNoticesPage";
 import AdminNotifyPushPage from "../pages/admin/AdminNotifyPushPage";
-import AdminNotifyHistoryPage from "../pages/admin/AdminNotifyHistoryPage";
 import AdminSettingsAdminsPage from "../pages/admin/AdminSettingsAdminsPage";
 import AdminSettingsPolicyPage from "../pages/admin/AdminSettingsPolicyPage";
 import AdminGamesUpcomingPage from "../pages/admin/AdminGamesUpcomingPage";
 import AdminGamesPastPage from "../pages/admin/AdminGamesPastPage";
 import AdminPlayersListPage from "../pages/admin/AdminPlayersListPage";
 import AdminChatListPage from "../pages/admin/AdminChatListPage";
+import AdminChatRoomDetailPage from "../pages/admin/AdminChatRoomDetailPage";
 import AdminBannersPage from "../pages/admin/AdminBannersPage";
+import AdminVenuesPage from "../pages/admin/AdminVenuesPage";
 import AdminUpdatesPage from "../pages/admin/AdminUpdatesPage";
 import FinishedMatchesPage from "../pages/matching/FinishedMatchesPage";
+import EventPage from "../pages/event/EventPage";
+import AdminEventPopupsPage from "../pages/admin/AdminEventPopupsPage";
+import VenueDetailPage from "../pages/venue/VenueDetailPage";
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -290,20 +296,21 @@ export default function AppRoutes() {
 
           <Route path="/admin/users/list" element={<AdminPlayersListPage />} />
           <Route path="/admin/users/reports" element={<AdminUsersReportsPage />} />
-          <Route path="/admin/users/player-approvals" element={<AdminPlayerApprovalsPage />} />
+          <Route path="/admin/users/blocks" element={<AdminUsersBlocksPage />} />
 
           <Route path="/admin/teams/list" element={<AdminTeamsListPage />} />
-          <Route path="/admin/teams/approvals" element={<AdminTeamsApprovalsPage />} />
+          <Route path="/admin/teams/reports" element={<AdminTeamsReportsPage />} />
+          <Route path="/admin/teams/blocks" element={<AdminTeamsBlocksPage />} />
 
           <Route path="/admin/matches/list" element={<AdminMatchesListPage />} />
           <Route path="/admin/matches/issues" element={<AdminMatchesIssuesPage />} />
 
           <Route path="/admin/community/posts" element={<AdminCommunityPostsPage />} />
+          <Route path="/admin/community/posts/:postId" element={<AdminCommunityPostDetailPage />} />
           <Route path="/admin/community/reports" element={<AdminCommunityReportsPage />} />
 
           <Route path="/admin/notify/notices" element={<AdminNotifyNoticesPage />} />
           <Route path="/admin/notify/push" element={<AdminNotifyPushPage />} />
-          <Route path="/admin/notify/history" element={<AdminNotifyHistoryPage />} />
 
           <Route path="/admin/settings/admins" element={<AdminSettingsAdminsPage />} />
           <Route path="/admin/settings/policy" element={<AdminSettingsPolicyPage />} />
@@ -315,7 +322,10 @@ export default function AppRoutes() {
           {/* 신규: 채팅 / 배너 / 앱 업데이트 */}
           <Route path="/admin/chat" element={<Navigate to="/admin/chat/list" replace />} />
           <Route path="/admin/chat/list" element={<AdminChatListPage />} />
+          <Route path="/admin/chat/list/:chatId" element={<AdminChatRoomDetailPage />} />
           <Route path="/admin/banners" element={<AdminBannersPage />} />
+          <Route path="/admin/venues" element={<AdminVenuesPage />} />
+          <Route path="/admin/popups" element={<AdminEventPopupsPage />} />
           <Route path="/admin/updates" element={<AdminUpdatesPage />} />
         </Route>
 
@@ -339,7 +349,10 @@ export default function AppRoutes() {
           <Route path="/match-roomlist" element={<MatchRoomListPage />} />
           <Route path="/match-roomdetail/:roomId" element={<MatchRoomDetailPage />} />
 
+          <Route path="/venues/:id" element={<VenueDetailPage />} />
+
           <Route path="/matches/finished" element={<FinishedMatchesPage />} />
+          <Route path="/event/:id" element={<EventPage />} />
 
           <Route path="/team/:teamId" element={<TeamProfilePage />} />
           <Route path="/teamRanking" element={<TeamRankingFullPage />} />
