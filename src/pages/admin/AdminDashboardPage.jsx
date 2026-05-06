@@ -6,6 +6,7 @@ import {
   fetchAdminDashboardKpi,
   fetchAdminRegionCounts,
   fetchAdminDashboardMatches,
+  fetchAdminDashboardActivity,
 } from "../../services/adminDashboardService";
 
 /* ===================== Layout ===================== */
@@ -479,26 +480,24 @@ export default function AdminDashboardPage() {
   const [tab, setTab] = useState("reports");
   const [matchTab, setMatchTab] = useState("today");
 
-  const rightList = useMemo(() => {
-    if (tab === "reports") {
-      return [
-        { left: "신고 접수: 커뮤니티 글 신고", right: "방금" },
-        { left: "신고 접수: 유저 차단 요청", right: "10분 전" },
-        { left: "신고 접수: 채팅 욕설 신고", right: "1시간 전" },
-      ];
-    }
-    if (tab === "approvals") {
-      return [
-        { left: "팀 등록 승인 대기: 번개농구단", right: "대기" },
-        { left: "선수 등록 승인 대기: 김민준", right: "대기" },
-        { left: "선수 등록 승인 대기: 이지훈", right: "대기" },
-      ];
-    }
-    return [
-      { left: "공지 발행: 서비스 점검 안내", right: "완료" },
-      { left: "푸시 발송: 신규 매칭 기능 안내", right: "완료" },
-      { left: "공지 임시저장: 운영 공지 초안", right: "임시" },
-    ];
+  // ✅ 우측 액티비티 (실데이터)
+  const [rightList, setRightList] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const list = await fetchAdminDashboardActivity(tab);
+        if (!alive) return;
+        setRightList(list);
+      } catch (e) {
+        console.error("[AdminDashboardPage] activity load failed", e);
+        if (alive) setRightList([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [tab]);
 
   // ✅ 최근 매치 (실데이터 — match_requests)

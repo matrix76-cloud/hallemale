@@ -186,6 +186,87 @@ export async function fetchAdminDashboardMatches() {
   };
 }
 
+/* ============== activity (reports / notices) ============== */
+function relTime(ms) {
+  const diff = Date.now() - ms;
+  if (diff < 0) return "방금";
+  if (diff < 60 * 1000) return "방금";
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)}분 전`;
+  const day = 24 * 60 * 60 * 1000;
+  if (diff < day) return `${Math.floor(diff / (60 * 60 * 1000))}시간 전`;
+  const days = Math.floor(diff / day);
+  if (days === 1) return "어제";
+  if (days < 30) return `${days}일 전`;
+  const mo = Math.floor(days / 30);
+  if (mo < 12) return `${mo}개월 전`;
+  return `${Math.floor(mo / 12)}년 전`;
+}
+
+function reasonLabel(s) {
+  const v = String(s || "").trim();
+  return v ? v.slice(0, 30) : "";
+}
+
+async function loadReports(colName, kindLabel) {
+  try {
+    const snap = await getDocs(
+      query(collection(db, colName), orderBy("createdAt", "desc"), limit(20))
+    );
+    return (snap?.docs || []).map((d) => {
+      const data = d.data() || {};
+      const dt = toJsDate(data?.createdAt);
+      const ts = dt ? dt.getTime() : 0;
+      const reason = reasonLabel(data?.reason || data?.reasonText);
+      const left = `신고 접수: ${kindLabel}${reason ? ` · ${reason}` : ""}`;
+      return { left, right: dt ? relTime(ts) : "-", ts };
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * 우측 액티비티 패널
+ * - reports: user_reports + team_reports + community_reports 병합 (최신 5건)
+ * - approvals: 승인 시스템 미구현 → 빈 배열
+ * - 기본(공지/푸시): notices 최근 등록
+ */
+export async function fetchAdminDashboardActivity(tab = "reports") {
+  if (tab === "reports") {
+    const [u, t, c] = await Promise.all([
+      loadReports("user_reports", "회원"),
+      loadReports("team_reports", "팀"),
+      loadReports("community_reports", "게시글"),
+    ]);
+    const merged = [...u, ...t, ...c].sort((a, b) => b.ts - a.ts).slice(0, 5);
+    return merged.map(({ left, right }) => ({ left, right }));
+  }
+
+  if (tab === "approvals") {
+    // 승인 시스템 미구현
+    return [];
+  }
+
+  // 공지/푸시 액티비티 — notices 최근
+  try {
+    const snap = await getDocs(
+      query(collection(db, "notices"), orderBy("createdAt", "desc"), limit(5))
+    );
+    return (snap?.docs || []).map((d) => {
+      const data = d.data() || {};
+      const dt = toJsDate(data?.createdAt);
+      const title = String(data?.title || "(제목 없음)").slice(0, 30);
+      const right = data?.published === false ? "임시" : "발행";
+      return {
+        left: `공지: ${title}`,
+        right: dt ? `${relTime(dt.getTime())} · ${right}` : right,
+      };
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
 /* ============== region ============== */
 const SIDO_LIST = [
   "서울","경기","인천","부산","대구","광주","대전","울산","세종",
