@@ -24,6 +24,10 @@ import { createMatchRequest } from "../../services/matchingService";
 
 import { useClub } from "../../hooks/useClub";
 
+import TeamMatchHistorySection from "../../components/team/TeamMatchHistorySection";
+import { loadMatchRoomListPageData } from "../../services/matchRoomService";
+import { createTeamReport } from "../../services/teamReportService";
+import BlockedOverlay from "../../components/common/BlockedOverlay";
 
 /* =============== 상수/헬퍼 =============== */
 
@@ -122,6 +126,11 @@ const formatUpdateDate = (value) => {
   return `${yy}.${mm}.${dd} 업데이트`;
 };
 
+/**
+ * ✅ 최근 전적 배열 변환
+ * - Firestore stats.recentResults: "최신이 제일 뒤"
+ * - UI: "최신이 제일 앞"으로 보여주기 위해 reverse
+ */
 const buildRecentResults = (stats, count = 5) => {
   const s = stats || {};
 
@@ -138,17 +147,14 @@ const buildRecentResults = (stats, count = 5) => {
 
     const v = String(x || "").trim();
 
-    // ✅ 이미 W/L/D
     if (v === "W" || v.toLowerCase() === "w" || v.toLowerCase() === "win") return "W";
     if (v === "L" || v.toLowerCase() === "l" || v.toLowerCase() === "lose") return "L";
     if (v === "D" || v.toLowerCase() === "d" || v.toLowerCase() === "draw") return "D";
 
-    // ✅ 한글/기타
     if (v.includes("승")) return "W";
     if (v.includes("패")) return "L";
     if (v.includes("무")) return "D";
 
-    // ✅ win/lose/draw 단어 포함
     const low = v.toLowerCase();
     if (low.includes("win")) return "W";
     if (low.includes("lose")) return "L";
@@ -158,7 +164,9 @@ const buildRecentResults = (stats, count = 5) => {
   };
 
   const norm = raw.map(normalizeOne).filter(Boolean);
-  if (norm.length > 0) return norm.slice(0, count);
+
+  // ✅ 최신이 제일 뒤 → 뒤에서 count개 뽑고 reverse해서 최신이 앞
+  if (norm.length > 0) return norm.slice(-count).reverse();
 
   // ✅ fallback: winRate 기반 더미 생성(기존 로직 유지)
   const winRate = typeof s.winRate === "number" ? s.winRate : null;
@@ -171,12 +179,11 @@ const buildRecentResults = (stats, count = 5) => {
   return arr;
 };
 
-
 /* =============== 레이아웃/스타일 =============== */
 
 const Page = styled.div`
   min-height: 100vh;
-  background: #f3f4f6;
+  background: ${({ theme }) => theme.colors.bg};
   display: flex;
   flex-direction: column;
 `;
@@ -304,13 +311,14 @@ const FavoriteButton = styled.button`
   border-radius: 999px;
   padding: 7px 6px;
   font-size: 12px;
-  background: #fef3c7;
-  color: #92400e;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(245,158,11,0.22)" : "#fef3c7"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fbbf24" : "#92400e")};
   display: inline-flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 
   &:disabled {
     opacity: 0.65;
@@ -324,10 +332,10 @@ const ContentWrap = styled.div`
 
 const Section = styled.section`
   margin-top: 12px;
-  background: #ffffff;
-  border-radius: 20px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 15px 17px 17px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 `;
 
 const SectionHeaderRow = styled.div`
@@ -362,18 +370,18 @@ const SectionIconImg = styled.img`
 const SectionTitleText = styled.h2`
   margin: 0;
   font-size: 16px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SectionMeta = styled.span`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const AboutText = styled.p`
   margin: 4px 0 0;
   font-size: 14px;
-  color: #374151;
+  color: ${({ theme }) => theme.colors.textNormal};
   line-height: 1.5;
 `;
 
@@ -386,13 +394,13 @@ const AboutMetaList = styled.div`
 
 const AboutMetaRow = styled.div`
   font-size: 13px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const RecentResultsRow = styled.div`
   margin-top: 11px;
   padding-top: 9px;
-  border-top: 1px dashed #e5e7eb;
+  border-top: 1px dashed ${({ theme }) => theme.colors.border};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -401,7 +409,7 @@ const RecentResultsRow = styled.div`
 
 const RecentResultsLabel = styled.span`
   font-size: 13px;
-  color: #374151;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const RecentDots = styled.div`
@@ -428,9 +436,10 @@ const MediaItem = styled.div`
 const MediaCard = styled.div`
   width: 100%;
   height: 180px;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   position: relative;
   cursor: pointer;
 `;
@@ -461,7 +470,7 @@ const PlayCircle = styled.div`
 
 const MediaTitle = styled.div`
   font-size: 12px;
-  color: #374151;
+  color: ${({ theme }) => theme.colors.textNormal};
   line-height: 1.4;
 `;
 
@@ -475,10 +484,11 @@ const LineupListRow = styled.div`
 const LineupCard = styled.button`
   flex: 1 1 calc(50% - 8px);
   min-width: 0;
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -489,23 +499,24 @@ const LineupCard = styled.button`
 
 const LineupName = styled.div`
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const LineupMeta = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const LineupMetaSmall = styled.div`
   font-size: 11px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -516,10 +527,10 @@ const LineupModalCard = styled.div`
   width: 94%;
   max-width: 420px;
   max-height: 85vh;
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 16px 16px 18px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.4);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
 `;
@@ -532,7 +543,7 @@ const LineupModalHeader = styled.div`
 
 const LineupModalTitle = styled.div`
   font-size: 18px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const LineupModalClose = styled.button`
@@ -555,7 +566,7 @@ const LineupModalBody = styled.div`
 
 const LineupModalMeta = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const LineupPlayersGrid = styled.div`
@@ -580,10 +591,17 @@ const SelectList = styled.div`
 
 const SelectItem = styled.button`
   width: 100%;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 10px 12px;
-  border: 1px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#e5e7eb")};
-  background: ${({ $selected }) => ($selected ? "#eef2ff" : "#ffffff")};
+  border: 1px solid
+    ${({ $selected, theme }) =>
+      $selected ? theme.colors.primary : theme.colors.border};
+  background: ${({ $selected, theme }) =>
+    $selected
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "#eef2ff"
+      : theme.colors.card};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -600,20 +618,23 @@ const SelectTexts = styled.div`
 
 const SelectName = styled.div`
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SelectMeta = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const SelectRadio = styled.div`
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  border: 2px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#d4d4d8")};
-  background: ${({ $selected }) => ($selected ? "#4f46e5" : "#ffffff")};
+  border: 2px solid
+    ${({ $selected, theme }) =>
+      $selected ? theme.colors.primary : theme.colors.border};
+  background: ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.card};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -631,9 +652,12 @@ const SelectButton = styled.button`
   flex: 1;
   height: 42px;
   border-radius: 999px;
-  border: ${({ $primary }) => ($primary ? "none" : "1px solid #e5e7eb")};
-  background: ${({ $primary }) => ($primary ? "#4f46e5" : "#ffffff")};
-  color: ${({ $primary }) => ($primary ? "#ffffff" : "#111827")};
+  border: ${({ $primary, theme }) =>
+    $primary ? "none" : `1px solid ${theme.colors.border}`};
+  background: ${({ $primary, theme }) =>
+    $primary ? theme.colors.primary : theme.colors.card};
+  color: ${({ $primary, theme }) =>
+    $primary ? "#ffffff" : theme.colors.textStrong};
   font-size: 13px;
   cursor: pointer;
 `;
@@ -644,8 +668,11 @@ const BottomBar = styled.div`
   right: 0;
   bottom: 0;
   padding: 11px 16px 17px;
-  background: linear-gradient(to top, #ffffff, rgba(249, 250, 251, 0.96));
-  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.12);
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? theme.colors.card
+      : "linear-gradient(to top, #ffffff, rgba(249, 250, 251, 0.96))"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   z-index: 10;
 `;
 
@@ -666,32 +693,182 @@ const CTAButton = styled.button`
   justify-content: center;
   gap: 6px;
   cursor: pointer;
-  background: ${({ $primary }) => ($primary ? "#4f46e5" : "#f3f4f6")};
-  color: ${({ $primary }) => ($primary ? "#f9fafa" : "#111827")};
+  background: ${({ $primary, theme }) =>
+    $primary
+      ? theme.colors.primary
+      : theme.mode === "dark"
+      ? theme.colors.surface
+      : "#f3f4f6"};
+  color: ${({ $primary, theme }) =>
+    $primary ? "#f9fafa" : theme.colors.textStrong};
+`;
+
+const ReportLinkRow = styled.div`
+  margin-top: 24px;
+  padding: 0 4px 8px;
+  display: flex;
+  justify-content: center;
+`;
+
+const ReportLink = styled.button`
+  border: none;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px 12px;
+
+  &:hover {
+    color: ${({ theme }) =>
+      theme.mode === "dark" ? "#fca5a5" : theme.colors.danger};
+  }
+`;
+
+const ReportOverlayWrap = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
+  display: grid;
+  place-items: center;
+  padding: 16px;
+`;
+
+const ReportModal = styled.div`
+  width: min(440px, 92vw);
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 12px;
+  padding: 18px 18px 16px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+`;
+
+const ReportTitle = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  margin-bottom: 4px;
+`;
+
+const ReportSub = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  margin-bottom: 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+`;
+
+const ReportTextarea = styled.textarea`
+  width: 100%;
+  min-height: 110px;
+  padding: 10px 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const ReportActions = styled.div`
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+const ReportBtn = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ $danger, theme }) =>
+    $danger
+      ? theme.mode === "dark"
+        ? "rgba(248,113,113,0.18)"
+        : "#fef2f2"
+      : theme.colors.card};
+  color: ${({ $danger, theme }) =>
+    $danger
+      ? theme.mode === "dark"
+        ? "#fca5a5"
+        : "#b91c1c"
+      : theme.colors.textStrong};
+  ${({ $danger, theme }) =>
+    $danger
+      ? `border-color: ${
+          theme.mode === "dark" ? "rgba(248,113,113,0.45)" : "#fecaca"
+        };`
+      : ""}
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
 `;
 
 const StateWrap = styled.div`
   padding: 32px 16px;
   text-align: center;
   font-size: 14px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 /* =============== 페이지 컴포넌트 =============== */
 
-export default function TeamProfilePage() {
+
+const ACTIVITY_DAYS_LABEL = {
+  WEEKDAY: "평일 위주",
+  WEEKEND: "주말 위주",
+  ANY: "상관없음",
+};
+
+const ACTIVITY_TIME_LABEL = {
+  MORNING: "오전 시간대",
+  AFTERNOON: "오후 시간대",
+  EVENING: "저녁 시간대",
+  NIGHT: "야간 시간대",
+  ANY: "상관없음",
+};
+
+const resolveActivityLabel = (activity) => {
+  const a = activity || {};
+  const daysKey = String(a.days || "").trim();
+  const timeKey = String(a.time || "").trim();
+
+  const days = ACTIVITY_DAYS_LABEL[daysKey] || "";
+  const time = ACTIVITY_TIME_LABEL[timeKey] || "";
+
+  return { days, time };
+};
+
+
+
+export default function TeamProfilePage({ teamId: propTeamId, embed = false } = {}) {
   const nav = useNavigate();
-  const { teamId } = useParams();
+  const params = useParams();
+  const teamId = propTeamId || params.teamId;
 
   const { firebaseUser, userDoc, refreshUser } = useAuth();
   const myUid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
 
   // ✅ 우리팀 clubId는 userDoc.myClubId 하나만 SSOT로 사용 (없으면 온보딩/가드)
   const { club } = useClub();
-
-
-
-
   const myClubId = String(club?.clubId || club?.id || "").trim();
 
   const [myTeamLoading, setMyTeamLoading] = useState(false);
@@ -702,7 +879,6 @@ export default function TeamProfilePage() {
   const [matchStep, setMatchStep] = useState("my"); // "my" | "opponent"
   const [selectedMyLineupIdForRequest, setSelectedMyLineupIdForRequest] = useState(null);
   const [selectedOpponentLineupIdForRequest, setSelectedOpponentLineupIdForRequest] = useState(null);
- 
 
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState(null);
@@ -711,12 +887,94 @@ export default function TeamProfilePage() {
   const [selectedLineup, setSelectedLineup] = useState(null);
   const [showLineupSelectModal, setShowLineupSelectModal] = useState(false);
 
-
   const [fav, setFav] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
 
   const [contactBusy, setContactBusy] = useState(false);
 
+  const [pastMatches, setPastMatches] = useState([]);
+  const [pastMatchesLoading, setPastMatchesLoading] = useState(false);
+
+  // 팀 신고 모달
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+
+  const openReport = () => {
+    if (!myUid) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+    setReportReason("");
+    setReportOpen(true);
+  };
+
+  const closeReport = () => {
+    if (reportBusy) return;
+    setReportOpen(false);
+    setReportReason("");
+  };
+
+  const handleSubmitReport = async () => {
+    const reason = String(reportReason || "").trim();
+    if (!reason) {
+      alert("신고 사유를 입력해주세요.");
+      return;
+    }
+    if (!team?.clubId && !team?.id) return;
+    if (!myUid) return;
+    setReportBusy(true);
+    try {
+      await createTeamReport({
+        clubId: String(team?.clubId || team?.id || ""),
+        clubName: String(team?.name || ""),
+        reporterUid: String(myUid),
+        reporterNickname: String(userDoc?.nickname || userDoc?.name || ""),
+        reason,
+      });
+      setReportOpen(false);
+      setReportReason("");
+      alert("신고가 접수되었습니다. 검토 후 조치합니다.");
+    } catch (e) {
+      console.error("[TeamProfilePage] report failed", e);
+      alert(e?.message || "신고 접수에 실패했습니다.");
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
+useEffect(() => {
+  let cancelled = false;
+
+  const run = async () => {
+    const clubId = String(team?.clubId || team?.id || "").trim();
+    if (!clubId) return;
+
+    try {
+      setPastMatchesLoading(true);
+
+      const data = await loadMatchRoomListPageData(clubId);
+      if (cancelled) return;
+
+      const rooms = Array.isArray(data?.rooms) ? data.rooms : [];
+      
+
+      const past = rooms.filter((r) => r?.status === "finished");
+
+      setPastMatches(past);
+    } catch (e) {
+      console.warn("[TeamProfile] load past matches failed:", e?.message || e);
+      if (!cancelled) setPastMatches([]);
+    } finally {
+      if (!cancelled) setPastMatchesLoading(false);
+    }
+  };
+
+  run();
+  return () => {
+    cancelled = true;
+  };
+}, [team?.clubId, team?.id]);
 
 
   useEffect(() => {
@@ -730,6 +988,9 @@ export default function TeamProfilePage() {
 
         if (!data) setError("팀 정보를 불러올 수 없습니다.");
         else setTeam(data);
+
+        console.log("[TeamProfile] activity:", data?.activity, data);
+
       } catch (err) {
         console.error("[TeamProfile] load error", err);
         if (!cancelled) setError("잠시 후 다시 시도해 주세요.");
@@ -775,6 +1036,8 @@ export default function TeamProfilePage() {
   const statsUpdated = formatUpdateDate(team?.stats?.updatedAt || team?.updatedAt || team?.createdAt);
 
   const recentResults = buildRecentResults(team?.stats);
+
+  const activityLabel = resolveActivityLabel(team?.activity);
 
   const mediaList = Array.isArray(team?.media) && team.media.length > 0 ? team.media : SAMPLE_TEAM_MEDIA;
 
@@ -919,7 +1182,6 @@ export default function TeamProfilePage() {
     }
   };
 
-
   const onPlayerClick = (member) => {
     if (!member || !member.userId) return;
     nav(`/player/${member.userId}`);
@@ -992,7 +1254,6 @@ export default function TeamProfilePage() {
     }
   };
 
-
   const membersWithCaptain = useMemo(() => {
     const list = Array.isArray(team?.members) ? team.members : [];
     const ownerUid = String(team?.ownerUid || "").trim();
@@ -1003,6 +1264,30 @@ export default function TeamProfilePage() {
       return { ...(m || {}), isTeamCaptain: isCaptain };
     });
   }, [team?.members, team?.ownerUid]);
+
+  // 차단된 팀에 진입한 경우 — 누구든 가드로 막음
+  if (!loading && team?.blocked === true) {
+    const goBack = () => {
+      try {
+        if (window.history.length > 1) {
+          nav(-1);
+          return;
+        }
+      } catch (e) {}
+      nav("/home");
+    };
+    return (
+      <Page>
+        <BlockedOverlay
+          title="차단된 팀입니다"
+          description="해당 팀은 관리자에 의해 이용이 제한되었습니다."
+          reason={team.blockedReason}
+          blockedAt={team.blockedAt}
+          onBack={goBack}
+        />
+      </Page>
+    );
+  }
 
   return (
     <Page>
@@ -1069,8 +1354,8 @@ export default function TeamProfilePage() {
 
                 <AboutMetaList>
                   {team.region && <AboutMetaRow>활동 지역: {team.region}</AboutMetaRow>}
-                  <AboutMetaRow>활동 요일: 주말 위주</AboutMetaRow>
-                  <AboutMetaRow>활동 시간: 오후 시간대</AboutMetaRow>
+                  {activityLabel.days ? <AboutMetaRow>활동 요일: {activityLabel.days}</AboutMetaRow> : null}
+                  {activityLabel.time ? <AboutMetaRow>활동 시간: {activityLabel.time}</AboutMetaRow> : null}
                 </AboutMetaList>
               </Section>
 
@@ -1085,7 +1370,7 @@ export default function TeamProfilePage() {
                   {statsUpdated && <SectionMeta>{statsUpdated}</SectionMeta>}
                 </SectionHeaderRow>
 
-                <TeamStatsSection stats={team.stats} streak={team.streak} />
+                <TeamStatsSection stats={team.stats} />
 
                 {recentResults.length > 0 && (
                   <RecentResultsRow>
@@ -1194,11 +1479,46 @@ export default function TeamProfilePage() {
                     ))}
                   </MediaList>
                 </Section>
+
+                
               )}
+
+              <Section>
+                <SectionHeaderRow>
+                  <SectionHeaderLeft>
+                    <SectionIconCircle>
+                      <SectionIconImg src={images.teamStatsIcon} alt="경기 기록" />
+                    </SectionIconCircle>
+                    <SectionTitleText>경기 기록</SectionTitleText>
+                  </SectionHeaderLeft>
+                </SectionHeaderRow>
+
+                {pastMatchesLoading ? (
+                  <StateWrap>
+                    <Spinner size="lg" />
+                  </StateWrap>
+                ) : (
+                  <TeamMatchHistorySection
+                    teamClubId={String(team?.clubId || team?.id || "").trim()}
+                    teamName={team?.name}
+                    matches={pastMatches}
+                    onClickMatch={(id) => nav(`/match-roomdetail/${id}`)}
+                  />
+                )}
+              </Section>
+
+              {!isMyTeam && (
+                <ReportLinkRow>
+                  <ReportLink type="button" onClick={openReport}>
+                    🚩 부정 팀 신고하기
+                  </ReportLink>
+                </ReportLinkRow>
+              )}
+
             </ContentWrap>
           </ScrollArea>
 
-          {!isMyTeam && (
+          {!isMyTeam && !embed && (
             <BottomBar>
               <BottomRow>
                 <CTAButton type="button" onClick={onContactTeam} disabled={contactBusy}>
@@ -1240,7 +1560,7 @@ export default function TeamProfilePage() {
             </Overlay>
           )}
 
-            {showLineupSelectModal && (
+          {showLineupSelectModal && (
             <Overlay onClick={() => setShowLineupSelectModal(false)}>
               <SelectCard onClick={(e) => e.stopPropagation()}>
                 <LineupModalHeader>
@@ -1339,8 +1659,45 @@ export default function TeamProfilePage() {
               </SelectCard>
             </Overlay>
           )}
-
         </>
+      )}
+
+      {reportOpen && (
+        <ReportOverlayWrap
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeReport();
+          }}
+        >
+          <ReportModal onClick={(e) => e.stopPropagation()}>
+            <ReportTitle>부정 팀 신고</ReportTitle>
+            <ReportSub>
+              신고 내용은 관리자가 검토 후 조치합니다.{"\n"}
+              허위 신고 시 서비스 이용이 제한될 수 있습니다.
+            </ReportSub>
+
+            <ReportTextarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="예: 노쇼 반복, 사기 의심, 욕설/비방 등"
+              disabled={reportBusy}
+              autoFocus
+            />
+
+            <ReportActions>
+              <ReportBtn type="button" onClick={closeReport} disabled={reportBusy}>
+                취소
+              </ReportBtn>
+              <ReportBtn
+                type="button"
+                $danger
+                onClick={handleSubmitReport}
+                disabled={reportBusy || !reportReason.trim()}
+              >
+                {reportBusy ? "전송중…" : "신고하기"}
+              </ReportBtn>
+            </ReportActions>
+          </ReportModal>
+        </ReportOverlayWrap>
       )}
     </Page>
   );

@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminPager from "../../components/admin/AdminPager";
+import AdminLoading from "../../components/admin/AdminLoading";
+import { fetchAdminPastGames } from "../../services/adminGamesService";
 
 const Page = styled.div`
   display: flex;
@@ -20,19 +22,19 @@ const TitleRow = styled.div`
 const H1 = styled.h1`
   margin: 0;
   font-size: 18px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const Sub = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const Card = styled.div`
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+  box-shadow: ${({ theme }) => theme?.shadows?.card || "0 6px 14px rgba(15, 23, 42, 0.04)"};
   overflow: hidden;
 `;
 
@@ -51,7 +53,10 @@ const Input = styled.input`
   height: 34px;
   border-radius: 8px;
   padding: 0 10px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#ffffff"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   font-size: 13px;
   outline: none;
   min-width: 220px;
@@ -66,10 +71,12 @@ const Select = styled.select`
   height: 34px;
   border-radius: 8px;
   padding: 0 10px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   font-size: 13px;
   outline: none;
-  background: #fff;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#fff"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const TableWrap = styled.div`
@@ -85,10 +92,12 @@ const Head = styled.div`
   grid-template-columns: 120px 1.1fr 1.1fr 120px 1fr 120px;
   gap: 8px;
   padding: 12px 14px;
-  background: #f8fafc;
-  border-bottom: 1px solid #eef2f7;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#f8fafc"};
+  border-bottom: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#eef2f7"};
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const Row = styled.div`
@@ -96,18 +105,69 @@ const Row = styled.div`
   grid-template-columns: 120px 1.1fr 1.1fr 120px 1fr 120px;
   gap: 8px;
   padding: 12px 14px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.divider : "#f3f4f6"};
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
+  align-items: center;
 
   &:hover {
-    background: #fafbff;
+    background: ${({ theme }) =>
+      theme?.mode === "dark" ? "rgba(99,102,241,0.08)" : "#fafbff"};
   }
+`;
+
+const TeamCell = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+`;
+
+const Logo = styled.img`
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#e5e7eb"};
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#eef2f7"};
+  flex-shrink: 0;
+`;
+
+const LogoFallback = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#e5e7eb"};
+  border: 1px solid ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.border : "#eef2f7"};
+  flex-shrink: 0;
+`;
+
+const TeamName = styled.div`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const Score = styled.div`
   font-weight: 800;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
+`;
+
+const Place = styled.div`
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const EmptyText = styled.div`
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const Done = styled.div`
@@ -117,9 +177,35 @@ const Done = styled.div`
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
-  background: rgba(16, 185, 129, 0.1);
-  color: #047857;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(34,197,94,0.18)" : "rgba(16, 185, 129, 0.1)"};
+  color: ${({ theme }) => (theme?.mode === "dark" ? "#86efac" : "#047857")};
 `;
+
+const SIDO_OPTIONS = [
+  "서울","경기","인천","부산","대구","대전","광주","울산","세종",
+  "강원","충북","충남","전북","전남","경북","경남","제주",
+];
+
+function TeamView({ team }) {
+  return (
+    <TeamCell>
+      {team?.logoUrl ? (
+        <Logo
+          src={team.logoUrl}
+          alt={team.name}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      ) : (
+        <LogoFallback />
+      )}
+      <TeamName title={team?.name}>{team?.name || "팀"}</TeamName>
+    </TeamCell>
+  );
+}
 
 export default function AdminGamesPastPage() {
   const [q, setQ] = useState("");
@@ -127,49 +213,34 @@ export default function AdminGamesPastPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const rows = useMemo(() => {
-    // ✅ 더미: 지난 경기
-    return [
-      {
-        id: "p1",
-        when: "어제",
-        home: "레드폭스",
-        away: "네오팔콘",
-        score: "72 : 68",
-        place: "서울 강동 · 천호공원",
-        region: "seoul",
-      },
-      {
-        id: "p2",
-        when: "3일 전",
-        home: "블루호크",
-        away: "타이거즈",
-        score: "55 : 55",
-        place: "서울 강남 · 삼성체육관",
-        region: "seoul",
-      },
-      {
-        id: "p3",
-        when: "6일 전",
-        home: "네오팔콘",
-        away: "블랙팬서",
-        score: "61 : 74",
-        place: "경기 성남 · 탄천코트",
-        region: "gyeonggi",
-      },
-    ];
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [rows, setRows] = useState([]);
+  const [filtered, setFiltered] = useState([]);
 
-  const filtered = useMemo(() => {
-    const k = String(q || "").trim().toLowerCase();
-    return rows.filter((r) => {
-      const okRegion = region === "all" ? true : r.region === region;
-      if (!okRegion) return false;
-      if (!k) return true;
-      const hay = `${r.when} ${r.home} ${r.away} ${r.score} ${r.place}`.toLowerCase();
-      return hay.includes(k);
-    });
-  }, [rows, q, region]);
+  const load = async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await fetchAdminPastGames({
+        keyword: q,
+        regionSido: region,
+      });
+      setRows(res.rows || []);
+      setFiltered(res.filtered || []);
+    } catch (e) {
+      console.error("[AdminGamesPastPage] load failed", e);
+      setRows([]);
+      setFiltered([]);
+      setErr(e?.message || "불러오기에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
 
   useEffect(() => {
     setPage(1);
@@ -180,12 +251,14 @@ export default function AdminGamesPastPage() {
     return filtered.slice(start, start + pageSize);
   }, [filtered, page, pageSize]);
 
+  const onSubmit = () => load();
+
   return (
     <Page>
       <TitleRow>
         <div>
           <H1>지난 경기</H1>
-          <Sub>최근 7일 완료 경기 목록 (더미)</Sub>
+          <Sub>완료된 경기 목록 (match_requests · status=finished)</Sub>
         </div>
         <Sub>{filtered.length}건</Sub>
       </TitleRow>
@@ -197,58 +270,74 @@ export default function AdminGamesPastPage() {
               placeholder="팀명/장소/스코어 검색"
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onSubmit();
+              }}
             />
             <Select value={region} onChange={(e) => setRegion(e.target.value)}>
-              <option value="all">전체</option>
-              <option value="seoul">서울</option>
-              <option value="gyeonggi">경기</option>
-              <option value="incheon">인천</option>
-              <option value="busan">부산</option>
+              <option value="all">전체 지역</option>
+              {SIDO_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </Select>
           </FilterRow>
         </CardBody>
       </Card>
 
-      <Card>
-        <TableWrap>
-          <Table>
-            <Head>
-              <div>기간</div>
-              <div>홈</div>
-              <div>원정</div>
-              <div>스코어</div>
-              <div>장소</div>
-              <div>상태</div>
-            </Head>
+      {loading ? (
+        <Card>
+          <AdminLoading />
+        </Card>
+      ) : err ? (
+        <Card>
+          <CardBody>
+            <Sub style={{ color: "#b91c1c" }}>{err}</Sub>
+          </CardBody>
+        </Card>
+      ) : (
+        <Card>
+          <TableWrap>
+            <Table>
+              <Head>
+                <div>기간</div>
+                <div>홈</div>
+                <div>원정</div>
+                <div>스코어</div>
+                <div>장소</div>
+                <div>상태</div>
+              </Head>
 
-            {pagedRows.map((r) => (
-              <Row key={r.id}>
-                <div>{r.when}</div>
-                <div>{r.home}</div>
-                <div>{r.away}</div>
-                <Score>{r.score}</Score>
-                <div style={{ color: "#4b5563" }}>{r.place}</div>
-                <div>
-                  <Done>완료</Done>
-                </div>
-              </Row>
-            ))}
+              {pagedRows.map((r) => (
+                <Row key={r.id}>
+                  <div>{r.when}</div>
+                  <TeamView team={r.home} />
+                  <TeamView team={r.away} />
+                  <Score>{r.score}</Score>
+                  <Place title={r.place}>{r.place || "-"}</Place>
+                  <div>
+                    <Done>완료</Done>
+                  </div>
+                </Row>
+              ))}
 
-            {!filtered.length ? (
-              <Row style={{ gridTemplateColumns: "1fr" }}>
-                <div style={{ color: "#4b5563" }}>결과가 없습니다.</div>
-              </Row>
-            ) : null}
-          </Table>
-        </TableWrap>
-        <AdminPager
-          totalCount={filtered.length}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-        />
-      </Card>
+              {!filtered.length ? (
+                <Row style={{ gridTemplateColumns: "1fr" }}>
+                  <EmptyText>결과가 없습니다.</EmptyText>
+                </Row>
+              ) : null}
+            </Table>
+          </TableWrap>
+          <AdminPager
+            totalCount={filtered.length}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        </Card>
+      )}
     </Page>
   );
 }
