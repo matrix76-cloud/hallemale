@@ -267,6 +267,83 @@ export async function fetchAdminDashboardActivity(tab = "reports") {
   }
 }
 
+/* ============== weekly summary ============== */
+async function fetchSinceDate(colName, sinceDate, field = "createdAt") {
+  try {
+    const ts = Timestamp.fromDate(sinceDate);
+    const snap = await getDocs(
+      query(collection(db, colName), where(field, ">=", ts), limit(2000))
+    );
+    return (snap?.docs || []).map((d) => {
+      const data = d.data() || {};
+      return toJsDate(data?.[field]);
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+function bucketByDay(dates, dayStarts) {
+  const buckets = new Array(dayStarts.length).fill(0);
+  for (const d of dates) {
+    if (!d) continue;
+    const t = d.getTime();
+    for (let i = 0; i < dayStarts.length; i += 1) {
+      const s = dayStarts[i].getTime();
+      const e = i === 0 ? Date.now() + 1 : dayStarts[i - 1].getTime();
+      if (t >= s && t < e) {
+        buckets[i] += 1;
+        break;
+      }
+    }
+  }
+  return buckets;
+}
+
+/**
+ * 최근 7일 일별 요약 — index 0=오늘, 1=어제, 2=2일전, ..., 6=6일전
+ * 각 컬럼: 가입/매칭/신고(3종 합)/채팅/공지
+ */
+export async function fetchAdminDashboardWeekly() {
+  // 오늘 자정(KST) 기준으로 7개 일자 생성
+  const todayStart = startOfDayKstFor(Date.now());
+  const dayStarts = [];
+  for (let i = 0; i < 7; i += 1) {
+    const d = new Date(todayStart.getTime() - i * 24 * 60 * 60 * 1000);
+    dayStarts.push(d);
+  }
+  const since = dayStarts[dayStarts.length - 1];
+
+  const [signups, matches, ur, tr, cr, chats, notices] = await Promise.all([
+    fetchSinceDate("users", since),
+    fetchSinceDate("match_requests", since),
+    fetchSinceDate("user_reports", since),
+    fetchSinceDate("team_reports", since),
+    fetchSinceDate("community_reports", since),
+    fetchSinceDate("chatRooms", since),
+    fetchSinceDate("notices", since),
+  ]);
+
+  const reportsAll = [...ur, ...tr, ...cr];
+
+  const signupBuckets = bucketByDay(signups, dayStarts);
+  const matchBuckets = bucketByDay(matches, dayStarts);
+  const reportBuckets = bucketByDay(reportsAll, dayStarts);
+  const chatBuckets = bucketByDay(chats, dayStarts);
+  const noticeBuckets = bucketByDay(notices, dayStarts);
+
+  const labels = ["오늘", "어제", "2일", "3일", "4일", "5일", "6일"];
+
+  return labels.map((label, i) => ({
+    label,
+    signups: signupBuckets[i] || 0,
+    matches: matchBuckets[i] || 0,
+    reports: reportBuckets[i] || 0,
+    chats: chatBuckets[i] || 0,
+    notices: noticeBuckets[i] || 0,
+  }));
+}
+
 /* ============== region ============== */
 const SIDO_LIST = [
   "서울","경기","인천","부산","대구","광주","대전","울산","세종",

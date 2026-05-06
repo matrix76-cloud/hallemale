@@ -7,6 +7,7 @@ import {
   fetchAdminRegionCounts,
   fetchAdminDashboardMatches,
   fetchAdminDashboardActivity,
+  fetchAdminDashboardWeekly,
 } from "../../services/adminDashboardService";
 
 /* ===================== Layout ===================== */
@@ -500,6 +501,25 @@ export default function AdminDashboardPage() {
     };
   }, [tab]);
 
+  // ✅ 최근 7일 요약 (실데이터)
+  const [weekly, setWeekly] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const rows = await fetchAdminDashboardWeekly();
+        if (!alive) return;
+        setWeekly(rows);
+      } catch (e) {
+        console.error("[AdminDashboardPage] weekly load failed", e);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // ✅ 최근 매치 (실데이터 — match_requests)
   const [matches, setMatches] = useState({
     today: [],
@@ -725,7 +745,7 @@ export default function AdminDashboardPage() {
         {/* 하단 요약 */}
         <Wide>
           <CardBody>
-            <SectionTitle>최근 7일 요약(더미)</SectionTitle>
+            <SectionTitle>최근 7일 요약</SectionTitle>
             <Table>
               <THead>
                 <div>기간</div>
@@ -735,18 +755,16 @@ export default function AdminDashboardPage() {
                 <div>채팅</div>
                 <div>공지</div>
               </THead>
-              {["오늘", "어제", "3일", "4일", "5일", "6일", "7일"].map(
-                (label, idx) => (
-                  <TRow key={idx}>
-                    <TLabel>{label}</TLabel>
-                    <div>{Math.max(0, 3 - idx)}</div>
-                    <div>{Math.max(0, 2 - (idx % 2))}</div>
-                    <div>{idx === 0 ? 1 : 0}</div>
-                    <div>{18 - idx}</div>
-                    <div>{idx === 2 ? 1 : 0}</div>
-                  </TRow>
-                )
-              )}
+              {weekly.map((row, idx) => (
+                <TRow key={idx}>
+                  <TLabel>{row.label}</TLabel>
+                  <div>{row.signups}</div>
+                  <div>{row.matches}</div>
+                  <div>{row.reports}</div>
+                  <div>{row.chats}</div>
+                  <div>{row.notices}</div>
+                </TRow>
+              ))}
             </Table>
           </CardBody>
         </Wide>
