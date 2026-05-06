@@ -6,6 +6,8 @@ import {
   collection,
   getCountFromServer,
   getDocs,
+  limit,
+  orderBy,
   query,
   where,
   Timestamp,
@@ -39,6 +41,149 @@ async function safeCount(qq) {
       return 0;
     }
   }
+}
+
+/* ============== matches ============== */
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+function toJsDate(v) {
+  if (!v) return null;
+  if (v?.toDate && typeof v.toDate === "function") return v.toDate();
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function startOfDayKstFor(ms) {
+  const kstMs = ms + 9 * 60 * 60 * 1000;
+  const k = new Date(kstMs);
+  return new Date(Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate(), -9, 0, 0));
+}
+function fmtHm(d) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function fmtRelativePast(d) {
+  const ms = Date.now() - d.getTime();
+  const day = 24 * 60 * 60 * 1000;
+  if (ms < 0) return fmtHm(d);
+  if (ms < 60 * 60 * 1000) return `${Math.max(1, Math.floor(ms / 60000))}분 전`;
+  if (ms < day) return `${Math.floor(ms / (60 * 60 * 1000))}시간 전`;
+  const days = Math.floor(ms / day);
+  if (days === 1) return "어제";
+  return `${days}일 전`;
+}
+function fmtFutureWhen(d) {
+  const today = startOfDayKstFor(Date.now());
+  const target = startOfDayKstFor(d.getTime());
+  const diffDays = Math.round((target.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+  const hm = fmtHm(d);
+  if (diffDays === 0) return hm;
+  if (diffDays === 1) return `내일 ${hm}`;
+  if (diffDays > 1) return `D+${diffDays} ${hm}`;
+  return hm;
+}
+function pickPlace(field, fromTeam, toTeam) {
+  const addr = String(field?.address || "").trim();
+  if (addr) return addr;
+  return String(fromTeam?.region || toTeam?.region || "").trim();
+}
+function pickMatchSize(data) {
+  return (
+    String(data?.matchSize || "").trim() ||
+    String(data?.fromLineupSnapshot?.matchSizeKey || "").trim() ||
+    String(data?.toLineupSnapshot?.matchSizeKey || "").trim() ||
+    ""
+  );
+}
+function buildMeta(data) {
+  const place = pickPlace(data?.field, data?.fromTeamSnapshot, data?.toTeamSnapshot);
+  const size = pickMatchSize(data);
+  return [place, size].filter(Boolean).join(" · ");
+}
+function buildTeamsText(data) {
+  const a = String(data?.fromTeamSnapshot?.name || "팀A").trim();
+  const b = String(data?.toTeamSnapshot?.name || "팀B").trim();
+  return `${a} vs ${b}`;
+}
+
+/**
+ * 대시보드 매치 카드 — 오늘 예정 / 지난 7일 / 앞으로 7일
+ */
+export async function fetchAdminDashboardMatches() {
+  const now = Date.now();
+  const startToday = startOfDayKstFor(now);
+  const endToday = new Date(startToday.getTime() + 24 * 60 * 60 * 1000);
+  const start7Past = new Date(startToday.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const end7Future = new Date(startToday.getTime() + 8 * 24 * 60 * 60 * 1000);
+
+  const col = collection(db, "match_requests");
+
+  const [acceptedSnap, finishedSnap] = await Promise.all([
+    getDocs(query(col, where("status", "==", "accepted"), limit(200))).catch(
+      () => null
+    ),
+    getDocs(
+      query(
+        col,
+        where("status", "==", "finished"),
+        orderBy("updatedAt", "desc"),
+        limit(50)
+      )
+    ).catch(() => null),
+  ]);
+
+  const today = [];
+  const next7days = [];
+  if (acceptedSnap) {
+    for (const d of acceptedSnap.docs) {
+      const data = d.data() || {};
+      const sched = toJsDate(data?.scheduledAt);
+      if (!sched) continue;
+      const t = sched.getTime();
+      const row = {
+        time: "",
+        teams: buildTeamsText(data),
+        meta: buildMeta(data),
+        status: "scheduled",
+        statusLabel: "예정",
+      };
+      if (t >= startToday.getTime() && t < endToday.getTime()) {
+        row.time = fmtHm(sched);
+        today.push({ _t: t, ...row });
+      } else if (t >= endToday.getTime() && t < end7Future.getTime()) {
+        row.time = fmtFutureWhen(sched);
+        next7days.push({ _t: t, ...row });
+      }
+    }
+    today.sort((a, b) => a._t - b._t);
+    next7days.sort((a, b) => a._t - b._t);
+  }
+
+  const last7days = [];
+  if (finishedSnap) {
+    for (const d of finishedSnap.docs) {
+      const data = d.data() || {};
+      const upd = toJsDate(data?.updatedAt) || toJsDate(data?.scheduledAt);
+      if (!upd) continue;
+      if (upd.getTime() < start7Past.getTime()) continue;
+      last7days.push({
+        _t: upd.getTime(),
+        time: fmtRelativePast(upd),
+        teams: buildTeamsText(data),
+        meta: buildMeta(data),
+        status: "done",
+        statusLabel: "완료",
+      });
+    }
+    last7days.sort((a, b) => b._t - a._t);
+  }
+
+  const strip = (arr) =>
+    arr.slice(0, 8).map(({ _t, ...rest }) => rest);
+  return {
+    today: strip(today),
+    last7days: strip(last7days),
+    next7days: strip(next7days),
+  };
 }
 
 /* ============== region ============== */

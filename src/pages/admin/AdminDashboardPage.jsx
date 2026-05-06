@@ -5,6 +5,7 @@ import styled from "styled-components";
 import {
   fetchAdminDashboardKpi,
   fetchAdminRegionCounts,
+  fetchAdminDashboardMatches,
 } from "../../services/adminDashboardService";
 
 /* ===================== Layout ===================== */
@@ -500,73 +501,27 @@ export default function AdminDashboardPage() {
     ];
   }, [tab]);
 
-  const matches = useMemo(() => {
-    const today = [
-      {
-        time: "19:00",
-        teams: "블루호크 vs 레드폭스",
-        meta: "서울 강남 · 잠실체육관 · 5v5",
-        status: "scheduled",
-        statusLabel: "예정",
-      },
-      {
-        time: "21:00",
-        teams: "네오팔콘 vs 타이거즈",
-        meta: "서울 송파 · 올림픽공원 · 3v3",
-        status: "scheduled",
-        statusLabel: "예정",
-      },
-    ];
+  // ✅ 최근 매치 (실데이터 — match_requests)
+  const [matches, setMatches] = useState({
+    today: [],
+    last7days: [],
+    next7days: [],
+  });
 
-    const last7days = [
-      {
-        time: "어제",
-        teams: "레드폭스 vs 네오팔콘",
-        meta: "서울 강동 · 천호공원 · 5v5",
-        status: "done",
-        statusLabel: "완료",
-      },
-      {
-        time: "3일 전",
-        teams: "블루호크 vs 타이거즈",
-        meta: "서울 강남 · 삼성체육관 · 4v4",
-        status: "done",
-        statusLabel: "완료",
-      },
-      {
-        time: "6일 전",
-        teams: "네오팔콘 vs 블랙팬서",
-        meta: "서울 마포 · 상암체육관 · 5v5",
-        status: "done",
-        statusLabel: "완료",
-      },
-    ];
-
-    const next7days = [
-      {
-        time: "내일 20:00",
-        teams: "블랙팬서 vs 레드폭스",
-        meta: "서울 종로 · 종각코트 · 3v3",
-        status: "scheduled",
-        statusLabel: "예정",
-      },
-      {
-        time: "D+3 19:30",
-        teams: "타이거즈 vs 네오팔콘",
-        meta: "서울 강서 · 마곡체육관 · 5v5",
-        status: "scheduled",
-        statusLabel: "예정",
-      },
-      {
-        time: "D+6 18:00",
-        teams: "블루호크 vs 레드폭스",
-        meta: "서울 송파 · 잠실체육관 · 5v5",
-        status: "scheduled",
-        statusLabel: "예정",
-      },
-    ];
-
-    return { today, last7days, next7days };
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const m = await fetchAdminDashboardMatches();
+        if (!alive) return;
+        setMatches(m);
+      } catch (e) {
+        console.error("[AdminDashboardPage] matches load failed", e);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const matchList = useMemo(() => {
