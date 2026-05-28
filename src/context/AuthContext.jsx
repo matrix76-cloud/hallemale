@@ -3,6 +3,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { watchAuthState, signOutUser } from "../services/authService";
 import { getUserDoc } from "../services/userService";
+import { registerFcmToken, unregisterFcmToken } from "../services/fcmService";
+import { db } from "../services/firebase";
+import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
+import { parseAppMessage } from "../bridge/webviewBridge";
 
 const AuthContext = createContext(null);
 
@@ -42,6 +46,8 @@ export function AuthProvider({ children }) {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [userDoc, setUserDoc] = useState(null);
   const [loading, setLoading] = useState(true);
+  const fcmTokenRef = React.useRef(null);
+  const pendingRnTokenRef = React.useRef(null);
 
   // Auth 상태 구독 + users 문서 1회 로드
   useEffect(() => {
@@ -54,10 +60,14 @@ export function AuthProvider({ children }) {
         return;
       }
 
+      // 새 유저 로그인 시 userDoc 로드 완료까지 loading 유지
+      setLoading(true);
+
       try {
         const docData = await getUserDoc(user.uid);
 
         // 🔁 기존 코드 호환: userDoc.id / clubId 필드 유지
+        // 차단된 회원도 일단 userDoc은 set (BlockedAuthGate가 감지해서 오버레이 표시)
         const normalized = docData
           ? {
               ...docData,
@@ -80,6 +90,11 @@ export function AuthProvider({ children }) {
         });
 
         setUserDoc(normalized);
+
+        // FCM 토큰 등록 (비동기, 실패해도 로그인 흐름 차단 안 함)
+        registerFcmToken(user.uid)
+          .then((token) => { fcmTokenRef.current = token; })
+          .catch(() => {});
       } catch (e) {
         console.warn("[AuthProvider] getUserDoc failed:", e?.message || e);
 
@@ -110,6 +125,51 @@ export function AuthProvider({ children }) {
       } catch (e) {}
     };
   }, []);
+
+  // RN WebView → PUSH_TOKEN / FCM_TOKEN 수신 → users/{uid}.fcmTokens arrayUnion(객체형)
+  useEffect(() => {
+    const saveRnToken = async (uid, payload) => {
+      const token = String(payload?.token || "").trim();
+      if (!uid || !token) return;
+      const platform = String(payload?.platform || payload?.os || "").toLowerCase() || "rn";
+      try {
+        await updateDoc(doc(db, "users", uid), {
+          fcmTokens: arrayUnion({
+            token,
+            platform,
+            updatedAt: new Date().toISOString(),
+          }),
+          updatedAt: serverTimestamp(),
+        });
+        console.log("[AuthProvider] RN FCM token saved:", platform);
+      } catch (e) {
+        console.warn("[AuthProvider] RN token save failed:", e?.message || e);
+      }
+    };
+
+    const handler = (event) => {
+      const msg = parseAppMessage(event.data);
+      if (!msg) return;
+      if (msg.type !== "PUSH_TOKEN" && msg.type !== "FCM_TOKEN") return;
+
+      const uid = firebaseUser?.uid;
+      if (!uid) {
+        pendingRnTokenRef.current = msg.payload;
+        return;
+      }
+      saveRnToken(uid, msg.payload);
+    };
+
+    window.addEventListener("message", handler);
+
+    // 보류 토큰 처리
+    if (firebaseUser?.uid && pendingRnTokenRef.current) {
+      saveRnToken(firebaseUser.uid, pendingRnTokenRef.current);
+      pendingRnTokenRef.current = null;
+    }
+
+    return () => window.removeEventListener("message", handler);
+  }, [firebaseUser?.uid]);
 
   const refreshUser = async () => {
     if (!firebaseUser?.uid) return;
@@ -143,6 +203,14 @@ export function AuthProvider({ children }) {
       },
       refreshUser,
       signOut: async () => {
+        // FCM 토큰 해제
+        const uid = firebaseUser?.uid;
+        const token = fcmTokenRef.current;
+        if (uid && token) {
+          await unregisterFcmToken(uid, token).catch(() => {});
+          fcmTokenRef.current = null;
+        }
+
         await signOutUser();
         setFirebaseUser(null);
         setUserDoc(null);

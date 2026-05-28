@@ -41,7 +41,7 @@ const KindBadge = styled.span`
       return `background:#2563eb;`;
     }
     if (kind === "event") {
-      return `background:#f97316;`;
+      return `background:#2563eb;`;
     }
     if (kind === "match") {
       return `background:#22c55e;`;
@@ -53,8 +53,8 @@ const KindBadge = styled.span`
 const ImportantLabel = styled.span`
   padding: 0 6px;
   border-radius: 999px;
-  border: 1px solid #f97316;
-  color: #ea580c;
+  border: 1px solid #2563eb;
+  color: #2563eb;
   font-size: 10px;
   font-weight: 600;
 `;

@@ -8,7 +8,8 @@ import { useClub } from "../../hooks/useClub";
 import { useHomeData } from "../../hooks/useHomeData";
 import { useMatchingData } from "../../hooks/useMatchingData";
 
-import splashImg from "../../assets/images/splash_hallemalla.png"; // 경로/이름만 맞게
+import splashImg from "../../assets/images/splash_hallemalla.png";
+import { runSchemaDumpFront } from "../../services/schemaDumpService";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(8px); }
@@ -19,7 +20,8 @@ const Wrap = styled.div`
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: #f3f4f6;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.bg : "#f3f4f6"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -45,11 +47,9 @@ export default function SplashPage() {
 
   const onceRef = useRef(false);
 
-  // ✅ uid SSOT: firebase auth uid
   const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
-
-  // ✅ activeTeamId SSOT: useClub가 내려주는 club 문서 id 하나만 신뢰
   const activeTeamId = String(club?.id || "").trim();
+  const phoneE164 = String(userDoc?.phoneE164 || "").trim();
 
   useEffect(() => {
     if (onceRef.current) return;
@@ -72,6 +72,24 @@ export default function SplashPage() {
       try {
         const tasks = [];
 
+        console.log("[SplashPage] ready", {
+          isLoggedIn,
+          uid: uid ? "ok" : "missing",
+          activeTeamId: activeTeamId || "(none)",
+        });
+
+        // ✅ schema dump: 서비스에서 env로 on/off 처리 (Splash에서 별도 체크 X)
+        // - REACT_APP_SCHEMA_DUMP=1 이면 덤프 실행
+        // - 아니면 서비스에서 disabled 로그 찍고 return null
+        tasks.push(
+          runSchemaDumpFront({
+            rootCollections: ["chatRooms", "clubs","community_posts","games","match_requests","notifications","users","users_by_phone"],
+            sampleCount: 2,
+            maxDepth: 2,
+            schemaDepth: 6,
+          })
+        );
+
         // ✅ 홈 전체 프리로드(필수)
         tasks.push(preloadHomeData(uid));
 
@@ -87,7 +105,9 @@ export default function SplashPage() {
         const elapsed = Date.now() - startedAt;
         const wait = Math.max(0, MIN_SPLASH_MS - elapsed);
         setTimeout(() => {
-          navigate("/home", { replace: true });
+          // 폰번호 미인증 시 /link-phone으로 이동
+          const dest = phoneE164 ? "/home" : "/link-phone";
+          navigate(dest, { replace: true });
         }, wait);
       }
     })();

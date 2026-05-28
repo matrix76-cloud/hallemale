@@ -46,12 +46,12 @@ const TitleBlock = styled.div`
 
 const Title = styled.div`
   font-size: 16px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const Sub = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const Actions = styled.div`
@@ -62,10 +62,10 @@ const Actions = styled.div`
 `;
 
 const Card = styled.div`
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+  box-shadow: ${({ theme }) => theme?.shadows?.card || "0 6px 14px rgba(15, 23, 42, 0.04)"};
   overflow: hidden;
 `;
 
@@ -86,7 +86,7 @@ const FilterGrid = styled.div`
 
 const Label = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const FieldRow = styled.div`
@@ -100,11 +100,13 @@ const Input = styled.input`
   height: 34px;
   border-radius: 8px;
   padding: 0 10px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   font-size: 13px;
   outline: none;
   min-width: 220px;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#ffffff"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 
   &:focus {
     border-color: ${({ theme }) => theme?.colors?.primary || theme?.primary || "#4f46e5"};
@@ -124,10 +126,13 @@ const DateInput = styled(Input)`
 const Btn = styled.button`
   height: 34px;
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   background: ${({ $primary, theme }) =>
-    $primary ? theme?.colors?.primary || theme?.primary || "#4f46e5" : "#ffffff"};
-  color: ${({ $primary }) => ($primary ? "#ffffff" : "#111827")};
+    $primary
+      ? theme?.colors?.primary || theme?.primary || "#4f46e5"
+      : theme?.colors?.card || "#ffffff"};
+  color: ${({ $primary, theme }) =>
+    $primary ? "#ffffff" : theme?.colors?.textStrong || "#111827"};
   cursor: pointer;
   font-size: 12px;
   padding: 0 12px;
@@ -150,8 +155,9 @@ const SummaryGrid = styled.div`
 const SummaryCard = styled.button`
   width: 100%;
   text-align: left;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   border-radius: 8px;
   padding: 12px 12px;
   cursor: ${({ $clickable }) => ($clickable ? "pointer" : "default")};
@@ -163,13 +169,13 @@ const SummaryCard = styled.button`
 
 const SummaryLabel = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
 const SummaryValue = styled.div`
   margin-top: 6px;
   font-size: 18px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const toneStyle = (tone, theme) => {

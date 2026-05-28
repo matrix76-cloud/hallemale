@@ -187,7 +187,7 @@ export default function TeamJoinRequestDetailPage() {
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors?.bg || "#f3f4f6"};
+  background: ${({ theme }) => theme.colors.bg};
   padding: 14px 16px 90px;
   display: flex;
   flex-direction: column;
@@ -203,7 +203,7 @@ const Center = styled.div`
 const EmptyText = styled.div`
   margin-top: 32px;
   font-size: 14px;
-  color: ${({ theme }) => theme.colors?.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Top = styled.div`
@@ -217,8 +217,8 @@ const AvatarBox = styled.div`
   height: 56px;
   border-radius: 999px;
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -239,37 +239,37 @@ const TopText = styled.div`
 
 const TopTitle = styled.div`
   font-size: 17px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const TopSub = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const TopMeta = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Divider = styled.div`
   height: 1px;
-  background: #e5e7eb;
+  background: ${({ theme }) => theme.colors.border};
 `;
 
 const BlockTitle = styled.div`
   font-size: 13px;
-  color: #111827;
-  font-family: "GmarketSans";
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-weight: 600;
 `;
 
 const MessageBox = styled.div`
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  border-radius: 14px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 12px 12px;
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   line-height: 1.6;
   white-space: pre-wrap;
 `;
@@ -283,8 +283,20 @@ const StatusPill = styled.span`
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 12px;
-  background: ${({ $pending }) => ($pending ? "rgba(79,70,229,0.12)" : "#f3f4f6")};
-  color: ${({ $pending }) => ($pending ? "#4f46e5" : "#6b7280")};
+  background: ${({ $pending, theme }) =>
+    $pending
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "rgba(79,70,229,0.12)"
+      : theme.mode === "dark"
+      ? "rgba(255,255,255,0.06)"
+      : "#f3f4f6"};
+  color: ${({ $pending, theme }) =>
+    $pending
+      ? theme.mode === "dark"
+        ? "#a5b4fc"
+        : "#4f46e5"
+      : theme.colors.textWeak};
 `;
 
 const BtnRow = styled.div`
@@ -297,8 +309,9 @@ const BtnGhost = styled.button`
   flex: 1;
   height: 44px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
   font-size: 14px;
   cursor: pointer;
 
@@ -313,7 +326,7 @@ const BtnPrimary = styled.button`
   height: 44px;
   border-radius: 999px;
   border: none;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 14px;
   cursor: pointer;

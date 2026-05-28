@@ -393,66 +393,6 @@ const EmptyText = styled.div`
   color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
 `;
 
-// ─── 일회용 샘플 시드 ───────────────────────────────────────────
-// 한 번 클릭하면 venues 컬렉션에 두 구장이 자동 등록됨.
-// 등록 후엔 이 영역(SeedCard / handleSeedSamples)과 public/sample-venues/* 삭제 권장.
-const SEED_SAMPLES = [
-  {
-    name: "동서울대학교 실내체육시설 체육관",
-    address: "경기 성남시 수정구 복정로 76",
-    addressDetail: "동서울대학교 체육관",
-    lat: 37.4671,
-    lng: 127.1264,
-    type: "indoor",
-    cost: "free",
-    memo: "동서울대학교 캠퍼스 내 실내체육관. 사전 협의 후 이용 가능.",
-    order: 1,
-    sampleImagePath: "/sample-venues/venue-dongseoul.png",
-    sampleImageName: "venue-dongseoul.png",
-  },
-  {
-    name: "한국외국어대학교 서울캠퍼스 미네르바콤플렉스 실내체육관",
-    address: "서울 동대문구 이문로 107",
-    addressDetail: "미네르바콤플렉스 내 실내체육관",
-    lat: 37.597,
-    lng: 127.0593,
-    type: "indoor",
-    cost: "free",
-    memo: "한국외대 서울캠퍼스 미네르바콤플렉스 시설. 사전 협의 후 이용 가능.",
-    order: 2,
-    sampleImagePath: "/sample-venues/venue-hufs.png",
-    sampleImageName: "venue-hufs.png",
-  },
-];
-
-const SeedCard = styled(Card)`
-  border: 1px dashed ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
-  background: ${({ theme }) =>
-    theme?.mode === "dark" ? "rgba(99,102,241,0.08)" : "#f5f3ff"};
-`;
-
-const SeedTitle = styled.div`
-  font-size: 14px;
-  font-weight: 700;
-  color: ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
-  margin-bottom: 6px;
-`;
-
-const SeedDesc = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
-  margin-bottom: 12px;
-  line-height: 1.6;
-`;
-
-async function fetchPublicAsFile(path, name) {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`이미지를 불러오지 못했습니다: ${path}`);
-  const blob = await res.blob();
-  const type = blob.type || "image/png";
-  return new File([blob], name, { type });
-}
-
 function makeEmptyForm() {
   return {
     id: null,
@@ -489,7 +429,6 @@ export default function AdminVenuesPage() {
   const [form, setForm] = useState(makeEmptyForm());
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
 
   const isEditing = !!form.id;
@@ -610,46 +549,6 @@ export default function AdminVenuesPage() {
     }
   };
 
-  const handleSeedSamples = async () => {
-    if (
-      !window.confirm(
-        "샘플 구장 2개를 자동으로 등록합니다. 계속하시겠습니까?\n(중복 등록 방지를 위해 한 번만 실행해주세요)"
-      )
-    )
-      return;
-    setSeeding(true);
-    try {
-      for (const sample of SEED_SAMPLES) {
-        const file = await fetchPublicAsFile(
-          sample.sampleImagePath,
-          sample.sampleImageName
-        );
-        const { imageUrl, storagePath } = await uploadVenueImage(file);
-        await createVenue({
-          name: sample.name,
-          address: sample.address,
-          addressDetail: sample.addressDetail,
-          lat: sample.lat,
-          lng: sample.lng,
-          imageUrl,
-          storagePath,
-          type: sample.type,
-          cost: sample.cost,
-          memo: sample.memo,
-          order: sample.order,
-          active: true,
-        });
-      }
-      window.alert("샘플 구장 2개가 등록되었습니다.");
-      await load();
-    } catch (e) {
-      console.error("[AdminVenuesPage] seed failed", e);
-      window.alert(e?.message || "샘플 등록에 실패했습니다.");
-    } finally {
-      setSeeding(false);
-    }
-  };
-
   const handleToggleActive = async (row) => {
     setBusy(true);
     try {
@@ -686,23 +585,6 @@ export default function AdminVenuesPage() {
         좌표(위도/경도)는 비워둬도 등록 가능하지만, 지도 표시를 위해서는 입력을
         권장합니다. (예: 위도 37.5896, 경도 127.0297)
       </SpecBox>
-
-      <SeedCard>
-        <SeedTitle>🌱 샘플 구장 시드 (1회용)</SeedTitle>
-        <SeedDesc>
-          개발 초기 테스트용. 클릭하면 <strong>동서울대 체육관</strong>,{" "}
-          <strong>한국외대 미네르바콤플렉스 체육관</strong> 두 구장이 자동으로
-          등록됩니다. 이미지·주소·좌표 포함. 한 번만 실행하세요.
-        </SeedDesc>
-        <Btn
-          type="button"
-          $primary
-          onClick={handleSeedSamples}
-          disabled={seeding || busy || uploading}
-        >
-          {seeding ? "샘플 등록 중…" : "샘플 2개 자동 등록"}
-        </Btn>
-      </SeedCard>
 
       {/* 등록/수정 폼 (모달) */}
       {formOpen && (

@@ -4,6 +4,7 @@
 // SSOT: match_requests.status
 // - ongoing(조율중) = accepted + proposed
 // - confirmed(확정) = confirmed
+// - past(지난경기) = finished
 // - actorClubId==clubId OR targetClubId==clubId (2개 onSnapshot 합치기)
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -30,20 +31,22 @@ function mergeDocsById(a, b) {
 function countByStatus(rows) {
   let ongoing = 0;
   let confirmed = 0;
+  let past = 0;
 
   for (const r of rows || []) {
     const st = toStr(r?.status);
     if (st === "accepted" || st === "proposed") ongoing += 1;
     else if (st === "confirmed") confirmed += 1;
+    else if (st === "finished") past += 1;
   }
 
-  return { ongoing, confirmed };
+  return { ongoing, confirmed, past };
 }
 
 export default function useMatchRoomCounts({ clubId } = {}) {
   const myClubId = toStr(clubId);
 
-  const [counts, setCounts] = useState({ ongoing: 0, confirmed: 0 });
+  const [counts, setCounts] = useState({ ongoing: 0, confirmed: 0, past: 0 });
   const [loading, setLoading] = useState(false);
 
   const aRef = useRef([]); // actor side docs
@@ -53,7 +56,7 @@ export default function useMatchRoomCounts({ clubId } = {}) {
     if (!myClubId) {
       aRef.current = [];
       bRef.current = [];
-      setCounts({ ongoing: 0, confirmed: 0 });
+      setCounts({ ongoing: 0, confirmed: 0, past: 0 });
       setLoading(false);
       return;
     }
@@ -62,20 +65,11 @@ export default function useMatchRoomCounts({ clubId } = {}) {
 
     const col = collection(db, "match_requests");
 
-    // ✅ 홈에서는 필요한 상태만 구독 (pending은 매칭관리)
-    const statusIn = ["accepted", "proposed", "confirmed"];
+    // ✅ 홈에서 필요한 상태만 구독 (cancelled 제외)
+    const statusIn = ["accepted", "proposed", "confirmed", "finished"];
 
-    const qActor = query(
-      col,
-      where("actorClubId", "==", myClubId),
-      where("status", "in", statusIn)
-    );
-
-    const qTarget = query(
-      col,
-      where("targetClubId", "==", myClubId),
-      where("status", "in", statusIn)
-    );
+    const qActor = query(col, where("actorClubId", "==", myClubId), where("status", "in", statusIn));
+    const qTarget = query(col, where("targetClubId", "==", myClubId), where("status", "in", statusIn));
 
     const recompute = () => {
       const merged = mergeDocsById(aRef.current, bRef.current);

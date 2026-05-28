@@ -264,10 +264,10 @@ export default function MediaSection({
 /* ================= styled ================= */
 
 const Wrap = styled.section`
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  border-radius: 8px;
   padding: 14px 14px 14px;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme?.shadows?.card || "0 10px 26px rgba(15, 23, 42, 0.06)"};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -289,12 +289,12 @@ const TitleCol = styled.div`
 const Title = styled.div`
   font-size: 15px;
   font-weight: 800;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const Sub = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme?.colors?.textWeak || "#6b7280"};
 `;
 
 const RightCol = styled.div`
@@ -305,7 +305,7 @@ const RightCol = styled.div`
 
 const CountText = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme?.colors?.textWeak || "#6b7280"};
 `;
 
 const Grid = styled.div`
@@ -316,9 +316,10 @@ const Grid = styled.div`
 
 const AddTile = styled.button`
   height: 120px;
-  border-radius: 16px;
-  border: 1px dashed #d1d5db;
-  background: #fafafa;
+  border-radius: 8px;
+  border: 1px dashed ${({ theme }) => theme?.colors?.border || "#d1d5db"};
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#fafafa"};
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -338,26 +339,29 @@ const AddIcon = styled.div`
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: #eef2ff;
-  color: #4f46e5;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) =>
+    theme?.mode === "dark" ? "#a5b4fc" : theme?.colors?.primary || "#4f46e5"};
 `;
 
 const AddText = styled.div`
   font-size: 12px;
   font-weight: 800;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const AddHint = styled.div`
   font-size: 11px;
-  color: #6b7280;
+  color: ${({ theme }) => theme?.colors?.textWeak || "#6b7280"};
 `;
 
 const MediaCard = styled.div`
   position: relative;
-  border-radius: 16px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#e5e7eb"};
   height: 120px;
 `;
 
@@ -418,7 +422,8 @@ const TrashBtn = styled.button`
 const ModalOverlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
   display: grid;
   place-items: center;
   z-index: 9999;
@@ -427,10 +432,10 @@ const ModalOverlay = styled.div`
 
 const ModalCard = styled.div`
   width: min(520px, 92vw);
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  border-radius: 8px;
   padding: 14px 14px 12px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.35);
+  box-shadow: ${({ theme }) => theme?.shadows?.card || "0 18px 40px rgba(15, 23, 42, 0.35)"};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -445,39 +450,41 @@ const ModalTop = styled.div`
 const ModalTitle = styled.div`
   font-size: 15px;
   font-weight: 900;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const ModalClose = styled.button`
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #6b7280;
+  color: ${({ theme }) => theme?.colors?.textWeak || "#6b7280"};
 `;
 
 const ModalSub = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme?.colors?.textWeak || "#6b7280"};
   line-height: 1.45;
 `;
 
 const ModalInput = styled.input`
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   padding: 10px 12px;
   font-size: 13px;
   outline: none;
-  background: #f9fafb;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? theme?.colors?.surface : "#f9fafb"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 
   &:focus {
-    border-color: #4f46e5;
-    background: #ffffff;
+    border-color: ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
+    background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
   }
 `;
 
 const ErrorText = styled.div`
   font-size: 12px;
-  color: #ef4444;
+  color: ${({ theme }) => theme?.colors?.danger || "#ef4444"};
 `;
 
 const ModalActions = styled.div`
@@ -490,8 +497,9 @@ const ModalBtn = styled.button`
   flex: 1;
   height: 40px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
@@ -502,7 +510,7 @@ const ModalBtnPrimary = styled.button`
   height: 40px;
   border-radius: 999px;
   border: none;
-  background: #4f46e5;
+  background: ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
   color: #ffffff;
   font-size: 13px;
   font-weight: 900;

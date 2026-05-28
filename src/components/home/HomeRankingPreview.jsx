@@ -4,7 +4,7 @@ import styled from "styled-components";
 const Wrap = styled.section`
   margin-bottom: 16px;
   padding: 12px 12px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: ${({ theme }) => theme.colors.card};
   box-shadow: ${({ theme }) => theme.shadows.card};
 `;
@@ -41,7 +41,6 @@ const Row = styled.div`
 `;
 
 export default function HomeRankingPreview() {
-  // TODO: 나중에 clubService.fetchTopClubs()로 교체
   const mock = [
     { name: "청춘호랑이", stat: "12승 6패 · 승률 66.7%" },
     { name: "덕소독수리", stat: "10승 6패 · 승률 62.5%" },

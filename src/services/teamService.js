@@ -254,8 +254,64 @@ export async function getTeamProfile(teamId) {
           // (샘플 미디어 있으면 여기 유지)
         ];
 
-  const stats = buildMockStats(teamId);
-  const streak = buildMockStreak(stats, teamId);
+  // ✅ stats: Firestore clubs/{teamId}.stats SSOT
+  const rawStats = club.stats || {};
+  const stats = {
+    totalMatches: Number(rawStats.totalMatches || 0),
+    wins: Number(rawStats.wins || 0),
+    losses: Number(rawStats.losses || 0),
+    draws: Number(rawStats.draws || 0),
+    winRate: typeof rawStats.winRate === "number" ? rawStats.winRate : null,
+    recentResults: Array.isArray(rawStats.recentResults) ? rawStats.recentResults : [],
+    updatedAt: rawStats.updatedAt || null,
+  };
+
+  // ✅ streak도 실데이터 recentResults 기반 (최신이 뒤)
+  const computeStreakFromRecentResultsLast = (recentResults) => {
+    const arr = Array.isArray(recentResults) ? recentResults : [];
+    if (!arr.length) return null;
+
+    const normalize = (x) => {
+      const v = String(x || "").trim().toUpperCase();
+      if (v === "W") return "W";
+      if (v === "L") return "L";
+      if (v === "D") return "D";
+      if (v.includes("승")) return "W";
+      if (v.includes("패")) return "L";
+      if (v.includes("무")) return "D";
+      return null;
+    };
+
+    const last = normalize(arr[arr.length - 1]);
+    if (!last) return null;
+
+    let count = 0;
+    for (let i = arr.length - 1; i >= 0; i -= 1) {
+      const cur = normalize(arr[i]);
+      if (cur !== last) break;
+      count += 1;
+    }
+
+    return { type: last, count };
+  };
+
+  const streakObj = computeStreakFromRecentResultsLast(stats.recentResults);
+
+  const streak =
+    streakObj && streakObj.type && streakObj.count
+      ? {
+          type: streakObj.type,
+          count: streakObj.count,
+          text:
+            streakObj.type === "W"
+              ? `${streakObj.count}연승 중`
+              : streakObj.type === "L"
+              ? `${streakObj.count}연패 중`
+              : `${streakObj.count}연무 중`,
+        }
+      : null;
+
+  // ✅ 나머지 목업 유지
   const highlights = buildHighlightsMock({
     clubId: teamId,
     clubName: String(club.name || "").trim(),
@@ -271,11 +327,13 @@ export async function getTeamProfile(teamId) {
     String(club.ownerId || "").trim() ||
     "";
 
+  // ✅ 여기 핵심: activity 실데이터 포함
+  const activity = club.activity || {};
+
   return {
     id: teamId,
     clubId: teamId,
 
-    // ✅ 팀장(SSOT)
     ownerUid,
 
     // ✅ 실데이터
@@ -287,9 +345,14 @@ export async function getTeamProfile(teamId) {
     promo: club.promo || null,
     media,
 
-    // ✅ 목업 유지
+    // ✅ 활동 요일/시간
+    activity,
+
+    // ✅ 실데이터
     stats,
     streak,
+
+    // ✅ 목업 유지
     highlights,
     recruiting,
     reviews,
@@ -298,12 +361,19 @@ export async function getTeamProfile(teamId) {
     // ✅ 실데이터 멤버
     members,
 
+    // ✅ 차단 정보 (BlockedOverlay 가드용)
+    blocked: club.blocked === true,
+    blockedReason: club.blockedReason || "",
+    blockedAt: club.blockedAt || null,
+    blockedBy: club.blockedBy || "",
+
     updatedAt: club.updatedAt || null,
     createdAt: club.createdAt || null,
 
     lineups,
   };
 }
+
 
 /* ===========================
  * (A-2) ✅ 실데이터: Team Picker (clubs)

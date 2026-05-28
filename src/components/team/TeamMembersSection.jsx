@@ -22,15 +22,16 @@ const Grid = styled.div`
 `;
 
 const MemberCard = styled.button`
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  border-radius: 16px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 10px 10px;
   display: flex;
   align-items: center;
   gap: 5px;
   cursor: pointer;
   text-align: left;
+  color: ${({ theme }) => theme.colors.textNormal};
 
   &:active {
     transform: translateY(1px);
@@ -42,7 +43,8 @@ const Avatar = styled.img`
   height: 44px;
   border-radius: 999px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex-shrink: 0;
 `;
 
@@ -65,7 +67,7 @@ const NameRow = styled.div`
 const Name = styled.div`
   min-width: 0;
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -78,7 +80,7 @@ const CaptainPill = styled.span`
   height: 22px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
@@ -95,7 +97,7 @@ const SubRow = styled.div`
 
 const SubText = styled.div`
   font-size: 11px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 function safeString(v) {

@@ -1,6 +1,9 @@
 /* eslint-disable */
 // src/pages/CommunityListPage.jsx
 // ✅ 좋아요 표시: react-icons (FiHeart)로 메타에 추가
+// ✅ 상단 경기 스트립: Firestore games(오늘 날짜) → TodayMatchesStripFlat이 기대하는 "그룹 데이터"로 변환
+// ✅ 로고 표시: TodayMatchesStripFlat에서 쓰는 homeLogo/awayLogo/home/away 메타를 채워줌
+// ✅ 경기 없으면 탭은 보여주고 클릭 시 "금일 예정된 경기 없습니다"
 
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
@@ -8,9 +11,10 @@ import { useNavigate } from "react-router-dom";
 import { loadCommunityList } from "../../services/communityService";
 import { useAuth } from "../../hooks/useAuth";
 import FilterSearchBar from "../../components/common/FilterSearchBar";
-import { FiHeart } from "react-icons/fi"; // ✅ 추가
+import { FiHeart } from "react-icons/fi";
 import TodayMatchesStripFlat from "../../components/community/TodayMatchesStripFlat";
-import { MOCK_TODAY_MATCHES_FLAT } from "../../mock/mockTodayMatchesFlat";
+import { listTodayBasketballGames } from "../../services/gamesService";
+import { images } from "../../utils/imageAssets";
 
 const HERO_BY_COMMENTS = 15;
 const HERO_BY_VIEWS = 300;
@@ -22,7 +26,7 @@ const HALF_BY_VIEWS = 100;
 
 const PageWrap = styled.div`
   min-height: 100vh;
-  background: ${({ theme }) => theme.colors?.bg || "#ffffff"};
+  background: ${({ theme }) => theme.colors.bg};
   padding: 8px 0 90px;
 `;
 
@@ -40,7 +44,8 @@ const SearchWrap = styled.div`
 
 const Divider = styled.div`
   height: 1px;
-  background: rgba(0, 0, 0, 0.06);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0, 0, 0, 0.06)"};
 `;
 
 /* =============== 상태 =============== */
@@ -49,13 +54,13 @@ const EmptyBox = styled.div`
   margin-top: 40px;
   text-align: center;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors?.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const LoadingBox = styled(EmptyBox)``;
 
 const ErrorBox = styled(EmptyBox)`
-  color: #b91c1c;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fca5a5" : "#b91c1c")};
   white-space: pre-line;
 `;
 
@@ -68,19 +73,18 @@ const FloatingWriteButton = styled.button`
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: ${({ theme }) => theme.colors?.primary};
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.15);
+  border: none;
+  background: ${({ theme }) => theme.colors.primary};
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 25px;
-  color: ${({ theme }) => theme.colors?.bg || "#111827"};
+  color: #ffffff;
   cursor: pointer;
 
   &:active {
     transform: translateY(1px);
-    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.12);
   }
 `;
 
@@ -92,7 +96,7 @@ const MetaRow = styled.div`
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: ${({ theme }) => theme.colors?.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Dot = styled.span`
@@ -115,7 +119,7 @@ const LikeIcon = styled(FiHeart)`
 const TitleText = styled.div`
   font-size: ${({ $big }) => ($big ? "17px" : "15px")};
   font-weight: ${({ $big }) => ($big ? 700 : 600)};
-  color: #111;
+  color: ${({ theme }) => theme.colors.textStrong};
   line-height: 1.45;
   word-break: break-word;
 `;
@@ -124,7 +128,7 @@ const Snippet = styled.div`
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.55;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
   display: -webkit-box;
   -webkit-line-clamp: ${({ $lines }) => $lines || 2};
   -webkit-box-orient: vertical;
@@ -139,7 +143,7 @@ const CardBtn = styled.button`
   background: transparent;
   cursor: pointer;
   text-align: left;
-  margin :10px 0px;
+  margin: 10px 0px;
 
   &:active {
     opacity: 0.85;
@@ -159,7 +163,8 @@ const CompactThumb = styled.div`
   height: 60px;
   border-radius: 6px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const ThumbImg = styled.div`
@@ -183,18 +188,16 @@ const HalfRow = styled.div`
   display: flex;
   gap: 12px;
   align-items: stretch;
-
   flex-direction: ${({ $reverse }) => ($reverse ? "row-reverse" : "row")};
 `;
-
-
 
 const HalfMedia = styled.div`
   flex: 0 0 46%;
   max-width: 46%;
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   height: 102px;
 `;
 
@@ -222,9 +225,10 @@ const HeroWrap = styled.div`
 
 const HeroMedia = styled.div`
   width: 100%;
-  border-radius: 16px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   height: 190px;
 `;
 
@@ -246,12 +250,15 @@ const TextHero = styled.div`
 `;
 
 const TextHeroBox = styled.div`
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 14px 14px 16px;
-  background: linear-gradient(135deg, #eef2ff 0%, #f3f4f6 60%, #ffffff 100%);
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? `linear-gradient(135deg, ${theme.colors.surface} 0%, ${theme.colors.card} 60%, ${theme.colors.card} 100%)`
+      : "linear-gradient(135deg, #eef2ff 0%, #f3f4f6 60%, #ffffff 100%)"};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "rgba(0, 0, 0, 0.04)"};
 `;
-
 
 const TopArea = styled.div`
   display: flex;
@@ -259,13 +266,11 @@ const TopArea = styled.div`
   gap: 12px;
 `;
 
-const SearchBarMock = styled.div`
-  height: 44px;
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+const TodayLoadingHint = styled.div`
+  padding: 0 16px;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
-
 
 function getLevel(post) {
   const views = Number(post?.views || 0);
@@ -288,16 +293,124 @@ function buildMetaText(post) {
       <span>조회 {post.views}</span>
       <Dot />
       <span>댓글 {post.commentsCount}</span>
-
-       <>
-          <Dot />
-          <LikeMeta>
-            <LikeIcon />
-            {likes}
-          </LikeMeta>
-        </>
+      <>
+        <Dot />
+        <LikeMeta>
+          <LikeIcon />
+          {likes}
+        </LikeMeta>
+      </>
     </MetaRow>
   );
+}
+
+function leagueLabel(league) {
+  const l = String(league || "").toLowerCase().trim();
+  if (l === "nba") return "NBA";
+  if (l === "kbl") return "KBL";
+  return "농구";
+}
+
+function safeLogoUrl(v) {
+  const s = String(v || "").trim();
+  return s || (images?.logo || "");
+}
+
+function pickTeamLogo(team) {
+  if (!team) return safeLogoUrl("");
+  return (
+    safeLogoUrl(team.logoUrl) ||
+    safeLogoUrl(team.logo) ||
+    safeLogoUrl(team.logoPath) ||
+    safeLogoUrl(team.imageUrl) ||
+    safeLogoUrl(team.image) ||
+    safeLogoUrl("")
+  );
+}
+
+function buildItemFromGame(g) {
+  const homeObj = g?.home || {};
+  const awayObj = g?.away || {};
+
+  const homeName = String(homeObj?.name || "").trim();
+  const awayName = String(awayObj?.name || "").trim();
+
+  const homeLogo = pickTeamLogo(homeObj) || safeLogoUrl(images?.logo);
+  const awayLogo = pickTeamLogo(awayObj) || safeLogoUrl(images?.logo);
+
+  const title =
+    homeName && awayName ? `${homeName} vs ${awayName}` : String(g?.leagueName || "오늘 경기");
+
+  const time = String(g?.startTime || "").trim();
+  const stadium = String(g?.stadium || "").trim();
+  const sub = [time, stadium].filter(Boolean).join(" · ");
+
+  const league = String(g?.league || "").toLowerCase().trim();
+  const status = String(g?.status || "").toLowerCase().trim();
+  const badge = status === "live" ? "LIVE" : leagueLabel(league);
+
+  return {
+    id: String(g?.gameId || g?.id || ""),
+    key: String(g?.gameId || g?.id || ""),
+    title,
+    sub,
+    badge,
+    league,
+    empty: false,
+
+    // ✅ TodayMatchesStripFlat 로고/팀 정보
+    home: { name: homeName, logoUrl: homeLogo },
+    away: { name: awayName, logoUrl: awayLogo },
+    homeLogo,
+    awayLogo,
+
+    raw: g,
+  };
+}
+
+function buildEmptyItemForLeague(league) {
+  const l = String(league || "").toLowerCase().trim();
+  const label = leagueLabel(l);
+  const fallback = safeLogoUrl(images?.logo);
+
+  return {
+    id: `${l}-empty`,
+    key: `${l}-empty`,
+    title: label,
+    sub: "금일 예정된 경기 없습니다",
+    badge: label,
+    league: l,
+    empty: true,
+
+    // ✅ empty도 로고 필드 채워서 깨진 이미지 방지
+    home: { name: "", logoUrl: fallback },
+    away: { name: "", logoUrl: fallback },
+    homeLogo: fallback,
+    awayLogo: fallback,
+
+    raw: null,
+  };
+}
+
+function buildStripGroupsFromItems(items) {
+  const safeItems = Array.isArray(items) ? items : [];
+
+  const kblItems = safeItems.filter((x) => String(x?.league || "").toLowerCase() === "kbl");
+  const nbaItems = safeItems.filter((x) => String(x?.league || "").toLowerCase() === "nba");
+
+  const featured =
+    safeItems.length > 0
+      ? safeItems
+      : [buildEmptyItemForLeague("kbl"), buildEmptyItemForLeague("nba")];
+
+  const kbl = kblItems.length > 0 ? kblItems : [buildEmptyItemForLeague("kbl")];
+  const nba = nbaItems.length > 0 ? nbaItems : [buildEmptyItemForLeague("nba")];
+
+  return [
+    { key: "featured", label: "주요 경기", items: featured },
+    { key: "kbl", label: "KBL", items: kbl },
+    { key: "nba", label: "NBA", items: nba },
+  ];
 }
 
 export default function CommunityListPage() {
@@ -309,6 +422,9 @@ export default function CommunityListPage() {
   const [loading, setLoading] = useState(true);
   const [errText, setErrText] = useState("");
   const [q, setQ] = useState("");
+
+  const [stripData, setStripData] = useState(() => buildStripGroupsFromItems([]));
+  const [todayLoading, setTodayLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
@@ -332,11 +448,7 @@ export default function CommunityListPage() {
             ? "권한(보안 규칙) 문제입니다."
             : "";
 
-        setErrText(
-          [String(e?.message || "목록을 불러올 수 없습니다."), hint]
-            .filter(Boolean)
-            .join("\n")
-        );
+        setErrText([String(e?.message || "목록을 불러올 수 없습니다."), hint].filter(Boolean).join("\n"));
         setPosts([]);
       } finally {
         if (!alive) return;
@@ -348,6 +460,38 @@ export default function CommunityListPage() {
       alive = false;
     };
   }, [myUid]);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      setTodayLoading(true);
+
+      try {
+        const out = await listTodayBasketballGames({
+          leagues: ["kbl", "nba"],
+          limitCount: 120,
+        });
+
+        if (!alive) return;
+
+        const items = (out?.games || []).map(buildItemFromGame).filter((x) => !!x?.id);
+
+        setStripData(buildStripGroupsFromItems(items));
+      } catch (e) {
+        console.error("[CommunityListPage] today games load failed:", e?.code, e?.message, e);
+        if (!alive) return;
+        setStripData(buildStripGroupsFromItems([]));
+      } finally {
+        if (!alive) return;
+        setTodayLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const filteredPosts = useMemo(() => {
     const key = String(q || "").trim().toLowerCase();
@@ -436,7 +580,6 @@ export default function CommunityListPage() {
       );
     }
 
-
     return (
       <CardBtn onClick={handleClickPost(post.id)}>
         <CompactRow>
@@ -457,27 +600,26 @@ export default function CommunityListPage() {
 
   return (
     <PageWrap>
-
-         <TopArea>
-
+      <TopArea>
         <TodayMatchesStripFlat
-          data={MOCK_TODAY_MATCHES_FLAT}
+          data={stripData}
           initialKey="featured"
           onItemClick={(it) => {
-            // 나중에: it.landingUrl 열기 or 내부 라우팅
-            // console.log(it);
+            if (it?.empty) {
+              window.alert("금일 예정된 경기 없습니다");
+              return;
+            }
           }}
         />
+
+        {todayLoading && (
+          <TodayLoadingHint>오늘 경기 불러오는 중…</TodayLoadingHint>
+        )}
       </TopArea>
 
       <Inner>
         <SearchWrap>
-          <FilterSearchBar
-            value={q}
-            onChange={setQ}
-            placeholder="제목/내용/작성자 검색"
-            showFilter={false}
-          />
+          <FilterSearchBar value={q} onChange={setQ} placeholder="제목/내용/작성자 검색" showFilter={false} />
         </SearchWrap>
 
         {loading ? (
@@ -492,11 +634,7 @@ export default function CommunityListPage() {
             </React.Fragment>
           ))
         ) : (
-          <EmptyBox>
-            {String(q || "").trim()
-              ? "검색 결과가 없습니다."
-              : "아직 등록된 게시글이 없습니다."}
-          </EmptyBox>
+          <EmptyBox>{String(q || "").trim() ? "검색 결과가 없습니다." : "아직 등록된 게시글이 없습니다."}</EmptyBox>
         )}
       </Inner>
 

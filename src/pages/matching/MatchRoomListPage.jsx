@@ -2,7 +2,7 @@
 // src/pages/matching/MatchRoomListPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { images } from "../../utils/imageAssets";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 import Spinner from "../../components/common/Spinner";
@@ -40,13 +40,8 @@ const formatKoreanDate = (iso) => {
 const getVsStatus = (room) => {
   const { status, scheduledAt, myScore, oppScore } = room || {};
 
-  if (status === "accepted") {
-    return { text: "제안 필요", tone: "accepted" };
-  }
-
-  if (status === "proposed") {
-    return { text: "확정 대기", tone: "proposed" };
-  }
+  if (status === "accepted") return { text: "제안 필요", tone: "accepted" };
+  if (status === "proposed") return { text: "확정 대기", tone: "proposed" };
 
   if (status === "confirmed") {
     if (scheduledAt) {
@@ -67,9 +62,7 @@ const getVsStatus = (room) => {
     return { text: `${label} · 결과 입력 대기`, tone: "finished" };
   }
 
-  if (status === "cancelled") {
-    return { text: "취소된 매칭", tone: "cancelled" };
-  }
+  if (status === "cancelled") return { text: "취소된 매칭", tone: "cancelled" };
 
   return { text: "상태 미지정", tone: "default" };
 };
@@ -127,54 +120,26 @@ const Inner = styled.div`
   gap: 12px;
 `;
 
-const TabsWrap = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  width: 100%;
-  gap: 6px;
-  padding: 6px;
-  margin: 5px auto;
-  border-radius: 999px;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-`;
-
-const TabButton = styled.button`
-  min-width: 0;
-  border: none;
-  border-radius: 999px;
-  background: ${({ $active }) => ($active ? "#ffffff" : "transparent")};
-  box-shadow: ${({ $active }) => ($active ? "0 6px 16px rgba(15, 23, 42, 0.08)" : "none")};
-
+const TitleCard = styled.div`
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  padding: 14px 14px 14px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 11px 8px;
-  cursor: pointer;
-  font-family: "GmarketSans";
-
-  color: ${({ $active }) => ($active ? "#111827" : "#6b7280")};
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-
-  &:active {
-    transform: translateY(1px);
-  }
-`;
-
-const TabLabel = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   gap: 6px;
-  min-width: 0;
-  font-size: 12px;
-  white-space: nowrap;
 `;
 
-const TabCount = styled.span`
-  font-size: 11px;
-  opacity: 0.9;
+const TitleText = styled.div`
+  font-size: 16px;
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-weight: 600;
+`;
+
+const SubText = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const RoomList = styled.div`
@@ -186,14 +151,14 @@ const RoomList = styled.div`
 
 const RoomCard = styled.div`
   width: 100%;
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 6px 0;
   display: flex;
   flex-direction: column;
   cursor: pointer;
-  border: 1px solid #eef2f7;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   overflow: hidden;
 `;
 
@@ -206,17 +171,17 @@ const MatchHeader = styled.div`
 
 const MatchTitle = styled.div`
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
 `;
 
 const VsStatusPill = styled.div`
   padding: 7px 12px;
   border-radius: 999px;
-  background: #f3f4f6;
-  color: #111827;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 13px;
-  font-weight: 600;
   white-space: nowrap;
 `;
 
@@ -241,36 +206,9 @@ const LogoWrap = styled.div`
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #f3f4f6;
-  border-radius: 14px;
-`;
-
-const TeamName = styled.div`
-  font-size: 15px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.textStrong};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const SectionGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`;
-
-const EmptyText = styled.div`
-  padding: 32px 4px 0;
-  font-size: 13px;
-  color: #9ca3af;
-  text-align: center;
-`;
-
-const Row = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
+  border-radius: 8px;
 `;
 
 const LogoImg = styled.img`
@@ -295,9 +233,17 @@ const TeamNameRow = styled.div`
   min-width: 0;
 `;
 
+const TeamName = styled.div`
+  font-size: 15px;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
 const TeamRegion = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -312,21 +258,22 @@ const SummaryRow = styled.div`
 `;
 
 const SummaryText = styled.span`
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const WinRateBadge = styled.span`
   padding: 3px 8px;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #2563eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : "#2563eb"};
   font-size: 12px;
-  font-weight: 500;
 `;
 
 const RecentLabel = styled.span`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const RecentDots = styled.div`
@@ -340,14 +287,16 @@ const RecentDots = styled.div`
 const SoonDot = styled.div`
   width: 14px;
   height: 14px;
-  background: #d1d5db;
-  border: 1px dashed #cbd5e1;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#d1d5db"};
+  border: 1px dashed ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "#cbd5e1"};
   box-sizing: border-box;
 `;
 
 const Divider = styled.div`
   height: 1px;
-  background: #eef2f7;
+  background: ${({ theme }) => theme.colors.divider};
   margin: 2px 14px;
 `;
 
@@ -357,16 +306,42 @@ const StateWrap = styled.div`
   justify-content: center;
 `;
 
+const EmptyText = styled.div`
+  padding: 18px 4px 0;
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  text-align: center;
+`;
+
+const Row = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+`;
+
 /* ==================== 페이지 ==================== */
 
 export default function MatchRoomListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { club } = useClub();
   const myClubId = toStr(club?.clubId || club?.id);
 
-  const [activeTab, setActiveTab] = useState("adjusting"); // adjusting | confirmed | past
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const tab = useMemo(() => {
+    const sp = new URLSearchParams(location.search || "");
+    const raw = toStr(sp.get("tab")).toLowerCase();
+
+    // 홈에서 넘기는 값: ongoing | confirmed | past
+    if (raw === "ongoing" || raw === "adjusting") return "adjusting";
+    if (raw === "confirmed") return "confirmed";
+    if (raw === "past" || raw === "finished") return "past";
+
+    // 파라미터 없으면 전체(섹션 3개를 아래로 쭉)
+    return "all";
+  }, [location.search]);
 
   useEffect(() => {
     let cancelled = false;
@@ -376,7 +351,6 @@ export default function MatchRoomListPage() {
         setLoading(true);
         const data = await loadMatchRoomListPageData(myClubId);
         if (cancelled) return;
-
         const nextRooms = Array.isArray(data?.rooms) ? data.rooms : [];
         setRooms(nextRooms);
       } catch (e) {
@@ -403,6 +377,20 @@ export default function MatchRoomListPage() {
     () => rooms.filter((r) => r.status === "finished" || r.status === "cancelled"),
     [rooms]
   );
+
+  const titleText = useMemo(() => {
+    if (tab === "adjusting") return "조율중 경기";
+    if (tab === "confirmed") return "확정된 경기";
+    if (tab === "past") return "지난 경기";
+    return "매칭룸";
+  }, [tab]);
+
+  const subText = useMemo(() => {
+    if (tab === "adjusting") return `조율중인 경기 ${adjustingRooms.length}개`;
+    if (tab === "confirmed") return `확정된 경기 ${confirmedRooms.length}개`;
+    if (tab === "past") return `지난 경기 ${pastRooms.length}개`;
+    return `조율중 ${adjustingRooms.length} · 확정 ${confirmedRooms.length} · 지난경기 ${pastRooms.length}`;
+  }, [tab, adjustingRooms.length, confirmedRooms.length, pastRooms.length]);
 
   const handleClickRoom = (roomId) => {
     navigate(`/match-roomdetail/${roomId}`);
@@ -467,6 +455,7 @@ export default function MatchRoomListPage() {
     );
   };
 
+
   const renderRoomCard = (room) => {
     const { myTeam, oppTeam } = room || {};
     const { text } = getVsStatus(room);
@@ -489,60 +478,81 @@ export default function MatchRoomListPage() {
     );
   };
 
-  const isAdjustingTab = activeTab === "adjusting";
-  const isConfirmedTab = activeTab === "confirmed";
-
-  const adjustingCount = adjustingRooms.length;
-  const confirmedCount = confirmedRooms.length;
-  const pastCount = pastRooms.length;
+  const listToRender = useMemo(() => {
+    if (tab === "adjusting") return adjustingRooms;
+    if (tab === "confirmed") return confirmedRooms;
+    if (tab === "past") return pastRooms;
+    return [];
+  }, [tab, adjustingRooms, confirmedRooms, pastRooms]);
 
   return (
     <PageWrap>
       <Inner>
-        <TabsWrap>
-          <TabButton type="button" $active={isAdjustingTab} onClick={() => setActiveTab("adjusting")}>
-            <TabLabel>
-              조율중 게임 <TabCount>({adjustingCount})</TabCount>
-            </TabLabel>
-          </TabButton>
-
-          <TabButton type="button" $active={isConfirmedTab} onClick={() => setActiveTab("confirmed")}>
-            <TabLabel>
-              확정된 게임 <TabCount>({confirmedCount})</TabCount>
-            </TabLabel>
-          </TabButton>
-
-          <TabButton type="button" $active={!isAdjustingTab && !isConfirmedTab} onClick={() => setActiveTab("past")}>
-            <TabLabel>
-              지난 게임 <TabCount>({pastCount})</TabCount>
-            </TabLabel>
-          </TabButton>
-        </TabsWrap>
+        <TitleCard>
+          <TitleText>{titleText}</TitleText>
+          <SubText>{subText}</SubText>
+        </TitleCard>
 
         {loading ? (
           <StateWrap>
             <Spinner size="lg" />
           </StateWrap>
         ) : (
-          <RoomList>
-            {activeTab === "adjusting" ? (
-              adjustingRooms.length > 0 ? (
-                <SectionGroup>{adjustingRooms.map((room) => renderRoomCard(room))}</SectionGroup>
-              ) : (
-                <EmptyText>조율중인 매칭이 아직 없습니다.</EmptyText>
-              )
-            ) : activeTab === "confirmed" ? (
-              confirmedRooms.length > 0 ? (
-                <SectionGroup>{confirmedRooms.map((room) => renderRoomCard(room))}</SectionGroup>
-              ) : (
-                <EmptyText>확정된 매칭이 아직 없습니다.</EmptyText>
-              )
-            ) : pastRooms.length > 0 ? (
-              <SectionGroup>{pastRooms.map((room) => renderRoomCard(room))}</SectionGroup>
+          <>
+            {tab === "all" ? (
+              <RoomList>
+                {adjustingRooms.length > 0 ? (
+                  <>
+                    <TitleCard>
+                      <TitleText>조율중 경기</TitleText>
+                      <SubText>{adjustingRooms.length}개</SubText>
+                    </TitleCard>
+                    {adjustingRooms.map((room) => renderRoomCard(room))}
+                  </>
+                ) : (
+                  <EmptyText>조율중인 매칭이 아직 없습니다.</EmptyText>
+                )}
+
+                {confirmedRooms.length > 0 ? (
+                  <>
+                    <TitleCard>
+                      <TitleText>확정된 경기</TitleText>
+                      <SubText>{confirmedRooms.length}개</SubText>
+                    </TitleCard>
+                    {confirmedRooms.map((room) => renderRoomCard(room))}
+                  </>
+                ) : (
+                  <EmptyText>확정된 매칭이 아직 없습니다.</EmptyText>
+                )}
+
+                {pastRooms.length > 0 ? (
+                  <>
+                    <TitleCard>
+                      <TitleText>지난 경기</TitleText>
+                      <SubText>{pastRooms.length}개</SubText>
+                    </TitleCard>
+                    {pastRooms.map((room) => renderRoomCard(room))}
+                  </>
+                ) : (
+                  <EmptyText>지난 게임 기록이 아직 없습니다.</EmptyText>
+                )}
+              </RoomList>
             ) : (
-              <EmptyText>지난 게임 기록이 아직 없습니다.</EmptyText>
+              <RoomList>
+                {listToRender.length > 0 ? (
+                  listToRender.map((room) => renderRoomCard(room))
+                ) : (
+                  <EmptyText>
+                    {tab === "adjusting"
+                      ? "조율중인 매칭이 아직 없습니다."
+                      : tab === "confirmed"
+                      ? "확정된 매칭이 아직 없습니다."
+                      : "지난 게임 기록이 아직 없습니다."}
+                  </EmptyText>
+                )}
+              </RoomList>
             )}
-          </RoomList>
+          </>
         )}
       </Inner>
     </PageWrap>

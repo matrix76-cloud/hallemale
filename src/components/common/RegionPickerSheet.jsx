@@ -104,7 +104,8 @@ export default function RegionPickerSheet({
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.55);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0, 0, 0, 0.65)" : "rgba(17, 24, 39, 0.55)"};
   z-index: 9998;
   display: flex;
   align-items: flex-end;
@@ -118,9 +119,12 @@ const Overlay = styled.div`
 const Sheet = styled.div`
   width: 100%;
   max-width: 460px;
-  background: #ffffff;
-  border-radius: 18px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22);
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  box-shadow: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "0 18px 46px rgba(0, 0, 0, 0.55)"
+      : "0 18px 46px rgba(0, 0, 0, 0.22)"};
   overflow: hidden;
   max-height: 60vh;
   display: flex;
@@ -133,17 +137,19 @@ const SheetTop = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
 const SheetTitle = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const CloseBtn = styled.button`
   border: none;
-  background: rgba(15, 23, 42, 0.06);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(15, 23, 42, 0.06)"};
+  color: ${({ theme }) => theme.colors.textStrong};
   width: 30px;
   height: 30px;
   border-radius: 999px;
@@ -162,8 +168,8 @@ const SheetBody = styled.div`
 `;
 
 const Col = styled.div`
-  border-right: ${({ $right }) =>
-    $right ? "none" : "1px solid rgba(15, 23, 42, 0.08)"};
+  border-right: ${({ $right, theme }) =>
+    $right ? "none" : `1px solid ${theme.colors.border}`};
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 `;
@@ -171,11 +177,18 @@ const Col = styled.div`
 const Item = styled.button`
   width: 100%;
   border: none;
-  background: ${({ $active }) =>
-    $active ? "rgba(15, 111, 114, 0.10)" : "transparent"};
+  background: ${({ $active, theme }) => {
+    if (!$active) return "transparent";
+    return theme.mode === "dark"
+      ? "rgba(99, 102, 241, 0.18)"
+      : "rgba(15, 111, 114, 0.10)";
+  }};
   padding: 10px 12px;
   cursor: pointer;
   text-align: left;
   font-size: 12.5px;
-  color: ${({ $active }) => ($active ? "#0f6f72" : "#111827")};
+  color: ${({ $active, theme }) => {
+    if (!$active) return theme.colors.textStrong;
+    return theme.mode === "dark" ? "#a5b4fc" : "#0f6f72";
+  }};
 `;

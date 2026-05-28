@@ -3,20 +3,12 @@
 // ✅ 매칭 신청/수락/거절/취소 서비스
 // - match_requests 상태 업데이트
 // - notifications(팀단위) 생성: 상대팀용(push ON) + 우리팀용(push OFF)
+// ✅ 라인업 스냅샷 SSOT: actorLineup/targetLineup 자체 필드(memberIds/memberCount/previewMembers)
 
 import { db } from "./firebase";
-import {
-  addDoc,
-  collection,
-  doc,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
+import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 
-import {
-  buildNotificationDoc,
-  buildMatchTitleBody,
-} from "../utils/notificationDefinitions";
+import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -30,8 +22,6 @@ function pickTeamSnapshot(team) {
   };
 }
 
-
-
 function normalizeMainPosition(pos) {
   const v = toStr(pos).toLowerCase();
   if (!v) return "";
@@ -40,43 +30,45 @@ function normalizeMainPosition(pos) {
   if (v === "g" || v.includes("guard") || v.includes("가드")) return "guard";
   if (v === "f" || v.includes("forward") || v.includes("포워드")) return "forward";
   if (v === "c" || v.includes("center") || v.includes("센터")) return "center";
-
   return "";
 }
 
-
 /**
  * 라인업 스냅샷 생성 (match_requests 저장용)
- * - previewMembers 에 mainPosition 포함 (SSOT: guard/forward/center)
+ * ✅ SSOT:
+ * - id/name/matchSizeKey/memberIds/memberCount/previewMembers = lineup 자체에서 가져옴
+ * - members(별도 배열)로 스냅샷을 "추정"해서 만들지 않음
  */
-function buildLineupSnapshot({ lineup, members } = {}) {
+function buildLineupSnapshot({ lineup } = {}) {
   const lu = lineup || {};
-  const ms = Array.isArray(members) ? members : [];
 
   const id = toStr(lu?.id || lu?.lineupId);
   const name = toStr(lu?.name);
-
   const matchSizeKey = toStr(lu?.matchSizeKey);
-  const memberIds = Array.isArray(lu?.memberIds) ? lu.memberIds.map(toStr).filter(Boolean) : [];
 
-  // ✅ 스냅샷에는 "보여주기용" 최소 정보만: 닉네임/사진/포지션
-  // members 배열은 이미 선택된 라인업 멤버 리스트라고 가정 (형이 넘겨주는 actorMembers/targetMembers)
-  const previewMembers = ms.slice(0, 12).map((m) => {
-    const userId = toStr(m?.userId || m?.uid || m?.id);
-    const nickname = toStr(m?.nickname || m?.name) || "선수";
-    const photoUrl = toStr(m?.photoUrl || m?.avatarUrl || m?.profileUrl);
-
-    const mainPosition = normalizeMainPosition(m?.mainPosition);
-    // ✅ SSOT: mainPosition 하나만 저장 (없으면 빈 문자열로 둠)
-    return { userId, nickname, photoUrl, mainPosition };
-  });
+  const memberIds = Array.isArray(lu?.memberIds)
+    ? lu.memberIds.map(toStr).filter(Boolean)
+    : [];
 
   const memberCount =
     typeof lu?.memberCount === "number"
       ? lu.memberCount
-      : memberIds.length > 0
-      ? memberIds.length
-      : ms.length;
+      : memberIds.length;
+
+  // ✅ previewMembers는 lineupService에서 users 기반으로 만들어 저장해둔 값을 그대로 사용
+  // ✅ 폴백 텍스트 금지: 값 없으면 "" 로 유지
+  const previewMembers = Array.isArray(lu?.previewMembers)
+    ? lu.previewMembers.slice(0, 12).map((m) => ({
+        userId: toStr(m?.userId || m?.uid || m?.id),
+        nickname: toStr(m?.nickname),
+        photoUrl: toStr(m?.photoUrl || m?.avatarUrl || m?.profileUrl),
+        mainPosition: normalizeMainPosition(m?.mainPosition),
+        heightCm:
+          m?.heightCm != null && Number.isFinite(Number(m.heightCm)) ? Number(m.heightCm) : null,
+        weightKg:
+          m?.weightKg != null && Number.isFinite(Number(m.weightKg)) ? Number(m.weightKg) : null,
+      }))
+    : [];
 
   return {
     id,
@@ -106,17 +98,16 @@ async function createNoti({ key, payload, title, body, pushEnabled }) {
 
 /**
  * 매칭 신청 생성 (내 라인업 + 상대 라인업 선택)
+ * ✅ actorMembers/targetMembers는 더 이상 스냅샷 생성에 쓰지 않음(추정체인 방지)
  */
 export async function createMatchRequest({
   actorClubId,
   actorTeam,
   actorLineup,
-  actorMembers,
 
   targetClubId,
   targetTeam,
   targetLineup,
-  targetMembers,
 } = {}) {
   const _actorClubId = toStr(actorClubId);
   const _targetClubId = toStr(targetClubId);
@@ -128,15 +119,8 @@ export async function createMatchRequest({
   const fromTeamSnapshot = pickTeamSnapshot(actorTeam);
   const toTeamSnapshot = pickTeamSnapshot(targetTeam);
 
-  const fromLineupSnapshot = buildLineupSnapshot({
-    lineup: actorLineup,
-    members: actorMembers,
-  });
-
-  const toLineupSnapshot = buildLineupSnapshot({
-    lineup: targetLineup,
-    members: targetMembers,
-  });
+  const fromLineupSnapshot = buildLineupSnapshot({ lineup: actorLineup });
+  const toLineupSnapshot = buildLineupSnapshot({ lineup: targetLineup });
 
   if (!toStr(fromLineupSnapshot?.id) || !toStr(fromLineupSnapshot?.name)) {
     throw new Error("createMatchRequest: actorLineup is required");
@@ -226,15 +210,13 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
   const n = latestNoti || {};
 
   const matchId = toStr(n?.matchId);
-  const actorClubId = toStr(n?.actorClubId);  // 신청팀
+  const actorClubId = toStr(n?.actorClubId); // 신청팀
   const targetClubId = toStr(n?.targetClubId); // 받은팀
   if (!matchId) throw new Error("acceptMatchRequest: matchId is required");
   if (!myId) throw new Error("acceptMatchRequest: myClubId is required");
 
-  // 내가 받은 팀이어야 수락 가능
   if (myId !== targetClubId) throw new Error("수락 권한이 없습니다.");
 
-  // status 업데이트
   await updateDoc(doc(db, "match_requests", matchId), {
     status: "accepted",
     updatedAt: serverTimestamp(),
@@ -242,8 +224,8 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
     acceptedByClubId: myId,
   });
 
-  const fromTeamSnapshot = n?.fromTeamSnapshot || null; // 신청팀
-  const toTeamSnapshot = n?.toTeamSnapshot || null;     // 받은팀(우리팀)
+  const fromTeamSnapshot = n?.fromTeamSnapshot || null;
+  const toTeamSnapshot = n?.toTeamSnapshot || null;
   const fromLineupSnapshot = n?.fromLineupSnapshot || null;
   const toLineupSnapshot = n?.toLineupSnapshot || null;
 
@@ -251,8 +233,8 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
   {
     const payload = {
       matchId,
-      actorClubId: myId,         // ✅ 액션 주체(수락한 팀)
-      targetClubId: actorClubId, // ✅ 상대(신청팀)
+      actorClubId: myId, // ✅ 수락한 팀
+      targetClubId: actorClubId, // ✅ 신청팀
       clubId: actorClubId,
       direction: "received",
       fromTeamSnapshot,
@@ -261,11 +243,7 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
       toLineupSnapshot,
     };
 
-    const { title, body } = buildMatchTitleBody("MATCH_ACCEPTED", {
-      ...payload,
-      toTeamSnapshot,
-      toLineupSnapshot,
-    });
+    const { title, body } = buildMatchTitleBody("MATCH_ACCEPTED", payload);
 
     await createNoti({
       key: "MATCH_ACCEPTED",
@@ -310,7 +288,7 @@ export async function rejectMatchRequest({ myClubId, latestNoti } = {}) {
   const n = latestNoti || {};
 
   const matchId = toStr(n?.matchId);
-  const actorClubId = toStr(n?.actorClubId);   // 신청팀
+  const actorClubId = toStr(n?.actorClubId); // 신청팀
   const targetClubId = toStr(n?.targetClubId); // 받은팀
   if (!matchId) throw new Error("rejectMatchRequest: matchId is required");
   if (!myId) throw new Error("rejectMatchRequest: myClubId is required");
@@ -343,10 +321,7 @@ export async function rejectMatchRequest({ myClubId, latestNoti } = {}) {
       toLineupSnapshot,
     };
 
-    const { title, body } = buildMatchTitleBody("MATCH_REJECTED", {
-      ...payload,
-      toTeamSnapshot,
-    });
+    const { title, body } = buildMatchTitleBody("MATCH_REJECTED", payload);
 
     await createNoti({
       key: "MATCH_REJECTED",
@@ -391,12 +366,11 @@ export async function cancelMatchRequest({ myClubId, latestNoti } = {}) {
   const n = latestNoti || {};
 
   const matchId = toStr(n?.matchId);
-  const actorClubId = toStr(n?.actorClubId);   // 신청팀
+  const actorClubId = toStr(n?.actorClubId); // 신청팀
   const targetClubId = toStr(n?.targetClubId); // 받은팀
   if (!matchId) throw new Error("cancelMatchRequest: matchId is required");
   if (!myId) throw new Error("cancelMatchRequest: myClubId is required");
 
-  // 내가 신청팀이어야 취소 가능
   if (myId !== actorClubId) throw new Error("취소 권한이 없습니다.");
 
   await updateDoc(doc(db, "match_requests", matchId), {

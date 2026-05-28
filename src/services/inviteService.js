@@ -211,6 +211,11 @@ export async function rejectClubInvite({ clubId, inviteId, uid } = {}) {
   if (!uid) throw new Error("rejectClubInvite: uid is required");
 
   const inviteRef = doc(db, "clubs", clubId, "invites", inviteId);
+  const inviteSnap = await getDoc(inviteRef);
+  const inv = inviteSnap.exists() ? inviteSnap.data() || {} : {};
+  const fromUid = String(inv.fromUid || "").trim();
+  const actorName = String(inv?.toSnapshot?.nickname || "").trim() || "선수";
+  const clubName = String(inv?.clubSnapshot?.name || "").trim();
 
   await updateDoc(inviteRef, {
     status: "rejected",
@@ -218,6 +223,42 @@ export async function rejectClubInvite({ clubId, inviteId, uid } = {}) {
     rejectedAt: serverTimestamp(),
     rejectedBy: uid,
   });
+
+  // ✅ 초대자(팀장)에게 거절 알림
+  if (fromUid) {
+    try {
+      const { addDoc } = await import("firebase/firestore");
+      await addDoc(collection(db, "notifications"), {
+        clubId,
+        kind: "team",
+        subType: "CLUB_INVITE_REJECTED",
+        type: "club_invite_rejected",
+        title: "팀 초대가 거절되었어요",
+        body: clubName
+          ? `${actorName}님이 ${clubName} 팀 초대를 거절했어요.`
+          : `${actorName}님이 팀 초대를 거절했어요.`,
+        targetType: "USER",
+        targetIds: [fromUid],
+        actor: { uid },
+        linkType: "team",
+        linkTargetId: inviteId,
+        meta: {
+          clubId,
+          inviteId,
+          fromUid,
+          toUid: uid,
+          deepLink: `/clubs/${clubId}/manage`,
+        },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "teamDecision",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        readBy: {},
+      });
+    } catch (e) {
+      console.warn("[invite] reject notification failed:", e?.message || e);
+    }
+  }
 
   return { ok: true };
 }

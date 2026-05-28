@@ -16,10 +16,10 @@ const PageBtn = styled.button`
   padding: 6px 14px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   border-radius: 4px;
-  background: #fff;
-  color: #1f2937;
+  background: ${({ theme }) => theme?.colors?.card || "#fff"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#1f2937"};
   cursor: pointer;
   &:disabled {
     opacity: 0.4;
@@ -30,7 +30,7 @@ const PageBtn = styled.button`
 const PageInfo = styled.div`
   font-size: 13px;
   font-weight: 600;
-  color: #1f2937;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#1f2937"};
 `;
 
 /**

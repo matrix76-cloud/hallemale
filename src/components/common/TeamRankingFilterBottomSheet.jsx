@@ -13,7 +13,8 @@ import { KR_AREAS } from "../../utils/constants";
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0, 0, 0, 0.65)" : "rgba(15, 23, 42, 0.45)"};
   z-index: 60;
   display: flex;
   align-items: flex-end;
@@ -25,9 +26,12 @@ const Sheet = styled.div`
   margin: 0 auto;
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   padding: 14px 14px 16px;
-  box-shadow: 0 -16px 40px rgba(15, 23, 42, 0.22);
+  box-shadow: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "0 -16px 40px rgba(0, 0, 0, 0.55)"
+      : "0 -16px 40px rgba(15, 23, 42, 0.22)"};
 `;
 
 const HeaderRow = styled.div`
@@ -39,12 +43,13 @@ const HeaderRow = styled.div`
 
 const Title = styled.div`
   font-size: 16px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const CloseBtn = styled.button`
   border: none;
   background: transparent;
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 22px;
   cursor: pointer;
 
@@ -68,7 +73,7 @@ const Group = styled.div`
 
 const GroupTitle = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const Row2 = styled.div`
@@ -79,16 +84,21 @@ const Row2 = styled.div`
 const Select = styled.select`
   flex: 1;
   height: 40px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   padding: 0 12px;
   font-size: 13px;
   outline: none;
 
   &:focus {
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 3px
+      ${({ theme }) =>
+        theme.mode === "dark"
+          ? "rgba(99, 102, 241, 0.25)"
+          : "rgba(79, 70, 229, 0.12)"};
   }
 `;
 
@@ -99,9 +109,21 @@ const Chips = styled.div`
 `;
 
 const Chip = styled.button`
-  border: 1px solid ${({ $active }) => ($active ? "#4f46e5" : "#e5e7eb")};
-  background: ${({ $active }) => ($active ? "#eef2ff" : "#ffffff")};
-  color: ${({ $active }) => ($active ? "#3730a3" : "#374151")};
+  border: 1px solid
+    ${({ $active, theme }) =>
+      $active ? theme.colors.primary : theme.colors.border};
+  background: ${({ $active, theme }) => {
+    if ($active) {
+      return theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff";
+    }
+    return theme.colors.card;
+  }};
+  color: ${({ $active, theme }) => {
+    if ($active) {
+      return theme.mode === "dark" ? "#a5b4fc" : "#3730a3";
+    }
+    return theme.colors.textNormal;
+  }};
   border-radius: 999px;
   padding: 8px 12px;
   font-size: 12px;
@@ -122,9 +144,12 @@ const Btn = styled.button`
   flex: 1;
   height: 42px;
   border-radius: 999px;
-  border: ${({ $primary }) => ($primary ? "none" : "1px solid #e5e7eb")};
-  background: ${({ $primary }) => ($primary ? "#4f46e5" : "#ffffff")};
-  color: ${({ $primary }) => ($primary ? "#ffffff" : "#111827")};
+  border: ${({ $primary, theme }) =>
+    $primary ? "none" : `1px solid ${theme.colors.border}`};
+  background: ${({ $primary, theme }) =>
+    $primary ? theme.colors.primary : theme.colors.card};
+  color: ${({ $primary, theme }) =>
+    $primary ? "#ffffff" : theme.colors.textStrong};
   font-size: 13px;
   cursor: pointer;
 

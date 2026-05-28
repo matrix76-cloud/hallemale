@@ -3,7 +3,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { images } from "../../utils/imageAssets";
+import { listActiveBanners } from "../../services/bannersService";
 
+// 어드민에서 등록된 배너가 없을 때만 사용하는 fallback (기본 4개)
 const BANNERS = [
   {
     id: 1,
@@ -20,8 +22,8 @@ const BANNERS = [
     id: 2,
     src: images.homeBanner2,
     alt: "홈 배너 2",
-    title: "매칭이 쉽다,\n할래말래",
-    desc: "연승팀 도전 · 실력 맞춤 대결",
+    title: "득점이 곧,\n기부가 된다",
+    desc: "할래말래에서 득점할 때마다 어려운 이웃에게 기부",
     side: "right",
     textAlign: "right",
     offsetX: 0,
@@ -108,8 +110,7 @@ const Title = styled.div`
   letter-spacing: -0.03em;
   color: rgba(17, 24, 39, 0.92);
   line-height: 1.18;
-  font-family: "GmarketSans";
-  font-weight : 500;
+  font-weight: 600;
 `;
 
 const Desc = styled.div`
@@ -149,11 +150,57 @@ const Dot = styled.button`
   background: ${({ $active }) => ($active ? "#ffffff" : "rgba(255,255,255,0.4)")};
 `;
 
+// 어드민 등록 배너 → 표시 형태로 정규화
+function normalizeRemoteBanner(b) {
+  // 제목 안의 \n 시퀀스를 실제 줄바꿈으로 변환 (어드민 입력 편의)
+  const title = String(b.title || "").replace(/\\n/g, "\n");
+  return {
+    id: b.id,
+    src: b.imageUrl,
+    alt: title || "홈 배너",
+    title,
+    desc: String(b.desc || ""),
+    side: b.side || "left",
+    textAlign: b.textAlign || "left",
+    offsetX: 0,
+    offsetY: 0,
+  };
+}
+
 export default function HomeHeroBanner() {
   const [index, setIndex] = useState(0);
+  const [remoteBanners, setRemoteBanners] = useState(null); // null = 로딩중, [] = 비어있음
 
-  const banners = useMemo(() => BANNERS, []);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const rows = await listActiveBanners();
+        if (!alive) return;
+        setRemoteBanners(Array.isArray(rows) ? rows : []);
+      } catch (e) {
+        console.warn("[HomeHeroBanner] fetch failed, using fallback:", e?.message || e);
+        if (alive) setRemoteBanners([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // 어드민에 등록된 배너가 있으면 그걸 사용, 없으면 코드 내 기본 BANNERS
+  const banners = useMemo(() => {
+    if (Array.isArray(remoteBanners) && remoteBanners.length > 0) {
+      return remoteBanners.map(normalizeRemoteBanner);
+    }
+    return BANNERS;
+  }, [remoteBanners]);
+
   const total = banners.length;
+
+  useEffect(() => {
+    setIndex(0);
+  }, [total]);
 
   useEffect(() => {
     if (total <= 1) return;
@@ -165,6 +212,8 @@ export default function HomeHeroBanner() {
 
   const handleDotClick = (i) => setIndex(i);
   const offset = -(index * 100);
+
+  if (total === 0) return null;
 
   return (
     <Wrap>

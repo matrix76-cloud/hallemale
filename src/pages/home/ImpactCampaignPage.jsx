@@ -37,7 +37,7 @@ const bounce = keyframes`
 
 const Page = styled.div`
   min-height: 100vh;
-  background: #ffffff;
+  background: ${({ theme }) => theme?.colors?.bg || "#f9fafb"};
 `;
 
 const Inner = styled.div`
@@ -53,9 +53,9 @@ const Inner = styled.div`
 
 
 const TopTitle = styled.div`
-  font-family: "GmarketSans";
+  font-weight: 600;
   font-size: 16px;
-  color: #111827;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
 `;
 
 const Banner = styled.section`
@@ -82,7 +82,7 @@ const BrandRow = styled.div`
 `;
 
 const BrandName = styled.div`
-  font-family: "GmarketSans";
+  font-weight: 700;
   font-size: 22px;
   color: #3f2b72;
   letter-spacing: -0.2px;
@@ -90,7 +90,7 @@ const BrandName = styled.div`
 
 const Card = styled.div`
   background: rgba(255, 255, 255, 0.96);
-  border-radius: 22px;
+  border-radius: 8px;
   padding: 22px 18px;
   box-shadow: 0 16px 46px rgba(74, 60, 125, 0.26);
   text-align: center;
@@ -103,7 +103,7 @@ const Badge = styled.div`
   padding: 7px 14px;
   border-radius: 999px;
   font-size: 12px;
-  font-family: "GmarketSans";
+  font-weight: 600;
   letter-spacing: -0.2px;
 `;
 
@@ -115,7 +115,7 @@ const Ball = styled.div`
 `;
 
 const Headline = styled.div`
-  font-family: "GmarketSans";
+  font-weight: 700;
   font-size: 22px;
   color: #1f1144;
   line-height: 1.25;
@@ -123,14 +123,14 @@ const Headline = styled.div`
 
 const Highlight = styled.div`
   margin-top: 6px;
-  font-family: "GmarketSans";
+  font-weight: 700;
   font-size: 26px;
   color: #6d28d9;
 `;
 
 const Big = styled.div`
   margin: 14px 0 10px;
-  font-family: "GmarketSans";
+  font-weight: 700;
   font-size: 34px;
   color: #ff6b35;
   letter-spacing: -0.4px;
@@ -158,7 +158,7 @@ const Facts = styled.div`
 `;
 
 const Fact = styled.div`
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(124, 63, 237, 0.06);
   padding: 10px 12px;
   text-align: left;
@@ -171,7 +171,7 @@ const FactLabel = styled.div`
 `;
 
 const FactValue = styled.div`
-  font-family: "GmarketSans";
+  font-weight: 600;
   font-size: 16px;
   color: #2d1f5c;
 `;
@@ -192,12 +192,12 @@ const BottomActions = styled.div`
 const PrimaryBtn = styled.button`
   flex: 1;
   border: none;
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 12px 14px;
   background: #111827;
   color: #fff;
   font-size: 14px;
-  font-family: "GmarketSans";
+  font-weight: 600;
   cursor: pointer;
 
   &:active {
@@ -208,12 +208,12 @@ const PrimaryBtn = styled.button`
 const GhostBtn = styled.button`
   flex: 1;
   border: 1px solid rgba(17, 24, 39, 0.12);
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 12px 14px;
   background: #fff;
   color: #111827;
   font-size: 14px;
-  font-family: "GmarketSans";
+  font-weight: 600;
   cursor: pointer;
 
   &:active {

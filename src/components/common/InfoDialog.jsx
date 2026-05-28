@@ -18,7 +18,8 @@ const popIn = keyframes`
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.45);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,.65)" : "rgba(0,0,0,.45)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -30,9 +31,12 @@ const Overlay = styled.div`
 const Dialog = styled.div`
   width: 100%;
   max-width: 320px;
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: 0 18px 60px rgba(0,0,0,.22);
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  box-shadow: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "0 18px 60px rgba(0,0,0,.55)"
+      : "0 18px 60px rgba(0,0,0,.22)"};
   position: relative;
   overflow: hidden;
   animation: ${popIn} 160ms ease-out;
@@ -46,20 +50,22 @@ const CloseBtn = styled.button`
   height: 32px;
   border: none;
   background: transparent;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
   display: grid;
   place-items: center;
 
   &:hover {
-    background: rgba(0,0,0,.05);
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"};
   }
 
   &::before {
     content: "×";
     font-size: 22px;
     line-height: 1;
-    color: rgba(0,0,0,.55);
+    color: ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(255,255,255,.65)" : "rgba(0,0,0,.55)"};
     transform: translateY(-1px);
   }
 `;
@@ -119,7 +125,7 @@ const Title = styled.h3`
   margin: 0;
   font-size: 18px;
   font-weight: 800;
-  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
+  color: ${({ theme }) => theme.colors.textStrong};
   text-align: center;
 `;
 
@@ -127,7 +133,7 @@ const Message = styled.p`
   margin: 10px 0 0;
   font-size: 13.5px;
   line-height: 1.55;
-  color: ${({ theme }) => theme.colors?.text || "#374151"};
+  color: ${({ theme }) => theme.colors.textNormal};
   text-align: center;
   white-space: pre-line;
 `;
@@ -144,12 +150,13 @@ const SecondaryBtn = styled.button`
   background: transparent;
   cursor: pointer;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: 8px;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors?.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 
   &:hover {
-    background: rgba(0,0,0,.05);
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)"};
   }
 `;
 

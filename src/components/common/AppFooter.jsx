@@ -86,7 +86,7 @@ const ContactItem = styled.div`
 const Card = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 12px 12px 10px;
   display: flex;
   flex-direction: column;
@@ -158,7 +158,7 @@ export default function AppFooter({
     operatorLine: "할래말래 | 운영사: 할래말래",
     address: "주소: 경기도 남양주시 덕소읍 23번지",
     bizNo: "사업자등록번호: 218-72-099323",
-    ceo: "대표자: 김덕수",
+    ceo: "대표자: 한주성",
     commerceNo: "통신판매업 신고번호: 남양주 230-22-3213",
   },
   copyright = "© 2025 Service. All rights reserved.",

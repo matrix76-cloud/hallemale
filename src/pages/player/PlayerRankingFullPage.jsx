@@ -1,6 +1,8 @@
 /* eslint-disable */
 // src/pages/ranking/PlayerRankingFullPage.jsx
 // ✅ 이름 옆 "팀장" pill 추가 (p.isTeamCaptain === true)
+// ✅ 점수 표시: "등수 뱃지(RankBadge)" 내부 2줄(등수/점수)
+// ✅ 점수 규칙: 승 +5, 무 +2, 패 +1
 
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
@@ -34,7 +36,7 @@ const PlayerBlock = styled.div`
 const Divider = styled.div`
   height: 1px;
   margin: 2px 10px 0;
-  background: #e5e7eb;
+  background: ${({ theme }) => theme.colors.border};
 `;
 
 const Row = styled.div`
@@ -60,8 +62,9 @@ const AvatarWrap = styled.div`
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #e5e7eb;
-  border-radius: 14px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+  border-radius: 8px;
 `;
 
 const AvatarImg = styled.img`
@@ -71,24 +74,37 @@ const AvatarImg = styled.img`
   object-fit: cover;
 `;
 
+/* ✅ 등수 뱃지: 2줄(등수/점수) */
 const RankBadge = styled.div`
   position: absolute;
   right: 5px;
   bottom: 5px;
-  padding: 2px 7px;
+  padding: 4px 8px;
   border-radius: 999px;
-  background: #6366f1;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
+  line-height: 1.05;
+`;
+
+const RankBadgeTop = styled.div`
+  font-size: 10px;
+  font-weight: 700;
+`;
+
+const RankBadgeBottom = styled.div`
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.92;
 `;
 
 const Card = styled.div`
-  background: #ffffff;
-  border-radius: 16px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   margin: 0 16px;
   padding: 4px 0;
   display: flex;
@@ -128,7 +144,7 @@ const CaptainPill = styled.span`
   height: 22px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
@@ -142,8 +158,9 @@ const TeamPill = styled.div`
   gap: 6px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
 `;
 
 const TeamLogoWrap = styled.div`
@@ -151,7 +168,8 @@ const TeamLogoWrap = styled.div`
   height: 18px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.bg : "#e5e7eb"};
 `;
 
 const TeamLogoImg = styled.img`
@@ -167,7 +185,7 @@ const TeamNameText = styled.span`
 
 const BodyRow = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const SummaryRow = styled.div`
@@ -179,21 +197,22 @@ const SummaryRow = styled.div`
 `;
 
 const SummaryText = styled.span`
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const WinRateBadge = styled.span`
   padding: 3px 8px;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #2563eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#2563eb")};
   font-size: 12px;
   font-weight: 500;
 `;
 
 const RecentLabel = styled.span`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const RecentDots = styled.div`
@@ -205,8 +224,9 @@ const RecentDots = styled.div`
 const SoonDot = styled.div`
   width: 14px;
   height: 14px;
-  background: #d1d5db;
-  border: 1px dashed #cbd5e1;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#d1d5db"};
+  border: 1px dashed ${({ theme }) => theme.colors.border};
   box-sizing: border-box;
 `;
 
@@ -219,9 +239,10 @@ const LoadMoreWrap = styled.div`
 const LoadMoreBtn = styled.button`
   width: 100%;
   height: 44px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   cursor: pointer;
   font-size: 14px;
 `;
@@ -235,8 +256,19 @@ const Center = styled.div`
 const EmptyText = styled.div`
   margin: 20px 16px 0;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   text-align: center;
+`;
+
+const RankInfoBox = styled.div`
+  margin: 6px 16px 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f8fafc"};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  line-height: 1.5;
 `;
 
 function toNum(n, fallback = 0) {
@@ -251,6 +283,14 @@ function calcWinRatePercent({ wins, losses, draws }) {
   const total = w + l + d;
   if (total <= 0) return 100;
   return Math.round((w / total) * 100);
+}
+
+/* ✅ 점수 계산: 승 +5, 무 +2, 패 +1 */
+function calcPointsFromPlayer(p) {
+  const wins = toNum(p?.wins, 0);
+  const losses = toNum(p?.losses, 0);
+  const draws = toNum(p?.draws, 0);
+  return wins * 5 + draws * 2 + losses * 1;
 }
 
 function normalizeRecentResult(x) {
@@ -288,6 +328,7 @@ function countAppliedFilters(f) {
   if (f.winRate && f.winRate !== "any") c += 1;
   if (f.club) c += 1;
   if (Array.isArray(f.recent) && f.recent.length > 0) c += 1;
+  if (f.onlyCaptain === true) c += 1;
   return c;
 }
 
@@ -306,6 +347,7 @@ export default function PlayerRankingFullPage() {
     winRate: "any",
     club: "",
     recent: [],
+    onlyCaptain: false,
   });
 
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -351,7 +393,7 @@ export default function PlayerRankingFullPage() {
   }, []);
 
   const rankedRows = useMemo(() => {
-    const base = rows.map((r, idx) => ({ ...r, rank: idx + 1 }));
+    const base = Array.isArray(rows) ? rows : [];
 
     const queryText = String(q || "").trim().toLowerCase();
 
@@ -389,7 +431,30 @@ export default function PlayerRankingFullPage() {
       return true;
     });
 
-    return filtered;
+    const sorted = [...filtered].sort((a, b) => {
+      const pa = calcPointsFromPlayer(a);
+      const pb = calcPointsFromPlayer(b);
+      if (pb !== pa) return pb - pa;
+
+      const wa = calcWinRatePercent({ wins: toNum(a.wins, 0), losses: toNum(a.losses, 0), draws: toNum(a.draws, 0) });
+      const wb = calcWinRatePercent({ wins: toNum(b.wins, 0), losses: toNum(b.losses, 0), draws: toNum(b.draws, 0) });
+      if (wb !== wa) return wb - wa;
+
+      const winsA = toNum(a.wins, 0);
+      const winsB = toNum(b.wins, 0);
+      if (winsB !== winsA) return winsB - winsA;
+
+      const totalA = toNum(a.wins, 0) + toNum(a.losses, 0) + toNum(a.draws, 0);
+      const totalB = toNum(b.wins, 0) + toNum(b.losses, 0) + toNum(b.draws, 0);
+      if (totalB !== totalA) return totalB - totalA;
+
+      const na = String(a.name || "").toLowerCase();
+      const nb = String(b.name || "").toLowerCase();
+      if (na === nb) return 0;
+      return na > nb ? 1 : -1;
+    });
+
+    return sorted.map((r, idx) => ({ ...r, rank: idx + 1 }));
   }, [rows, q, filters]);
 
   const appliedCount = useMemo(() => countAppliedFilters(filters), [filters]);
@@ -419,11 +484,14 @@ export default function PlayerRankingFullPage() {
           placeholder="선수/팀/포지션 검색"
         />
 
+        <RankInfoBox>
+          <strong>랭킹 산정 기준</strong>
+          <br />
+          경기 승리 시 +5점, 무승부 시 +2점, 패배 시 +1점이 누적되며 총 점수 기준으로 순위가 계산됩니다.
+        </RankInfoBox>
+
         <Card>
           {rankedRows.map((p, index) => {
-
-
-
             const avatarUrl = resolveAvatarUrl(p);
             const bodyText = buildBodyText(p);
             const clubLogo = (p.clubLogoUrl && String(p.clubLogoUrl).trim()) || images.logo;
@@ -432,6 +500,8 @@ export default function PlayerRankingFullPage() {
             const losses = toNum(p.losses, 0);
             const draws = toNum(p.draws, 0);
             const winRatePercent = calcWinRatePercent({ wins, losses, draws });
+
+            const points = calcPointsFromPlayer(p);
 
             const recentForms = getRecentFormsSafe(p, 5);
 
@@ -444,7 +514,11 @@ export default function PlayerRankingFullPage() {
                         <AvatarWrap>
                           <AvatarImg src={avatarUrl} alt={p.name || "player"} />
                         </AvatarWrap>
-                        <RankBadge>{p.rank}위</RankBadge>
+
+                        <RankBadge>
+                          <RankBadgeTop>{p.rank}위</RankBadgeTop>
+                          <RankBadgeBottom>{points}점</RankBadgeBottom>
+                        </RankBadge>
                       </AvatarOuter>
                     </AvatarArea>
 
@@ -454,9 +528,7 @@ export default function PlayerRankingFullPage() {
 
                         {p.isTeamCaptain === true ? <CaptainPill>팀장</CaptainPill> : null}
 
-                        {p.positionLabel && (
-                          <PositionChip label={p.positionLabel} size="sm" onlyAbbr />
-                        )}
+                        {p.positionLabel && <PositionChip label={p.positionLabel} size="sm" onlyAbbr />}
 
                         <TeamPill onClick={(e) => handleTeamClick(p.clubId, e)}>
                           <TeamLogoWrap>
@@ -535,6 +607,7 @@ export default function PlayerRankingFullPage() {
             winRate: "any",
             club: "",
             recent: [],
+            onlyCaptain: false,
           });
         }}
         onApply={() => {

@@ -5,10 +5,10 @@ import styled from "styled-components";
 
 const Section = styled.section`
   margin-top: 16px;
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 14px 16px;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.03);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 `;
 
 const SectionTitle = styled.h2`
@@ -16,7 +16,7 @@ const SectionTitle = styled.h2`
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family:"GmarketSans"
+  font-weight: 600;
 `;
 
 const StatsRow = styled.div`
@@ -27,22 +27,23 @@ const StatsRow = styled.div`
 `;
 
 const StatCard = styled.div`
-  background: #f9fafb;
-  border-radius: 12px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  border-radius: 8px;
   padding: 6px 4px;
   text-align: center;
 `;
 
 const StatLabel = styled.div`
   font-size: 10px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const StatValue = styled.div`
   margin-top: 2px;
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const List = styled.div`
@@ -61,13 +62,13 @@ const Row = styled.div`
 
 const CareerTitle = styled.div`
   flex: 1.7;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const CareerMeta = styled.div`
   flex: 1;
   text-align: right;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 export default function PlayerCareerSection({ stats, careers }) {

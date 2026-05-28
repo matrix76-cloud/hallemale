@@ -1,11 +1,7 @@
 /* eslint-disable */
 // src/services/clubManageService.js
 // ✅ 팀 관리 전용 서비스 (페이지에서 DB 직접 접근 금지)
-// - clubs/{clubId} 읽기
-// - 내 role 판단(팀장 여부)
-// - 소개/홍보 수정(허용 필드만)
-// - 팀 미디어(media[]) 저장
-// - 선수 검색 + 초대(invites)
+// - teams(clubs) 즉시 반영 + tasks 적재(배치 스냅샷/파생데이터는 서버 스케줄 처리)
 // ✅ SSOT: users.activeTeamId ("" = 무소속 / clubId = 소속 팀)
 
 import { db } from "./firebase";
@@ -21,9 +17,39 @@ import {
   limit,
   getDocs,
   writeBatch,
-  addDoc,
   deleteDoc,
+  addDoc,
 } from "firebase/firestore";
+
+import { enqueueTeamSnapshotRefreshTask } from "./taskService";
+
+async function notifyTeamEvent({ clubId, targetUids, subType, type, title, body, actorUid }) {
+  const targets = (Array.isArray(targetUids) ? targetUids : []).filter(Boolean);
+  if (!targets.length) return;
+  try {
+    await addDoc(collection(db, "notifications"), {
+      clubId,
+      kind: "team",
+      subType,
+      type,
+      title,
+      body,
+      targetType: "USER",
+      targetIds: targets,
+      actorUid: actorUid || "",
+      linkType: "team",
+      linkTargetId: clubId,
+      meta: { clubId, deepLink: "/my" },
+      push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      prefsCategory: "teamDecision",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      readBy: {},
+    });
+  } catch (e) {
+    console.warn("[clubManage] notifyTeamEvent failed:", subType, e?.message || e);
+  }
+}
 
 async function resolveClubMetaSafe(clubId) {
   try {
@@ -113,9 +139,36 @@ export async function updateClubMedia({ clubId, media }) {
 }
 
 /**
+ * ✅ 팀명 변경
+ * - SSOT: clubs/{clubId}.name 즉시 반영
+ * - 파생 스냅샷은 tasks로 적재해서 서버 스케줄에서 처리
+ */
+export async function updateClubName({ clubId, name }) {
+  const id = String(clubId || "").trim();
+  const nextName = String(name || "").trim();
+
+  if (!id) throw new Error("updateClubName: clubId is required");
+  if (!nextName) throw new Error("updateClubName: name is required");
+
+  const ref = doc(db, "clubs", id);
+
+  await updateDoc(ref, {
+    name: nextName,
+    updatedAt: serverTimestamp(),
+  });
+
+  await enqueueTeamSnapshotRefreshTask({
+    clubId: id,
+    patch: { name: nextName },
+    reason: "club name changed",
+  });
+
+  return true;
+}
+
+/**
  * ✅ (기본) 초대 가능한 선수 목록
  * - users.activeTeamId === "" 인 유저를 기본으로 보여줌
- * - ⚠️ 인덱스/권한 이슈 빨리 잡기 위해 로그 + try/catch
  * - ✅ 기본 리스트는 orderBy 제거(인덱스 요구를 최소화)
  */
 export async function listInvitableUsers({ excludeUid, max = 20 }) {
@@ -151,7 +204,6 @@ export async function listInvitableUsers({ excludeUid, max = 20 }) {
  * - keyword 없으면: 기본 후보(listInvitableUsers)
  * - keyword 있으면:
  *   where(activeTeamId=="") + nickname prefix
- * - ⚠️ 이 쿼리는 인덱스가 필요할 가능성이 큼(에러 메시지로 확인 가능)
  */
 export async function searchUsersByNickname({ keyword, excludeUid, max = 20 }) {
   const k = String(keyword || "").trim();
@@ -248,6 +300,9 @@ export async function createClubInvite({ clubId, fromUid, toUid, message, toSnap
       toUid,
     },
 
+    push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+    prefsCategory: "teamInvite",
+
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     readBy: {},
@@ -285,32 +340,45 @@ export async function listClubInvites({ clubId, status = "pending", limitCount =
   return list;
 }
 
-// ✅ 팀 로고 업데이트 전용
+// ✅ 팀 로고 업데이트
+// - SSOT: clubs.logoUrl/logoPath 즉시 반영
+// - 파생 스냅샷은 tasks에 적재해서 서버 스케줄에서 처리
 export async function updateClubLogo({ clubId, logoUrl, logoPath }) {
-  if (!clubId) throw new Error("updateClubLogo: clubId is required");
+  const id = String(clubId || "").trim();
+  if (!id) throw new Error("updateClubLogo: clubId is required");
 
-  const ref = doc(db, "clubs", clubId);
+  const nextUrl = typeof logoUrl === "string" ? String(logoUrl || "").trim() : "";
+  const nextPath = typeof logoPath === "string" ? String(logoPath || "").trim() : "";
+
+  const ref = doc(db, "clubs", id);
 
   const patch = {
     updatedAt: serverTimestamp(),
   };
 
-  if (typeof logoUrl === "string") patch.logoUrl = logoUrl;
-  if (typeof logoPath === "string") patch.logoPath = logoPath;
+  const taskPatch = {};
+
+  if (nextUrl) {
+    patch.logoUrl = nextUrl;
+    taskPatch.logoUrl = nextUrl;
+  }
+  if (nextPath) {
+    patch.logoPath = nextPath;
+    taskPatch.logoPath = nextPath;
+  }
 
   await updateDoc(ref, patch);
 
+  if (Object.keys(taskPatch).length > 0) {
+    await enqueueTeamSnapshotRefreshTask({
+      clubId: id,
+      patch: taskPatch,
+      reason: "club logo changed",
+    });
+  }
+
   return true;
 }
-
-/* ============================================================================
-   ✅ 팀 탈퇴 (추가)
-   - 팀장(Owner/Captain)은 탈퇴 불가
-   - clubs/{clubId}.members 배열에서 uid 제거
-   - clubs/{clubId}/members/{uid} 문서가 있으면 삭제(있을 수도 있어서 정리)
-   - users/{uid}.activeTeamId SSOT를 "" 로 초기화
-   - ✅ batch로 원샷 처리
-============================================================================ */
 
 function norm(v) {
   return String(v || "").trim();
@@ -338,7 +406,6 @@ export async function leaveClub({ clubId, uid }) {
 
   const club = clubSnap.data() || {};
 
-  // ✅ 팀장 방어: ownerUid 기준 + members/{uid} role 기준 둘 다 체크
   const ownerUid = norm(club?.ownerUid);
   if (ownerUid && same(ownerUid, _uid)) {
     const err = new Error("팀장은 팀 탈퇴를 할 수 없습니다.");
@@ -360,7 +427,6 @@ export async function leaveClub({ clubId, uid }) {
     }
   } catch (e) {
     if (e?.code === "team-leader-cannot-leave") throw e;
-    // members 문서가 없거나 읽기 실패여도 ownerUid로 1차 방어 했으니 진행
   }
 
   const members = Array.isArray(club?.members) ? club.members : [];
@@ -371,20 +437,15 @@ export async function leaveClub({ clubId, uid }) {
 
   const batch = writeBatch(db);
 
-  // clubs.members 배열이 있을 때만 업데이트
   if (members.length !== nextMembers.length) {
     batch.update(clubRef, {
       members: nextMembers,
       updatedAt: serverTimestamp(),
     });
-  } else {
-    // 멤버 배열에 없더라도 updatedAt은 굳이 안 찍음 (불필요한 쓰기 방지)
   }
 
-  // members/{uid} 문서가 있으면 정리 (없어도 deleteDoc는 실패할 수 있으니 try 대신 batch.delete)
   batch.delete(memberRef);
 
-  // ✅ SSOT: users.activeTeamId 비우기
   batch.update(userRef, {
     activeTeamId: "",
     updatedAt: serverTimestamp(),
@@ -392,18 +453,23 @@ export async function leaveClub({ clubId, uid }) {
 
   await batch.commit();
 
+  // ✅ 강퇴 알림
+  const meta = await resolveClubMetaSafe(cid);
+  await notifyTeamEvent({
+    clubId: cid,
+    targetUids: [tuid],
+    subType: "TEAM_MEMBER_KICKED",
+    type: "team_kicked",
+    title: "팀에서 내보내졌습니다",
+    body: meta.clubName
+      ? `${meta.clubName} 팀에서 강퇴되었습니다.`
+      : "팀에서 강퇴되었습니다.",
+    actorUid: auid,
+  });
+
   return { ok: true };
 }
 
-
-// ✅ 팀 삭제 + users 정리 (TeamManagePage의 "팀삭제" 버튼에서 호출)
-// - 팀장만 삭제 가능
-// - clubs/{clubId} 삭제
-// - clubs/{clubId}/members, invites, joinRequests 서브컬렉션 문서 삭제
-// - users 컬렉션에서:
-//   - activeTeamId == clubId → activeTeamId ""
-//   - careers.clubId == clubId → careers.clubId ""
-//   - clubId == clubId → clubId ""
 export async function deleteClubAndCleanup({ clubId, uid }) {
   const _clubId = norm(clubId);
   const _uid = norm(uid);
@@ -411,7 +477,6 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
   if (!_clubId) throw new Error("deleteClubAndCleanup: clubId is required");
   if (!_uid) throw new Error("deleteClubAndCleanup: uid is required");
 
-  // ✅ 권한: 팀장만
   const { isOwner } = await getMyClubRole({ clubId: _clubId, uid: _uid });
   if (!isOwner) {
     throw new Error("팀장만 팀을 삭제할 수 있습니다.");
@@ -420,6 +485,27 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
   const clubRef = doc(db, "clubs", _clubId);
   const clubSnap = await getDoc(clubRef);
   if (!clubSnap.exists()) throw new Error("팀 정보를 찾을 수 없습니다.");
+
+  // ✅ 멤버가 1명(팀장만)일 때만 삭제 허용
+  // - clubs/{clubId}/members 서브컬렉션 기준
+  // - 문서 수가 1 초과면 삭제 금지
+  try {
+    const membersCol = collection(db, "clubs", _clubId, "members");
+    const membersSnap = await getDocs(query(membersCol, limit(2)));
+    const memberCount = membersSnap.size;
+
+    if (memberCount === 0) {
+      // 비정상 상태지만, 안전하게 막음(데이터 꼬임 방지)
+      throw new Error("팀 멤버 정보를 찾을 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    }
+
+    if (memberCount > 1) {
+      throw new Error("팀 멤버가 남아 있어 팀을 삭제할 수 없습니다. 멤버를 모두 내보낸 뒤 다시 시도해 주세요.");
+    }
+  } catch (e) {
+    // 위에서 던진 에러는 그대로 전달
+    throw new Error(e?.message || "팀 멤버 확인 중 오류가 발생했습니다.");
+  }
 
   const CHUNK = 450;
 
@@ -463,7 +549,6 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
     }
   };
 
-  // 1) users 정리 (3개 쿼리 결과를 합쳐서 중복 제거)
   const usersCol = collection(db, "users");
 
   const q1 = query(usersCol, where("activeTeamId", "==", _clubId), limit(500));
@@ -492,7 +577,6 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
 
   const updatedUsers = await commitUpdateChunks(userUpdates);
 
-  // 2) clubs/{clubId} 서브컬렉션 문서 삭제
   const subNames = ["members", "invites", "joinRequests"];
   let deletedSubDocs = 0;
 
@@ -503,9 +587,266 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
     }
   }
 
-  // 3) clubs/{clubId} 문서 삭제
+  // ✅ 해체 알림 (영향 받은 멤버 전원)
+  const affectedUids = Array.from(uniq.keys()).filter((x) => x && x !== _uid);
+  const clubMeta = await resolveClubMetaSafe(_clubId);
+
   await deleteDoc(clubRef);
+
+  if (affectedUids.length) {
+    await notifyTeamEvent({
+      clubId: _clubId,
+      targetUids: affectedUids,
+      subType: "TEAM_DISBANDED",
+      type: "team_disbanded",
+      title: "팀이 해체되었습니다",
+      body: clubMeta.clubName
+        ? `${clubMeta.clubName} 팀이 해체되었습니다.`
+        : "소속 팀이 해체되었습니다.",
+      actorUid: _uid,
+    });
+  }
 
   return { ok: true, updatedUsers, deletedSubDocs };
 }
 
+
+function safeStr(v) {
+  return String(v ?? "").trim();
+}
+
+function cleanActivity(activity = {}) {
+  const days = safeStr(activity.days);
+  const time = safeStr(activity.time);
+
+  const validDays = ["WEEKDAY", "WEEKEND", "ANY"].includes(days) ? days : "";
+  const validTime = ["MORNING", "AFTERNOON", "EVENING", "NIGHT", "ANY"].includes(time) ? time : "";
+
+  const out = {};
+  if (validDays) out.days = validDays;
+  if (validTime) out.time = validTime;
+
+  return out;
+}
+
+export async function updateClubActivity({ clubId, activity }) {
+  const id = safeStr(clubId);
+  if (!id) throw new Error("clubId is required");
+
+  const next = cleanActivity(activity);
+  await updateDoc(doc(db, "clubs", id), {
+    activity: next,
+    updatedAt: serverTimestamp(),
+  });
+
+  return true;
+}
+
+
+
+export async function updateClubIntroAndActivity({ clubId, description, promo, activity }) {
+
+  const ref = doc(db, "clubs", String(clubId || "").trim());
+
+  const desc = String(description || "").trim();
+  const promoObj = promo || {};
+  const activityObj = activity || {};
+
+  await updateDoc(ref, {
+    description: desc,
+    promo: {
+      usePromoText: !!promoObj.usePromoText,
+      promoText: String(promoObj.promoText || "").trim(),
+    },
+    activity: {
+      days: String(activityObj.days || "ANY"),
+      time: String(activityObj.time || "ANY"),
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+
+
+// ✅ 팀원 강제 탈퇴
+// - clubs/{clubId}/members/{targetUid} 삭제
+// - users/{targetUid}.activeTeamId / clubId 정리 (SSOT 기준)
+// - users.roleInTeam / isTeamCaptain 정리
+// - users.joinRequest가 이 clubId면 제거
+export async function kickClubMember({ clubId, targetUid, actorUid } = {}) {
+  const cid = String(clubId || "").trim();
+  const tuid = String(targetUid || "").trim();
+  const auid = String(actorUid || "").trim();
+
+  if (!cid) throw new Error("kickClubMember: clubId is required");
+  if (!tuid) throw new Error("kickClubMember: targetUid is required");
+
+  const memberRef = doc(db, "clubs", cid, "members", tuid);
+  const userRef = doc(db, "users", tuid);
+
+  const batch = writeBatch(db);
+
+  // 1) 멤버십 삭제
+  batch.delete(memberRef);
+
+  // 2) 유저 팀 연결 해제 (해당 clubId에 소속된 경우만)
+  let patch = {
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    const usnap = await getDoc(userRef);
+    if (usnap.exists()) {
+      const u = usnap.data() || {};
+      const activeTeamId = String(u.activeTeamId || "").trim();
+      const clubIdField = String(u.clubId || "").trim();
+
+      if (activeTeamId === cid) patch.activeTeamId = "";
+      if (clubIdField === cid) patch.clubId = "";
+
+      // 팀 내 역할/캡틴 정보 정리
+      patch.roleInTeam = null;
+      patch.isTeamCaptain = null;
+
+      // joinRequest 정리 (해당 clubId에 대한 pending이면 제거)
+      const jr = u.joinRequest || null;
+      const jrClubId = String(jr?.clubId || "").trim();
+      if (jr && jrClubId === cid) {
+        patch.joinRequest = null;
+      }
+    } else {
+      // users 문서가 없으면 멤버만 삭제하고 끝
+      patch = null;
+    }
+  } catch (e) {
+    // users 읽기 실패해도 멤버 삭제는 진행
+    patch.lastKickError = String(e?.message || "user read failed");
+  }
+
+  if (patch) {
+    if (auid) patch.lastKickedBy = auid;
+    batch.update(userRef, patch);
+  }
+
+  await batch.commit();
+
+  return { ok: true };
+}
+
+/**
+ * 팀 멤버 목록 조회
+ * @param {Object} params
+ * @param {string} params.clubId
+ * @param {number} params.limitCount
+ * @returns {Promise<Array<{uid:string, nickname:string, avatarUrl:string, region:string, role?:string}>>}
+ */
+export async function listClubMembers({ clubId, limitCount = 100 }) {
+  const cid = String(clubId || "").trim();
+  if (!cid) return [];
+
+  const q = query(
+    collection(db, "users"),
+    where("activeTeamId", "==", cid),
+    limit(Number(limitCount || 100))
+  );
+
+  const snap = await getDocs(q);
+
+  const rows = snap.docs.map((d) => {
+    const v = d.data() || {};
+    return {
+      uid: d.id,
+      nickname: String(v.nickname || ""),
+      avatarUrl: String(v.avatarUrl || ""),
+      region: String(v.region || ""),
+      role: v.role ? String(v.role) : "",
+    };
+  });
+
+  // UI 보기 좋게 정렬(인덱스 필요 없도록 client sort)
+  rows.sort((a, b) => {
+    const an = (a.nickname || "").toLowerCase();
+    const bn = (b.nickname || "").toLowerCase();
+    if (an < bn) return -1;
+    if (an > bn) return 1;
+    return String(a.uid || "").localeCompare(String(b.uid || ""));
+  });
+
+  return rows;
+}
+
+/**
+ * 팀 멤버 강제 탈퇴
+ * @param {Object} params
+ * @param {string} params.clubId
+ * @param {string} params.targetUid  - 탈퇴시킬 유저 uid(users doc id)
+ * @param {string} params.actorUid   - 실행자 uid(클럽장)
+ */
+export async function forceRemoveClubMember({ clubId, targetUid, actorUid }) {
+  const cid = String(clubId || "").trim();
+  const tuid = String(targetUid || "").trim();
+  const auid = String(actorUid || "").trim();
+
+  if (!cid) throw new Error("clubId가 필요합니다.");
+  if (!tuid) throw new Error("targetUid가 필요합니다.");
+  if (!auid) throw new Error("actorUid가 필요합니다.");
+  if (tuid === auid) throw new Error("본인은 강제 탈퇴할 수 없습니다.");
+
+  // 1) 유저 소속 해제 (SSOT: activeTeamId)
+  const userRef = doc(db, "users", tuid);
+  await updateDoc(userRef, {
+    activeTeamId: "",
+    teamRole: "",
+    updatedAt: serverTimestamp(),
+  });
+
+  const memberRef = doc(db, "clubs", cid, "members", tuid);
+  const memberSnap = await getDoc(memberRef);
+  if (memberSnap.exists()) {
+    await deleteDoc(memberRef);
+  }
+
+  // ✅ 강퇴 알림
+  const fmeta = await resolveClubMetaSafe(cid);
+  await notifyTeamEvent({
+    clubId: cid,
+    targetUids: [tuid],
+    subType: "TEAM_MEMBER_KICKED",
+    type: "team_kicked",
+    title: "팀에서 내보내졌습니다",
+    body: fmeta.clubName
+      ? `${fmeta.clubName} 팀에서 강퇴되었습니다.`
+      : "팀에서 강퇴되었습니다.",
+    actorUid: auid,
+  });
+
+  return true;
+}
+
+export async function updateClubRegion({ clubId, region, regionSido, regionGu }) {
+  const cid = String(clubId || "").trim();
+  const reg = String(region || "").trim();
+  const sido = String(regionSido || "").trim();
+  const gu = String(regionGu || "").trim();
+
+  if (!cid) throw new Error("clubId가 필요합니다.");
+  if (!reg) throw new Error("region이 필요합니다.");
+  if (!sido) throw new Error("regionSido가 필요합니다.");
+  if (!gu) throw new Error("regionGu가 필요합니다.");
+
+  // ✅ 형식 일치 검증(실수 방지)
+  const expected = `${sido} ${gu}`.trim();
+  if (reg !== expected) {
+    throw new Error("region 값이 regionSido/regionGu 조합과 일치하지 않습니다.");
+  }
+
+  const clubRef = doc(db, "clubs", cid);
+  await updateDoc(clubRef, {
+    region: reg,
+    regionSido: sido,
+    regionGu: gu,
+    updatedAt: serverTimestamp(),
+  });
+
+  return { ok: true };
+}

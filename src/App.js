@@ -12,6 +12,8 @@ import { HomeDataProvider } from "./context/HomeDataContext";
 import { MatchingDataProvider } from "./context/MatchingDataContext";
 import { IoInformationCircleOutline } from "react-icons/io5";
 import { checkAppUpdate } from "./services/appVersionService";
+import BlockedAuthGate from "./components/common/BlockedAuthGate";
+import EventPopupModal from "./components/common/EventPopupModal";
 
 function VersionChecker() {
   const [toast, setToast] = useState(null);
@@ -76,6 +78,8 @@ function ThemedApp() {
                 <WebviewBridgeProvider>
                   <AppRoutes />
                   <VersionChecker />
+                  <BlockedAuthGate />
+                  <EventPopupModal />
                 </WebviewBridgeProvider>
               </MatchingDataProvider>
             </HomeDataProvider>

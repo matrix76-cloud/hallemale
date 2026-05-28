@@ -38,10 +38,10 @@ const Inner = styled.div`
 /* ==================== 팀 카드 ==================== */
 
 const TeamCard = styled.div`
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 16px 14px 14px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -68,13 +68,13 @@ const TeamTitle = styled.div`
 
 const TeamSub = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Line = styled.div`
   margin: 4px 0;
   height: 1px;
-  background: ${({ theme }) => theme.colors.border || "#e5e7eb"};
+  background: ${({ theme }) => theme.colors.border};
 `;
 
 const LineupHeaderRow = styled.div`
@@ -82,7 +82,7 @@ const LineupHeaderRow = styled.div`
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const AddMemberButton = styled.button`
@@ -114,7 +114,7 @@ const CaptainBadge = styled.span`
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #2563eb;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
 `;
 
@@ -122,8 +122,9 @@ const PositionBadge = styled.span`
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #e5e7eb;
-  color: #111827;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const PlayerAvatar = styled.img`
@@ -141,10 +142,10 @@ const PlayerName = styled.span`
 /* ==================== 활동 지역 / 인원 선택 ==================== */
 
 const SectionBox = styled.div`
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 14px 14px 16px;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -174,9 +175,10 @@ const RegionRow = styled.div`
 const RegionChip = styled.button`
   flex: 1;
   padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid ${({ theme }) => theme.colors.border || "#e5e7eb"};
-  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 13px;
   display: flex;
   align-items: center;
@@ -185,12 +187,12 @@ const RegionChip = styled.button`
 `;
 
 const RegionPlaceholder = styled.span`
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Chevron = styled.span`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 // 경기 인원
@@ -211,9 +213,13 @@ const MatchSizeChip = styled.button`
   border-radius: 999px;
   border: 1px solid
     ${({ active, theme }) =>
-      active ? theme.colors.primary : theme.colors.border || "#e5e7eb"};
+      active ? theme.colors.primary : theme.colors.border};
   background: ${({ active, theme }) =>
-    active ? "rgba(52, 110, 246, 0.08)" : "#ffffff"};
+    active
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "rgba(52, 110, 246, 0.08)"
+      : theme.colors.card};
   color: ${({ active, theme }) =>
     active ? theme.colors.primary : theme.colors.textStrong};
   font-size: 13px;
@@ -243,7 +249,8 @@ const MatchButton = styled.button`
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.35);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.35)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -254,10 +261,10 @@ const ModalCard = styled.div`
   width: 90%;
   max-width: 380px;
   max-height: 80vh;
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 16px 16px 20px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.3);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -272,6 +279,7 @@ const ModalHeader = styled.div`
 const ModalTitle = styled.h3`
   margin: 0;
   font-size: 15px;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const ModalClose = styled.button`
@@ -279,6 +287,7 @@ const ModalClose = styled.button`
   background: none;
   font-size: 18px;
   cursor: pointer;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const ModalBody = styled.div`
@@ -306,9 +315,9 @@ const ModalActionButton = styled.button`
   padding: 10px 0;
   border-radius: 999px;
   border: ${({ primary, theme }) =>
-    primary ? "none" : `1px solid ${theme.colors.border || "#e5e7eb"}`};
+    primary ? "none" : `1px solid ${theme.colors.border}`};
   background: ${({ primary, theme }) =>
-    primary ? theme.colors.primary : "#ffffff"};
+    primary ? theme.colors.primary : theme.colors.card};
   color: ${({ primary, theme }) =>
     primary ? "#ffffff" : theme.colors.textStrong};
   font-size: 13px;
@@ -321,8 +330,13 @@ const ModalActionButton = styled.button`
 const MemberItem = styled.button`
   width: 100%;
   border: none;
-  background: ${({ selected }) => (selected ? "#eef2ff" : "#ffffff")};
-  border-radius: 12px;
+  background: ${({ selected, theme }) =>
+    selected
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "#eef2ff"
+      : theme.colors.card};
+  border-radius: 8px;
   padding: 8px 10px;
   display: flex;
   align-items: center;
@@ -345,13 +359,13 @@ const MemberName = styled.div`
 
 const MemberSub = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const MemberSelectMark = styled.span`
   font-size: 16px;
   color: ${({ selected, theme }) =>
-    selected ? theme.colors.primary : theme.colors.muted || "#9ca3af"};
+    selected ? theme.colors.primary : theme.colors.textWeak};
 `;
 
 /* ==================== 상대팀 선택 ==================== */
@@ -359,8 +373,8 @@ const MemberSelectMark = styled.span`
 const OpponentItem = styled.button`
   width: 100%;
   border: none;
-  background: #ffffff;
-  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 10px 10px;
   display: flex;
   align-items: center;
@@ -381,7 +395,13 @@ const OpponentName = styled.div`
 
 const OpponentSub = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const CityLabel = styled.div`
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 /* ==================== 메인 컴포넌트 ==================== */
@@ -630,15 +650,7 @@ export default function MatchingHomePage() {
             <ModalBody>
               {CITY_OPTIONS.map((city) => (
                 <div key={city} style={{ marginBottom: 8 }}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      marginBottom: 4,
-                      color: "#6b7280",
-                    }}
-                  >
-                    {city}
-                  </div>
+                  <CityLabel>{city}</CityLabel>
                   {(AREA_OPTIONS[city] || []).map((area) => {
                     const selected =
                       selectedCity === city && selectedArea === area;

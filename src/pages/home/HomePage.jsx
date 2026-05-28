@@ -70,7 +70,15 @@ export default function HomePage() {
   const { club } = useClub();
   const myClubId = String(club?.clubId || club?.id || "").trim();
 
-  const { homeData, loading: homeLoading, refreshFavorites } = useHomeData();
+  const { homeData, loading: homeLoading, refreshFavorites, preloadHomeData } = useHomeData();
+
+  // ✅ preload가 안 됐으면 HomePage 진입 시 직접 로드 (fallback)
+  useEffect(() => {
+    if (!uid || authLoading || homeLoading || homeData) return;
+    preloadHomeData(uid).catch((e) =>
+      console.error("[HomePage] fallback preload failed:", e)
+    );
+  }, [uid, authLoading, homeLoading, homeData, preloadHomeData]);
 
   // ✅ 즐겨찾기만 페이지 진입마다 갱신
   useEffect(() => {

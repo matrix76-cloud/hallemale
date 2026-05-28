@@ -1,15 +1,14 @@
-// src/pages/team/TeamManagePage.jsx
 /* eslint-disable */
-// ✅ 팀 로고 변경 추가
-// - 로고 위 카메라 아이콘 클릭 → 파일 선택
-// - 선택 즉시 업로드(압축→Storage) 후 미리보기 반영(pendingLogo)
-// - 상단 저장 버튼 누르면 clubs.logoUrl/logoPath 업데이트 반영
-// - 저장 성공 후 refreshClub()로 최신 로고 확정
+// src/pages/team/TeamManagePage.jsx
+// ✅ 팀명/팀로고 탭 추가 + 소개/홍보 탭도 실시간 저장(디바운스)
+// - 페이지에서 DB 직접 접근 금지(서비스만 호출)
+// - 소개/홍보: description / promo / activity 변경 시 자동 저장
+// - 저장 버튼 제거, 상태 텍스트로만 표시
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiSearch, FiX, FiChevronRight } from "react-icons/fi";
+import { FiSearch, FiX, FiChevronRight, FiUserX } from "react-icons/fi";
 import { FiCamera } from "react-icons/fi";
 
 import { useAuth } from "../../hooks/useAuth";
@@ -19,7 +18,14 @@ import {
   updateClubMedia,
   searchUsersByNickname,
   createClubInvite,
-  updateClubLogo, // ✅ 추가
+  updateClubLogo,
+  updateClubActivity,
+  listClubInvites,
+  deleteClubAndCleanup,
+  updateClubName,
+  listClubMembers,
+  forceRemoveClubMember,
+  updateClubRegion,
 } from "../../services/clubManageService";
 
 import {
@@ -29,8 +35,8 @@ import {
 } from "../../services/mediaService";
 
 import Spinner from "../../components/common/Spinner";
-import { listClubInvites } from "../../services/clubManageService";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
+import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 
 /* ====================== Render ====================== */
 
@@ -45,18 +51,42 @@ export default function TeamManagePage() {
   const [club, setClub] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
 
-  const [tab, setTab] = useState("intro"); // intro | members | media
+  const [tab, setTab] = useState("profile"); // profile | intro | members | media
 
   // 소개/홍보
   const [description, setDescription] = useState("");
   const [usePromoText, setUsePromoText] = useState(false);
   const [promoText, setPromoText] = useState("");
-  const [savingIntro, setSavingIntro] = useState(false);
 
-  // ✅ 로고 변경(업로드 결과를 저장 버튼에서 반영)
+  // ✅ 활동 요일/시간 (팀 활동 패턴)
+  const [activityDays, setActivityDays] = useState("ANY"); // WEEKDAY | WEEKEND | ANY
+  const [activityTime, setActivityTime] = useState("ANY"); // MORNING | AFTERNOON | EVENING | NIGHT | ANY
+
+  // ✅ 소개/홍보 자동저장 상태
+  const [introSaveState, setIntroSaveState] = useState("idle"); // idle | saving | saved | error
+  const [introSaveMsg, setIntroSaveMsg] = useState("");
+
+  // ✅ 팀명/로고 탭용 상태
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameSaveState, setNameSaveState] = useState("idle"); // idle | saving | saved | error
+  const [nameSaveMsg, setNameSaveMsg] = useState("");
+
+  // ✅ 로고 변경(업로드 결과를 저장 버튼에서 반영) → 저장 버튼 제거: 업로드 후 자동 저장(디바운스)
   const [logoBusy, setLogoBusy] = useState(false);
+  const [logoSaveState, setLogoSaveState] = useState("idle"); // idle | saving | saved | error
+  const [logoSaveMsg, setLogoSaveMsg] = useState("");
   const [pendingLogo, setPendingLogo] = useState(null); // { logoUrl, logoPath }
   const logoFileRef = useRef(null);
+
+
+  // ✅ 팀 지역 변경(시도/구 2단계)
+  const [regionOpen, setRegionOpen] = useState(false);
+  const [regionSidoDraft, setRegionSidoDraft] = useState("");
+  const [regionGuDraft, setRegionGuDraft] = useState("");
+  const [regionSaveState, setRegionSaveState] = useState("idle"); // idle | saving | saved | error
+  const [regionSaveMsg, setRegionSaveMsg] = useState("");
+
 
   // 멤버 초대
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -67,6 +97,12 @@ export default function TeamManagePage() {
   const [inviteTarget, setInviteTarget] = useState(null);
   const [inviting, setInviting] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
+
+
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [kickBusyUid, setKickBusyUid] = useState(""); // 강제탈퇴 진행중 uid
+
 
   // 미디어
   const [mediaItems, setMediaItems] = useState([]);
@@ -86,14 +122,48 @@ export default function TeamManagePage() {
   const [pendingInvites, setPendingInvites] = useState([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
 
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
   const teamName = club?.name || "-";
-  const teamRegion = club?.region || "-";
+  const teamRegion =
+  (regionSidoDraft && regionGuDraft ? `${regionSidoDraft} ${regionGuDraft}` : "") ||
+  club?.region ||
+  "-";  
 
   // ✅ 로고는 pendingLogo가 있으면 그걸 우선 미리보기로 사용
   const logoUrl = (pendingLogo?.logoUrl || club?.logoUrl || "").trim();
 
+  const guardBlocked = !loading && !isOwner;
 
-  const [deleteBusy, setDeleteBusy] = useState(false);
+  // ===== 디바운스 타이머 refs =====
+  const introTimerRef = useRef(null);
+  const nameTimerRef = useRef(null);
+  const logoTimerRef = useRef(null);
+  const regionTimerRef = useRef(null);
+
+
+
+  // ===== 서버값 기준 스냅샷(변경 감지용) =====
+  const introServerRef = useRef({
+    description: "",
+    usePromoText: false,
+    promoText: "",
+    activityDays: "ANY",
+    activityTime: "ANY",
+  });
+
+  const nameServerRef = useRef("");
+  const logoServerRef = useRef({ logoUrl: "", logoPath: "" });
+
+  const regionServerRef = useRef({ region: "", regionSido: "", regionGu: "" });
+
+
+  const clearTimer = (refObj) => {
+    if (refObj?.current) {
+      clearTimeout(refObj.current);
+      refObj.current = null;
+    }
+  };
 
   const onDeleteTeam = async () => {
     if (deleteBusy) return;
@@ -138,6 +208,63 @@ export default function TeamManagePage() {
     refreshPendingInvites();
   }, [loading, clubId, tab]);
 
+
+  const refreshMembers = async () => {
+    if (!clubId) return;
+    setMembersLoading(true);
+    try {
+      const rows = await listClubMembers({ clubId, limitCount: 100 });
+      setMembers(Array.isArray(rows) ? rows : []);
+    } catch (e) {
+      console.warn("[TeamManage] list members failed:", e?.message || e);
+      setMembers([]);
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
+  const onForceKick = async (targetUid) => {
+    if (!clubId) return;
+    if (!targetUid) return;
+
+    if (targetUid === uid) {
+      window.alert("본인은 강제 탈퇴할 수 없습니다.");
+      return;
+    }
+
+    const ok = window.confirm("해당 멤버를 팀에서 강제 탈퇴시킬까요? (즉시 반영)");
+    if (!ok) return;
+
+    try {
+      setKickBusyUid(targetUid);
+      await forceRemoveClubMember({ clubId, targetUid, actorUid: uid });
+
+      console.groupCollapsed("[TeamManage] force remove member");
+      console.log("clubId:", clubId);
+      console.log("actorUid:", uid);
+      console.log("targetUid:", targetUid);
+      console.groupEnd();
+
+      await refreshMembers();
+      window.alert("강제 탈퇴 처리되었습니다.");
+    } catch (e) {
+      console.warn("[TeamManage] force remove failed:", e?.message || e);
+      window.alert(e?.message || "강제 탈퇴에 실패했습니다.");
+    } finally {
+      setKickBusyUid("");
+    }
+  };
+
+
+
+  useEffect(() => {
+    if (loading) return;
+    if (!clubId) return;
+    if (tab !== "members") return;
+    refreshMembers();
+  }, [loading, clubId, tab]);
+
+
   useEffect(() => {
     if (authLoading) return;
     if (!clubId) return;
@@ -151,16 +278,69 @@ export default function TeamManagePage() {
         if (!alive) return;
 
         setClub(view.club);
+
         setIsOwner(!!view.isOwner);
 
-        setDescription(String(view.club?.description || ""));
-        setUsePromoText(!!view.club?.promo?.usePromoText);
-        setPromoText(String(view.club?.promo?.promoText || ""));
+        const nextDesc = String(view.club?.description || "");
+        const nextUsePromo = !!view.club?.promo?.usePromoText;
+        const nextPromo = String(view.club?.promo?.promoText || "");
+
+        setDescription(nextDesc);
+        setUsePromoText(nextUsePromo);
+        setPromoText(nextPromo);
 
         setMediaItems(Array.isArray(view.club?.media) ? view.club.media : []);
 
+        const act = view.club?.activity || {};
+        const nextDays = String(act?.days || "ANY");
+        const nextTime = String(act?.time || "ANY");
+
+        setActivityDays(nextDays);
+        setActivityTime(nextTime);
+
+        // ✅ 팀명 draft
+        const nextName = String(view.club?.name || "");
+        setNameDraft(nextName);
+
+        // ✅ 팀 지역 draft 갱신
+        const nextRegionSido = String(view.club?.regionSido || "");
+        const nextRegionGu = String(view.club?.regionGu || "");
+        setRegionSidoDraft(nextRegionSido);
+        setRegionGuDraft(nextRegionGu);
+
+        regionServerRef.current = {
+          region: String(view.club?.region || "").trim(),
+          regionSido: nextRegionSido,
+          regionGu: nextRegionGu,
+        };
+
+        setRegionSaveState("idle");
+        setRegionSaveMsg("");
+
+
         // ✅ 로딩 시 pendingLogo는 비움(저장 전 임시값 방지)
         setPendingLogo(null);
+
+        // ✅ 서버 스냅샷(자동저장 비교 기준) 갱신
+        introServerRef.current = {
+          description: nextDesc,
+          usePromoText: nextUsePromo,
+          promoText: nextPromo,
+          activityDays: nextDays,
+          activityTime: nextTime,
+        };
+        nameServerRef.current = String(nextName || "").trim();
+        logoServerRef.current = {
+          logoUrl: String(view.club?.logoUrl || "").trim(),
+          logoPath: String(view.club?.logoPath || "").trim(),
+        };
+
+        setIntroSaveState("idle");
+        setIntroSaveMsg("");
+        setNameSaveState("idle");
+        setNameSaveMsg("");
+        setLogoSaveState("idle");
+        setLogoSaveMsg("");
       } finally {
         if (alive) setLoading(false);
       }
@@ -171,21 +351,57 @@ export default function TeamManagePage() {
     };
   }, [authLoading, clubId, uid]);
 
-  const guardBlocked = !loading && !isOwner;
-
   const refreshClub = async () => {
     const c = await getClubManageView({ clubId, uid });
     setClub(c.club);
     setIsOwner(!!c.isOwner);
     setMediaItems(Array.isArray(c.club?.media) ? c.club.media : []);
     setPendingLogo(null);
+
+    const act = c.club?.activity || {};
+    const nextDays = String(act?.days || "ANY");
+    const nextTime = String(act?.time || "ANY");
+    setActivityDays(nextDays);
+    setActivityTime(nextTime);
+
+    const nextDesc = String(c.club?.description || "");
+    const nextUsePromo = !!c.club?.promo?.usePromoText;
+    const nextPromo = String(c.club?.promo?.promoText || "");
+
+    setDescription(nextDesc);
+    setUsePromoText(nextUsePromo);
+    setPromoText(nextPromo);
+
+    const nextName = String(c.club?.name || "");
+    setNameDraft(nextName);
+
+    // ✅ 서버 스냅샷 갱신
+    introServerRef.current = {
+      description: nextDesc,
+      usePromoText: nextUsePromo,
+      promoText: nextPromo,
+      activityDays: nextDays,
+      activityTime: nextTime,
+    };
+    nameServerRef.current = String(nextName || "").trim();
+    logoServerRef.current = {
+      logoUrl: String(c.club?.logoUrl || "").trim(),
+      logoPath: String(c.club?.logoPath || "").trim(),
+    };
+
+    setIntroSaveState("idle");
+    setIntroSaveMsg("");
+    setNameSaveState("idle");
+    setNameSaveMsg("");
+    setLogoSaveState("idle");
+    setLogoSaveMsg("");
   };
 
   /* ======================
-   * ✅ 로고 업로드
+   * ✅ 팀 로고 업로드 (업로드 후 자동 저장)
    * ====================== */
 
-  const onClickChangeLogo = () => {
+  const onClickPickLogo = () => {
     if (logoBusy) return;
     logoFileRef.current?.click();
   };
@@ -197,7 +413,6 @@ export default function TeamManagePage() {
 
     setLogoBusy(true);
     try {
-      // ✅ 업로드(압축→Storage) — scope=clubs, ownerId=clubId
       const uploaded = await uploadCompressedImageMedia({
         scope: "clubs",
         ownerId: clubId,
@@ -205,7 +420,6 @@ export default function TeamManagePage() {
         kind: "logo",
       });
 
-      // uploaded: { url, storagePath, id, ... }
       const next = {
         logoUrl: uploaded?.url || "",
         logoPath: uploaded?.storagePath || "",
@@ -216,53 +430,317 @@ export default function TeamManagePage() {
       }
 
       setPendingLogo(next);
-      window.alert("로고가 업로드되었습니다. 저장을 누르면 반영됩니다.");
+      setLogoSaveState("saving");
+      setLogoSaveMsg("업로드 완료 · 저장 중...");
     } catch (e2) {
       console.warn("[TeamManage] logo upload failed:", e2?.message || e2);
       window.alert("로고 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       setPendingLogo(null);
+      setLogoSaveState("error");
+      setLogoSaveMsg("로고 저장 실패");
     } finally {
       setLogoBusy(false);
     }
   };
 
+
   /* ======================
-   * 소개/홍보 저장 (로고도 같이 저장)
-   * ====================== */
+  * ✅ 팀 지역 변경 (실시간 저장, 디바운스)
+  * ====================== */
+  useEffect(() => {
+  if (!clubId) return;
+  if (!isOwner) return;
 
-  const onSaveIntro = async () => {
-    if (savingIntro) return;
-    setSavingIntro(true);
+  const sido = String(regionSidoDraft || "").trim();
+  const gu = String(regionGuDraft || "").trim();
 
+  // 둘 중 하나라도 없으면 저장 안 함
+  if (!sido || !gu) {
+    setRegionSaveState("idle");
+    setRegionSaveMsg("");
+    return;
+  }
+
+  const nextRegion = `${sido} ${gu}`.trim();
+  const snap = regionServerRef.current || {};
+
+  const prevRegion = String(snap.region || "").trim();
+  const prevSido = String(snap.regionSido || "").trim();
+  const prevGu = String(snap.regionGu || "").trim();
+
+  if (nextRegion === prevRegion && sido === prevSido && gu === prevGu) {
+    setRegionSaveState("idle");
+    setRegionSaveMsg("");
+    return;
+  }
+
+  clearTimer(regionTimerRef);
+
+  setRegionSaveState("saving");
+  setRegionSaveMsg("팀 지역 저장 중...");
+
+  regionTimerRef.current = setTimeout(async () => {
     try {
-      // 1) 소개/홍보 저장
-      await updateClubIntroPromo({
+      await updateClubRegion({
         clubId,
-        description: String(description || "").trim(),
-        promo: {
-          usePromoText,
-          promoText: String(promoText || "").trim(),
-        },
+        region: nextRegion,
+        regionSido: sido,
+        regionGu: gu,
       });
 
-      // 2) ✅ 로고 변경이 있다면 같이 반영
-      if (pendingLogo?.logoUrl && pendingLogo?.logoPath) {
+      regionServerRef.current = {
+        region: nextRegion,
+        regionSido: sido,
+        regionGu: gu,
+      };
+
+      setRegionSaveState("saved");
+      setRegionSaveMsg("팀 지역 저장됨");
+
+      // 화면 club도 즉시 반영
+      setClub((prev) => {
+        if (!prev) return prev;
+        return { ...prev, region: nextRegion, regionSido: sido, regionGu: gu };
+      });
+    } catch (e) {
+      console.warn("[TeamManage] auto save region failed:", e?.message || e);
+      setRegionSaveState("error");
+      setRegionSaveMsg("팀 지역 저장 실패");
+    }
+  }, 900);
+
+  return () => clearTimer(regionTimerRef);
+  }, [clubId, isOwner, regionSidoDraft, regionGuDraft]);
+
+
+
+  // ✅ pendingLogo 변경 시 디바운스로 즉시 저장
+  useEffect(() => {
+    if (!clubId) return;
+    if (!pendingLogo?.logoUrl || !pendingLogo?.logoPath) return;
+
+    const serverSnap = logoServerRef.current || {};
+    const nextUrl = String(pendingLogo.logoUrl || "").trim();
+    const nextPath = String(pendingLogo.logoPath || "").trim();
+
+    if (nextUrl === String(serverSnap.logoUrl || "").trim() && nextPath === String(serverSnap.logoPath || "").trim()) {
+      return;
+    }
+
+    clearTimer(logoTimerRef);
+
+    logoTimerRef.current = setTimeout(async () => {
+      try {
+        setLogoSaveState("saving");
+        setLogoSaveMsg("로고 저장 중...");
+
         await updateClubLogo({
           clubId,
-          logoUrl: pendingLogo.logoUrl,
-          logoPath: pendingLogo.logoPath,
+          logoUrl: nextUrl,
+          logoPath: nextPath,
         });
-      }
 
-      await refreshClub();
-      window.alert("저장되었습니다.");
-    } catch (e) {
-      console.warn("[TeamManage] save intro/logo failed:", e?.message || e);
-      window.alert("저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setSavingIntro(false);
-    }
+        // 서버 스냅샷 갱신
+        logoServerRef.current = { logoUrl: nextUrl, logoPath: nextPath };
+        setLogoSaveState("saved");
+        setLogoSaveMsg("로고 저장됨");
+        setPendingLogo(null);
+
+        // 화면 club도 즉시 반영
+        setClub((prev) => {
+          if (!prev) return prev;
+          return { ...prev, logoUrl: nextUrl, logoPath: nextPath };
+        });
+      } catch (e) {
+        console.warn("[TeamManage] auto save logo failed:", e?.message || e);
+        setLogoSaveState("error");
+        setLogoSaveMsg("로고 저장 실패");
+      }
+    }, 800);
+
+    return () => clearTimer(logoTimerRef);
+  }, [clubId, pendingLogo?.logoUrl, pendingLogo?.logoPath]);
+
+  /* ======================
+   * ✅ 팀 이름 변경 (실시간 저장, 디바운스)
+   * ====================== */
+
+  const validateTeamName = (v) => {
+    const name = String(v || "").trim();
+    if (!name) return "팀 이름을 입력해 주세요.";
+    if (name.length < 2) return "팀 이름은 2자 이상이어야 해요.";
+    if (name.length > 20) return "팀 이름은 20자 이내로 입력해 주세요.";
+    return "";
   };
+
+  const onChangeNameDraft = (v) => {
+    setNameDraft(v);
+  };
+
+  // ✅ nameDraft 변경 시 디바운스로 즉시 저장
+  useEffect(() => {
+    if (!clubId) return;
+    if (!isOwner) return;
+
+    const next = String(nameDraft || "").trim();
+    const prevServer = String(nameServerRef.current || "").trim();
+
+    if (!next) {
+      setNameSaveState("idle");
+      setNameSaveMsg("");
+      return;
+    }
+
+    const err = validateTeamName(next);
+    if (err) {
+      setNameSaveState("error");
+      setNameSaveMsg(err);
+      return;
+    }
+
+    if (next === prevServer) {
+      setNameSaveState("idle");
+      setNameSaveMsg("");
+      return;
+    }
+
+    clearTimer(nameTimerRef);
+
+    setNameSaveState("saving");
+    setNameSaveMsg("팀 이름 저장 중...");
+
+    nameTimerRef.current = setTimeout(async () => {
+      if (savingName) return;
+
+      setSavingName(true);
+      try {
+        await updateClubName({ clubId, name: next });
+
+        nameServerRef.current = next;
+        setNameSaveState("saved");
+        setNameSaveMsg("팀 이름 저장됨");
+
+        // 화면 club도 즉시 반영
+        setClub((prev) => {
+          if (!prev) return prev;
+          return { ...prev, name: next };
+        });
+      } catch (e) {
+        console.warn("[TeamManage] auto save name failed:", e?.message || e);
+        setNameSaveState("error");
+        setNameSaveMsg("팀 이름 저장 실패");
+      } finally {
+        setSavingName(false);
+      }
+    }, 900);
+
+    return () => clearTimer(nameTimerRef);
+  }, [clubId, isOwner, nameDraft]);
+
+  /* ======================
+   * ✅ 소개/홍보 실시간 저장 (디바운스)
+   * - description / promo / activity 변경 시 자동 저장
+   * ====================== */
+
+  const buildIntroPayload = () => {
+    const desc = String(description || "").trim();
+    const use = !!usePromoText;
+    const promo = use ? String(promoText || "").trim() : "";
+    const days = String(activityDays || "ANY");
+    const time = String(activityTime || "ANY");
+
+    return { desc, use, promo, days, time };
+  };
+
+  const isIntroChangedFromServer = () => {
+    const s = introServerRef.current || {};
+    const cur = buildIntroPayload();
+
+    const sDesc = String(s.description || "").trim();
+    const sUse = !!s.usePromoText;
+    const sPromo = sUse ? String(s.promoText || "").trim() : "";
+    const sDays = String(s.activityDays || "ANY");
+    const sTime = String(s.activityTime || "ANY");
+
+    if (cur.desc !== sDesc) return true;
+    if (cur.use !== sUse) return true;
+    if (cur.promo !== sPromo) return true;
+    if (cur.days !== sDays) return true;
+    if (cur.time !== sTime) return true;
+    return false;
+  };
+
+  useEffect(() => {
+    if (!clubId) return;
+    if (!isOwner) return;
+    if (!club) return;
+
+    // 로딩 직후/탭 전환 등에서 불필요 저장 방지
+    if (!isIntroChangedFromServer()) {
+      setIntroSaveState("idle");
+      setIntroSaveMsg("");
+      return;
+    }
+
+    clearTimer(introTimerRef);
+
+    setIntroSaveState("saving");
+    setIntroSaveMsg("자동 저장 중...");
+
+    introTimerRef.current = setTimeout(async () => {
+      const cur = buildIntroPayload();
+
+      try {
+        // 1) 소개/홍보 저장
+        await updateClubIntroPromo({
+          clubId,
+          description: cur.desc,
+          promo: {
+            usePromoText: cur.use,
+            promoText: cur.promo,
+          },
+        });
+
+        // 2) 활동 요일/시간 저장
+        await updateClubActivity({
+          clubId,
+          activity: {
+            days: cur.days,
+            time: cur.time,
+          },
+        });
+
+        // ✅ 서버 스냅샷 갱신
+        introServerRef.current = {
+          description: cur.desc,
+          usePromoText: cur.use,
+          promoText: cur.promo,
+          activityDays: cur.days,
+          activityTime: cur.time,
+        };
+
+        setIntroSaveState("saved");
+        setIntroSaveMsg("저장됨");
+
+        // 화면 club도 즉시 반영
+        setClub((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            description: cur.desc,
+            promo: { usePromoText: cur.use, promoText: cur.promo },
+            activity: { days: cur.days, time: cur.time },
+          };
+        });
+      } catch (e) {
+        console.warn("[TeamManage] auto save intro/activity failed:", e?.message || e);
+        setIntroSaveState("error");
+        setIntroSaveMsg("저장 실패");
+      }
+    }, 900);
+
+    return () => clearTimer(introTimerRef);
+  }, [clubId, isOwner, club, description, usePromoText, promoText, activityDays, activityTime]);
 
   /* ======================
    * 멤버 초대/미디어 등 (기존 그대로)
@@ -524,26 +1002,41 @@ export default function TeamManagePage() {
     );
   }
 
+  const showIntroState = tab === "intro";
+  const showNameState = tab === "profile";
+  const showLogoState = tab === "profile";
+
+  const renderAutoState = (state, msg) => {
+    if (!msg) return null;
+    return <AutoSaveHint $state={state}>{msg}</AutoSaveHint>;
+  };
+
   return (
     <Shell>
-      <TeamRow>
-        <TeamLogo>
-          {logoUrl ? <TeamLogoImg src={logoUrl} alt="logo" /> : <TeamLogoFallback />}
+      {/* ✅ 상단 */}
+      <TeamRowTop>
+        <TeamLeft>
+          <TeamInfo>
+            <TeamNameLine>
+              <TeamNameText>{teamName}</TeamNameText>
 
-          {/* ✅ 카메라 오버레이 */}
-          <LogoCameraBtn type="button" onClick={onClickChangeLogo} disabled={logoBusy}>
-            <FiCamera size={16} />
-          </LogoCameraBtn>
-        </TeamLogo>
+              <TopActions>
+                <TopGhost type="button" onClick={() => nav(`/team/${clubId}`)}>
+                  팀 프로필
+                </TopGhost>
 
-        <TeamInfo>
-          <TeamNameText>{teamName}</TeamNameText>
-          <TeamMetaText>{teamRegion}</TeamMetaText>
-          <TeamMetaSubText>팀 이름/지역은 변경할 수 없어요. 로고는 변경 가능해요.</TeamMetaSubText>
-        </TeamInfo>
-      </TeamRow>
+                <TopDanger type="button" onClick={onDeleteTeam} disabled={deleteBusy}>
+                  {deleteBusy ? "삭제 중..." : "팀삭제"}
+                </TopDanger>
+              </TopActions>
+            </TeamNameLine>
 
-      {/* ✅ 로고 파일 input */}
+            <TeamMetaText>{teamRegion}</TeamMetaText>
+          </TeamInfo>
+        </TeamLeft>
+      </TeamRowTop>
+
+      {/* 로고 파일 input */}
       <input
         ref={logoFileRef}
         type="file"
@@ -553,6 +1046,9 @@ export default function TeamManagePage() {
       />
 
       <TabsRow>
+        <TabBtn type="button" $active={tab === "profile"} onClick={() => setTab("profile")}>
+          팀정보
+        </TabBtn>
         <TabBtn type="button" $active={tab === "intro"} onClick={() => setTab("intro")}>
           소개/홍보
         </TabBtn>
@@ -566,8 +1062,107 @@ export default function TeamManagePage() {
 
       <Divider />
 
+      {/* ====================== 팀명/로고 탭 ====================== */}
+      {tab === "profile" ? (
+        <Section>
+          {showLogoState ? renderAutoState(logoSaveState, logoSaveMsg) : null}
+          {showNameState ? renderAutoState(nameSaveState, nameSaveMsg) : null}
+
+          <Field>
+            <Label>팀 로고</Label>
+
+            <LogoEditorRow>
+              <LogoPreview>
+                {logoUrl ? <LogoPreviewImg src={logoUrl} alt="logo" /> : <LogoPreviewFallback />}
+              </LogoPreview>
+
+              <LogoEditorRight>
+          
+
+                <BtnRow>
+                  <BtnPrimary  style={{flex:"0.5"}}type="button" onClick={onClickPickLogo} disabled={logoBusy}>
+                    {logoBusy ? "업로드 중..." : (
+                      <BtnInline>
+                        <FiCamera size={16} />
+                        로고 선택
+                      </BtnInline>
+                    )}
+                  </BtnPrimary>
+                </BtnRow>
+              </LogoEditorRight>
+            </LogoEditorRow>
+          </Field>
+
+          <Divider />
+
+          <Field>
+            <Label>팀 이름</Label>
+            <ModalInput
+              value={nameDraft}
+              onChange={(e) => onChangeNameDraft(e.target.value)}
+              placeholder="팀 이름"
+              disabled={savingName}
+            />
+ 
+          </Field>
+
+          <Divider />
+
+          {renderAutoState(regionSaveState, regionSaveMsg)}
+
+          <Field>
+            <Label>팀 지역</Label>
+
+            <RegionSelectBtn
+              type="button"
+              onClick={() => setRegionOpen(true)}
+              $muted={!(regionSidoDraft && regionGuDraft)}
+            >
+              <span>{(regionSidoDraft && regionGuDraft) ? `${regionSidoDraft} ${regionGuDraft}` : "활동 지역 선택"}</span>
+              <FiChevronRight size={16} />
+            </RegionSelectBtn>
+
+            <RegionPickerSheet
+              open={regionOpen}
+              onClose={() => setRegionOpen(false)}
+              value={{ sido: regionSidoDraft, gu: regionGuDraft }}
+              onPick={({ sido, gu }) => {
+                setRegionSidoDraft(sido);
+                setRegionGuDraft(gu);
+              }}
+              title="활동 지역 선택"
+            />
+          </Field>
+
+        </Section>
+      ) : null}
+
+      {/* ====================== 소개/홍보 탭 ====================== */}
       {tab === "intro" ? (
         <Section>
+          {showIntroState ? renderAutoState(introSaveState, introSaveMsg) : null}
+
+          <Field>
+            <Label>팀 활동 패턴</Label>
+            <TwoColRow>
+              <SelectBox value={activityDays} onChange={(e) => setActivityDays(e.target.value)}>
+                <option value="ANY">활동 요일: 상관없음</option>
+                <option value="WEEKDAY">활동 요일: 평일 위주</option>
+                <option value="WEEKEND">활동 요일: 주말 위주</option>
+              </SelectBox>
+
+              <SelectBox value={activityTime} onChange={(e) => setActivityTime(e.target.value)}>
+                <option value="ANY">활동 시간: 상관없음</option>
+                <option value="MORNING">활동 시간: 오전</option>
+                <option value="AFTERNOON">활동 시간: 오후</option>
+                <option value="EVENING">활동 시간: 저녁</option>
+                <option value="NIGHT">활동 시간: 야간</option>
+              </SelectBox>
+            </TwoColRow>
+
+
+          </Field>
+
           <Field>
             <Label>팀 소개</Label>
             <TextArea
@@ -599,22 +1194,13 @@ export default function TeamManagePage() {
             />
           </Field>
 
-          <BtnRow>
-            <BtnGhost type="button" onClick={() => nav(`/team/${clubId}`)}>
-              팀 프로필 보기
-            </BtnGhost>
-            <BtnPrimary type="button" onClick={onSaveIntro} disabled={savingIntro || logoBusy}>
-              {savingIntro ? "저장 중..." : logoBusy ? "로고 처리중..." : "저장"}
-            </BtnPrimary>
-          </BtnRow>
         </Section>
       ) : null}
 
+      {/* ====================== 멤버 탭 ====================== */}
       {tab === "members" ? (
         <Section>
-          <HintText>
-            팀 멤버 관리는 초대로 진행해요.
-          </HintText>
+          <HintText>팀 멤버 관리는 초대로 진행해요.</HintText>
 
           <LineButton type="button" onClick={openInvite}>
             <LineLeft>
@@ -625,6 +1211,7 @@ export default function TeamManagePage() {
               <FiChevronRight size={18} />
             </LineRight>
           </LineButton>
+
           <Divider />
 
           <InviteSectionTitle>보낸 초대 (대기중)</InviteSectionTitle>
@@ -651,7 +1238,9 @@ export default function TeamManagePage() {
                       <InviteText>
                         <InviteName>{snap.nickname || "(닉네임 없음)"}</InviteName>
                         <InviteMeta>{(snap.region || "").trim() || "지역 미지정"}</InviteMeta>
-                        {inv.message ? <InviteMsgLine>{String(inv.message).slice(0, 40)}</InviteMsgLine> : null}
+                        {inv.message ? (
+                          <InviteMsgLine>{String(inv.message).slice(0, 40)}</InviteMsgLine>
+                        ) : null}
                       </InviteText>
                     </InviteLeft>
 
@@ -664,16 +1253,65 @@ export default function TeamManagePage() {
             </InviteList>
           )}
 
+          <Divider />
 
- 
+          <InviteSectionTitle>현재 멤버</InviteSectionTitle>
+
+          {membersLoading ? (
+            <InviteEmpty>불러오는 중...</InviteEmpty>
+          ) : (members || []).length === 0 ? (
+            <InviteEmpty>팀 멤버가 없습니다.</InviteEmpty>
+          ) : (
+            <InviteList>
+              {(members || []).map((m) => {
+                const mUid = m?.uid || m?.id || "";
+                const isMe = mUid && mUid === uid;
+                const busy = kickBusyUid === mUid;
+
+                return (
+                  <InviteRow key={mUid || Math.random()}>
+                    <InviteLeft>
+                      <InviteAvatarWrap>
+                        {m?.avatarUrl ? (
+                          <InviteAvatar src={m.avatarUrl} alt={m.nickname || "avatar"} />
+                        ) : (
+                          <AvatarPlaceholder size={34} />
+                        )}
+                      </InviteAvatarWrap>
+
+                      <InviteText>
+                        <InviteName>
+                          {m?.nickname || "(닉네임 없음)"} {isMe ? "(나)" : ""}
+                        </InviteName>
+                        <InviteMeta>{(m?.region || "").trim() || "지역 미지정"}</InviteMeta>
+                        {m?.role ? <InviteMsgLine>{String(m.role)}</InviteMsgLine> : null}
+                      </InviteText>
+                    </InviteLeft>
+
+                    <InviteRight>
+                      <KickBtn
+                        type="button"
+                        onClick={() => onForceKick(mUid)}
+                        disabled={!mUid || isMe || !!busy}
+                        title={isMe ? "본인은 강제 탈퇴할 수 없습니다." : "강제 탈퇴"}
+                      >
+                        <FiUserX size={14} />
+                        {busy ? "처리 중..." : "강제 탈퇴"}
+                      </KickBtn>
+                    </InviteRight>
+                  </InviteRow>
+                );
+              })}
+            </InviteList>
+          )}
+
         </Section>
       ) : null}
 
+      {/* ====================== 미디어 탭 ====================== */}
       {tab === "media" ? (
         <Section>
-          <HintText>
-            사진은 즉시 업로드, 동영상은 유튜브 링크로 추가해요.
-          </HintText>
+          <HintText>사진은 즉시 업로드, 동영상은 유튜브 링크로 추가해요.</HintText>
 
           <MediaGrid>
             {(mediaItems || []).map((m) => {
@@ -729,86 +1367,84 @@ export default function TeamManagePage() {
 
             {!inviteTarget ? (
               <>
-              <ModalSub>닉네임으로 검색해 초대할 선수를 선택해 주세요.</ModalSub>
+                <ModalSub>닉네임으로 검색해 초대할 선수를 선택해 주세요.</ModalSub>
 
-              <SearchRow>
-                <SearchInput
-                  value={searchKey}
-                  onChange={(e) => setSearchKey(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") doSearch();
-                  }}
-                  placeholder="닉네임 검색 (예: 김민)"
-                />
-                <SearchBtn type="button" onClick={doSearch} disabled={searching}>
-                  <FiSearch size={16} />
-                </SearchBtn>
-              </SearchRow>
+                <SearchRow>
+                  <SearchInput
+                    value={searchKey}
+                    onChange={(e) => setSearchKey(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") doSearch();
+                    }}
+                    placeholder="닉네임 검색 (예: 김민)"
+                  />
+                  <SearchBtn type="button" onClick={doSearch} disabled={searching}>
+                    <FiSearch size={16} />
+                  </SearchBtn>
+                </SearchRow>
 
-              <ResultList>
-                {searchResult.length === 0 ? (
-                  <ResultEmpty>{searching ? "불러오는 중..." : "표시할 선수가 없습니다."}</ResultEmpty>
-                ) : (
-                  searchResult.map((u) => {
-                    const checked = selectedUserId === u.uid;
+                <ResultList>
+                  {searchResult.length === 0 ? (
+                    <ResultEmpty>{searching ? "불러오는 중..." : "표시할 선수가 없습니다."}</ResultEmpty>
+                  ) : (
+                    searchResult.map((u) => {
+                      const checked = selectedUserId === u.uid;
 
-                    return (
-                      <PickRow
-                        key={u.uid}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelectedUserId(u.uid)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") setSelectedUserId(u.uid);
-                        }}
-                      >
-                        <PickLeft>
-                          <AvatarBtn
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              nav(`/player/${u.uid}`);
-                            }}
-                            aria-label="프로필 보기"
-                            title="프로필 보기"
-                          >
-                            {u.avatarUrl ? (
-                              <PickAvatar src={u.avatarUrl} alt={u.nickname || "avatar"} />
-                            ) : (
-                              <AvatarPlaceholder size={34} />
-                            )}
-                          </AvatarBtn>
+                      return (
+                        <PickRow
+                          key={u.uid}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedUserId(u.uid)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") setSelectedUserId(u.uid);
+                          }}
+                        >
+                          <PickLeft>
+                            <AvatarBtn
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                nav(`/player/${u.uid}`);
+                              }}
+                              aria-label="프로필 보기"
+                              title="프로필 보기"
+                            >
+                              {u.avatarUrl ? (
+                                <PickAvatar src={u.avatarUrl} alt={u.nickname || "avatar"} />
+                              ) : (
+                                <AvatarPlaceholder size={34} />
+                              )}
+                            </AvatarBtn>
 
-                          <PickText>
-                            <PickName>{u.nickname || "(닉네임 없음)"}</PickName>
-                            <PickMeta>{(u.region || "").trim() || "지역 미지정"}</PickMeta>
-                          </PickText>
-                        </PickLeft>
+                            <PickText>
+                              <PickName>{u.nickname || "(닉네임 없음)"}</PickName>
+                              <PickMeta>{(u.region || "").trim() || "지역 미지정"}</PickMeta>
+                            </PickText>
+                          </PickLeft>
 
-                        <PickRight>
-                          <RadioOuter aria-hidden="true">{checked ? <RadioInner /> : null}</RadioOuter>
-                        </PickRight>
-                      </PickRow>
-                    );
-                  })
-                )}
-              </ResultList>
+                          <PickRight>
+                            <RadioOuter aria-hidden="true">{checked ? <RadioInner /> : null}</RadioOuter>
+                          </PickRight>
+                        </PickRow>
+                      );
+                    })
+                  )}
+                </ResultList>
 
-              <BtnRow>
-                <BtnGhost type="button" onClick={closeInvite}>
-                  취소
-                </BtnGhost>
-                <BtnPrimary type="button" onClick={goInviteMessageStep} disabled={!selectedUserId}>
-                  다음
-                </BtnPrimary>
-              </BtnRow>
+                <BtnRow>
+                  <BtnGhost type="button" onClick={closeInvite}>
+                    취소
+                  </BtnGhost>
+                  <BtnPrimary type="button" onClick={goInviteMessageStep} disabled={!selectedUserId}>
+                    다음
+                  </BtnPrimary>
+                </BtnRow>
               </>
             ) : (
               <>
-                <ModalSub>
-                  {inviteTarget?.nickname || "선수"} 님에게 보낼 초대 메시지를 작성해 주세요.
-                </ModalSub>
+                <ModalSub>{inviteTarget?.nickname || "선수"} 님에게 보낼 초대 메시지를 작성해 주세요.</ModalSub>
 
                 <InviteMsg
                   value={inviteMsg}
@@ -929,12 +1565,6 @@ export default function TeamManagePage() {
           </Modal>
         </ModalOverlay>
       ) : null}
-
-      <BottomDangerArea>
-        <DangerButton type="button" onClick={onDeleteTeam} disabled={deleteBusy}>
-          {deleteBusy ? "삭제 중..." : "팀삭제"}
-        </DangerButton>
-      </BottomDangerArea>
     </Shell>
   );
 }
@@ -943,7 +1573,7 @@ export default function TeamManagePage() {
 
 const Shell = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors?.bg || "#f3f4f6"};
+  background: ${({ theme }) => theme.colors.bg};
   padding: 14px 24px 80px;
   display: flex;
   flex-direction: column;
@@ -952,86 +1582,95 @@ const Shell = styled.div`
 
 const TopHint = styled.div`
   padding: 14px 12px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #6b7280;
-  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textWeak};
+  border-radius: 8px;
   line-height: 1.6;
 `;
 
 const Divider = styled.div`
   height: 1px;
-  background: #e5e7eb;
+  background: ${({ theme }) => theme.colors.border};
 `;
 
-const TeamRow = styled.div`
+const SpinnerWrap = styled.div`
+  padding: 28px 0;
   display: flex;
-  gap: 12px;
+  justify-content: center;
+`;
+
+const TeamRowTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+`;
+
+const TeamLeft = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+const TeamInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+`;
+
+const TeamNameLine = styled.div`
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 `;
 
-const TeamLogo = styled.div`
-  width: 54px;
-  height: 54px;
-  border-radius: 14px;
+const TeamNameText = styled.div`
+  font-size: 20px;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
   overflow: hidden;
-  background: #e5e7eb;
-  flex-shrink: 0;
-  position: relative;
+  text-overflow: ellipsis;
 `;
 
-const TeamLogoImg = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+const TeamMetaText = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const TeamLogoFallback = styled.div`
-  width: 100%;
-  height: 100%;
+const TopActions = styled.div`
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
 `;
 
-/* ✅ 카메라 버튼(오버레이) */
-const LogoCameraBtn = styled.button`
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: 28px;
-  height: 28px;
+const TopGhost = styled.button`
+  height: 30px;
+  padding: 0 12px;
   border-radius: 999px;
-  border: none;
-  background: rgba(15, 23, 42, 0.7);
-  color: #ffffff;
-  display: grid;
-  place-items: center;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 12px;
+  cursor: pointer;
+`;
+
+const TopDanger = styled.button`
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid
+    ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(248,113,113,0.45)" : "#fecaca"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(248,113,113,0.16)" : "#fef2f2"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fca5a5" : "#b91c1c")};
+  font-size: 12px;
   cursor: pointer;
 
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
-`;
-
-const TeamInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-`;
-
-const TeamNameText = styled.div`
-  font-size: 16px;
-  color: #111827;
-`;
-
-const TeamMetaText = styled.div`
-  font-size: 12px;
-  color: #6b7280;
-`;
-
-const TeamMetaSubText = styled.div`
-  font-size: 11px;
-  color: #9ca3af;
 `;
 
 const TabsRow = styled.div`
@@ -1042,10 +1681,22 @@ const TabsRow = styled.div`
 const TabBtn = styled.button`
   flex: 1;
   height: 30px;
-  border-radius: 16px;
-  border: 1px solid ${({ $active }) => ($active ? "#4f46e5" : "#e5e7eb")};
-  background: ${({ $active }) => ($active ? "#eef2ff" : "#ffffff")};
-  color: ${({ $active }) => ($active ? "#4f46e5" : "#111827")};
+  border-radius: 8px;
+  border: 1px solid
+    ${({ $active, theme }) =>
+      $active ? theme.colors.primary : theme.colors.border};
+  background: ${({ $active, theme }) =>
+    $active
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "#eef2ff"
+      : theme.colors.card};
+  color: ${({ $active, theme }) =>
+    $active
+      ? theme.mode === "dark"
+        ? "#a5b4fc"
+        : theme.colors.primary
+      : theme.colors.textStrong};
   font-size: 13px;
   cursor: pointer;
 `;
@@ -1064,7 +1715,28 @@ const Field = styled.div`
 
 const Label = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const TwoColRow = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
+const SelectBox = styled.select`
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  padding: 0 12px;
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
 `;
 
 const LabelRow2 = styled.div`
@@ -1075,17 +1747,23 @@ const LabelRow2 = styled.div`
 `;
 
 const TextArea = styled.textarea`
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 10px 12px;
   font-size: 13px;
   outline: none;
-  min-height: 110px;
+  min-height: 220px;
   resize: none;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
-    border-color: #4f46e5;
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
 
@@ -1102,7 +1780,7 @@ const CheckBox = styled.input`
 
 const CheckText = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const BtnRow = styled.div`
@@ -1114,10 +1792,13 @@ const BtnGhost = styled.button`
   flex: 1;
   height: 42px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 13px;
   cursor: pointer;
+  display: grid;
+  place-items: center;
 `;
 
 const BtnPrimary = styled.button`
@@ -1125,7 +1806,7 @@ const BtnPrimary = styled.button`
   height: 42px;
   border-radius: 999px;
   border: none;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 13px;
   cursor: pointer;
@@ -1136,51 +1817,68 @@ const BtnPrimary = styled.button`
   }
 `;
 
-const SpinnerWrap = styled.div`
-  padding: 28px 0;
-  display: flex;
-  justify-content: center;
-`;
-
-
 const HintText = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.6;
 `;
 
-const LineButton = styled.button`
-  width: 100%;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 12px 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+const AutoSaveHint = styled.div`
+  font-size: 12px;
+  line-height: 1.4;
+  color: ${({ $state, theme }) =>
+    $state === "saved"
+      ? theme.mode === "dark"
+        ? "#86efac"
+        : "#16a34a"
+      : $state === "error"
+      ? theme.mode === "dark"
+        ? "#fca5a5"
+        : "#ef4444"
+      : theme.colors.textWeak};
 `;
 
-const LineLeft = styled.div`
+/* profile tab */
+
+const LogoEditorRow = styled.div`
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  align-items: center;
+`;
+
+const LogoPreview = styled.div`
+  width: 92px;
+  height: 92px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const LogoPreviewImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const LogoPreviewFallback = styled.div`
+  width: 100%;
+  height: 100%;
+`;
+
+const LogoEditorRight = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  text-align: left;
+  gap: 8px;
+  min-width: 0;
 `;
 
-const LineTitle = styled.div`
-  font-size: 14px;
-  color: #111827;
-`;
-
-const LineSub = styled.div`
-  font-size: 12px;
-  color: #6b7280;
-`;
-
-const LineRight = styled.div`
-  color: #9ca3af;
+const BtnInline = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 /* media */
@@ -1194,9 +1892,10 @@ const MediaGrid = styled.div`
 const MediaItem = styled.div`
   position: relative;
   height: 108px;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const MediaThumb = styled.button`
@@ -1234,7 +1933,7 @@ const MediaCap = styled.div`
   right: 8px;
   bottom: 8px;
   padding: 6px 8px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(15, 23, 42, 0.55);
   color: #ffffff;
   font-size: 11px;
@@ -1260,9 +1959,9 @@ const MediaRemove = styled.button`
 
 const MediaAdd = styled.button`
   height: 108px;
-  border-radius: 12px;
-  border: 1px dashed #d1d5db;
-  background: #ffffff;
+  border-radius: 8px;
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -1275,8 +1974,9 @@ const MediaAddPlus = styled.div`
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #4f46e5;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
   display: grid;
   place-items: center;
   font-size: 22px;
@@ -1284,7 +1984,7 @@ const MediaAddPlus = styled.div`
 
 const MediaAddLabel = styled.div`
   font-size: 12px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 /* modal */
@@ -1292,7 +1992,8 @@ const MediaAddLabel = styled.div`
 const ModalOverlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
   display: grid;
   place-items: center;
   z-index: 9999;
@@ -1301,10 +2002,10 @@ const ModalOverlay = styled.div`
 
 const Modal = styled.div`
   width: min(520px, 92vw);
-  background: #ffffff;
-  border-radius: 14px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 14px 14px 12px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid ${({ theme }) => theme.colors.border};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1318,38 +2019,44 @@ const ModalTop = styled.div`
 
 const ModalTitle = styled.div`
   font-size: 15px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const IconBtn = styled.button`
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ModalSub = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.45;
 `;
 
 const ModalInput = styled.input`
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 10px 12px;
   font-size: 13px;
   outline: none;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
-    border-color: #4f46e5;
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
 
 const ModalError = styled.div`
   font-size: 12px;
-  color: #ef4444;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fca5a5" : "#ef4444")};
 `;
 
 /* invite */
@@ -1367,9 +2074,10 @@ const SearchInput = styled(ModalInput)`
 const SearchBtn = styled.button`
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -1388,79 +2096,31 @@ const ResultList = styled.div`
   overflow-y: auto;
 `;
 
-
-
 const ResultEmpty = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   padding: 10px 4px;
   text-align: center;
 `;
 
-const ResultItem = styled.button`
-  width: 100%;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  padding: 10px 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-`;
-
-const ResultLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-`;
-
-
-const ResultAvatar = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const NameCol = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-`;
-
-const ResultRight = styled.div`
-  font-size: 12px;
-  color: #9ca3af;
-  flex-shrink: 0;
-`;
-
-
-
-const ResultName = styled.div`
-  font-size: 13px;
-  color: #111827;
-`;
-
-const ResultMeta = styled.div`
-  font-size: 12px;
-  color: #6b7280;
-`;
-
 const InviteMsg = styled.textarea`
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 10px 12px;
   font-size: 13px;
   outline: none;
   min-height: 90px;
   resize: none;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
-    border-color: #4f46e5;
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
 
@@ -1474,9 +2134,9 @@ const ChoiceCol = styled.div`
 
 const ChoiceCard = styled.button`
   width: 100%;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 12px 12px;
   cursor: pointer;
   display: flex;
@@ -1491,15 +2151,12 @@ const ChoiceCard = styled.button`
 
 const ChoiceLeft = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const ChoiceRight = styled.div`
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
-
-
-
 
 const PickRow = styled.div`
   padding: 12px 12px;
@@ -1508,12 +2165,13 @@ const PickRow = styled.div`
   justify-content: space-between;
   gap: 12px;
   cursor: pointer;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
 
   &:hover {
-    background: #f8fafc;
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? theme.colors.surface : "#f8fafc"};
   }
 `;
 
@@ -1540,7 +2198,7 @@ const PickText = styled.div`
 
 const PickName = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1548,15 +2206,16 @@ const PickName = styled.div`
 
 const PickMeta = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const AvatarBtn = styled.button`
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
   overflow: hidden;
   padding: 0;
   display: grid;
@@ -1575,7 +2234,7 @@ const RadioOuter = styled.div`
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  border: 2px solid #d1d5db;
+  border: 2px solid ${({ theme }) => theme.colors.border};
   display: grid;
   place-items: center;
 `;
@@ -1584,18 +2243,18 @@ const RadioInner = styled.div`
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
 `;
 
 const InviteSectionTitle = styled.div`
   margin-top: 8px;
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const InviteEmpty = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   padding: 10px 2px;
 `;
 
@@ -1606,9 +2265,9 @@ const InviteList = styled.div`
 `;
 
 const InviteRow = styled.div`
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 10px 12px;
   display: flex;
   align-items: center;
@@ -1628,8 +2287,9 @@ const InviteAvatarWrap = styled.div`
   height: 34px;
   border-radius: 999px;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -1650,7 +2310,7 @@ const InviteText = styled.div`
 
 const InviteName = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1658,12 +2318,12 @@ const InviteName = styled.div`
 
 const InviteMeta = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const InviteMsgLine = styled.div`
   font-size: 11px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1675,35 +2335,91 @@ const InviteRight = styled.div`
 
 const InviteStatus = styled.div`
   font-size: 11px;
-  color: #4f46e5;
-  background: rgba(79, 70, 229, 0.12);
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "rgba(99,102,241,0.18)"
+      : "rgba(79, 70, 229, 0.12)"};
   padding: 4px 8px;
   border-radius: 999px;
 `;
 
-// ✅ 4) styled-components 제일 아래에 추가
-const BottomDangerArea = styled.div`
-  margin-top: 18px;
+const LineButton = styled.button`
+  width: 100%;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  padding: 12px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 `;
 
-const DangerButton = styled.button`
-  width: 100%;
-  height: 44px;
-  border-radius: 12px;
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 14px;
-  cursor: pointer;
+const LineLeft = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+`;
 
-  &:active {
-    transform: translateY(1px);
-    opacity: 0.95;
-  }
+const LineTitle = styled.div`
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const LineSub = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const LineRight = styled.div`
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+
+const KickBtn = styled.button`
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid
+    ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(248,113,113,0.45)" : "#fecaca"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(248,113,113,0.16)" : "#fff1f2"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fca5a5" : "#be123c")};
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.55;
     cursor: not-allowed;
   }
 `;
 
+const RegionSelectBtn = styled.button`
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  padding: 0 12px;
+  font-size: 13px;
+  outline: none;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: ${({ $muted, theme }) =>
+    $muted ? theme.colors.textWeak : theme.colors.textStrong};
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.12);
+  }
+`;

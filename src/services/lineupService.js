@@ -85,7 +85,7 @@ function defaultNameByKey(teamName, matchSizeKey) {
 /**
  * ✅ lineups 업서트
  * - clubs/{clubId}.lineups 배열에서 id로 찾고 있으면 replace, 없으면 push
- * - name 비어있으면 기본 이름 부여
+ * - ✅ name 비어있으면 저장 금지(throw)  ← SSOT
  * - memberIds는 matchSizeKey 인원수로 컷(초과 저장 방지)
  */
 export async function upsertClubLineup({ clubId, lineupDraft, teamName = "" }) {
@@ -102,7 +102,12 @@ export async function upsertClubLineup({ clubId, lineupDraft, teamName = "" }) {
   const need = needCountByKey(matchSizeKey);
 
   const fixedId = draft.id || `lu_${Date.now()}`;
-  const fixedName = draft.name || defaultNameByKey(teamName || club.name, matchSizeKey);
+
+  // ✅ 이름 비어있으면 저장 금지 (UI에서 막더라도 서비스에서 2차 방어)
+  const fixedName = String(draft.name || "").trim();
+  if (!fixedName) {
+    throw new Error("라인업 이름이 필요합니다.");
+  }
 
   const fixed = {
     id: fixedId,

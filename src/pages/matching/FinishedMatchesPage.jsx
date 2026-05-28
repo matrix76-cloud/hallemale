@@ -39,10 +39,10 @@ const Inner = styled.div`
 `;
 
 const SectionCard = styled.div`
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
   padding: 14px 14px 16px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -85,7 +85,8 @@ const TeamLogoWrap = styled.div`
   height: 36px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex: 0 0 auto;
 `;
 
@@ -97,7 +98,7 @@ const TeamLogo = styled.img`
 
 const TeamName = styled.div`
   font-size: 14px;
-  color: ${({ theme }) => theme.colors.textStrong || "#111827"};
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -105,7 +106,7 @@ const TeamName = styled.div`
 
 const Vs = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ScoreHero = styled.div`
@@ -118,13 +119,13 @@ const ScoreHero = styled.div`
 
 const ScoreNum = styled.div`
   font-size: 30px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   letter-spacing: -0.02em;
 `;
 
 const ScoreSep = styled.div`
   font-size: 18px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Thumb = styled.div`
@@ -132,7 +133,8 @@ const Thumb = styled.div`
   aspect-ratio: 4 / 5;
   border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const ThumbImg = styled.img`
@@ -151,7 +153,7 @@ const ActionsRow = styled.div`
 const DetailBtn = styled.button`
   border: none;
   border-radius: 999px;
-  background: ${({ theme }) => theme.colors.primary || "#2563eb"};
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 13px;
   padding: 10px 14px;
@@ -172,7 +174,7 @@ const LoadMoreRow = styled.div`
 const LoadMoreBtn = styled.button`
   border: none;
   border-radius: 999px;
-  background: ${({ theme }) => theme.colors.primary || "#2563eb"};
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 13px;
   padding: 10px 14px;
@@ -184,33 +186,33 @@ const LoadMoreBtn = styled.button`
 `;
 
 const EmptyCard = styled.div`
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
   padding: 18px 14px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  color: ${({ theme }) => theme.colors.textWeak};
   font-size: 13px;
   text-align: center;
 `;
 
 const ErrorCard = styled.div`
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
   padding: 18px 14px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
-  color: #ef4444;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  color: ${({ theme }) => theme.colors.danger};
   font-size: 13px;
   line-height: 1.5;
 `;
 
 const MetaLine = styled.div`
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const MetaLineStrong = styled.div`
   font-size: 14px;
-  color: ${({ theme }) => theme.colors.textStrong || "#111827"};
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 export default function FinishedMatchesPage() {

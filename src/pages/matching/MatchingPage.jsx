@@ -16,7 +16,6 @@ import Spinner from "../../components/common/Spinner";
 import { useMatchingData } from "../../hooks/useMatchingData";
 import { useAuth } from "../../hooks/useAuth";
 
-
 /* ==================== 상수/헬퍼 ==================== */
 
 const MATCH_SIZES = [
@@ -83,6 +82,25 @@ function calcWinRatePercentFromTeam(t) {
   return Math.round((wins / total) * 100);
 }
 
+function safeStr(v) {
+  return String(v || "").trim();
+}
+
+function buildRegionLabelFromValue(v) {
+  const s = safeStr(v?.sido);
+  const g = safeStr(v?.gu);
+  const merged = `${s} ${g}`.trim();
+  return merged;
+}
+
+function parseRegionLabelToValue(label) {
+  const x = safeStr(label);
+  if (!x) return { sido: "", gu: "" };
+  const parts = x.split(" ").filter(Boolean);
+  if (parts.length <= 1) return { sido: parts[0] || "", gu: "" };
+  return { sido: parts[0] || "", gu: parts.slice(1).join(" ") || "" };
+}
+
 /* ==================== Styled ==================== */
 
 const Wrap = styled.div`
@@ -132,7 +150,7 @@ const MyLineupTitle = styled.h2`
 const MyLineupSub = styled.p`
   margin: 0;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const MyLineupListRow = styled.div`
@@ -145,21 +163,27 @@ const MyLineupListRow = styled.div`
 const LineupCard = styled.button`
   flex: 1 1 calc(50% - 8px);
   min-width: 0;
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 10px 12px;
   border: 1px solid
     ${({ "data-active": active, theme }) =>
-      active ? theme.colors.primary : theme.colors.border || "#e5e7eb"};
-  background: ${({ "data-active": active }) =>
-    active ? "rgba(59,130,246,0.12)" : "#f5f7ff"};
+      active ? theme.colors.primary : theme.colors.border};
+  background: ${({ "data-active": active, theme }) =>
+    active
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "rgba(59,130,246,0.12)"
+      : theme.mode === "dark"
+        ? theme.colors.surface
+        : "#f5f7ff"};
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   cursor: pointer;
   position: relative;
-  box-shadow: ${({ "data-active": active }) =>
-    active ? "0 8px 20px rgba(15,23,42,0.12)" : "0 3px 10px rgba(15,23,42,0.04)"};
+  box-shadow: ${({ "data-active": active, theme }) =>
+    active ? theme.shadows.card : "none"};
 `;
 
 const LineupDeleteBtn = styled.button`
@@ -169,9 +193,9 @@ const LineupDeleteBtn = styled.button`
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #ffffff;
-  color: #111827;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -195,21 +219,22 @@ const LineupName = styled.div`
 
 const LineupMeta = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#4b5563"};
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const LineupMetaSmall = styled.div`
   margin-top: 2px;
   font-size: 10px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const NewLineupCard = styled.button`
   flex: 1 1 calc(50% - 8px);
   min-width: 0;
-  border-radius: 14px;
-  border: 1px dashed ${({ theme }) => theme.colors.border || "#d4d4d8"};
-  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -222,23 +247,25 @@ const NewLineupCard = styled.button`
 const NewLineupPlus = styled.span`
   font-size: 18px;
   line-height: 1;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const NewLineupText = styled.span`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const InfoWarn = styled.div`
   padding: 0 16px;
   font-size: 12px;
-  color: #ef4444;
+  color: ${({ theme }) => theme.colors.danger};
 `;
 
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.35);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.35)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -249,10 +276,10 @@ const ModalCard = styled.div`
   width: 94%;
   max-width: 420px;
   max-height: 90vh;
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 16px 16px 20px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.3);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -263,6 +290,7 @@ const ModalHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
 `;
 
 const LineupNameInput = styled.input`
@@ -282,15 +310,211 @@ const ModalClose = styled.button`
   background: none;
   font-size: 18px;
   cursor: pointer;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
-/* ... (중략: 형이 준 나머지 스타일/로직은 그대로 두면 됨) */
+const ModalBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const BlockTitle = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const BlockRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+const SegBtn = styled.button`
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ "data-active": a, theme }) =>
+    a
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "rgba(59,130,246,0.12)"
+      : theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+`;
+
+const MemberPickBtn = styled.button`
+  width: 100%;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+`;
+
+const MemberPickHint = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const MemberPreviewRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+const MemberChip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+`;
+
+const Avatar = styled.div`
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "rgba(255,255,255,0.06)"
+      : "rgba(15, 23, 42, 0.06)"};
+  overflow: hidden;
+  flex: 0 0 26px;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`;
+
+const MemberName = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const MemberPos = styled.div`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const RegionBtn = styled.button`
+  width: 100%;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const RegionText = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const RegionHint = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const ModalFooter = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+`;
+
+const GhostBtn = styled.button`
+  flex: 1;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  padding: 12px 14px;
+  font-size: 13px;
+  cursor: pointer;
+`;
+
+const PrimaryBtn = styled.button`
+  flex: 1;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primary};
+  color: #ffffff;
+  padding: 12px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  opacity: ${({ disabled }) => (disabled ? 0.5 : 1)};
+`;
+
+const MemberList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const MemberRow = styled.button`
+  width: 100%;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ "data-selected": s, theme }) =>
+    s
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "rgba(59,130,246,0.10)"
+      : theme.colors.card};
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+`;
+
+const CheckDot = styled.div`
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid ${({ theme }) => theme.colors.border};
+  background: ${({ "data-on": on, theme }) =>
+    on ? theme.colors.primary : theme.colors.card};
+`;
+
+const MemberRowMeta = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const MemberRowName = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const MemberRowSub = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
 
 const StateWrap = styled.div`
   padding: 32px 16px;
   text-align: center;
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 /* ==================== 컴포넌트 ==================== */
@@ -305,7 +529,6 @@ export default function MatchingPage() {
     opponentTeams,
     loading: matchingLoading,
     preloadMatchingHomeData,
-    // ✅ matches가 없다면 훅에서 추가해줘야 함(아래 계산은 안전하게 처리)
     matches,
   } = useMatchingData();
 
@@ -330,6 +553,7 @@ export default function MatchingPage() {
   const [draft, setDraft] = useState(filters);
 
   const [deleteBusyId, setDeleteBusyId] = useState("");
+  const [saveBusy, setSaveBusy] = useState(false);
 
   useEffect(() => {
     if (clubLoading) return;
@@ -380,30 +604,18 @@ export default function MatchingPage() {
     [lineups, activeLineupId]
   );
 
-  // ✅ 팀장만 삭제 가능: ownerUid 기반
   const isCaptain = useMemo(() => {
-
-
-    // userDoc가 내 users/{uid}라고 가정
     const isFlag = userDoc?.isTeamCaptain === true || userDoc?.isCaptain === true;
-
-    // 이 팀의 팀장인지까지 확인(팀 컨텍스트가 있을 때)
     const myClubId = String(userDoc?.clubId || userDoc?.activeTeamId || "").trim();
     const currentClubId = String(activeTeamId || "").trim();
-
     if (!currentClubId) return false;
-
     return isFlag && myClubId === currentClubId;
   }, [userDoc, activeTeamId]);
 
-  // ✅ 진행/예정 경기에서 사용 중인 라인업이면 삭제 금지
   const blockedLineupIdSet = useMemo(() => {
     const set = new Set();
     const list = Array.isArray(matches) ? matches : [];
 
-    // match 구조를 모르는 상태라 "가능한 필드들"을 안전하게 체크
-    // - status: pending/confirmed
-    // - lineupId: match.lineupId or match.myLineupId or match.homeLineupId
     for (const m of list) {
       const status = String(m?.status || m?.phase || "").toLowerCase();
       const active = status === "pending" || status === "confirmed";
@@ -539,12 +751,134 @@ export default function MatchingPage() {
 
   const openLineupEditor = (lu) => {
     if (lineupBlockedMsg) return alert(lineupBlockedMsg);
-    setDraftLineup(null);
-    setActiveLineupId(lu.id);
+
+    const key = safeStr(lu?.matchSizeKey) || "5v5";
+    const ids = Array.isArray(lu?.memberIds) ? lu.memberIds.map(safeStr).filter(Boolean) : [];
+    const name = safeStr(lu?.name);
+    const regionLabel = safeStr(lu?.regionLabel);
+
+    setDraftLineup(lu || null);
+    setActiveLineupId(lu?.id || null);
+    setMatchSize(pickMatchSizeByKey(key));
+    setSelectedMemberIds(ids.slice(0, needCountByKey(key)));
+    setLineupNameDraft(name);
+    setRegionValue(parseRegionLabelToValue(regionLabel));
     setShowLineupModal(true);
   };
 
-  // ✅ early return은 hook 이후
+  const needCount = useMemo(() => needCountByKey(matchSize?.key), [matchSize]);
+
+  useEffect(() => {
+    setSelectedMemberIds((prev) => {
+      const arr = Array.isArray(prev) ? prev : [];
+      return arr.slice(0, needCount);
+    });
+  }, [needCount]);
+
+  const selectedMembers = useMemo(() => {
+    const set = new Set((selectedMemberIds || []).map((x) => safeStr(x)).filter(Boolean));
+    const base = Array.isArray(myMembers) ? myMembers : [];
+    return base.filter((m) => set.has(safeStr(m?.userId || m?.uid || m?.id)));
+  }, [myMembers, selectedMemberIds]);
+
+  const handleToggleMember = (uid) => {
+    const id = safeStr(uid);
+    if (!id) return;
+
+    setSelectedMemberIds((prev) => {
+      const arr = Array.isArray(prev) ? prev.slice() : [];
+      const idx = arr.findIndex((x) => safeStr(x) === id);
+
+      if (idx >= 0) {
+        arr.splice(idx, 1);
+        return arr;
+      }
+
+      if (arr.length >= needCount) {
+        alert(`현재 ${matchSize?.label || ""} 라인업은 최대 ${needCount}명까지 선택할 수 있어요.`);
+        return arr;
+      }
+
+      arr.push(id);
+      return arr;
+    });
+  };
+
+  const closeLineupModal = () => {
+    setShowLineupModal(false);
+    setShowMemberModal(false);
+    setShowRegionSheet(false);
+    setSaveBusy(false);
+  };
+
+  const handlePickRegion = (next) => {
+    const v = next && typeof next === "object" ? next : { sido: "", gu: "" };
+    setRegionValue({ sido: safeStr(v.sido), gu: safeStr(v.gu) });
+    setShowRegionSheet(false);
+  };
+
+  const handleSaveLineup = async () => {
+    if (!activeTeamId) return;
+    if (saveBusy) return;
+
+    const msKey = safeStr(matchSize?.key) || "5v5";
+    const need = needCountByKey(msKey);
+
+    const ids = (selectedMemberIds || []).map(safeStr).filter(Boolean);
+    if (ids.length !== need) {
+      alert(`${matchSize?.label || ""} 라인업은 ${need}명을 정확히 선택해야 저장할 수 있습니다.`);
+      return;
+    }
+
+    // ✅ 이름이 비어있으면 저장 금지 (기본값 자동 주입 제거)
+    const nameInput = safeStr(lineupNameDraft);
+    if (!nameInput) {
+      alert("라인업 이름을 입력해주세요.");
+      return;
+    }
+
+    const regionLabel = buildRegionLabelFromValue(regionValue);
+
+    const isVirtual = !!draftLineup?.isVirtual || String(draftLineup?.id || "") === "lu_virtual_default";
+
+    const draft = {
+      id: isVirtual ? "" : safeStr(draftLineup?.id || activeLineupId),
+      name: nameInput,
+      matchSizeKey: msKey,
+      memberIds: ids.slice(0, need),
+      regionLabel: regionLabel,
+    };
+
+    try {
+      setSaveBusy(true);
+
+      const res = await upsertClubLineup({
+        clubId: activeTeamId,
+        lineupDraft: draft,
+        teamName: myTeam?.name || "",
+      });
+
+      const nextLineups = Array.isArray(res?.lineups) ? res.lineups : [];
+      const mapped = nextLineups.map((l, idx) => ({
+        id: String(l.id || `lu-${idx}`),
+        name: String(l.name || "라인업").trim() || "라인업",
+        memberIds: Array.isArray(l.memberIds) ? l.memberIds : [],
+        regionLabel: String(l.regionLabel || "").trim(),
+        matchSizeKey: String(l.matchSizeKey || "5v5"),
+        isVirtual: false,
+      }));
+
+      setLineups(mapped);
+      setActiveLineupId(res?.lineup?.id || mapped[0]?.id || null);
+      setDraftLineup(null);
+      setShowLineupModal(false);
+    } catch (e) {
+      alert(e?.message || "라인업 저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaveBusy(false);
+    }
+  };
+
   if (clubLoading) {
     return (
       <Wrap>
@@ -653,12 +987,143 @@ export default function MatchingPage() {
         />
       </Inner>
 
-      {/* 이하: 형이 준 모달/멤버/리전 시트 로직은 그대로 유지 */}
+      {showLineupModal ? (
+        <Overlay onClick={closeLineupModal}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <LineupNameInput
+                value={lineupNameDraft}
+                onChange={(e) => setLineupNameDraft(e.target.value)}
+                placeholder="라인업 이름"
+              />
+              <ModalClose type="button" onClick={closeLineupModal} aria-label="닫기">
+                ×
+              </ModalClose>
+            </ModalHeader>
+
+            <ModalBody>
+              <BlockTitle>매치 인원</BlockTitle>
+              <BlockRow>
+                {MATCH_SIZES.map((m) => (
+                  <SegBtn
+                    key={m.key}
+                    type="button"
+                    data-active={m.key === matchSize?.key}
+                    onClick={() => setMatchSize(m)}
+                  >
+                    {m.label}
+                  </SegBtn>
+                ))}
+              </BlockRow>
+
+              <BlockTitle>선수 선택</BlockTitle>
+              <MemberPickBtn type="button" onClick={() => setShowMemberModal(true)}>
+                <MemberPickHint>
+                  {selectedMemberIds.length}/{needCount}명 선택됨
+                </MemberPickHint>
+                <div>선택하기</div>
+              </MemberPickBtn>
+
+              {selectedMembers.length > 0 ? (
+                <MemberPreviewRow>
+                  {selectedMembers.map((m) => {
+                    const uid = safeStr(m?.userId || m?.uid || m?.id);
+                    const nickname = safeStr(m?.nickname || m?.name) || "선수";
+                    const photoUrl = safeStr(m?.photoUrl || m?.avatarUrl || m?.profileUrl);
+                    const pos = safeStr(m?.mainPosition);
+
+                    return (
+                      <MemberChip key={uid}>
+                        <Avatar>{photoUrl ? <img src={photoUrl} alt="" /> : null}</Avatar>
+                        <div>
+                          <MemberName>{nickname}</MemberName>
+                          <MemberPos>{POSITION_LABEL[pos] || ""}</MemberPos>
+                        </div>
+                      </MemberChip>
+                    );
+                  })}
+                </MemberPreviewRow>
+              ) : (
+                <MemberPickHint>아래에서 선수들을 선택해 주세요.</MemberPickHint>
+              )}
+
+              <BlockTitle>활동 지역</BlockTitle>
+              <RegionBtn type="button" onClick={() => setShowRegionSheet(true)}>
+                <div>
+                  <RegionText>{buildRegionLabelFromValue(regionValue) || "미선택"}</RegionText>
+                  <RegionHint>지역을 선택하면 매칭 품질이 좋아져요</RegionHint>
+                </div>
+                <div>선택</div>
+              </RegionBtn>
+
+              <ModalFooter>
+                <GhostBtn type="button" onClick={closeLineupModal}>
+                  취소
+                </GhostBtn>
+                <PrimaryBtn type="button" onClick={handleSaveLineup} disabled={saveBusy}>
+                  {saveBusy ? "저장 중..." : "저장"}
+                </PrimaryBtn>
+              </ModalFooter>
+            </ModalBody>
+          </ModalCard>
+        </Overlay>
+      ) : null}
+
+      {showMemberModal ? (
+        <Overlay onClick={() => setShowMemberModal(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <BlockTitle>
+                선수 선택 ({selectedMemberIds.length}/{needCount})
+              </BlockTitle>
+              <ModalClose type="button" onClick={() => setShowMemberModal(false)} aria-label="닫기">
+                ×
+              </ModalClose>
+            </ModalHeader>
+
+            <MemberList>
+              {(myMembers || []).map((m) => {
+                const uid = safeStr(m?.userId || m?.uid || m?.id);
+                const nickname = safeStr(m?.nickname || m?.name) || "선수";
+                const pos = safeStr(m?.mainPosition);
+                const photoUrl = safeStr(m?.photoUrl || m?.avatarUrl || m?.profileUrl);
+                const selected = (selectedMemberIds || []).some((x) => safeStr(x) === uid);
+
+                return (
+                  <MemberRow
+                    key={uid}
+                    type="button"
+                    data-selected={selected}
+                    onClick={() => handleToggleMember(uid)}
+                  >
+                    <CheckDot data-on={selected} />
+                    <Avatar>{photoUrl ? <img src={photoUrl} alt="" /> : null}</Avatar>
+                    <MemberRowMeta>
+                      <MemberRowName>{nickname}</MemberRowName>
+                      <MemberRowSub>{POSITION_LABEL[pos] || ""}</MemberRowSub>
+                    </MemberRowMeta>
+                  </MemberRow>
+                );
+              })}
+            </MemberList>
+
+            <ModalFooter>
+              <GhostBtn type="button" onClick={() => setShowMemberModal(false)}>
+                닫기
+              </GhostBtn>
+              <PrimaryBtn type="button" onClick={() => setShowMemberModal(false)} disabled={false}>
+                완료
+              </PrimaryBtn>
+            </ModalFooter>
+          </ModalCard>
+        </Overlay>
+      ) : null}
+
       <RegionPickerSheet
         open={showRegionSheet}
         onClose={() => setShowRegionSheet(false)}
         value={regionValue}
-        onPick={() => {}}
+        onPick={handlePickRegion}
         title="활동지역 선택"
       />
     </Wrap>

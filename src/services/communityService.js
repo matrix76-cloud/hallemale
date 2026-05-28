@@ -30,6 +30,7 @@ import {
 } from "firebase/storage";
 
 import { getUserPublicMeta } from "./counterpartService";
+import { getMyBlockList } from "./userBlockService";
 
 function toDate(tsOrIso) {
   if (!tsOrIso) return null;
@@ -90,10 +91,19 @@ export async function loadCommunityList({
 
   const snap = await getDocs(q);
 
+  // 내가 신고/차단한 사용자·게시글 (Apple Guideline 1.2 — 즉시 본인 피드에서 숨김)
+  const { blockedUids: myBlockedUids, hiddenPostIds: myHiddenPostIds } =
+    await getMyBlockList(myUid);
+  const blockedSet = new Set(myBlockedUids);
+  const hiddenSet = new Set(myHiddenPostIds);
+
   const raws = [];
   snap.forEach((d) => {
     const data = d.data() || {};
     if (data.hidden) return; // 어드민이 숨김 처리한 글 제외
+    if (hiddenSet.has(d.id)) return; // 내가 신고/숨김한 게시글
+    const authorUid = String(data.authorUid || data.authorId || "").trim();
+    if (authorUid && blockedSet.has(authorUid)) return; // 내가 차단한 작성자
     raws.push({ id: d.id, ...data });
   });
 
@@ -153,6 +163,16 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
 
   const data = snap.data() || {};
   const authorUid = String(data.authorUid || data.authorId || "").trim();
+
+  // 내가 신고/차단한 사용자·게시글이면 상세 진입 차단 (Apple Guideline 1.2)
+  const { blockedUids: myBlockedUids, hiddenPostIds: myHiddenPostIds } =
+    await getMyBlockList(myUid);
+  const blockedSet = new Set(myBlockedUids);
+  const hiddenSet = new Set(myHiddenPostIds);
+  if (hiddenSet.has(String(postId)) || (authorUid && blockedSet.has(authorUid))) {
+    return { post: null, comments: [], blocked: true };
+  }
+
   const authorMeta = authorUid ? await getUserPublicMeta(authorUid) : { name: "상대", avatar: "" };
 
   const stats = safeStats(data);
@@ -192,7 +212,12 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
   const cs = await getDocs(cq);
 
   const commentRaws = [];
-  cs.forEach((d) => commentRaws.push({ id: d.id, ...d.data() }));
+  cs.forEach((d) => {
+    const cd = d.data() || {};
+    const cAuthor = String(cd.authorUid || cd.authorId || "").trim();
+    if (cAuthor && blockedSet.has(cAuthor)) return; // 내가 차단한 사용자 댓글 숨김
+    commentRaws.push({ id: d.id, ...cd });
+  });
 
   const uniqCommentAuthors = Array.from(
     new Set(commentRaws.map((c) => String(c.authorUid || c.authorId || "").trim()).filter(Boolean))

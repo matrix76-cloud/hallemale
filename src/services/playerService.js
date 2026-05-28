@@ -150,6 +150,12 @@ export async function getPlayerProfile(playerId) {
     stats: u.stats || null,
     recentMatches: Array.isArray(u.recentMatches) ? u.recentMatches : [],
 
+    // 차단 정보 (BlockedOverlay 가드용)
+    blocked: u.blocked === true,
+    blockedReason: u.blockedReason || "",
+    blockedAt: u.blockedAt || null,
+    blockedBy: u.blockedBy || "",
+
     createdAt: u.createdAt || null,
     updatedAt: u.updatedAt || null,
   };

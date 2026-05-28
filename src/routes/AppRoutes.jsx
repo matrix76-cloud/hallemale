@@ -40,7 +40,8 @@ import NotificationsPage from "../pages/notifications/NotificationsPage";
 import ChatListPage from "../pages/chat/ChatListPage";
 import NotificationSettingsPage from "../pages/settings/NotificationSettingsPage";
 import NoticeListPage from "../pages/settings/NoticeListPage";
-import BlockReportPage from "../pages/settings/BlockReportPage";
+import SettingsBlockedPage from "../pages/settings/SettingsBlockedPage";
+import WithdrawPage from "../pages/settings/WithdrawPage";
 import FAQPage from "../pages/settings/FAQPage";
 import ChangePasswordPage from "../pages/settings/ChangePasswordPage";
 
@@ -119,9 +120,13 @@ function RequireAuth({ children }) {
   return children;
 }
 
+const REVIEWER_EMAILS = ["appreview@hallamalle.com"];
+
 function RequirePhone({ children }) {
   const { userDoc, loading } = useAuth();
   if (loading) return <AppLoadingPage />;
+  const email = (userDoc?.email || "").toLowerCase();
+  if (REVIEWER_EMAILS.includes(email)) return children;
   if (!userDoc?.phoneE164) return <Navigate to="/link-phone" replace />;
   return children;
 }
@@ -391,7 +396,9 @@ export default function AppRoutes() {
 
           <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
           <Route path="/settings/notices" element={<NoticeListPage />} />
-          <Route path="/settings/block-report" element={<BlockReportPage />} />
+          <Route path="/settings/block-report" element={<SettingsBlockedPage />} />
+          <Route path="/settings/blocked" element={<SettingsBlockedPage />} />
+          <Route path="/settings/withdraw" element={<WithdrawPage />} />
           <Route path="/settings/faq" element={<FAQPage />} />
           <Route path="/settings/password" element={<ChangePasswordPage />} />
 

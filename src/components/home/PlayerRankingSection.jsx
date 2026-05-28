@@ -1,9 +1,10 @@
-/* eslint-disable */
 // src/components/home/PlayerRankingSection.jsx
-// ✅ 팀장 뱃지 위치: "아바타 이미지 밑"으로 이동 (p.isTeamCaptain === true)
-// ✅ 나머지(왕관/랭킹/카드)는 그대로
+/* eslint-disable */
+// ✅ 홈 섹션: "점수 높은 순" 상위 5명만 먼저 노출
+// ✅ 점수 규칙: 승 +5, 무 +2, 패 +1
+// ✅ 팀장 뱃지 위치: "아바타 이미지 밑" (p.isTeamCaptain === true)
 
-import React from "react";
+import React, { useMemo } from "react";
 import styled, { keyframes, css } from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { images } from "../../utils/imageAssets";
@@ -27,14 +28,14 @@ const SectionTitle = styled.h2`
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
+  font-weight: 600;
 `;
 
 const MoreButton = styled.button`
   border: none;
   background: none;
   padding: 0;
-  color: ${({ theme }) => theme.colors.muted || "#888"};
+  color: ${({ theme }) => theme.colors.textWeak};
   font-size: 13px;
   display: flex;
   align-items: center;
@@ -78,8 +79,9 @@ const RankBadge = styled.div`
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
-  background: rgba(17, 24, 39, 0.06);
-  color: #111827;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255, 255, 255, 0.10)" : "rgba(17, 24, 39, 0.06)"};
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const CrownImg = styled.img`
@@ -106,36 +108,43 @@ const blinkHighlight = keyframes`
   0% {
     border-color: rgba(79, 70, 229, 0);
     box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
-    background-color: #ffffff;
+    background-color: var(--rank-card-bg);
   }
   40% {
     border-color: rgba(79, 70, 229, 0.9);
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
-    background-color: #fef9c3;
+    background-color: var(--rank-highlight-strong);
   }
   60% {
     border-color: rgba(79, 70, 229, 0.4);
     box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.15);
-    background-color: rgba(254, 249, 195, 0.7);
+    background-color: var(--rank-highlight-weak);
   }
   100% {
     border-color: rgba(79, 70, 229, 0);
     box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
-    background-color: #ffffff;
+    background-color: var(--rank-card-bg);
   }
 `;
 
 const PlayerCard = styled.div`
   flex: 1;
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 10px 12px;
   display: flex;
   align-items: center;
   gap: 10px;
 
-  background: #ffffff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-  border: 1px solid transparent;
+  --rank-card-bg: ${({ theme }) => theme.colors.card};
+  --rank-highlight-strong: ${({ theme }) =>
+    theme.mode === "dark" ? "#3a2f0a" : "#fef9c3"};
+  --rank-highlight-weak: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(58, 47, 10, 0.7)" : "rgba(254, 249, 195, 0.7)"};
+
+  background: var(--rank-card-bg);
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
   cursor: pointer;
 
   ${({ $highlight }) =>
@@ -169,7 +178,7 @@ const CaptainPill = styled.span`
   height: 20px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 11px;
   font-weight: 700;
@@ -222,7 +231,8 @@ const TeamLogoWrap = styled.div`
   height: 30px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const TeamLogoImg = styled.img`
@@ -236,6 +246,11 @@ const TeamName = styled.span`
   color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
 `;
+
+function toNum(n, fallback = 0) {
+  const v = Number(n);
+  return Number.isFinite(v) ? v : fallback;
+}
 
 function positionLabel(pos) {
   const p = String(pos || "").trim();
@@ -252,12 +267,41 @@ function rankLabel(rank) {
   return String(rank || "");
 }
 
+function calcPoints(p) {
+  const w = toNum(p?.wins, 0);
+  const d = toNum(p?.draws, 0);
+  const l = toNum(p?.losses, 0);
+  return w * 5 + d * 2 + l * 1;
+}
+
 export default function PlayerRankingSection({ rows = [] }) {
   const nav = useNavigate();
 
-  const handleMore = () => {
-    nav(`/playerranking`);
-  };
+  const topRows = useMemo(() => {
+    const base = Array.isArray(rows) ? rows : [];
+    const sorted = [...base].sort((a, b) => {
+      const pa = calcPoints(a);
+      const pb = calcPoints(b);
+      if (pb !== pa) return pb - pa;
+
+      const wa = toNum(a?.wins, 0);
+      const wb = toNum(b?.wins, 0);
+      if (wb !== wa) return wb - wa;
+
+      const ta = toNum(a?.wins, 0) + toNum(a?.losses, 0) + toNum(a?.draws, 0);
+      const tb = toNum(b?.wins, 0) + toNum(b?.losses, 0) + toNum(b?.draws, 0);
+      if (tb !== ta) return tb - ta;
+
+      const na = String(a?.name || a?.nickname || "").toLowerCase();
+      const nb = String(b?.name || b?.nickname || "").toLowerCase();
+      if (na === nb) return 0;
+      return na > nb ? 1 : -1;
+    });
+
+    return sorted.slice(0, 5).map((r, idx) => ({ ...r, rank: idx + 1 }));
+  }, [rows]);
+
+  const handleMore = () => nav(`/playerranking`);
 
   const handlePlayerClick = (userId) => {
     if (!userId) return;
@@ -269,7 +313,7 @@ export default function PlayerRankingSection({ rows = [] }) {
     nav(`/team/${clubId}`);
   };
 
-  if (!rows.length) return null;
+  if (!topRows.length) return null;
 
   return (
     <SectionWrap>
@@ -281,7 +325,7 @@ export default function PlayerRankingSection({ rows = [] }) {
       </HeaderRow>
 
       <ListWrap>
-        {rows.map((p, index) => {
+        {topRows.map((p, index) => {
           const rank = p.rank || index + 1;
           const showCrown = rank <= 3;
 
@@ -300,7 +344,7 @@ export default function PlayerRankingSection({ rows = [] }) {
           const highlight = isTop1 || isTop3;
 
           return (
-            <RowWrap key={`${p.userId}-${rank}`}>
+            <RowWrap key={`${p.userId || index}-${rank}`}>
               <RankCell>
                 {showCrown ? (
                   <RankBadge>
@@ -332,7 +376,7 @@ export default function PlayerRankingSection({ rows = [] }) {
                   </NameRow>
 
                   <StatRow>
-                    {p.wins || 0}승 {p.losses || 0}패 {p.draws || 0}무
+                    {toNum(p.wins, 0)}승 {toNum(p.losses, 0)}패 {toNum(p.draws, 0)}무
                   </StatRow>
                 </PlayerMeta>
 

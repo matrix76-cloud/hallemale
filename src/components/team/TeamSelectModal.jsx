@@ -276,7 +276,8 @@ export default function TeamSelectModal({
 const Dim = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
   display: grid;
   place-items: center;
   z-index: 9999;
@@ -285,10 +286,10 @@ const Dim = styled.div`
 
 const Sheet = styled.div`
   width: min(520px, 94vw);
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 18px 18px 16px;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 `;
 
 const HeaderRow = styled.div`
@@ -300,7 +301,7 @@ const HeaderRow = styled.div`
 
 const HeaderTitle = styled.div`
   font-size: 18px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const CloseBtn = styled.button`
@@ -308,26 +309,28 @@ const CloseBtn = styled.button`
   background: transparent;
   padding: 6px;
   cursor: pointer;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const HeaderSub = styled.div`
   margin-top: 10px;
   font-size: 13px;
   line-height: 1.45;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: pre-line;
 `;
 
 const SearchWrap = styled.div`
   margin-top: 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
   padding: 10px 12px;
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
 `;
 
 const SearchInput = styled.input`
@@ -335,11 +338,11 @@ const SearchInput = styled.input`
   outline: none;
   width: 100%;
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   background: transparent;
 
   &::placeholder {
-    color: #9ca3af;
+    color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
 
@@ -349,19 +352,20 @@ const SelectRow = styled.div`
 
 const Select = styled.select`
   width: 100%;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
   padding: 10px 12px;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   outline: none;
 `;
 
 const ListWrap = styled.div`
   margin-top: 12px;
-  border: 1px solid #eef2f7;
-  border-radius: 14px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
   overflow: hidden;
   max-height: min(340px, 50vh);
   overflow-y: auto;
@@ -370,7 +374,8 @@ const ListWrap = styled.div`
 const EmptyText = styled.div`
   padding: 18px 14px;
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
+  background: ${({ theme }) => theme.colors.card};
 `;
 
 const TeamRow = styled.div`
@@ -380,11 +385,12 @@ const TeamRow = styled.div`
   justify-content: space-between;
   gap: 12px;
   cursor: pointer;
-  background: #ffffff;
-  border-bottom: 1px solid #f1f5f9;
+  background: ${({ theme }) => theme.colors.card};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 
   &:hover {
-    background: #f8fafc;
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? theme.colors.surface : "#f8fafc"};
   }
 
   &:last-child {
@@ -404,7 +410,8 @@ const LogoWrap = styled.div`
   height: 44px;
   border-radius: 999px;
   overflow: hidden;
-  background: #f3f4f6;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
   flex: 0 0 auto;
 `;
 
@@ -423,7 +430,7 @@ const TeamText = styled.div`
 
 const TeamName = styled.div`
   font-size: 15px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -431,7 +438,7 @@ const TeamName = styled.div`
 
 const TeamMeta = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const TeamRight = styled.div`
@@ -443,7 +450,7 @@ const TeamRight = styled.div`
 
 const RegionText = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
 `;
 
@@ -451,7 +458,7 @@ const RadioOuter = styled.div`
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  border: 2px solid #d1d5db;
+  border: 2px solid ${({ theme }) => theme.colors.border};
   display: grid;
   place-items: center;
 `;
@@ -460,29 +467,30 @@ const RadioInner = styled.div`
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
 `;
 
 const MessageTitle = styled.div`
   margin-top: 14px;
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const MessageBox = styled.textarea`
   margin-top: 8px;
   width: 100%;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   outline: none;
   resize: none;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
 
   &::placeholder {
-    color: #9ca3af;
+    color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
 
@@ -494,9 +502,9 @@ const BottomRow = styled.div`
 
 const GhostBtn = styled.button`
   flex: 1;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #111827;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   border-radius: 999px;
   padding: 12px 14px;
   cursor: pointer;
@@ -505,7 +513,7 @@ const GhostBtn = styled.button`
 const PrimaryBtn = styled.button`
   flex: 1.2;
   border: none;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   border-radius: 999px;
   padding: 12px 14px;

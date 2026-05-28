@@ -34,8 +34,9 @@ const DateDivider = styled.div`
   margin: 10px auto;
   padding: 6px 14px;
   border-radius: 999px;
-  background: #e5e7eb;
-  color: #6b7280;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
   font-size: 12px;
 `;
 
@@ -59,7 +60,8 @@ const AvatarMini = styled.img`
   height: 36px;
   border-radius: 999px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const OpponentName = styled.div`
@@ -80,18 +82,19 @@ const OpponentBubbleCol = styled.div`
 const OpponentBubble = styled.div`
   max-width: 72%;
   padding: 8px 12px;
-  border-radius: 18px;
+  border-radius: 8px;
   border-bottom-left-radius: 4px;
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-line;
-  background: #f3f4f6;
-  color: #111827;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
+  color: ${({ theme }) => theme.colors.textStrong || "#111827"};
 `;
 
 const OpponentTime = styled.span`
   font-size: 10px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak || "#9ca3af"};
 `;
 
 const MyRow = styled.div`
@@ -110,13 +113,15 @@ const MyBubbleCol = styled.div`
 
 const MyBubble = styled.div`
   padding: 8px 12px;
-  border-radius: 18px;
+  border-radius: 8px;
   border-bottom-right-radius: 4px;
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-line;
-  background: #e7efff;
-  color: #111827;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.22)" : "#e7efff"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#e5e7eb" : "#111827"};
 `;
 
 const MyMetaRow = styled.div`
@@ -132,7 +137,7 @@ const MyLabel = styled.span`
 
 const MyTime = styled.span`
   font-size: 10px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak || "#9ca3af"};
 `;
 
 const ImageGrid = styled.div`
@@ -146,24 +151,27 @@ const ImgItem = styled.img`
   width: 180px;
   max-width: 52vw;
   height: auto;
-  border-radius: 12px;
+  border-radius: 8px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const ImgItemSmall = styled.img`
   width: 140px;
   max-width: 46vw;
   height: auto;
-  border-radius: 12px;
+  border-radius: 8px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const InputBar = styled.div`
   padding: 8px 12px 12px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-top: 1px solid ${({ theme }) => theme.colors.border || "#e5e7eb"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.card : "#f9fafb"};
   display: flex;
   align-items: center;
   gap: 8px;
@@ -174,27 +182,30 @@ const PlusButton = styled.button`
   height: 28px;
   border-radius: 999px;
   border: none;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   font-size: 18px;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
   cursor: pointer;
 `;
 
 const Input = styled.input`
   flex: 1;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme.colors.border || "#e5e7eb"};
   padding: 8px 12px;
   font-size: 13px;
   outline: none;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
+  color: ${({ theme }) => theme.colors.textStrong || "#111827"};
 
   &::placeholder {
-    color: ${({ theme }) => theme.colors.muted || "#b0b0b0"};
+    color: ${({ theme }) => theme.colors.textWeak || "#b0b0b0"};
   }
 `;
 
@@ -204,7 +215,11 @@ const SendButton = styled.button`
   padding: 8px 16px;
   font-size: 13px;
   background: ${({ theme, disabled }) =>
-    disabled ? "#d1d5db" : theme.colors.primary || "#2563eb"};
+    disabled
+      ? theme.mode === "dark"
+        ? theme.colors.surface
+        : "#d1d5db"
+      : theme.colors.primary || "#2563eb"};
   color: #ffffff;
   cursor: ${({ disabled }) => (disabled ? "default" : "pointer")};
 `;

@@ -52,17 +52,21 @@ const Label = styled.label`
 
 const LabelSub = styled.span`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors?.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
 `;
 
 const RequiredMark = styled.span`
   font-size: 12px;
-  color: #ef4444;
+  color: ${({ theme }) => theme.colors?.danger || "#ef4444"};
 `;
 
 const TitleInput = styled.input`
-  border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.08)"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#ffffff"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
   padding: 8px 10px;
   font-size: 13px;
   outline: none;
@@ -73,8 +77,12 @@ const TitleInput = styled.input`
 `;
 
 const ContentTextarea = styled.textarea`
-  border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.08)"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#ffffff"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
   padding: 8px 10px;
   font-size: 13px;
   min-height: 420px;
@@ -88,10 +96,12 @@ const ContentTextarea = styled.textarea`
 `;
 
 const ImageBox = styled.div`
-  border-radius: 10px;
-  border: 1px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  border: 1px dashed ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.12)"};
   padding: 12px;
-  background: #f9fafb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#f9fafb"};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -105,7 +115,7 @@ const ImageInfo = styled.div`
 
 const ImageText = styled.span`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors?.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
 `;
 
 const ImageSelectButton = styled.button`
@@ -114,7 +124,9 @@ const ImageSelectButton = styled.button`
   border: none;
   padding: 6px 10px;
   font-size: 12px;
-  background: rgba(0, 0, 0, 0.04);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0, 0, 0, 0.04)"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
   cursor: pointer;
 
   &:active {
@@ -141,9 +153,10 @@ const PreviewItem = styled.div`
   position: relative;
   width: 100%;
   padding-top: 100%;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#e5e7eb"};
 `;
 
 const PreviewImg = styled.div`
@@ -161,8 +174,11 @@ const RemoveMini = styled.button`
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.08)"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.7)" : "rgba(255, 255, 255, 0.95)"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
   font-size: 13px;
   cursor: pointer;
 
@@ -181,8 +197,9 @@ const SubmitBar = styled.div`
   width: 100%;
   max-width: 480px;
   padding: 8px 12px 12px;
-  background: #ffffff;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  background: ${({ theme }) => theme.colors?.card || "#ffffff"};
+  border-top: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.04)"};
 `;
 
 const SubmitButton = styled.button`

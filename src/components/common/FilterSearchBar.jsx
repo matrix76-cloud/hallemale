@@ -6,7 +6,7 @@ import { FiSearch, FiFilter } from "react-icons/fi";
 
 const Wrap = styled.div`
   margin: ${({ $noMargin }) => ($noMargin ? "0" : "0 16px")};
-  border-radius: 14px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -18,7 +18,9 @@ const SearchBox = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   border-radius: 999px;
   padding: 8px 10px;
 `;
@@ -28,12 +30,19 @@ const SearchInput = styled.input`
   min-width: 0;
   border: none;
   outline: none;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 13px;
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
+  }
 `;
 
 const FilterBtn = styled.button`
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   border-radius: 999px;
   padding: 8px 12px;
   font-size: 13px;
@@ -52,7 +61,7 @@ const CountBadge = styled.span`
   height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 11px;
   display: inline-flex;

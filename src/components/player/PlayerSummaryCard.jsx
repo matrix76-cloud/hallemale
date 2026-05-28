@@ -4,10 +4,10 @@ import React from "react";
 import styled, { css } from "styled-components";
 
 const Card = styled.section`
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 16px;
-  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -23,13 +23,14 @@ const Avatar = styled.div`
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #f3f4f6;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
   overflow: hidden;
   flex-shrink: 0;
   display: grid;
   place-items: center;
   font-size: 13px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const AvatarImg = styled.img`
@@ -54,20 +55,21 @@ const NameRow = styled.div`
 const Name = styled.div`
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const Badge = styled.span`
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eff6ff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#1d4ed8")};
 `;
 
 const Location = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const TeamChipRow = styled.div`
@@ -78,8 +80,9 @@ const TeamChipRow = styled.div`
 
 const TeamChip = styled.button`
   border: none;
-  background: #fff7ed;
-  color: #c2410c;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(251,146,60,0.16)" : "#fff7ed"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fdba74" : "#c2410c")};
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 11px;
@@ -94,7 +97,8 @@ const TeamLogo = styled.div`
   height: 20px;
   border-radius: 999px;
   overflow: hidden;
-  background: #fee2e2;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(248,113,113,0.16)" : "#fee2e2"};
   display: grid;
   place-items: center;
   font-size: 10px;
@@ -117,29 +121,30 @@ const TagChip = styled.span`
   padding: 4px 10px;
   border-radius: 999px;
 
-  ${({ tone }) => {
+  ${({ tone, theme }) => {
+    const dark = theme.mode === "dark";
     if (tone === "primary") {
       return css`
-        background: #e0ebff;
-        color: #1d4ed8;
+        background: ${dark ? "rgba(99,102,241,0.18)" : "#e0ebff"};
+        color: ${dark ? "#a5b4fc" : "#1d4ed8"};
       `;
     }
     if (tone === "outline") {
       return css`
-        border: 1px solid #e5e7eb;
-        background: #ffffff;
-        color: #4b5563;
+        border: 1px solid ${theme.colors.border};
+        background: ${theme.colors.card};
+        color: ${theme.colors.textNormal};
       `;
     }
     if (tone === "danger") {
       return css`
-        background: #fee2e2;
-        color: #b91c1c;
+        background: ${dark ? "rgba(248,113,113,0.16)" : "#fee2e2"};
+        color: ${dark ? "#fca5a5" : "#b91c1c"};
       `;
     }
     return css`
-      background: #f3f4f6;
-      color: #4b5563;
+      background: ${dark ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+      color: ${theme.colors.textNormal};
     `;
   }}
 `;

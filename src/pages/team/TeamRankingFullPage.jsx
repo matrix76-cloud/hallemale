@@ -28,7 +28,7 @@ const Inner = styled.div`
 `;
 
 const Card = styled.div`
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
   padding: 4px 0;
   display: flex;
@@ -63,7 +63,8 @@ const LogoWrap = styled.div`
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   border-radius: 8px;
 `;
 
@@ -81,7 +82,7 @@ const RankBadge = styled.div`
   bottom: 6px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: #6366f1;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   display: flex;
   flex-direction: column;
@@ -133,7 +134,7 @@ const CrownInline = styled.img`
 
 const TeamRegion = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -148,20 +149,21 @@ const SummaryRow = styled.div`
 `;
 
 const SummaryText = styled.span`
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const WinRateBadge = styled.span`
   padding: 3px 8px;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #2563eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#2563eb")};
   font-size: 12px;
 `;
 
 const RecentLabel = styled.span`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const RecentDots = styled.div`
@@ -173,8 +175,9 @@ const RecentDots = styled.div`
 const SoonDot = styled.div`
   width: 14px;
   height: 14px;
-  background: #d1d5db;
-  border: 1px dashed #cbd5e1;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#d1d5db"};
+  border: 1px dashed ${({ theme }) => theme.colors.border};
   box-sizing: border-box;
 `;
 
@@ -187,7 +190,7 @@ const Center = styled.div`
 const ErrorText = styled.div`
   margin: 20px 16px 0;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   text-align: center;
   line-height: 1.5;
 `;
@@ -196,9 +199,10 @@ const RankInfoBox = styled.div`
   margin: 6px 16px 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #f8fafc;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f8fafc"};
   font-size: 12px;
-  color: #64748b;
+  color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.5;
 `;
 

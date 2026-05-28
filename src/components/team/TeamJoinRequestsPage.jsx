@@ -121,7 +121,7 @@ export default function TeamJoinRequestsPage() {
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors?.bg || "#f3f4f6"};
+  background: ${({ theme }) => theme.colors.bg};
   padding: 14px 16px 80px;
   display: flex;
   flex-direction: column;
@@ -137,7 +137,7 @@ const Center = styled.div`
 const EmptyText = styled.div`
   margin-top: 32px;
   font-size: 14px;
-  color: ${({ theme }) => theme.colors?.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const List = styled.div`
@@ -148,15 +148,16 @@ const List = styled.div`
 
 const RowBtn = styled.button`
   width: 100%;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  border-radius: 14px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 12px 12px;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   text-align: left;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const Left = styled.div`
@@ -170,8 +171,9 @@ const AvatarWrap = styled.div`
   height: 40px;
   border-radius: 999px;
   overflow: hidden;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -199,7 +201,7 @@ const TitleLine = styled.div`
 
 const TitleText = styled.div`
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -208,20 +210,23 @@ const TitleText = styled.div`
 const StatusPill = styled.span`
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(79, 70, 229, 0.12);
-  color: #4f46e5;
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "rgba(99,102,241,0.18)"
+      : "rgba(79, 70, 229, 0.12)"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
   font-size: 11px;
   flex-shrink: 0;
 `;
 
 const SubText = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const BodyText = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -229,6 +234,6 @@ const BodyText = styled.div`
 
 const Meta = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   flex-shrink: 0;
 `;

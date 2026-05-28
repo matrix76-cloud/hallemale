@@ -21,10 +21,12 @@ const SectionTitle = styled.h2`
 /* ============ 위: 팀 프로필 카드 ============ */
 
 const ProfileCard = styled.div`
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
   border-radius: 8px;
   padding: 16px 18px 18px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -32,7 +34,6 @@ const ProfileCard = styled.div`
 
   &:active {
     transform: translateY(1px);
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
   }
 `;
 
@@ -55,7 +56,8 @@ const LogoBase = styled.div`
   width: 140px;
   height: 100px;
   overflow: hidden;
-  background: #f4f4ff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f4f4ff"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -90,9 +92,10 @@ const TeamName = styled.div`
 const MemberBadge = styled.div`
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f4f4f5;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f4f4f5"};
   font-size: 11px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
   display: flex;
   align-items: center;
   gap: 4px;
@@ -104,7 +107,7 @@ const MemberIcon = styled.span`
 
 const TeamDesc = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -121,7 +124,7 @@ const TagRow = styled.div`
 
 const Tag = styled.span`
   font-size: 11px;
-  color: #6366f1;
+  color: ${({ theme }) => theme.colors.primary};
 `;
 
 /* ============ 아래: 홈 액션 ============ */
@@ -135,10 +138,11 @@ const ActionsCol = styled.div`
 /* 매칭하기 카드(이미 적용된 버전과 맞춰둠) */
 const BigActionCard = styled.button`
   width: 100%;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.06)"};
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+  background: ${({ theme }) => theme.colors.card};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   padding: 14px 14px 14px;
   cursor: pointer;
   display: flex;
@@ -148,7 +152,6 @@ const BigActionCard = styled.button`
 
   &:active {
     transform: translateY(1px);
-    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
   }
 `;
 
@@ -192,7 +195,7 @@ const BigTitle = styled.div`
 
 const BigSub = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.25;
 `;
 
@@ -213,9 +216,11 @@ const GoPill = styled.div`
 
 /* ✅ 매칭룸 카드(문구/숫자 멋내기) */
 const MatchRoomCard = styled.div`
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
   border-radius: 8px;
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   padding: 12px 12px 12px;
   display: flex;
   flex-direction: column;
@@ -244,7 +249,8 @@ const FolderIconWrap = styled.div`
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: rgba(2, 132, 199, 0.1);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(56, 189, 248, 0.16)" : "rgba(2, 132, 199, 0.1)"};
 `;
 
 const FolderIcon = styled.div`
@@ -267,7 +273,7 @@ const StatRow = styled.div`
 
 const StatValue = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const NumberBadge = styled.div`
@@ -276,28 +282,34 @@ const NumberBadge = styled.div`
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: #f3f4f6;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.bg : "#f3f4f6"};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.06)"};
 `;
 
 const NumberText = styled.div`
   font-size: 22px;
   line-height: 1;
   letter-spacing: -0.8px;
-  color: #111111;
+  color: ${({ theme }) => theme.colors.textStrong};
   font-weight: 700;
 `;
 
 const StatHint = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 
 
 const StatItem = styled.button`
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.06)"};
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? theme.colors.surface
+      : "linear-gradient(180deg, #ffffff 0%, #f9fafb 100%)"};
   border-radius: 8px;
   padding: 12px 12px 12px;
   cursor: pointer;
@@ -309,17 +321,19 @@ const StatItem = styled.button`
 
   min-height: 98px;
 
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+  box-shadow: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "0 4px 10px rgba(0, 0, 0, 0.25)"
+      : "0 8px 18px rgba(15, 23, 42, 0.05)"};
 
   &:active {
     transform: translateY(1px);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
   }
 `;
 
 const StatLabel = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 

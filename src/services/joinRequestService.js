@@ -191,6 +191,10 @@ export async function rejectJoinRequest({ clubId, requestId, leaderUid } = {}) {
   if (!requestId) throw new Error("rejectJoinRequest: requestId is required");
 
   const reqRef = doc(db, "clubs", clubId, "joinRequests", requestId);
+  const reqSnap = await getDoc(reqRef);
+  const req = reqSnap.exists() ? reqSnap.data() || {} : {};
+  const playerUid = String(req.playerUid || "").trim();
+  const clubName = String(req?.clubName || req?.meta?.clubName || "").trim();
 
   await updateDoc(reqRef, {
     status: "rejected",
@@ -198,6 +202,40 @@ export async function rejectJoinRequest({ clubId, requestId, leaderUid } = {}) {
     rejectedBy: leaderUid || null,
     updatedAt: serverTimestamp(),
   });
+
+  // ✅ 신청자에게 거절 알림
+  if (playerUid) {
+    try {
+      const { addDoc, collection } = await import("firebase/firestore");
+      await addDoc(collection(db, "notifications"), {
+        clubId,
+        kind: "team",
+        subType: "JOIN_REQUEST_REJECTED",
+        type: "join_request_rejected",
+        title: "팀 참가 요청이 거절되었어요",
+        body: clubName
+          ? `${clubName} 팀에서 참가 요청을 거절했어요.`
+          : "팀에서 참가 요청을 거절했어요.",
+        targetType: "USER",
+        targetIds: [playerUid],
+        actor: { uid: leaderUid || "", role: "leader" },
+        linkType: "team",
+        linkTargetId: requestId,
+        meta: {
+          clubId,
+          joinRequestId: requestId,
+          deepLink: `/clubs/${clubId}`,
+        },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "teamDecision",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        readBy: {},
+      });
+    } catch (e) {
+      console.warn("[joinRequest] reject notification failed:", e?.message || e);
+    }
+  }
 
   return { ok: true };
 }

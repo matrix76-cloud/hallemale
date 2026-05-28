@@ -29,14 +29,14 @@ const SectionTitle = styled.h2`
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
+  font-weight: 600;
 `;
 
 const MoreButton = styled.button`
   border: none;
   background: none;
   padding: 0;
-  color: ${({ theme }) => theme.colors.muted || "#888"};
+  color: ${({ theme }) => theme.colors.textWeak};
   font-size: 13px;
   display: flex;
   align-items: center;
@@ -44,8 +44,11 @@ const MoreButton = styled.button`
 `;
 
 const Card = styled.div`
-  background: #f9fafb;
-  border-radius: 18px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.card : "#f9fafb"};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 8px;
   padding: 8px 8px 10px;
   display: flex;
   flex-direction: column;
@@ -57,9 +60,10 @@ const ColumnsHeader = styled.div`
   grid-template-columns: 44px 2fr 0.7fr 0.7fr 1.1fr;
   padding: 8px 12px;
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
-  background: #eef2ff;
-  border-radius: 14px 14px 10px 10px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#eef2ff"};
+  border-radius: 8px 14px 10px 10px;
   font-weight: 500;
 `;
 
@@ -70,8 +74,8 @@ const ColLabel = styled.div`
 /* 기존 pulse */
 const pulseBorder = keyframes`
   0% { border-color: transparent; box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); background-color: transparent; }
-  10% { border-color: rgba(79, 70, 229, 0.9); box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.35); background-color: #f3f4f6; }
-  30% { border-color: rgba(79, 70, 229, 0.4); box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.2); background-color: rgba(243, 244, 246, 0.8); }
+  10% { border-color: rgba(79, 70, 229, 0.9); box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.35); background-color: var(--row-pulse-bg); }
+  30% { border-color: rgba(79, 70, 229, 0.4); box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.2); background-color: var(--row-pulse-bg-weak); }
   45% { border-color: transparent; box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); background-color: transparent; }
   100% { border-color: transparent; box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); background-color: transparent; }
 `;
@@ -82,9 +86,14 @@ const Row = styled.div`
   align-items: center;
   padding: 10px 12px;
   min-height: 54px;
-  border-radius: 14px;
+  border-radius: 8px;
   position: relative;
   cursor: pointer;
+
+  --row-pulse-bg: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99, 102, 241, 0.18)" : "#f3f4f6"};
+  --row-pulse-bg-weak: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99, 102, 241, 0.12)" : "rgba(243, 244, 246, 0.8)"};
 
   &:not(:last-child) {
     margin-bottom: 6px;
@@ -93,12 +102,14 @@ const Row = styled.div`
   border: 1px solid transparent;
 
   /* ✅ Top3는 회색 카드 고정, 나머지는 pulse */
-  ${({ $top }) =>
+  ${({ $top, theme }) =>
     $top
       ? css`
-          background: #ffffff;
-          border-color: rgba(15, 23, 42, 0.08);
-          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+          background: ${theme.colors.card};
+          border-color: ${theme.mode === "dark"
+            ? theme.colors.border
+            : "rgba(15, 23, 42, 0.08)"};
+          box-shadow: ${theme.shadows.card};
         `
       : css`
           animation: ${pulseBorder} 5s linear infinite;
@@ -130,8 +141,9 @@ const RankBadge = styled.div`
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
-  background: rgba(17, 24, 39, 0.06);
-  color: #111827;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255, 255, 255, 0.10)" : "rgba(17, 24, 39, 0.06)"};
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 
@@ -202,7 +214,8 @@ const LogoWrap = styled.div`
   height: 34px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const LogoImg = styled.img`

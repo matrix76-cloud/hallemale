@@ -7,7 +7,7 @@
 // ✅ 중복 생성 방지: submitLockRef + isSubmitting 이중 방어
 
 import React, { useMemo, useRef, useState } from "react";
-import styled from "styled-components";
+import styled, { useTheme } from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { FiChevronRight } from "react-icons/fi";
 
@@ -20,7 +20,7 @@ import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 
 const Page = styled.div`
   min-height: 100vh;
-  background: #f3f4f6;
+  background: ${({ theme }) => theme.colors.bg};
   display: flex;
   justify-content: center;
   padding: 20px 12px 32px;
@@ -29,9 +29,9 @@ const Page = styled.div`
 const Card = styled.div`
   width: 100%;
   max-width: 480px;
-  background: #ffffff;
-  border-radius: 20px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
   padding: 20px 18px 22px;
   display: flex;
   flex-direction: column;
@@ -50,13 +50,13 @@ const Title = styled.h1`
   margin: 0;
   font-size: 20px;
   font-weight: 700;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const Subtitle = styled.p`
   margin: 0;
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const StepIndicatorRow = styled.div`
@@ -69,7 +69,8 @@ const StepDot = styled.div`
   flex: 1;
   height: 4px;
   border-radius: 999px;
-  background: ${({ $active }) => ($active ? "#4f46e5" : "#e5e7eb")};
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.primary : theme.colors.border};
 `;
 
 /* ===== 폼 공통 ===== */
@@ -103,62 +104,76 @@ const LabelColumn = styled.div`
 const Label = styled.label`
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const LabelSub = styled.span`
   font-size: 11px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Input = styled.input`
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 9px 10px;
   font-size: 13px;
   outline: none;
-  background: #f9fafb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
-    border-color: #4f46e5;
-    background: #ffffff;
+    border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.card};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
 
 const TextArea = styled.textarea`
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 9px 10px;
   font-size: 13px;
   outline: none;
   min-height: 120px;
   resize: none;
-  background: #f9fafb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
-    border-color: #4f46e5;
-    background: #ffffff;
+    border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.card};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
   }
 `;
 
 const SelectBtn = styled.button`
   height: 50px;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 0 14px;
   font-size: 14px;
   outline: none;
-  background: rgba(255, 255, 255, 0.92);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "rgba(255, 255, 255, 0.92)"};
   cursor: pointer;
   text-align: left;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: ${({ $muted }) => ($muted ? "#9ca3af" : "#111827")};
+  color: ${({ $muted, theme }) =>
+    $muted ? theme.colors.textWeak : theme.colors.textStrong};
 
   &:focus {
-    border-color: rgba(79, 70, 229, 0.55);
-    box-shadow: 0 0 0 5px rgba(79, 70, 229, 0.12);
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.12);
   }
 
   &:disabled {
@@ -175,11 +190,23 @@ const TagRow = styled.div`
 
 const TagChip = styled.button`
   border-radius: 999px;
-  border: 1px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#e5e7eb")};
-  background: ${({ $selected }) => ($selected ? "#eef2ff" : "#ffffff")};
+  border: 1px solid
+    ${({ $selected, theme }) =>
+      $selected ? theme.colors.primary : theme.colors.border};
+  background: ${({ $selected, theme }) =>
+    $selected
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "#eef2ff"
+      : theme.colors.card};
   padding: 4px 9px;
   font-size: 11px;
-  color: ${({ $selected }) => ($selected ? "#4f46e5" : "#4b5563")};
+  color: ${({ $selected, theme }) =>
+    $selected
+      ? theme.mode === "dark"
+        ? "#a5b4fc"
+        : theme.colors.primary
+      : theme.colors.textNormal};
   cursor: pointer;
 
   &:disabled {
@@ -203,11 +230,12 @@ const LogoBigPreview = styled.div`
   height: 140px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 `;
 
 const LogoImg = styled.img`
@@ -218,12 +246,12 @@ const LogoImg = styled.img`
 
 const LogoEmpty = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const LogoHelpText = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   text-align: left;
   line-height: 1.5;
 `;
@@ -234,8 +262,9 @@ const LogoButton = styled.button`
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
-  color: #111;
-  background: #ededed;
+  color: ${({ theme }) => theme.colors.textStrong};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ededed"};
   cursor: pointer;
 
   &:disabled {
@@ -260,12 +289,13 @@ const PromoCheckbox = styled.input`
 /* ===== 요약 ===== */
 
 const SummaryBox = styled.div`
-  border-radius: 14px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 10px 12px;
   font-size: 12px;
-  color: #374151;
+  color: ${({ theme }) => theme.colors.textNormal};
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -282,7 +312,8 @@ const SummaryLogoThumb = styled.div`
   height: 40px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.bg : "#e5e7eb"};
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -301,11 +332,11 @@ const GhostButton = styled.button`
   flex: 1;
   height: 42px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   cursor: pointer;
 
   &:disabled {
@@ -319,7 +350,7 @@ const PrimaryButton = styled.button`
   height: 42px;
   border-radius: 999px;
   border: none;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   font-size: 13px;
   font-weight: 600;
   color: #ffffff;
@@ -340,13 +371,13 @@ const SummaryBlock = styled.div`
 const SummaryLabel = styled.div`
   font-size: 12px;
   font-weight: 600;
-  color: #374151;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const SummaryText = styled.div`
   font-size: 13px;
   line-height: 1.6;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 /* ===== 상수 ===== */
@@ -356,6 +387,7 @@ const TAG_PRESETS = ["#20대", "#30대", "#직장인팀", "#대학생팀", "#주
 /* ===== 컴포넌트 ===== */
 
 export default function TeamCreatePage() {
+  const theme = useTheme();
   const nav = useNavigate();
   const { userDoc } = useAuth();
 
@@ -627,7 +659,7 @@ export default function TeamCreatePage() {
                   onChange={(e) => setUsePromoText(e.target.checked)}
                   disabled={isSubmitting}
                 />
-                <label htmlFor="usePromoText" style={{ fontSize: 12, color: "#4b5563", cursor: "pointer" }}>
+                <label htmlFor="usePromoText" style={{ fontSize: 12, color: theme.colors.textNormal, cursor: "pointer" }}>
                   이 팀의 홍보 문구를 사용합니다.
                 </label>
               </PromoRow>
@@ -659,10 +691,10 @@ export default function TeamCreatePage() {
                 </SummaryLogoThumb>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: theme.colors.textStrong }}>
                     {teamName || "-"}
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: theme.colors.textWeak }}>
                     {region || "-"}
                   </div>
                 </div>
@@ -695,7 +727,7 @@ export default function TeamCreatePage() {
                 </SummaryBlock>
               )}
 
-              <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: theme.colors.textWeak, marginTop: 6 }}>
                 팀장은 현재 로그인 계정으로 자동 지정돼요.
               </div>
             </SummaryBox>

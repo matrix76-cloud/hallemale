@@ -13,8 +13,6 @@ const Line1 = styled.div`
   font-weight: ${({ theme }) => theme.fontWeights.bold};
   color: ${({ theme }) => theme.colors.textStrong};
   line-height: ${({ theme }) => theme.lineHeights.tight};
-
-  font-family:"GmarketSans";
 `;
 
 const Line2 = styled.div`
@@ -22,7 +20,6 @@ const Line2 = styled.div`
   font-weight: ${({ theme }) => theme.fontWeights.bold};
   color: ${({ theme }) => theme.colors.primary};
   margin-top: 6px;
-  font-family:"GmarketSans";
 `;
 
 export default function WelcomeSlogan() {

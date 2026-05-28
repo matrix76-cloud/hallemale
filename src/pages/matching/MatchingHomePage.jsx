@@ -35,22 +35,22 @@ const SectionTitle = styled.h2`
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family:"GmarketSans"
+  font-weight: 600;
 `;
 
 const SectionDesc = styled.p`
   margin: 4px 0 0;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 /* =============== 리스트 컨테이너 =============== */
 
 const ListCard = styled.div`
   margin-top: 8px;
-  background: #ffffff;
-  border-radius: 20px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
   padding: 8px 0;
 `;
 
@@ -61,9 +61,10 @@ const HeaderRow = styled.div`
   padding: 8px 16px;
   font-size: 11px;
   font-weight: 500;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
-  background: #eef2ff;
-  border-radius: 16px 16px 12px 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  border-radius: 8px 16px 12px 12px;
 `;
 
 const HeaderCol = styled.div`
@@ -78,7 +79,7 @@ const Row = styled.div`
   align-items: center;
   padding: 10px 16px;
   column-gap: 8px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.divider};
 
   &:last-child {
     border-bottom: none;
@@ -99,9 +100,10 @@ const TeamInfoCell = styled.button`
 const LogoWrap = styled.div`
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex-shrink: 0;
 `;
 
@@ -125,7 +127,7 @@ const TeamName = styled.div`
 
 const TeamRegion = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const StatCell = styled.div`
@@ -148,22 +150,28 @@ const StatusBadge = styled.span`
   padding: 2px 8px;
   border-radius: 999px;
   font-weight: 500;
-  ${({ $kind }) => {
+  ${({ $kind, theme }) => {
     if ($kind === "pending") {
+      const bg =
+        theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#dbeafe";
+      const fg = theme.mode === "dark" ? "#a5b4fc" : "#1d4ed8";
       return `
-        background: #dbeafe;
-        color: #1d4ed8;
+        background: ${bg};
+        color: ${fg};
       `;
     }
     if ($kind === "rejected") {
+      const bg =
+        theme.mode === "dark" ? "rgba(248,113,113,0.16)" : "#fee2e2";
+      const fg = theme.mode === "dark" ? "#fca5a5" : "#b91c1c";
       return `
-        background: #fee2e2;
-        color: #b91c1c;
+        background: ${bg};
+        color: ${fg};
       `;
     }
     return `
       background: transparent;
-      color: #6b7280;
+      color: ${theme.colors.textWeak};
     `;
   }}
 `;
@@ -176,16 +184,18 @@ const ActionButton = styled.button`
   font-weight: 500;
   cursor: pointer;
 
-  ${({ $variant }) => {
+  ${({ $variant, theme }) => {
     if ($variant === "primary") {
       return `
-        background: #2563eb;
+        background: ${theme.colors.primary};
         color: #ffffff;
       `;
     }
+    const bg =
+      theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6";
     return `
-      background: #f3f4f6;
-      color: #111827;
+      background: ${bg};
+      color: ${theme.colors.textStrong};
     `;
   }}
 `;
@@ -259,7 +269,6 @@ export default function MatchingHomePage() {
 
   const handleActionClick = (team, relation) => {
     const { status, direction } = relation;
-    // TODO: 여기서 실제 매칭 신청/재요청 API 호출 연결
     console.log("[MatchAction]", {
       clubId: team.clubId,
       teamName: team.name,

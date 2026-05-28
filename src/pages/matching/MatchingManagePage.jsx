@@ -150,17 +150,15 @@ function getMatchBadgeMeta(row) {
   const direction = toStr(row?.direction);
 
   let stateLabel = "상태";
-  let tone = "default";
+  let tone = "muted";
 
   if (phase === "pending" || phase === "requesting") {
     stateLabel = direction === "sent" ? "응답대기" : "요청도착";
     tone = "pending";
   } else if (phase === "rejected") {
-    // ✅ 내가 거부한 건 received 쪽
     stateLabel = direction === "sent" ? "상대 거부" : "내가 거부";
     tone = "danger";
   } else if (phase === "cancelled") {
-    // ✅ 내가 취소한 건 sent 쪽
     stateLabel = direction === "sent" ? "내가 취소" : "상대 취소";
     tone = "muted";
   } else if (phase === "accepted") {
@@ -174,23 +172,14 @@ function getMatchBadgeMeta(row) {
     tone = "muted";
   }
 
-  const toneStyle =
-    tone === "positive"
-      ? { bg: "#eff6ff", color: "#2563eb" }
-      : tone === "danger"
-      ? { bg: "#fef2f2", color: "#b91c1c" }
-      : tone === "pending"
-      ? { bg: "#f3f4f6", color: "#111827" }
-      : { bg: "#f3f4f6", color: "#6b7280" };
-
-  return { stateLabel, toneStyle };
+  return { stateLabel, tone };
 }
 
 /* ========================= styles ========================= */
 
 const Page = styled.div`
   min-height: 100vh;
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.bg};
 `;
 
 const Inner = styled.div`
@@ -209,8 +198,9 @@ const TabsWrap = styled.div`
   padding: 4px;
   margin: 10px auto 0px;
   border-radius: 999px;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
+  border: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
 const TabButton = styled.button`
@@ -223,15 +213,17 @@ const TabButton = styled.button`
 
   border: none;
   border-radius: 999px;
-  background: ${({ $active }) => ($active ? "#ffffff" : "transparent")};
-  box-shadow: ${({ $active }) =>
-    $active ? "0 6px 16px rgba(15, 23, 42, 0.08)" : "none"};
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.card : "transparent"};
+  box-shadow: ${({ $active, theme }) =>
+    $active ? theme.shadows.card : "none"};
 
-  color: ${({ $active }) => ($active ? "#111827" : "#6b7280")};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.textStrong : theme.colors.textWeak};
   cursor: pointer;
   white-space: nowrap;
   text-align: center;
-  font-family: "GmarketSans";
+  font-weight: 600;
   padding: 10px 0;
   font-size: 13px;
 
@@ -269,10 +261,11 @@ const ListCard = styled.div`
 
 const ItemCard = styled.div`
   width: 100%;
-  background: #ffffff;
-  border-radius: 18px;
-  border: 1px solid #eef2f7;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "#eef2f7"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   overflow: hidden;
   padding: 0px 10px;
 `;
@@ -300,7 +293,7 @@ const HeaderLeft = styled.div`
 
 const HeaderTitle = styled.div`
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -322,6 +315,25 @@ const BadgeRow = styled.div`
   flex-wrap: wrap;
 `;
 
+const TONE_PALETTE = {
+  positive: {
+    light: { bg: "#eff6ff", color: "#2563eb" },
+    dark: { bg: "rgba(99, 102, 241, 0.18)", color: "#a5b4fc" },
+  },
+  danger: {
+    light: { bg: "#fef2f2", color: "#b91c1c" },
+    dark: { bg: "rgba(248, 113, 113, 0.16)", color: "#fca5a5" },
+  },
+  pending: {
+    light: { bg: "#f3f4f6", color: "#111827" },
+    dark: { bg: "rgba(255, 255, 255, 0.08)", color: "#f9fafb" },
+  },
+  muted: {
+    light: { bg: "#f3f4f6", color: "#6b7280" },
+    dark: { bg: "rgba(255, 255, 255, 0.05)", color: "#9ca3af" },
+  },
+};
+
 const Badge = styled.span`
   display: inline-flex;
   align-items: center;
@@ -330,13 +342,15 @@ const Badge = styled.span`
   font-size: 13px;
   line-height: 1;
   white-space: nowrap;
-  background: ${({ $bg }) => $bg};
-  color: ${({ $color }) => $color};
+  background: ${({ $tone, theme }) =>
+    (TONE_PALETTE[$tone] || TONE_PALETTE.muted)[theme.mode === "dark" ? "dark" : "light"].bg};
+  color: ${({ $tone, theme }) =>
+    (TONE_PALETTE[$tone] || TONE_PALETTE.muted)[theme.mode === "dark" ? "dark" : "light"].color};
 `;
 
 const BadgeTime = styled.div`
   font-size: 10px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
 `;
 
@@ -355,9 +369,10 @@ const TeamInfoCell = styled.button`
 const LogoWrap = styled.div`
   width: 52px;
   height: 52px;
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex-shrink: 0;
 `;
 
@@ -385,7 +400,7 @@ const TeamName = styled.div`
 
 const TeamRegion = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -393,7 +408,8 @@ const TeamRegion = styled.div`
 
 const Divider = styled.div`
   height: 1px;
-  background: #eef2f7;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "#eef2f7"};
 `;
 
 const LineupTextRow = styled.div`
@@ -407,7 +423,7 @@ const LineupText = styled.div`
   flex: 1;
   min-width: 0;
   font-size: 12px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textNormal};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -417,9 +433,10 @@ const LineupInfoIconBtn = styled.button`
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #6b7280;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
+  color: ${({ theme }) => theme.colors.textWeak};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -428,13 +445,13 @@ const LineupInfoIconBtn = styled.button`
 
   &:active {
     transform: translateY(1px);
-    background: #f9fafb;
+    opacity: 0.85;
   }
 `;
 
 const Arrow = styled.span`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   flex-shrink: 0;
 `;
 
@@ -453,17 +470,24 @@ const ActionGrid = styled.div`
 
 const ActionButtonSm = styled.button`
   width: 100%;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 10px 12px;
   font-size: 13px;
   cursor: pointer;
-  background: #ffffff;
-  color: #111827;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ $variant, theme }) =>
+    $variant === "accept"
+      ? theme.colors.primary
+      : theme.mode === "dark"
+      ? theme.colors.surface
+      : "#ffffff"};
+  color: ${({ $variant, theme }) =>
+    $variant === "accept" ? "#ffffff" : theme.colors.textStrong};
+  ${({ $variant }) => ($variant === "accept" ? "border-color: transparent;" : "")}
 
   &:active {
     transform: translateY(1px);
-    background: #f9fafb;
+    opacity: 0.85;
   }
 
   &:disabled {
@@ -473,10 +497,12 @@ const ActionButtonSm = styled.button`
 `;
 
 const CancelButton = styled.button`
-  border: 1px solid #fed7aa;
-  background: #fff7ed;
-  color: #c2410c;
-  border-radius: 12px;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(251, 146, 60, 0.35)" : "#fed7aa"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(251, 146, 60, 0.12)" : "#fff7ed"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fdba74" : "#c2410c")};
+  border-radius: 8px;
   padding: 8px 12px;
   font-size: 12px;
   cursor: pointer;
@@ -497,13 +523,14 @@ const StateWrap = styled.div`
   padding: 32px 16px;
   text-align: center;
   font-size: 14px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0, 0, 0, 0.65)" : "rgba(15, 23, 42, 0.45)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -514,10 +541,15 @@ const ModalCard = styled.div`
   width: 94%;
   max-width: 520px;
   max-height: 84vh;
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 8px;
   padding: 14px 14px 16px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.4);
+  box-shadow: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "0 18px 40px rgba(0, 0, 0, 0.5)"
+      : "0 18px 40px rgba(15, 23, 42, 0.4)"};
   display: flex;
   flex-direction: column;
 `;
@@ -531,7 +563,7 @@ const ModalHeader = styled.div`
 
 const ModalTitle = styled.div`
   font-size: 17px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const ModalClose = styled.button`
@@ -539,6 +571,7 @@ const ModalClose = styled.button`
   background: none;
   font-size: 20px;
   cursor: pointer;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const ModalBody = styled.div`
@@ -552,27 +585,28 @@ const ModalBody = styled.div`
 `;
 
 const LineupBlock = styled.div`
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
   padding: 12px;
-  background: #ffffff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
 `;
 
 const LineupBlockTitle = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   margin-bottom: 8px;
 `;
 
 const LineupName = styled.div`
   font-size: 15px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const LineupMeta = styled.div`
   margin-top: 4px;
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const LineupDivider = styled.div`
@@ -591,8 +625,10 @@ const PlayerRow = styled.div`
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.card : "transparent"};
 `;
 
 const PlayerAvatar = styled.img`
@@ -600,7 +636,8 @@ const PlayerAvatar = styled.img`
   height: 34px;
   border-radius: 999px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.bg : "#e5e7eb"};
   flex-shrink: 0;
 `;
 
@@ -614,7 +651,7 @@ const PlayerTexts = styled.div`
 
 const PlayerName = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -629,7 +666,7 @@ const PlayerMetaRow = styled.div`
 
 const PlayerMetaText = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -638,7 +675,7 @@ const PlayerMetaText = styled.div`
 const EmptyHint = styled.div`
   margin-top: 8px;
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const MiniLoading = styled.div`
@@ -930,7 +967,7 @@ export default function MatchingManagePage() {
 
                       <HeaderRight>
                         <BadgeRow>
-                          <Badge $bg={badgeMeta.toneStyle.bg} $color={badgeMeta.toneStyle.color}>
+                          <Badge $tone={badgeMeta.tone}>
                             {badgeMeta.stateLabel}
                           </Badge>
                         </BadgeRow>
@@ -980,19 +1017,9 @@ export default function MatchingManagePage() {
                                 <ActionButtonSm
                                   key={a.type}
                                   type="button"
+                                  $variant={a.type}
                                   onClick={() => handleAction(row, a)}
                                   disabled={disabled}
-                                  style={
-                                    a.type === "accept"
-                                      ? { border: "none", background: "#2563eb", color: "#ffffff" }
-                                      : a.type === "reject" || a.type === "cancel"
-                                      ? {
-                                          border: "1px solid #e5e7eb",
-                                          background: "#ffffff",
-                                          color: "#111827",
-                                        }
-                                      : undefined
-                                  }
                                 >
                                   {disabled ? "처리중..." : a.label}
                                 </ActionButtonSm>
@@ -1030,7 +1057,7 @@ export default function MatchingManagePage() {
 
                     {rosterLoading ? (
                       <MiniLoading>
-                        <Spinner size="sm" />
+                        <Spinner size="sm" fullscreen={false} />
                       </MiniLoading>
                     ) : fromRoster.length > 0 ? (
                       <RosterList>
@@ -1065,7 +1092,7 @@ export default function MatchingManagePage() {
 
                     {rosterLoading ? (
                       <MiniLoading>
-                        <Spinner size="sm" />
+                        <Spinner size="sm" fullscreen={false} />
                       </MiniLoading>
                     ) : toRoster.length > 0 ? (
                       <RosterList>

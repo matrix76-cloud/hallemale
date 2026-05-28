@@ -18,7 +18,7 @@ import {
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
+  background: ${({ theme }) => theme.colors.bg};
   padding: 16px 16px 24px;
   display: flex;
   flex-direction: column;
@@ -28,7 +28,7 @@ const PageWrap = styled.div`
 const EmptyText = styled.div`
   margin-top: 40px;
   font-size: 14px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const SectionTitle = styled.h2`
@@ -36,7 +36,7 @@ const SectionTitle = styled.h2`
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
+  font-weight: 600;
 `;
 
 const List = styled.div`
@@ -48,12 +48,18 @@ const List = styled.div`
 
 const ItemCard = styled.button`
   width: 100%;
-  border: none;
-  border-radius: 16px;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 8px;
   padding: 11px 13px;
   text-align: left;
-  background: ${({ read }) => (read ? "#ffffff" : "#eef2ff")};
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  background: ${({ read, theme }) =>
+    read
+      ? theme.colors.card
+      : theme.mode === "dark"
+      ? "rgba(99, 102, 241, 0.12)"
+      : "#eef2ff"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -75,7 +81,7 @@ const KindBadge = styled.span`
 
   ${({ kind }) => {
     if (kind === "notice") return `background:#2563eb;`;
-    if (kind === "event") return `background:#f97316;`;
+    if (kind === "event") return `background:#2563eb;`;
     if (kind === "match") return `background:#22c55e;`;
     if (kind === "team") return `background:#7c3aed;`;
     return `background:#6b7280;`;
@@ -103,7 +109,7 @@ const NewDot = styled.span`
 
 const ItemBody = styled.div`
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textNormal};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -115,14 +121,15 @@ const ItemMetaRow = styled.div`
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ImportantLabel = styled.span`
   padding: 0 6px;
   border-radius: 999px;
-  border: 1px solid #f97316;
-  color: #ea580c;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : "#2563eb"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#2563eb")};
   font-size: 11px;
   font-weight: 600;
 `;

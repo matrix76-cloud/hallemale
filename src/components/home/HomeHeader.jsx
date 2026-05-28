@@ -2,6 +2,7 @@
 /* eslint-disable */
 import React from "react";
 import styled from "styled-components";
+import { useNavigate } from "react-router-dom";
 import { AiOutlineBell } from "react-icons/ai";
 import BrandHeader from "../auth/BrandHeader";
 
@@ -31,9 +32,9 @@ const Right = styled.button`
 `;
 
 export default function HomeHeader() {
+  const navigate = useNavigate();
   const handleBellClick = () => {
-    // TODO: 알림 페이지/모달 연결
-    // console.log("알림 클릭");
+    navigate("/notifications");
   };
 
   return (

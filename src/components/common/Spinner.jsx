@@ -21,8 +21,10 @@ const Ring = styled.div`
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: ${({ $border }) => $border}px solid #e5e7eb;
-  border-top-color: #6b7280;
+  border: ${({ $border }) => $border}px solid
+    ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(255,255,255,0.10)" : "#e5e7eb"};
+  border-top-color: ${({ theme }) => theme.colors.textWeak};
   animation: ${spin} 0.9s linear infinite;
 `;
 
@@ -33,16 +35,31 @@ const Label = styled.div`
   align-items: center;
   justify-content: center;
   font-size: ${({ $font }) => $font}px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
   letter-spacing: -0.02em;
 `;
 
-export default function Spinner({ size = "md", label = "로딩중" }) {
+const FullScreen = styled.div`
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  pointer-events: none;
+`;
+
+export default function Spinner({ size = "md", label = "로딩중", fullscreen = true }) {
   const dim = SIZES[size] || SIZES.md;
-  return (
+  const inner = (
     <Wrap $box={dim.box}>
       <Ring $border={dim.border} />
       {label ? <Label $font={dim.font}>{label}</Label> : null}
     </Wrap>
   );
+
+  if (fullscreen) {
+    return <FullScreen>{inner}</FullScreen>;
+  }
+  return inner;
 }

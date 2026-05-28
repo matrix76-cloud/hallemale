@@ -1,14 +1,43 @@
 /* eslint-disable */
 // src/services/userService.js
 import { db } from "./firebase";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  limit,
+} from "firebase/firestore";
 
 /**
  * users/{uid} 최소 스키마 보장
  * ✅ 신규: activeTeamId는 "" (무소속 SSOT)
  */
-export const ensureUserDoc = async ({ uid, email }) => {
+export const ensureUserDoc = async ({ uid, email, provider = "", phoneE164 = "", phoneVerified = false }) => {
   if (!uid) throw new Error("ensureUserDoc: uid is required");
+
+  // ✅ 소셜 UID가 이미 기존 사용자에게 연결되어 있으면 빈 문서 생성 스킵
+  try {
+    const linkedQ = query(
+      collection(db, "users"),
+      where("linkedSocialUid", "==", uid),
+      limit(1)
+    );
+    const linkedSnap = await getDocs(linkedQ);
+    if (!linkedSnap.empty) {
+      const existing = linkedSnap.docs[0];
+      await updateDoc(existing.ref, { updatedAt: serverTimestamp() });
+      return { uid: existing.id, created: false, linked: true };
+    }
+  } catch (e) {
+    console.warn("[userService] linkedSocialUid lookup failed (non-critical):", e?.message);
+  }
 
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -42,6 +71,11 @@ export const ensureUserDoc = async ({ uid, email }) => {
         weightKg: null,
         intro: "",
         careers: [],
+
+        // ✅ 전화번호 / 로그인 provider
+        phoneE164: phoneE164 || "",
+        phoneVerified: !!phoneVerified,
+        provider: provider || "",
 
         // 약관/마케팅 (옵션)
         marketingConsent: null,
@@ -154,3 +188,113 @@ export const updateUserProfile = async ({
 
   await updateDoc(ref, payload);
 };
+
+
+
+
+function safeTrim(v) {
+  return String(v ?? "").trim();
+}
+
+/**
+ * ✅ phoneE164 → uid/email 인덱스 저장(아이디 찾기용)
+ * 문서 경로: users_by_phone/{phoneE164}
+ */
+/**
+ * ✅ uid로 사용자 프로필 조회 (3단계)
+ *   1) users/{uid} 직접 조회 (authUid === docId인 일반 케이스)
+ *   2) linkedSocialUid === uid 로 쿼리 (소셜 UID가 기존 사용자에 연결된 케이스)
+ *   3) 위 둘 다 실패 시 null
+ */
+export async function getUserProfileByUid(uid) {
+  const u = safeTrim(uid);
+  if (!u) return null;
+
+  // 1) authUid 직접
+  const directSnap = await getDoc(doc(db, "users", u));
+  if (directSnap.exists()) {
+    return { id: directSnap.id, ...directSnap.data() };
+  }
+
+  // 2) linkedSocialUid
+  try {
+    const q = query(
+      collection(db, "users"),
+      where("linkedSocialUid", "==", u),
+      limit(1)
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const d = snap.docs[0];
+      return { id: d.id, ...d.data() };
+    }
+  } catch (e) {
+    console.warn("[userService] getUserProfileByUid linkedSocialUid lookup failed:", e?.message);
+  }
+
+  return null;
+}
+
+/**
+ * ✅ 소셜 UID를 기존 사용자 문서에 연결 + 빈 소셜 문서 삭제
+ * - existingUid: phones/users_by_phone 에서 찾은 기존 사용자 docId
+ * - socialUid: Firebase Auth 현재 UID (소셜 로그인 결과)
+ */
+export async function linkSocialToExistingUser({ existingUid, socialUid, provider = "" }) {
+  const eu = safeTrim(existingUid);
+  const su = safeTrim(socialUid);
+  if (!eu || !su) throw new Error("linkSocialToExistingUser: existingUid & socialUid required");
+  if (eu === su) return { ok: true, noop: true };
+
+  // 기존 사용자 문서에 linkedSocialUid 기록
+  const existingRef = doc(db, "users", eu);
+  const payload = {
+    linkedSocialUid: su,
+    updatedAt: serverTimestamp(),
+  };
+  if (provider) payload.provider = provider;
+  await updateDoc(existingRef, payload);
+
+  // 빈 소셜 문서(이름/역할 없는 임시 문서) 삭제
+  try {
+    const socialRef = doc(db, "users", su);
+    const socialSnap = await getDoc(socialRef);
+    if (socialSnap.exists()) {
+      const d = socialSnap.data() || {};
+      const isEmpty = !safeTrim(d.nickname) && !d.onboardingDone;
+      if (isEmpty) {
+        await deleteDoc(socialRef);
+      }
+    }
+  } catch (e) {
+    console.warn("[userService] delete empty social doc failed (non-critical):", e?.message);
+  }
+
+  return { ok: true };
+}
+
+export async function upsertUserPhoneIndex({ phoneE164, uid, email, phoneVerified = false }) {
+  const p = safeTrim(phoneE164);
+  const u = safeTrim(uid);
+  const e = safeTrim(email);
+
+  if (!p) return false;
+  if (!u && !e) return false;
+
+  const ref = doc(db, "users_by_phone", p);
+
+  await setDoc(
+    ref,
+    {
+      phoneE164: p,
+      uid: u,
+      email: e,
+      phoneVerified: !!phoneVerified,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return true;
+}

@@ -4,7 +4,7 @@ import styled from "styled-components";
 const Wrap = styled.section`
   margin-bottom: 8px;
   padding: 12px 12px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) => theme.colors.border};
 `;
@@ -33,7 +33,6 @@ const Box = styled.div`
 `;
 
 export default function HomeNotificationPreview() {
-  // TODO: 나중에 useNotifications()로 실제 알림 데이터 연결
   return (
     <Wrap>
       <Header>

@@ -1,38 +1,23 @@
-/* eslint-disable */
-// functions/index.js
-// Minimal HTTP Functions: health
-// Social auth handlers are exported from separate files (kakao.js, naver.js)
-// SMS handlers are exported from sms.js (sendSms, pingIp)
-// ✅ OTP(onCall) handlers are exported from otp.js (sendOtp, verifyOtp)
+const {crawlKblInitOnce, crawlKblDaily, crawlKblTick } = require("./jobs/crawlKblGames");
+const { resetPasswordViaProxy } = require("./password/resetPasswordViaProxy");
 
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
-const express = require("express");
+exports.crawlKblInitOnce = crawlKblInitOnce;
+exports.crawlKblDaily = crawlKblDaily;
+exports.crawlKblTick = crawlKblTick;
+exports.resetPasswordViaProxy = resetPasswordViaProxy;
 
-// ---- Firebase Admin
-if (!admin.apps.length) admin.initializeApp();
+// ✅ SMS Proxy export 추가
+const { sendSmsProxy } = require("./sms/sendSmsProxy");
+exports.sendSmsProxy = sendSmsProxy;
 
-// ---- CORS (minimal)
-const ALLOW = new Set(
-  (process.env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-);
+// ✅ FCM Push Notification 스케줄러
+const { sendPushTick } = require("./jobs/sendPushNotifications");
+exports.sendPushTick = sendPushTick;
 
-function corsMinimal(req, res, next) {
-  const origin = req.headers.origin;
-  if (origin && ALLOW.has(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  }
-  res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS,GET");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") return res.status(204).end();
-  next();
-}
+// ✅ 즉시 푸시 발송 (디버깅용)
+const { sendTestPush } = require("./jobs/sendTestPush");
+exports.sendTestPush = sendTestPush;
 
-// ---------------- otp (gen2: onCall) ----------------
-exports.sendSms = require("./sms").sendSms;
-
+// ✅ 카카오 소셜 로그인 (accessToken → Firebase Custom Token)
+const { kakaoCustomToken } = require("./auth/kakaoCustomToken");
+exports.kakaoCustomToken = kakaoCustomToken;

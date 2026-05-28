@@ -23,7 +23,7 @@ const SectionTitle = styled.h2`
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
+  font-weight: 600;
 `;
 
 /* 🔥 가로 슬라이드 컨테이너 */
@@ -34,26 +34,26 @@ const SlideRow = styled.div`
   padding: 2px 2px 4px;
   scroll-snap-type: x mandatory;
 
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
   & > * {
     scroll-snap-align: start;
   }
 
   &::-webkit-scrollbar {
-    height: 4px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: #e5e7eb;
-    border-radius: 999px;
+    display: none;
   }
 `;
 
 /* 카드: 위 이미지, 아래 텍스트/버튼 (컴팩트 높이) */
 const Card = styled.div`
   flex: 0 0 calc((100% - 20px) / 3);
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -95,7 +95,6 @@ const TeamName = styled.div`
   white-space: nowrap;
   overflow: hidden;
   line-height: 1.2;
-  font-family: "GmarketSans";
 `;
 
 /* ✅ 기존 streakLabel 없을 수 있으니 winRate로 표시 */
@@ -105,7 +104,6 @@ const StreakText = styled.div`
   color: ${({ theme }) => theme.colors.primary};
   font-weight: 700;
   text-align: center;
-  font-family: "GmarketSans";
 `;
 
 function toNum(n, fallback = 0) {

@@ -4,10 +4,10 @@ import React from "react";
 import styled from "styled-components";
 
 const Card = styled.section`
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 16px;
-  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -22,12 +22,14 @@ const TopRow = styled.div`
 const Logo = styled.div`
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const LogoImg = styled.img`
@@ -57,7 +59,7 @@ const TeamName = styled.span`
 
 const RegionText = styled.span`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const StreakBadge = styled.span`
@@ -78,14 +80,15 @@ const TagChip = styled.span`
   font-size: 11px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #f3f4f6;
-  color: #4b5563;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const Description = styled.p`
   margin: 4px 0 0;
   font-size: 13px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const ActionsRow = styled.div`
@@ -97,9 +100,10 @@ const ActionsRow = styled.div`
 const GhostButton = styled.button`
   flex: 0 0 auto;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 6px 12px;
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
   font-size: 12px;
   display: flex;
   align-items: center;

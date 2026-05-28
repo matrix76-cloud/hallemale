@@ -556,7 +556,10 @@ export default function AdminDashboardPage() {
   }, [matchTab]);
 
   const activeRegion = useMemo(() => {
-    return regionCounts.find((r) => r.key === regionKey) || regionCounts[0];
+    return (
+      regionCounts.find((r) => r.key === regionKey) ||
+      regionCounts[0] || { key: "", label: "-", count: 0 }
+    );
   }, [regionCounts, regionKey]);
 
   const winDrawLoseText = `${stats.totalW}승 ${stats.totalD}무 ${stats.totalL}패`;

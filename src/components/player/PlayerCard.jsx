@@ -5,27 +5,28 @@ import styled from "styled-components";
 
 const Card = styled.button`
   border: none;
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 14px 10px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  color: ${({ theme }) => theme.colors.textNormal};
 
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   transition: transform 0.12s ease, box-shadow 0.12s ease;
   text-align: center;
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+    box-shadow: ${({ theme }) => theme.shadows.card};
   }
 
   &:active {
     transform: translateY(0);
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+    box-shadow: ${({ theme }) => theme.shadows.card};
   }
 `;
 
@@ -34,7 +35,10 @@ const AvatarWrap = styled.div`
   height: 72px;
   border-radius: 999px;
   overflow: hidden;
-  background: linear-gradient(145deg, #f3f4ff, #e5f0ff);
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? theme.colors.surface
+      : "linear-gradient(145deg, #f3f4ff, #e5f0ff)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,18 +54,18 @@ const Name = styled.div`
   margin-top: 2px;
   font-size: 14px;
   font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong || "#111827"};
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const RoleText = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const MetaText = styled.div`
   margin-top: 2px;
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 // 포지션 + 레벨 텍스트

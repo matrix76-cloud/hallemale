@@ -1,11 +1,12 @@
 /* eslint-disable */
 // src/admin/layout/AdminShell.jsx
 import React from "react";
-import styled from "styled-components";
+import styled, { ThemeProvider } from "styled-components";
 import { Outlet } from "react-router-dom";
 import AdminSidebar from "./AdminSidebar";
 import AdminTopbar from "./AdminTopbar";
 import AdminBreadcrumb from "./AdminBreadcrumb";
+import { lightTheme } from "../../theme/theme";
 
 const SIDEBAR_W = 220;
 
@@ -32,16 +33,19 @@ const Body = styled.div`
 `;
 
 export default function AdminShell() {
+  // 어드민은 다크모드 토글과 무관하게 항상 라이트 톤으로 고정
   return (
-    <Wrap>
-      <AdminSidebar width={SIDEBAR_W} />
-      <Content>
-        <AdminTopbar />
-        <AdminBreadcrumb />
-        <Body>
-          <Outlet />
-        </Body>
-      </Content>
-    </Wrap>
+    <ThemeProvider theme={lightTheme}>
+      <Wrap>
+        <AdminSidebar width={SIDEBAR_W} />
+        <Content>
+          <AdminTopbar />
+          <AdminBreadcrumb />
+          <Body>
+            <Outlet />
+          </Body>
+        </Content>
+      </Wrap>
+    </ThemeProvider>
   );
 }

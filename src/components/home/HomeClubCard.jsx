@@ -4,7 +4,7 @@ import styled from "styled-components";
 
 const Card = styled.section`
   padding: 14px 12px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: ${({ theme }) => theme.colors.card};
   box-shadow: ${({ theme }) => theme.shadows.card};
   margin-bottom: 16px;
@@ -35,7 +35,6 @@ const Meta = styled.div`
 `;
 
 export default function HomeClubCard() {
-  // TODO: 나중에 useClub에서 실제 데이터 가져오면 교체
   return (
     <Card>
       <DebugName>[HomeClubCard]</DebugName>

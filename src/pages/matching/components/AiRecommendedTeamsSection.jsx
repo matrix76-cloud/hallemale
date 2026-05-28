@@ -29,7 +29,7 @@ const AiTitle = styled.span`
 
 const AiSub = styled.span`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const AiScrollRow = styled.div`
@@ -46,8 +46,11 @@ const AiScrollRow = styled.div`
 
 const AiTeamCard = styled.div`
   flex: 0 0 140px;
-  border-radius: 18px;
-  background: #eee;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -104,9 +107,16 @@ const TeamName = styled.div`
 const Btn = styled.button`
   height: 34px;
   border-radius: 999px;
-  border: 1px solid rgba(79, 70, 229, 0.28);
-  background: rgba(79, 70, 229, 0.08);
-  color: #3730a3;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark"
+      ? "rgba(99, 102, 241, 0.45)"
+      : "rgba(79, 70, 229, 0.28)"};
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "rgba(99, 102, 241, 0.18)"
+      : "rgba(79, 70, 229, 0.08)"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : "#3730a3"};
   font-size: 12px;
   cursor: pointer;
 

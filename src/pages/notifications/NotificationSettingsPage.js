@@ -17,9 +17,9 @@ const PageWrap = styled.div`
 `;
 
 const Card = styled.div`
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  background: ${({ theme }) => theme.colors.card || "#ffffff"};
+  border: 1px solid ${({ theme }) => theme.colors.border || "#e5e7eb"};
+  border-radius: 8px;
   padding: 14px 14px;
 `;
 
@@ -31,13 +31,13 @@ const Title = styled.div`
 
 const Desc = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
   line-height: 1.55;
 `;
 
 const Divider = styled.div`
   height: 1px;
-  background: #e5e7eb;
+  background: ${({ theme }) => theme.colors.divider || "#e5e7eb"};
   margin: 12px 0;
 `;
 
@@ -49,7 +49,8 @@ const Row = styled.div`
   padding: 10px 0;
 
   &:not(:last-child) {
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid ${({ theme }) =>
+      theme.mode === "dark" ? theme.colors.divider : "#f3f4f6"};
   }
 `;
 
@@ -67,7 +68,7 @@ const RowTitle = styled.div`
 
 const RowSub = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
 `;
 
 const Switch = styled.button`
@@ -78,7 +79,12 @@ const Switch = styled.button`
   padding: 2px;
   cursor: pointer;
   position: relative;
-  background: ${({ $on }) => ($on ? "#4f46e5" : "#d1d5db")};
+  background: ${({ $on, theme }) =>
+    $on
+      ? theme.colors.primary || "#4f46e5"
+      : theme.mode === "dark"
+        ? theme.colors.surface
+        : "#d1d5db"};
   opacity: ${({ disabled }) => (disabled ? 0.55 : 1)};
 
   &:active {
@@ -100,14 +106,14 @@ const Knob = styled.div`
 const FooterHint = styled.div`
   margin-top: 10px;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
   line-height: 1.55;
 `;
 
 const SaveState = styled.div`
   margin-top: 10px;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
 `;
 
 function clonePrefs(p) {

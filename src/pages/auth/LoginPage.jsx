@@ -1,163 +1,58 @@
 /* eslint-disable */
 // src/pages/auth/LoginPage.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import styled from "styled-components";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
-import Button from "../../components/common/Button";
-import BrandHeader from "../../components/auth/BrandHeader";
-import Spinner from "../../components/common/Spinner";
-import { signInWithEmail, sendPasswordReset } from "../../services/authService";
+import { signInWithEmail } from "../../services/authService";
+import { upsertUsersByPhoneOnLogin } from "../../services/recoveryService";
+import { images } from "../../utils/imageAssets";
+import { isInWebView } from "../../bridge/webviewBridge";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useClub } from "../../hooks/useClub";
 import { useHomeData } from "../../hooks/useHomeData";
 import { useMatchingData } from "../../hooks/useMatchingData";
 
-/**
- * 피그마 구조
- * 1) 상단 BrandHeader (로고)
- * 2) 섹션 타이틀 "로그인" + 구분선
- * 3) 이메일 / 비밀번호 인풋
- * 4) 체크박스 2개 (로그인 유지 / 아이디 저장)
- * 5) 로그인 버튼
- * 6) 아이디 찾기 | 비밀번호 찾기
- * 7) 하단 회원가입 진입
- */
+const LS_KEEP_LOGIN = "hm.auth.keepLogin";
+const LS_SAVE_ID = "hm.auth.saveId";
+const LS_SAVED_EMAIL = "hm.auth.savedEmail";
 
-const Wrap = styled.div`
-  min-height: 100vh;
-  padding: 40px 24px 32px;
-  display: flex;
-  flex-direction: column;
-`;
+// App Store 리뷰어 데모 계정 — 전화번호 인증(/link-phone) 스킵
+const REVIEWER_EMAILS = ["appreview@hallamalle.com"];
+function isReviewerEmail(e) {
+  return REVIEWER_EMAILS.includes(String(e || "").trim().toLowerCase());
+}
 
-const HeaderTop = styled.div`
-  margin-bottom: 32px;
-`;
+function safeStr(v) {
+  return String(v ?? "").trim();
+}
 
-const SectionTitle = styled.h2`
-  margin: 0;
-  font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
-  font-weight: ${({ theme }) => theme.fontWeights.medium};
-  color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
-`;
-
-const SectionDivider = styled.div`
-  height: 1px;
-  background: ${({ theme }) => theme.colors.border || "#e0e0e0"};
-`;
-
-const Form = styled.form`
-  margin-top: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-`;
-
-const Field = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`;
-
-const Label = styled.label`
-  font-size: ${({ theme }) => theme.fontSizes.small}px;
-  color: ${({ theme }) => theme.colors.muted || "#777"};
-`;
-
-const Input = styled.input`
-  border: none;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border || "#e0e0e0"};
-  padding: 8px 0;
-  font-size: ${({ theme }) => theme.fontSizes.bodyLg}px;
-  outline: none;
-
-  &:focus {
-    border-bottom-color: ${({ theme }) => theme.colors.primary};
+function readLS(key) {
+  try {
+    return safeStr(window.localStorage.getItem(key));
+  } catch {
+    return "";
   }
-`;
+}
 
-const CheckboxRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 4px;
-`;
+function writeLS(key, value) {
+  try {
+    window.localStorage.setItem(key, String(value));
+  } catch {}
+}
 
-const CheckboxLabel = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: ${({ theme }) => theme.fontSizes.small}px;
-  color: ${({ theme }) => theme.colors.text || "#333"};
+function removeLS(key) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {}
+}
 
-  input {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-const PrimaryButtonWrap = styled.div`
-  margin-top: 24px;
-`;
-
-const HelperLinks = styled.div`
-  margin-top: 16px;
-  font-size: ${({ theme }) => theme.fontSizes.small}px;
-  color: ${({ theme }) => theme.colors.muted || "#888"};
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-`;
-
-const LinkText = styled.button`
-  border: none;
-  background: none;
-  padding: 0;
-  font: inherit;
-  color: ${({ theme }) => theme.colors.muted || "#888"};
-  cursor: pointer;
-`;
-
-const DevLoginWrap = styled.div`
-  margin-top: 24px;
-  display: flex;
-  justify-content: center;
-`;
-
-const DevLoginButton = styled.button`
-  border: none;
-  background: none;
-  padding: 4px 8px;
-  font-size: ${({ theme }) => theme.fontSizes.small}px;
-  color: ${({ theme }) => theme.colors.muted || "#888"};
-  text-decoration: underline;
-  cursor: pointer;
-`;
-
-const Overlay = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(2px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-`;
-
-const OverlayInner = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-`;
-
-const OverlayText = styled.div`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
-`;
+function readBool(key, defaultValue = false) {
+  const v = readLS(key);
+  if (v === "1" || v === "true") return true;
+  if (v === "0" || v === "false") return false;
+  return defaultValue;
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -169,6 +64,9 @@ export default function LoginPage() {
 
   const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
   const activeTeamId = String(club?.id || "").trim();
+
+  const phoneE164 = String(userDoc?.phoneE164 || "").trim();
+  const userEmail = String(firebaseUser?.email || userDoc?.email || "").trim();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -182,16 +80,56 @@ export default function LoginPage() {
   const [preloading, setPreloading] = useState(false);
 
   const preloadOnceRef = useRef(false);
+  const upsertOnceRef = useRef(false);
+  const formRef = useRef(null);
+
+  // 이미 로그인 상태면 적절한 페이지로 이동 (소셜 로그인 후 WebView 리로드 대응)
+  useEffect(() => {
+    if (authLoading) return;
+    if (isLoggedIn && !postLoginPreload) {
+      const dest =
+        phoneE164 || isReviewerEmail(userEmail) ? "/home" : "/link-phone";
+      navigate(dest, { replace: true });
+    }
+  }, [authLoading, isLoggedIn, postLoginPreload, phoneE164, navigate]);
 
   useEffect(() => {
-    try {
-      const savedEmail = localStorage.getItem("savedEmail") || "";
-      if (savedEmail) {
-        setEmail(savedEmail);
-        setSaveId(true);
-      }
-    } catch (e) {}
+    const savedKeep = readBool(LS_KEEP_LOGIN, false);
+    const savedSaveId = readBool(LS_SAVE_ID, false);
+    const savedEmail = readLS(LS_SAVED_EMAIL);
+
+    setKeepLogin(savedKeep);
+    setSaveId(savedSaveId);
+
+    if (savedSaveId && savedEmail) {
+      setEmail(savedEmail);
+    } else if (process.env.NODE_ENV !== "production") {
+      setEmail("p04@naver.com");
+      setPassword("halletest");
+    }
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (!uid) return;
+    if (!phoneE164) return;
+    if (upsertOnceRef.current) return;
+
+    upsertOnceRef.current = true;
+
+    (async () => {
+      try {
+        await upsertUsersByPhoneOnLogin({
+          phoneE164,
+          uid,
+          email: userEmail,
+          phoneVerified: true,
+        });
+      } catch (e) {
+        console.error("[LoginPage] users_by_phone upsert failed:", e);
+      }
+    })();
+  }, [isLoggedIn, uid, phoneE164, userEmail]);
 
   const canRunPreload = useMemo(() => {
     if (!postLoginPreload) return false;
@@ -226,14 +164,17 @@ export default function LoginPage() {
         setTimeout(() => {
           setPreloading(false);
           setPostLoginPreload(false);
-          navigate("/home", { replace: true });
+          // 폰번호 미인증 시 /link-phone으로 이동 (리뷰어 데모 계정은 스킵)
+          const dest =
+            phoneE164 || isReviewerEmail(email) || isReviewerEmail(userEmail)
+              ? "/home"
+              : "/link-phone";
+          navigate(dest, { replace: true });
         }, wait);
       }
     })();
   }, [canRunPreload, preloadHomeData, preloadMatchingHomeData, uid, activeTeamId, navigate]);
 
-  // ✅ 로그인 버튼: Firebase Auth 실제 로그인 + persistence 적용
-  // ✅ 로그인 성공 후: 스피너 + 프리로드 완료되면 /home
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -244,6 +185,8 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(true);
+    // signInWithEmail 중 auth state 변경으로 인한 premature navigation 방지
+    setPostLoginPreload(true);
     try {
       await signInWithEmail({
         email: email.trim(),
@@ -251,15 +194,18 @@ export default function LoginPage() {
         keepLogin,
       });
 
-      try {
-        if (saveId) localStorage.setItem("savedEmail", email.trim());
-        else localStorage.removeItem("savedEmail");
-      } catch (e) {}
+      writeLS(LS_KEEP_LOGIN, keepLogin ? "1" : "0");
+      writeLS(LS_SAVE_ID, saveId ? "1" : "0");
+
+      if (saveId) writeLS(LS_SAVED_EMAIL, email.trim());
+      else removeLS(LS_SAVED_EMAIL);
 
       preloadOnceRef.current = false;
-      setPostLoginPreload(true);
+      upsertOnceRef.current = false;
+
       setPreloading(true);
     } catch (err) {
+      setPostLoginPreload(false);
       const msg = (err && err.message) || "";
 
       if (msg.includes("auth/invalid-email")) {
@@ -285,117 +231,340 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoSignup = () => {
-    navigate("/signup");
+  const onToggleKeepLogin = (checked) => {
+    setKeepLogin(checked);
+    writeLS(LS_KEEP_LOGIN, checked ? "1" : "0");
   };
 
-  const handleHelpClick = async (type) => {
-    if (type === "아이디 찾기") {
-      window.alert("아이디 찾기 기능은 준비 중입니다.");
-      return;
-    }
+  const onToggleSaveId = (checked) => {
+    setSaveId(checked);
+    writeLS(LS_SAVE_ID, checked ? "1" : "0");
 
-    if (!email.trim()) {
-      window.alert("비밀번호 재설정을 위해 이메일을 먼저 입력해주세요.");
-      return;
-    }
-
-    try {
-      await sendPasswordReset({ email: email.trim() });
-      window.alert("비밀번호 재설정 메일을 보냈어요. 이메일을 확인해 주세요.");
-    } catch (e) {
-      window.alert("메일 발송에 실패했습니다. 이메일을 확인 후 다시 시도해 주세요.");
+    if (!checked) {
+      removeLS(LS_SAVED_EMAIL);
+    } else {
+      const current = safeStr(email);
+      if (current) writeLS(LS_SAVED_EMAIL, current);
     }
   };
+
+  const onEmailChange = (v) => {
+    setEmail(v);
+    if (saveId) writeLS(LS_SAVED_EMAIL, safeStr(v));
+  };
+
+  const inApp = isInWebView();
+
+  const scrollToForm = useCallback(() => {
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+  }, []);
+
+  const busy = isSubmitting || preloading || postLoginPreload;
 
   return (
-    <>
-      {(preloading || postLoginPreload) && (
+    <Wrap>
+      {busy && (
         <Overlay>
           <OverlayInner>
-            <Spinner />
-            <OverlayText>데이터 불러오는 중…</OverlayText>
+            <MiniSpinner />
+            <OverlayText>{preloading ? "데이터 불러오는 중…" : "로그인 중…"}</OverlayText>
           </OverlayInner>
         </Overlay>
       )}
 
-      <Wrap>
-        <HeaderTop>
-          <BrandHeader />
-        </HeaderTop>
+      <Hero>
+        <HeroLogo
+          src={images.logo}
+          alt="할래말래 로고"
+          loading="eager"
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
+        />
+        <HeroTitle>할래말래</HeroTitle>
+        <HeroSub>풋살 매칭의 시작</HeroSub>
+      </Hero>
 
-        <SectionTitle>로그인</SectionTitle>
-        <SectionDivider />
-
-        <Form onSubmit={handleSubmit}>
-          <Field>
-            <Label htmlFor="login-email">이메일</Label>
-            <Input
-              id="login-email"
-              type="email"
-              placeholder="이메일을 입력하세요"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={preloading || postLoginPreload}
-            />
-          </Field>
-
-          <Field>
-            <Label htmlFor="login-pw">비밀번호</Label>
-            <Input
-              id="login-pw"
-              type="password"
-              placeholder="비밀번호를 입력하세요"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={preloading || postLoginPreload}
-            />
-          </Field>
+      <Content>
+        <FormSection ref={formRef} onSubmit={handleSubmit}>
+          <Input
+            value={email}
+            onChange={(e) => onEmailChange(e.target.value)}
+            placeholder="이메일"
+            inputMode="email"
+            autoComplete="email"
+            onFocus={scrollToForm}
+            disabled={busy}
+          />
+          <Input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="비밀번호"
+            type="password"
+            autoComplete="current-password"
+            onFocus={scrollToForm}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSubmit(e);
+            }}
+            disabled={busy}
+          />
 
           <CheckboxRow>
             <CheckboxLabel>
               <input
                 type="checkbox"
                 checked={keepLogin}
-                onChange={(e) => setKeepLogin(e.target.checked)}
-                disabled={preloading || postLoginPreload}
+                onChange={(e) => onToggleKeepLogin(e.target.checked)}
+                disabled={busy}
               />
               로그인 유지
             </CheckboxLabel>
+
             <CheckboxLabel>
               <input
                 type="checkbox"
                 checked={saveId}
-                onChange={(e) => setSaveId(e.target.checked)}
-                disabled={preloading || postLoginPreload}
+                onChange={(e) => onToggleSaveId(e.target.checked)}
+                disabled={busy}
               />
               아이디 저장
             </CheckboxLabel>
           </CheckboxRow>
 
-          <PrimaryButtonWrap>
-            <Button fullWidth type="submit" disabled={isSubmitting || preloading || postLoginPreload}>
-              {isSubmitting ? "로그인 중..." : "로그인"}
-            </Button>
-          </PrimaryButtonWrap>
+          <LoginBtn type="button" onClick={handleSubmit} disabled={busy}>
+            {isSubmitting ? "로그인 중..." : "로그인"}
+          </LoginBtn>
+        </FormSection>
 
-          <HelperLinks>
-            <LinkText type="button" onClick={() => handleHelpClick("아이디 찾기")} disabled={preloading || postLoginPreload}>
-              아이디 찾기
-            </LinkText>
-            <span>|</span>
-            <LinkText type="button" onClick={() => handleHelpClick("비밀번호 찾기")} disabled={preloading || postLoginPreload}>
-              비밀번호 찾기
-            </LinkText>
-          </HelperLinks>
-        </Form>
-
-        <DevLoginWrap>
-          <DevLoginButton type="button" onClick={handleGoSignup} disabled={preloading || postLoginPreload}>
-            처음이신가요? 회원가입 해주세요
-          </DevLoginButton>
-        </DevLoginWrap>
-      </Wrap>
-    </>
+        <FindAccountRow>
+          <FindAccountLink type="button" onClick={() => navigate("/signup")} disabled={busy}>
+            회원가입
+          </FindAccountLink>
+        </FindAccountRow>
+      </Content>
+    </Wrap>
   );
 }
+
+/* ===================== styles ===================== */
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+`;
+
+const spin = keyframes`
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+`;
+
+const Wrap = styled.div`
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.bg};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+`;
+
+const Hero = styled.div`
+  width: 100%;
+  padding: 52px 24px 40px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+`;
+
+const HeroLogo = styled.img`
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+`;
+
+const HeroTitle = styled.div`
+  margin-top: 14px;
+  font-weight: 700 !important;
+  font-size: 34px !important;
+  font-weight: 800 !important;
+  color: ${({ theme }) => theme.colors.textStrong};
+  letter-spacing: -0.03em;
+`;
+
+const HeroSub = styled.div`
+  font-size: 16px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.textWeak};
+  letter-spacing: -0.02em;
+`;
+
+const Content = styled.div`
+  width: 100%;
+  max-width: 400px;
+  padding: 28px 20px 40px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: ${fadeIn} 0.45s ease-out both;
+  animation-delay: 0.1s;
+`;
+
+const FormSection = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  height: 50px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1.5px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
+    font-weight: 400;
+  }
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 3px ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(99, 102, 241, 0.25)" : "rgba(79, 70, 229, 0.1)"};
+    background: ${({ theme }) => theme.colors.card};
+  }
+
+  &:disabled {
+    opacity: 0.6;
+  }
+`;
+
+const CheckboxRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px;
+`;
+
+const CheckboxLabel = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textNormal};
+  cursor: pointer;
+
+  input {
+    width: 16px;
+    height: 16px;
+    accent-color: ${({ theme }) => theme.colors.primary};
+    cursor: pointer;
+  }
+`;
+
+const LoginBtn = styled.button`
+  width: 100%;
+  height: 50px;
+  margin-top: 4px;
+  border-radius: 8px;
+  border: none;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.primaryWeak};
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const FindAccountRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 6px;
+`;
+
+const FindAccountLink = styled.button`
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.textWeak};
+  cursor: pointer;
+  letter-spacing: -0.02em;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const FindAccountDivider = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.border};
+`;
+
+const Overlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(11, 18, 32, 0.85)" : "rgba(255, 255, 255, 0.85)"};
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+`;
+
+const OverlayInner = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+`;
+
+const OverlayText = styled.div`
+  font-size: 14px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const MiniSpinner = styled.div`
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 3px solid ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99, 102, 241, 0.20)" : "rgba(79, 70, 229, 0.15)"};
+  border-top-color: ${({ theme }) => theme.colors.primary};
+  animation: ${spin} 0.8s linear infinite;
+`;

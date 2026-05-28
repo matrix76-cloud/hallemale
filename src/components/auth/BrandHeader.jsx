@@ -18,9 +18,8 @@ const Logo = styled.img`
 
 const Title = styled.span`
   font-size: ${({ theme }) => theme.fontSizes.title}px;
-  font-weight: 500;
+  font-weight: 600;
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family:"GmarketSans";
   padding-top:5px;
 `;
 

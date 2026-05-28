@@ -175,15 +175,13 @@ const Page = styled.div`
   min-height: calc(100vh - 56px);
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
   padding: 14px 16px calc(24px + 82px) 16px; /* ✅ 하단 CTA 높이만큼 여백 */
-  font-family: "GmarketSans", "Gmarket Sans", "GmarketSansTTF", system-ui, -apple-system,
-    "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
 `;
 
 const Card = styled.div`
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 14px 14px 16px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 `;
 
 const TopRow = styled.div`
@@ -205,13 +203,13 @@ const Title = styled.div`
 const Sub = styled.div`
   margin-top: 4px;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Divider = styled.div`
   margin: 18px 0;
   height: 1px;
-  background: #eef2f7;
+  background: ${({ theme }) => theme.colors.divider};
 `;
 
 const Section = styled.div`
@@ -239,7 +237,7 @@ const AccentBar = styled.div`
   width: 3px;
   height: 18px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   flex-shrink: 0;
 `;
 
@@ -254,14 +252,22 @@ const SectionBadge = styled.div`
   font-size: 12px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(79, 70, 229, 0.08);
-  border: 1px solid rgba(79, 70, 229, 0.22);
-  color: #3730a3;
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "rgba(99,102,241,0.18)"
+      : "rgba(79, 70, 229, 0.08)"};
+  border: 1px solid
+    ${({ theme }) =>
+      theme.mode === "dark"
+        ? "rgba(99,102,241,0.35)"
+        : "rgba(79, 70, 229, 0.22)"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : "#3730a3"};
 `;
 
 const Hint = styled.div`
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.5;
 `;
 
@@ -272,15 +278,15 @@ const OneCol = styled.div`
 `;
 
 const Mini = styled.div`
-  border: 1px solid #eef2f7;
-  border-radius: 14px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
   padding: 12px 12px;
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
 `;
 
 const MiniLabel = styled.div`
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const TeamCardRow = styled.div`
@@ -292,9 +298,10 @@ const TeamCardRow = styled.div`
 const TeamLogo = styled.img`
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: 8px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex-shrink: 0;
 `;
 
@@ -308,7 +315,7 @@ const TeamCardTexts = styled.div`
 
 const TeamCardName = styled.div`
   font-size: 17px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   line-height: 1.25;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -316,7 +323,7 @@ const TeamCardName = styled.div`
 
 const TeamCardRegion = styled.div`
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.25;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -331,7 +338,7 @@ const CompareRow = styled.div`
 
 const SideValue = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   text-align: ${({ $right }) => ($right ? "right" : "left")};
   white-space: nowrap;
 `;
@@ -339,7 +346,8 @@ const SideValue = styled.div`
 const MidBar = styled.div`
   height: 10px;
   border-radius: 999px;
-  background: #eef2ff;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
   position: relative;
   overflow: hidden;
 `;
@@ -350,7 +358,7 @@ const MidFill = styled.div`
   top: 0;
   bottom: 0;
   width: ${({ $pct }) => $pct}%;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   border-radius: 999px;
 `;
 
@@ -358,7 +366,7 @@ const LabelRow = styled.div`
   display: flex;
   justify-content: space-between;
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const RecentRow = styled.div`
@@ -370,7 +378,7 @@ const RecentRow = styled.div`
 
 const RecentLabel = styled.div`
   font-size: 13px;
-  color: #374151;
+  color: ${({ theme }) => theme.colors.textNormal};
   white-space: normal;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -385,8 +393,10 @@ const RecentDots = styled.div`
 const SoonDot = styled.div`
   width: 14px;
   height: 14px;
-  background: #d1d5db;
-  border: 1px dashed #cbd5e1;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#d1d5db"};
+  border: 1px dashed ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "#cbd5e1"};
   box-sizing: border-box;
 `;
 
@@ -397,10 +407,10 @@ const PlayerList = styled.div`
 `;
 
 const PlayerRow = styled.div`
-  border: 1px solid #eef2f7;
-  border-radius: 14px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 8px;
   padding: 10px 10px;
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   display: flex;
   align-items: center;
   gap: 10px;
@@ -411,7 +421,8 @@ const Avatar = styled.img`
   height: 44px;
   border-radius: 999px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   flex-shrink: 0;
 `;
 
@@ -425,7 +436,7 @@ const PlayerCol = styled.div`
 
 const PlayerName = styled.div`
   font-size: 13px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -433,7 +444,7 @@ const PlayerName = styled.div`
 
 const PlayerMeta = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -448,9 +459,10 @@ const Gallery = styled.div`
 const MediaCard = styled.div`
   width: 100%;
   height: 220px;
-  border-radius: 16px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const MediaImg = styled.img`
@@ -461,22 +473,29 @@ const MediaImg = styled.img`
 `;
 
 const AiBox = styled.div`
-  border: 1px solid rgba(79, 70, 229, 0.18);
-  background: rgba(79, 70, 229, 0.06);
-  border-radius: 16px;
+  border: 1px solid
+    ${({ theme }) =>
+      theme.mode === "dark"
+        ? "rgba(99,102,241,0.35)"
+        : "rgba(79, 70, 229, 0.18)"};
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "rgba(99,102,241,0.08)"
+      : "rgba(79, 70, 229, 0.06)"};
+  border-radius: 8px;
   padding: 12px 12px;
 `;
 
 const Bullet = styled.div`
   font-size: 13px;
-  color: #374151;
+  color: ${({ theme }) => theme.colors.textNormal};
   line-height: 1.6;
 `;
 
 const ErrorText = styled.div`
   padding: 20px 16px;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   text-align: center;
   line-height: 1.5;
 `;
@@ -489,13 +508,14 @@ const BottomCTAWrap = styled.div`
   right: 0;
   bottom: 0;
   padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
-  background: linear-gradient(
-    to top,
-    #ffffff 0%,
-    #ffffff 70%,
-    rgba(255, 255, 255, 0.85) 100%
-  );
-  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.12);
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? `linear-gradient(to top, ${theme.colors.bg} 0%, ${theme.colors.bg} 70%, rgba(11, 18, 32, 0.85) 100%)`
+      : `linear-gradient(to top, #ffffff 0%, #ffffff 70%, rgba(255, 255, 255, 0.85) 100%)`};
+  box-shadow: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "0 -6px 20px rgba(0, 0, 0, 0.45)"
+      : "0 -6px 20px rgba(15, 23, 42, 0.12)"};
   z-index: 50;
 `;
 
@@ -504,7 +524,12 @@ const MatchApplyButton = styled.button`
   height: 52px;
   border-radius: 999px;
   border: none;
-  background: ${({ disabled }) => (disabled ? "#c7d2fe" : "#4f46e5")};
+  background: ${({ disabled, theme }) =>
+    disabled
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.35)"
+        : "#c7d2fe"
+      : theme.colors.primary};
   color: #ffffff;
   font-size: 16px;
   font-weight: 700;
@@ -518,7 +543,8 @@ const MatchApplyButton = styled.button`
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.45)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -529,10 +555,10 @@ const SelectCard = styled.div`
   width: 94%;
   max-width: 420px;
   max-height: 70vh;
-  background: #ffffff;
-  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 16px 16px 18px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.4);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
 `;
@@ -546,7 +572,7 @@ const SelectHeader = styled.div`
 
 const SelectTitle = styled.div`
   font-size: 18px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SelectClose = styled.button`
@@ -554,12 +580,13 @@ const SelectClose = styled.button`
   background: none;
   font-size: 20px;
   cursor: pointer;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const SelectMeta = styled.div`
   margin-top: 6px;
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const SelectBody = styled.div`
@@ -581,10 +608,17 @@ const SelectList = styled.div`
 
 const SelectItem = styled.button`
   width: 100%;
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 10px 12px;
-  border: 1px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#e5e7eb")};
-  background: ${({ $selected }) => ($selected ? "#eef2ff" : "#ffffff")};
+  border: 1px solid
+    ${({ $selected, theme }) =>
+      $selected ? theme.colors.primary : theme.colors.border};
+  background: ${({ $selected, theme }) =>
+    $selected
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "#eef2ff"
+      : theme.colors.card};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -601,20 +635,23 @@ const SelectTexts = styled.div`
 
 const SelectName = styled.div`
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SelectMetaText = styled.div`
   font-size: 12px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const SelectRadio = styled.div`
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  border: 2px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#d4d4d8")};
-  background: ${({ $selected }) => ($selected ? "#4f46e5" : "#ffffff")};
+  border: 2px solid
+    ${({ $selected, theme }) =>
+      $selected ? theme.colors.primary : theme.colors.border};
+  background: ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.card};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -632,9 +669,12 @@ const SelectButton = styled.button`
   flex: 1;
   height: 42px;
   border-radius: 999px;
-  border: ${({ $primary }) => ($primary ? "none" : "1px solid #e5e7eb")};
-  background: ${({ $primary }) => ($primary ? "#4f46e5" : "#ffffff")};
-  color: ${({ $primary }) => ($primary ? "#ffffff" : "#111827")};
+  border: ${({ $primary, theme }) =>
+    $primary ? "none" : `1px solid ${theme.colors.border}`};
+  background: ${({ $primary, theme }) =>
+    $primary ? theme.colors.primary : theme.colors.card};
+  color: ${({ $primary, theme }) =>
+    $primary ? "#ffffff" : theme.colors.textStrong};
   font-size: 13px;
   cursor: pointer;
 `;

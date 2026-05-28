@@ -12,6 +12,7 @@ import {
   incrementCommunityPostViews,
 } from "../../services/communityService";
 import { createPostReport } from "../../services/postReportService";
+import { blockAuthorAndHidePost } from "../../services/userBlockService";
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
 
@@ -625,6 +626,7 @@ export default function CommunityDetailPage() {
     if (!post || !myUid) return;
     setReportBusy(true);
     try {
+      // 1) 관리자에게 신고 접수
       await createPostReport({
         postId: post.id,
         postTitle: post.title,
@@ -634,9 +636,18 @@ export default function CommunityDetailPage() {
         reporterNickname: String(userDoc?.nickname || userDoc?.name || ""),
         reason,
       });
+      // 2) 즉시 본인 피드에서 해당 작성자 + 게시글 숨김 (Apple Guideline 1.2)
+      await blockAuthorAndHidePost({
+        myUid: String(myUid),
+        targetUid: post.authorId,
+        postId: post.id,
+      });
       setReportOpen(false);
       setReportReason("");
-      alert("신고가 접수되었습니다. 검토 후 조치합니다.");
+      alert(
+        "신고가 접수되었습니다.\n해당 게시글과 작성자의 글은 회원님 피드에서 즉시 숨겨졌으며,\n관리자가 검토 후 조치합니다."
+      );
+      nav(-1);
     } catch (e) {
       console.error("[CommunityDetailPage] report failed", e);
       alert(e?.message || "신고 접수에 실패했습니다.");
@@ -770,7 +781,7 @@ export default function CommunityDetailPage() {
           {!post.isMine && (
             <ReportRow>
               <ReportLink type="button" onClick={openReport}>
-                🚩 게시글 신고하기
+                🚩 신고 및 작성자 차단
               </ReportLink>
             </ReportRow>
           )}
@@ -844,9 +855,9 @@ export default function CommunityDetailPage() {
           }}
         >
           <ReportModal onClick={(e) => e.stopPropagation()}>
-            <ReportTitle>게시글 신고</ReportTitle>
+            <ReportTitle>게시글 신고 및 작성자 차단</ReportTitle>
             <ReportSub>
-              {`신고 내용은 관리자가 검토 후 조치합니다.\n허위 신고 시 서비스 이용이 제한될 수 있습니다.`}
+              {`신고하시면 이 게시글과 작성자의 모든 글이\n회원님 피드에서 즉시 숨겨집니다.\n관리자가 24시간 이내 검토 후 조치합니다.\n허위 신고 시 서비스 이용이 제한될 수 있습니다.`}
             </ReportSub>
 
             <ReportTextarea
@@ -867,7 +878,7 @@ export default function CommunityDetailPage() {
                 onClick={handleSubmitReport}
                 disabled={reportBusy || !reportReason.trim()}
               >
-                {reportBusy ? "전송중…" : "신고하기"}
+                {reportBusy ? "전송중…" : "신고 및 차단"}
               </ReportBtn>
             </ReportActions>
           </ReportModal>

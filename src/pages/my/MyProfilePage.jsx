@@ -170,6 +170,7 @@ export default function MyProfilePage() {
     if (key === "reportBlock") nav("/settings/block-report");
     if (key === "faq") nav("/settings/faq");
     if (key === "changePassword") nav("/settings/password");
+    if (key === "withdraw") nav("/settings/withdraw");
 
     if (key === "privacy") nav("/privacy");
     if (key === "terms") nav("/terms");
@@ -428,7 +429,7 @@ export default function MyProfilePage() {
 
             {transferLoading ? (
               <ModalCenter>
-                <Spinner />
+                <Spinner fullscreen={false} />
                 <ModalHint>불러오는 중…</ModalHint>
               </ModalCenter>
             ) : transferMembers.length === 0 ? (
@@ -633,16 +634,9 @@ export default function MyProfilePage() {
                 <MenuTextWrap>
                   <MenuTitle>화면 모드</MenuTitle>
                 </MenuTextWrap>
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#6b7280",
-                    marginRight: 8,
-                  }}
-                >
+                <ThemeModeText>
                   {themeMode === "dark" ? "다크" : "라이트"}
-                </span>
+                </ThemeModeText>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
 
@@ -673,6 +667,13 @@ export default function MyProfilePage() {
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
+
+              <MenuItemButton onClick={() => handleSettingMenuClick("withdraw")}>
+                <MenuTextWrap>
+                  <MenuTitle>회원탈퇴</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
             </MenuList>
           </SectionBody>
         </Section>
@@ -688,7 +689,8 @@ const BusyOverlay = styled.div`
   z-index: 99999;
   display: grid;
   place-items: center;
-  background: rgba(15, 23, 42, 0.18);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.18)"};
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 `;
@@ -696,9 +698,9 @@ const BusyOverlay = styled.div`
 const BusyCard = styled.div`
   width: min(420px, 90vw);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   padding: 22px 18px;
   display: grid;
   place-items: center;
@@ -707,7 +709,7 @@ const BusyCard = styled.div`
 
 const BusyText = styled.div`
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 /* ===== 팀장 이임 모달 ===== */
@@ -718,16 +720,17 @@ const ModalOverlay = styled.div`
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(15, 23, 42, 0.35);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.35)"};
 `;
 
 const ModalCard = styled.div`
   width: min(520px, 92vw);
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
   padding: 16px 14px 14px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -741,7 +744,7 @@ const ModalTopRow = styled.div`
 
 const ModalTitle = styled.div`
   font-size: 16px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const ModalCloseBtn = styled.button`
@@ -749,7 +752,7 @@ const ModalCloseBtn = styled.button`
   background: transparent;
   font-size: 22px;
   cursor: pointer;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 
   &:disabled {
     opacity: 0.6;
@@ -759,7 +762,7 @@ const ModalCloseBtn = styled.button`
 
 const ModalSub = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.45;
 `;
 
@@ -772,12 +775,12 @@ const ModalCenter = styled.div`
 
 const ModalHint = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ModalError = styled.div`
   font-size: 12px;
-  color: #ef4444;
+  color: ${({ theme }) => theme.colors.danger};
 `;
 
 const MemberList = styled.div`
@@ -792,8 +795,15 @@ const MemberRow = styled.button`
   width: 100%;
   border-radius: 8px;
   padding: 10px 12px;
-  border: 1px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#e5e7eb")};
-  background: ${({ $selected }) => ($selected ? "#eef2ff" : "#ffffff")};
+  border: 1px solid
+    ${({ $selected, theme }) =>
+      $selected ? theme.colors.primary : theme.colors.border};
+  background: ${({ $selected, theme }) =>
+    $selected
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "#eef2ff"
+      : theme.colors.card};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -818,8 +828,9 @@ const MemberAvatarWrap = styled.div`
   height: 34px;
   border-radius: 999px;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -840,7 +851,7 @@ const MemberText = styled.div`
 
 const MemberName = styled.div`
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -848,7 +859,7 @@ const MemberName = styled.div`
 
 const MemberMeta = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -858,8 +869,11 @@ const MemberRadio = styled.div`
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  border: 2px solid ${({ $selected }) => ($selected ? "#4f46e5" : "#d1d5db")};
-  background: ${({ $selected }) => ($selected ? "#4f46e5" : "#ffffff")};
+  border: 2px solid
+    ${({ $selected, theme }) =>
+      $selected ? theme.colors.primary : theme.colors.border};
+  background: ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.card};
   color: #ffffff;
   font-size: 11px;
   display: grid;
@@ -877,8 +891,9 @@ const ModalGhostBtn = styled.button`
   flex: 1;
   height: 42px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 13px;
   cursor: pointer;
 
@@ -893,7 +908,7 @@ const ModalPrimaryBtn = styled.button`
   height: 42px;
   border-radius: 999px;
   border: none;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 13px;
   cursor: pointer;
@@ -908,7 +923,7 @@ const ModalPrimaryBtn = styled.button`
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
+  background: ${({ theme }) => theme.colors.bg};
   padding: 12px 12px 24px;
   display: flex;
   flex-direction: column;
@@ -934,7 +949,7 @@ const AvatarWrap = styled.div`
   height: 60px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) => theme.colors.border};
 `;
 
 const Avatar = styled.img`
@@ -965,7 +980,7 @@ const OwnerPill = styled.div`
   padding: 4px 10px;
   border-radius: 5px;
   color: #fff;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   font-size: 12px;
   font-weight: 800;
 `;
@@ -975,7 +990,7 @@ const MetaRow = styled.div`
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const MetaItem = styled.span``;
@@ -986,9 +1001,9 @@ const ProfileSettingBtn = styled.button`
   top: 2px;
   right: 0px;
 
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #111827;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   border-radius: 999px;
   padding: 8px 12px;
   font-size: 12px;
@@ -996,11 +1011,12 @@ const ProfileSettingBtn = styled.button`
   white-space: nowrap;
   z-index: 2;
 
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
 
   &:active {
     transform: translateY(1px);
-    background: #f9fafb;
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   }
 `;
 
@@ -1010,7 +1026,8 @@ const SetupOverlay = styled.div`
   z-index: 9999;
   display: grid;
   place-items: center;
-  background: rgba(15, 23, 42, 0.07);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.07)"};
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   padding: 18px;
@@ -1026,8 +1043,8 @@ const SetupCard = styled.button`
   place-items: center;
   gap: 12px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+  background: ${({ theme }) => theme.colors.card};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 `;
@@ -1037,8 +1054,9 @@ const SetupPill = styled.div`
   justify-self: center;
   padding: 8px 14px;
   border-radius: 999px;
-  background: rgba(79, 70, 229, 0.14);
-  color: #4f46e5;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "rgba(79, 70, 229, 0.14)"};
+  color: ${({ theme }) => theme.colors.primary};
   font-size: 14px;
   font-weight: 800;
 `;
@@ -1046,7 +1064,7 @@ const SetupPill = styled.div`
 const SetupSub = styled.div`
   font-size: 15px;
   line-height: 1.45;
-  color: rgba(17, 24, 39, 0.78);
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const SetupCta = styled.div`
@@ -1054,7 +1072,7 @@ const SetupCta = styled.div`
   margin-top: 6px;
   padding: 12px 18px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: ${({ theme }) => theme.colors.primary};
   color: #ffffff;
   font-size: 15px;
   font-weight: 800;
@@ -1063,7 +1081,7 @@ const SetupCta = styled.div`
 const Section = styled.section`
   margin-top: 16px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
 const SectionInner = styled.div`
@@ -1098,7 +1116,7 @@ const MenuItemButton = styled.button`
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 
   &:last-child {
     border-bottom: none;
@@ -1123,7 +1141,7 @@ const NewBadge = styled.span`
   height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  background: #ef4444;
+  background: ${({ theme }) => theme.colors.danger};
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -1140,5 +1158,12 @@ const MenuTitle = styled.div`
 
 const MenuArrow = styled.div`
   font-size: 18px;
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const ThemeModeText = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textWeak};
+  margin-right: 8px;
 `;

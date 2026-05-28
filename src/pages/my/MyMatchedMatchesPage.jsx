@@ -167,7 +167,7 @@ export default function MyMatchedMatchesPage() {
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
+  background: ${({ theme }) => theme.colors.bg};
   display: flex;
   flex-direction: column;
 `;
@@ -186,7 +186,7 @@ const CenterBox = styled.div`
 const EmptyWrap = styled.div`
   margin-top: 20px;
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
   text-align: center;
 `;
 
@@ -201,9 +201,9 @@ const MatchCard = styled.button`
   width: 100%;
   border: none;
   border-radius: 8px;
-  background: #ffffff;
+  background: ${({ theme }) => theme.colors.card};
   padding: 10px 12px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -231,7 +231,7 @@ const TeamLogoWrap = styled.div`
   height: 30px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) => theme.colors.border};
   flex-shrink: 0;
 `;
 
@@ -250,7 +250,7 @@ const TeamName = styled.div`
 const VsText = styled.div`
   font-size: 16px;
   font-weight: 700;
-  color: #2563eb;
+  color: ${({ theme }) => theme.colors.primary};
 `;
 
 const MiddleRow = styled.div`
@@ -266,7 +266,7 @@ const InfoCol = styled.div`
 
 const InfoLabel = styled.div`
   font-size: 10px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
   margin-bottom: 2px;
 `;
 
@@ -290,12 +290,27 @@ const StatusBadge = styled.div`
   font-weight: 600;
   text-align: center;
 
-  ${({ tone }) => {
-    if (tone === "pending") return `background:#fef3c7;color:#b45309;`;
-    if (tone === "confirmed") return `background:#dcfce7;color:#166534;`;
-    if (tone === "finished") return `background:#e5e7eb;color:#111827;`;
-    if (tone === "cancelled") return `background:#fee2e2;color:#b91c1c;`;
-    return `background:#e5e7eb;color:#4b5563;`;
+  ${({ tone, theme }) => {
+    const isDark = theme.mode === "dark";
+    if (tone === "pending")
+      return isDark
+        ? `background:rgba(245,158,11,0.18);color:#fbbf24;`
+        : `background:#fef3c7;color:#b45309;`;
+    if (tone === "confirmed")
+      return isDark
+        ? `background:rgba(34,197,94,0.18);color:#86efac;`
+        : `background:#dcfce7;color:#166534;`;
+    if (tone === "finished")
+      return isDark
+        ? `background:rgba(255,255,255,0.06);color:${theme.colors.textNormal};`
+        : `background:#e5e7eb;color:#111827;`;
+    if (tone === "cancelled")
+      return isDark
+        ? `background:rgba(248,113,113,0.16);color:#fca5a5;`
+        : `background:#fee2e2;color:#b91c1c;`;
+    return isDark
+      ? `background:rgba(255,255,255,0.06);color:${theme.colors.textWeak};`
+      : `background:#e5e7eb;color:#4b5563;`;
   }}
 `;
 
@@ -307,7 +322,7 @@ const ResultRight = styled.div`
 `;
 
 const ResultLabel = styled.div`
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ResultValue = styled.div`

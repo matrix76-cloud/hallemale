@@ -56,32 +56,30 @@ export default function FAQPage() {
 
   return (
     <PageWrap>
-      <Card>
-        <Title>자주 묻는 질문</Title>
-        <Desc>궁금한 내용을 눌러서 확인해 보세요.</Desc>
+      <Title>자주 묻는 질문</Title>
+      <Desc>궁금한 내용을 눌러서 확인해 보세요.</Desc>
 
-        <List>
-          {FAQS.map((item, idx) => {
-            const open = openIndex === idx;
-            return (
-              <Item key={idx}>
-                <QuestionRow type="button" onClick={() => toggle(idx)}>
-                  <QuestionText>{item.q}</QuestionText>
-                  <Chevron $open={open}>
-                    <FiChevronDown size={18} />
-                  </Chevron>
-                </QuestionRow>
+      <List>
+        {FAQS.map((item, idx) => {
+          const open = openIndex === idx;
+          return (
+            <Item key={idx}>
+              <QuestionRow type="button" onClick={() => toggle(idx)}>
+                <QuestionText>{item.q}</QuestionText>
+                <Chevron $open={open}>
+                  <FiChevronDown size={18} />
+                </Chevron>
+              </QuestionRow>
 
-                {open && (
-                  <Answer>
-                    {item.a}
-                  </Answer>
-                )}
-              </Item>
-            );
-          })}
-        </List>
-      </Card>
+              {open && (
+                <Answer>
+                  {item.a}
+                </Answer>
+              )}
+            </Item>
+          );
+        })}
+      </List>
     </PageWrap>
   );
 }
@@ -90,15 +88,8 @@ export default function FAQPage() {
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
+  background: ${({ theme }) => theme.colors.bg || "#ffffff"};
   padding: 14px 14px 24px;
-`;
-
-const Card = styled.div`
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 14px 14px;
 `;
 
 const Title = styled.div`
@@ -109,7 +100,7 @@ const Title = styled.div`
 
 const Desc = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
   margin-bottom: 10px;
 `;
 
@@ -119,7 +110,8 @@ const List = styled.div`
 `;
 
 const Item = styled.div`
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.divider : "#f3f4f6"};
 
   &:last-child {
     border-bottom: none;
@@ -145,7 +137,7 @@ const QuestionText = styled.div`
 `;
 
 const Chevron = styled.div`
-  color: #9ca3af;
+  color: ${({ theme }) => theme.colors.textWeak || "#9ca3af"};
   transform: rotate(${({ $open }) => ($open ? "180deg" : "0deg")});
   transition: transform 180ms ease;
 `;
@@ -153,6 +145,6 @@ const Chevron = styled.div`
 const Answer = styled.div`
   padding: 0 4px 14px;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#4b5563"};
+  color: ${({ theme }) => theme.colors.textNormal || "#4b5563"};
   line-height: 1.6;
 `;

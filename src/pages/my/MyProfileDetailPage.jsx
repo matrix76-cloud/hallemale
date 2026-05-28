@@ -179,7 +179,7 @@ export default function MyProfileDetailPage() {
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
+  background: ${({ theme }) => theme.colors.bg};
   display: flex;
   flex-direction: column;
 `;
@@ -196,10 +196,10 @@ const Inner = styled.div`
 /* 프로필 카드 */
 
 const ProfileCard = styled.div`
-  background: #ffffff;
-  border-radius: 22px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 14px 14px 16px;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -216,7 +216,7 @@ const AvatarWrap = styled.div`
   height: 64px;
   border-radius: 999px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) => theme.colors.border};
   flex-shrink: 0;
 `;
 
@@ -248,7 +248,7 @@ const Name = styled.div`
 
 const NameSub = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const TagRow = styled.div`
@@ -267,13 +267,15 @@ const TagBase = styled.span`
 `;
 
 const TagAccent = styled(TagBase)`
-  background: #e0ebff;
-  color: #2563eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#e0ebff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#2563eb")};
 `;
 
 const TagSoft = styled(TagBase)`
-  background: #f3f4f6;
-  color: #4b5563;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 /* 기본 정보 그리드 */
@@ -287,8 +289,9 @@ const InfoGrid = styled.div`
 
 const InfoItem = styled.div`
   padding: 10px 12px;
-  border-radius: 14px;
-  background: #f9fafb;
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -296,7 +299,7 @@ const InfoItem = styled.div`
 
 const InfoLabel = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const InfoValue = styled.div`
@@ -308,10 +311,10 @@ const InfoValue = styled.div`
 /* 공통 섹션 카드 */
 
 const SectionCard = styled.div`
-  background: #ffffff;
-  border-radius: 22px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 12px 14px 14px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -332,12 +335,12 @@ const SectionTitle = styled.h2`
 
 const SectionSub = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const EmptyText = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
   padding: 6px 0;
 `;
 
@@ -351,8 +354,9 @@ const CareerList = styled.div`
 
 const CareerItem = styled.div`
   padding: 10px 12px;
-  border-radius: 14px;
-  background: #f9fafb;
+  border-radius: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -375,9 +379,10 @@ const MediaGrid = styled.div`
 
 const MediaBox = styled.div`
   height: 120px;
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -385,5 +390,5 @@ const MediaBox = styled.div`
 
 const MediaPlaceholder = styled.div`
   font-size: 11px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;

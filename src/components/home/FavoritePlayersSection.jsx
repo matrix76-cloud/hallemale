@@ -23,16 +23,16 @@ const SectionTitle = styled.h2`
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-family: "GmarketSans";
+  font-weight: 600;
 `;
 
 const EmptyBox = styled.div`
-  border-radius: 18px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 14px 12px;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
   text-align: center;
 `;
 
@@ -52,16 +52,18 @@ const SlideRow = styled.div`
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #e5e7eb;
+    background: ${({ theme }) => theme.colors.border};
     border-radius: 999px;
   }
 `;
 
 const Card = styled.div`
   flex: 0 0 calc((100% - 20px) / 3);
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -81,7 +83,8 @@ const PlayerAvatar = styled.img`
   height: 60px;
   border-radius: 999px;
   object-fit: cover;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const CardBody = styled.div`
@@ -99,7 +102,6 @@ const PlayerName = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: "GmarketSans";
 `;
 
 // ✅ items: [{ userId, nickname/name, avatarUrl/photoUrl ... }]

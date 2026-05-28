@@ -31,12 +31,12 @@ const TeamListTitle = styled.span`
 const TeamListSub = styled.span`
   font-size: 12px;
   margin-top:5px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const TeamListCard = styled.div`
-  background: #ffffff;
-  border-radius: 16px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
   padding: 4px 0;
   display: flex;
   flex-direction: column;
@@ -54,7 +54,7 @@ const TeamBlock = styled.div`
 const Divider = styled.div`
   height: 1px;
   margin: 0 10px;
-  background: #e5e7eb;
+  background: ${({ theme }) => theme.colors.border};
 `;
 
 const Row = styled.div`
@@ -77,7 +77,8 @@ const LogoOuter = styled.div`
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
-  background: #e5e7eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const LogoImg = styled.img`
@@ -113,7 +114,7 @@ const TeamNameText = styled.div`
 
 const TeamRegionText = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#9ca3af"};
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -129,21 +130,23 @@ const SummaryRow = styled.div`
 `;
 
 const SummaryText = styled.span`
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const WinRateBadge = styled.span`
   padding: 3px 8px;
   border-radius: 999px;
-  background: #eef2ff;
-  color: #2563eb;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : "#2563eb"};
   font-size: 11px;
   font-weight: 500;
 `;
 
 const RecentLabel = styled.span`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.muted || "#6b7280"};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const RecentDots = styled.div`
@@ -155,8 +158,10 @@ const RecentDots = styled.div`
 const SoonDot = styled.div`
   width: 14px;
   height: 14px;
-  background: #d1d5db;
-  border: 1px dashed #cbd5e1;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#d1d5db"};
+  border: 1px dashed ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "#cbd5e1"};
   box-sizing: border-box;
 `;
 
