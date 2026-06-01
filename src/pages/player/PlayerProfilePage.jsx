@@ -973,9 +973,11 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
           ) : null}
 
           <PlayerAbilitySection sessions={playerSessions} userProfile={player} />
-          <PlayerHealthSection sessions={playerSessions} userProfile={player} />
+          {/* 🔁 App Store 심사(Guideline 2.5.1) 대응: iOS HealthKit 제거에 따라 건강 UI 숨김.
+              나중에 HealthKit 복구 시 아래 두 섹션 주석 해제 + RN react-native.config.js / Info.plist 복구. */}
+          {/* <PlayerHealthSection sessions={playerSessions} userProfile={player} /> */}
           <PlayerMonthlyStatsSection sessions={playerSessions} />
-          <PlayerActivitySection playerId={playerId} isSelf={isSelf} />
+          {/* <PlayerActivitySection playerId={playerId} isSelf={isSelf} /> */}
 
           <Section>
             <SectionHeaderRow>
