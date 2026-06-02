@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import Spinner from "../../components/common/Spinner";
-import { listPublishedNotices } from "../../services/noticesService";
+import { subscribePublishedNotices } from "../../services/noticesService";
 
 const Wrap = styled.div`
   padding: 16px 16px 32px;
@@ -141,25 +141,18 @@ export default function NoticeListPage() {
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      setLoading(true);
-      setErr("");
-      try {
-        const list = await listPublishedNotices({ limitCount: 100 });
-        if (!alive) return;
+    setLoading(true);
+    setErr("");
+    // 실시간 구독 — 관리자가 공지를 삭제/수정하면 즉시 반영
+    const unsub = subscribePublishedNotices(
+      (list) => {
         setRows(list);
-      } catch (e) {
-        if (!alive) return;
-        console.error("[NoticeListPage] load failed", e);
-        setErr(e?.message || "공지사항을 불러오지 못했습니다.");
-        setRows([]);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
+        setLoading(false);
+      },
+      { limitCount: 100 }
+    );
     return () => {
-      alive = false;
+      if (typeof unsub === "function") unsub();
     };
   }, []);
 

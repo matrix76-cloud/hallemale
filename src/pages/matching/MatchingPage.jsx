@@ -65,6 +65,8 @@ function countAppliedFilters(f) {
   if (f.position) c += 1;
   if (f.skill) c += 1;
   if (f.winRate && f.winRate !== "any") c += 1;
+  if (f.regionSido && f.regionSido !== "all") c += 1;
+  if (f.regionGu && f.regionGu !== "all") c += 1;
   return c;
 }
 
@@ -548,7 +550,13 @@ export default function MatchingPage() {
   const [lineupBlockedMsg, setLineupBlockedMsg] = useState("");
 
   const [teamQ, setTeamQ] = useState("");
-  const [filters, setFilters] = useState({ position: "", skill: "", winRate: "any" });
+  const [filters, setFilters] = useState({
+    position: "",
+    skill: "",
+    winRate: "any",
+    regionSido: "all",
+    regionGu: "all",
+  });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState(filters);
 
@@ -582,6 +590,15 @@ export default function MatchingPage() {
       const winRate = calcWinRatePercentFromTeam(t);
       if (filters.winRate === "70" && winRate < 70) return false;
       if (filters.winRate === "50" && winRate < 50) return false;
+
+      if (filters.regionSido && filters.regionSido !== "all") {
+        const tSido = String(t?.regionSido || "").trim();
+        if (tSido !== filters.regionSido) return false;
+        if (filters.regionGu && filters.regionGu !== "all") {
+          const tGu = String(t?.regionGu || "").trim();
+          if (tGu !== filters.regionGu) return false;
+        }
+      }
 
       if (filters.position) {
         const tags = Array.isArray(t?.positionTags) ? t.positionTags : [];

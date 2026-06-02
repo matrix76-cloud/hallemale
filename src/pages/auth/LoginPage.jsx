@@ -282,7 +282,7 @@ export default function LoginPage() {
           onError={(e) => { e.currentTarget.style.display = "none"; }}
         />
         <HeroTitle>할래말래</HeroTitle>
-        <HeroSub>풋살 매칭의 시작</HeroSub>
+        <HeroSub>생활체육 팀 매칭의 시작</HeroSub>
       </Hero>
 
       <Content>

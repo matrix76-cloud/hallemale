@@ -10,7 +10,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useClub } from "../../hooks/useClub";
 
 import {
-  listNotificationsForUser,
+  subscribeNotificationsForUser,
   computeReadForUi,
   getSystemMockNotifications,
   markNotificationRead,
@@ -183,29 +183,18 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (!uid) return;
 
-    let alive = true;
-
-    (async () => {
-      setLoading(true);
-      try {
-        const rows = await listNotificationsForUser({
-          uid,
-          clubId: myClubId || "",
-          limitCount: 60,
-        });
-        if (!alive) return;
+    setLoading(true);
+    // 실시간 구독 — 알림이 추가/삭제되면 즉시 반영
+    const unsub = subscribeNotificationsForUser(
+      { uid, clubId: myClubId || "", limitCount: 60 },
+      (rows) => {
         setRealItems(rows || []);
-      } catch (e) {
-        if (!alive) return;
-        setRealItems([]);
-      } finally {
-        if (!alive) return;
         setLoading(false);
       }
-    })();
+    );
 
     return () => {
-      alive = false;
+      if (typeof unsub === "function") unsub();
     };
   }, [uid, myClubId]);
 

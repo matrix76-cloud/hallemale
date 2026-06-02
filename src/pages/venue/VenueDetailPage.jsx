@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
+import { goBackOrHome } from "../../utils/navigation";
 import { IoArrowBack } from "react-icons/io5";
 import { getVenueById } from "../../services/venuesService";
 import Spinner from "../../components/common/Spinner";
@@ -42,7 +43,7 @@ export default function VenueDetailPage() {
   return (
     <Page>
       <Header>
-        <BackBtn type="button" onClick={() => navigate(-1)} aria-label="뒤로">
+        <BackBtn type="button" onClick={() => goBackOrHome(navigate)} aria-label="뒤로">
           <IoArrowBack size={22} />
         </BackBtn>
         <HeaderTitle>구장 상세</HeaderTitle>

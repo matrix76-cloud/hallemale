@@ -2,6 +2,7 @@
 import React from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
+import { goBackOrHome } from "../../utils/navigation";
 import { NOTIFICATIONS_BY_ID } from "../../mock/notificationsMock";
 import SubHeaderBar from "../../layouts/components/SubHeaderBar";
 
@@ -92,7 +93,7 @@ export default function NotificationDetailPage() {
   const data = NOTIFICATIONS_BY_ID[notificationId];
 
   const handleBack = () => {
-    navigate(-1);
+    goBackOrHome(navigate);
   };
 
   if (!data) {

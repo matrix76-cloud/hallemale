@@ -11,6 +11,7 @@ import BrandHeader from "../../components/auth/BrandHeader";
 import { PiBellLight } from "react-icons/pi";
 
 import useUnreadChatCount from "../../hooks/useUnreadChatCount";
+import { goBackOrHome } from "../../utils/navigation";
 
 const Wrap = styled.header`
   height: calc(52px + env(safe-area-inset-top));
@@ -102,7 +103,7 @@ export default function TopHeader({
 
   const handleDefaultBack = () => {
     if (onBack) onBack();
-    else navigate(-1);
+    else goBackOrHome(navigate);
   };
 
   const handleBellClick = () => {

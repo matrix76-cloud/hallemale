@@ -65,6 +65,8 @@ function normalizeOpponentClubDoc(docSnap) {
     id: clubId,
     name: name || "팀 이름 없음",
     region: region || "지역 미지정",
+    regionSido: String(data.regionSido || "").trim(),
+    regionGu: String(data.regionGu || "").trim(),
     logoUrl: resolveClubLogoUrl(data),
     logoKey: data.logoKey || "",
     tags: Array.isArray(data.tags) ? data.tags : [],

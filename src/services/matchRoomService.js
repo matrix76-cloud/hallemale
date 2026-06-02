@@ -25,6 +25,7 @@ import {
   addDoc,
 } from "firebase/firestore";
 import { uploadCompressedImageMedia } from "./mediaService";
+import { getUserProfileByUid } from "./userService";
 
 /* ========================= util ========================= */
 
@@ -445,6 +446,41 @@ export function adaptMatchRequestToRoom(docId, data) {
   };
 }
 
+/**
+ * ✅ 선수 명단 보강
+ * 라인업 스냅샷에 previewMembers가 없어 players가 비어있는 경우(과거/현재 데이터 공통),
+ * 보존된 memberIds로 users 프로필을 조회해 players를 채운다.
+ * - players가 이미 있으면 스냅샷(역사 보존) 값을 그대로 사용
+ * - memberIds가 없으면 손대지 않음
+ */
+async function hydrateLineupPlayers(lineup) {
+  if (!lineup) return lineup;
+  const hasPlayers = Array.isArray(lineup.players) && lineup.players.length > 0;
+  const ids = Array.isArray(lineup.memberIds) ? lineup.memberIds.filter(Boolean) : [];
+  if (hasPlayers || ids.length === 0) return lineup;
+
+  const profiles = await Promise.all(
+    ids.map((uid) => getUserProfileByUid(uid).catch(() => null))
+  );
+
+  const players = profiles.map((u, idx) => {
+    const id = toStr(ids[idx]);
+    if (!u) {
+      return { userId: id, nickname: "선수", mainPosition: "", heightCm: null, weightKg: null, photoUrl: "" };
+    }
+    return {
+      userId: toStr(u.id || id),
+      nickname: toStr(u.nickname || u.name) || "선수",
+      mainPosition: toStr(u.mainPosition || u.position || ""),
+      heightCm: u.heightCm != null ? safeNum(u.heightCm, null) : null,
+      weightKg: u.weightKg != null ? safeNum(u.weightKg, null) : null,
+      photoUrl: toStr(u.avatarUrl || u.photoUrl || u.profileUrl || ""),
+    };
+  });
+
+  return { ...lineup, players, memberCount: lineup.memberCount || players.length };
+}
+
 export async function loadMatchRoomDetail(matchRequestId) {
   const id = toStr(matchRequestId);
   if (!id) return { room: null };
@@ -459,6 +495,15 @@ export async function loadMatchRoomDetail(matchRequestId) {
 
   const data = snap.data();
   const room = adaptMatchRequestToRoom(snap.id, data);
+
+  // 선수 명단이 비어있으면 memberIds로 보강 (기존/신규 매칭룸 모두 대응)
+  const [myLineup, oppLineup] = await Promise.all([
+    hydrateLineupPlayers(room.myLineup),
+    hydrateLineupPlayers(room.oppLineup),
+  ]);
+  room.myLineup = myLineup;
+  room.oppLineup = oppLineup;
+
   return { room };
 }
 

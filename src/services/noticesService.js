@@ -17,6 +17,7 @@ import {
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -72,6 +73,30 @@ export async function listPublishedNotices({ limitCount = 100 } = {}) {
     return 0;
   });
   return rows;
+}
+
+/* ============== Public: 발행된 공지 실시간 구독 ============== */
+// 관리자가 공지를 추가/수정/삭제하면 사용자 화면에 즉시 반영된다.
+// 반환값은 구독 해제 함수(unsubscribe).
+export function subscribePublishedNotices(onChange, { limitCount = 100 } = {}) {
+  const col = collection(db, COL);
+  const q = query(col, orderBy("createdAt", "desc"), limit(limitCount));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const rows = (snap?.docs || []).map(mapDoc).filter((n) => n.published);
+      rows.sort((a, b) => {
+        const ap = a.pinned ? 1 : 0;
+        const bp = b.pinned ? 1 : 0;
+        if (ap !== bp) return bp - ap;
+        return 0;
+      });
+      onChange && onChange(rows);
+    },
+    (err) => {
+      console.error("[noticesService] subscribePublishedNotices failed", err);
+    }
+  );
 }
 
 export async function getNotice(id) {

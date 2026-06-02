@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
+import { goBackOrHome } from "../../utils/navigation";
 import { images, playerAvatars } from "../../utils/imageAssets";
 import { TEAMS_BY_ID } from "../../mock/teamsMock";
 import { useAuth } from "../../hooks/useAuth";
@@ -73,7 +74,7 @@ export default function MyProfileDetailPage() {
     }));
   }, [userDoc?.careers]);
 
-  const handleBack = () => navigate(-1);
+  const handleBack = () => goBackOrHome(navigate);
 
   return (
     <PageWrap>

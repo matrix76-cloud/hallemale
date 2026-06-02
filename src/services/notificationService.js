@@ -12,6 +12,7 @@ import {
   doc,
   getDocs,
   limit,
+  onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
@@ -121,6 +122,40 @@ export async function listNotificationsForUser({ uid, clubId = "", limitCount = 
 
 
 
+
+// ✅ 실시간 구독 버전 — 알림이 추가/삭제되면 사용자 화면에 즉시 반영
+// 반환값은 구독 해제 함수(unsubscribe).
+export function subscribeNotificationsForUser(
+  { uid, clubId = "", limitCount = 60 } = {},
+  onChange
+) {
+  if (!uid) {
+    onChange && onChange([]);
+    return () => {};
+  }
+
+  const col = collection(db, "notifications");
+  const qUser = query(col, where("targetIds", "array-contains", uid), limit(limitCount));
+
+  return onSnapshot(
+    qUser,
+    (snapU) => {
+      const listU = (snapU?.docs || []).map((d) => ({
+        id: d.id,
+        ...d.data(),
+        _from: "fs:USER",
+      }));
+      const merged = listU
+        .filter((n) => String(n.kind || "").trim() !== "system")
+        .filter((n) => (clubId ? String(n.clubId || "") === String(clubId) : true));
+      onChange && onChange(sortByCreatedAtDesc(merged));
+    },
+    (err) => {
+      console.error("[noti] subscribeNotificationsForUser failed", err);
+      onChange && onChange([]);
+    }
+  );
+}
 
 export function computeReadForUi({ items, uid, localSystemReadMap }) {
   console.groupCollapsed("[noti] computeReadForUi");

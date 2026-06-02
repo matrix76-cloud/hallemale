@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
+import { goBackOrHome } from "../../utils/navigation";
 import { images, playerAvatars } from "../../utils/imageAssets";
 import {
   loadMatchRoomDetail,
@@ -1398,7 +1399,7 @@ export default function MatchRoomDetailPage() {
     try {
       await cancelMatchRequest({ matchRequestId: room.id });
       await refresh();
-      navigate(-1);
+      goBackOrHome(navigate);
     } catch (e) {
       window.alert(e?.message || "매칭 취소에 실패했습니다.");
     }

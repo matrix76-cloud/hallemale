@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useWebviewBridgeContext } from "../context/WebviewBridgeContext";
 import { useUI } from "../hooks/useUI";
+import { goBackOrHome } from "../utils/navigation";
 
 import MainLayout from "../layouts/MainLayout";
 import AuthLayout from "../layouts/AuthLayout";
@@ -204,7 +205,7 @@ function BridgeNavSync() {
         navigate("/home");
         return;
       }
-      navigate(-1);
+      goBackOrHome(navigate);
     });
   }, [bridge, navigate]);
 
