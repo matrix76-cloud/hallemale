@@ -12,6 +12,7 @@ import { PiBellLight } from "react-icons/pi";
 
 import useUnreadChatCount from "../../hooks/useUnreadChatCount";
 import { goBackOrHome } from "../../utils/navigation";
+import { useUIContext } from "../../context/UIContext";
 
 const Wrap = styled.header`
   height: calc(52px + env(safe-area-inset-top));
@@ -74,6 +75,22 @@ const LeftArea = styled.div`
   align-items: center;
   gap: 8px;
   flex: 1;
+  min-width: 0;
+`;
+
+const TitleCol = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+`;
+
+const Subtitle = styled.div`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const RightArea = styled.div`
@@ -98,6 +115,8 @@ export default function TopHeader({
 }) {
   const navigate = useNavigate();
   const unreadChatCount = useUnreadChatCount();
+  const ui = useUIContext();
+  const headerSubtitle = ui?.headerSubtitle || "";
 
   const isHome = title === "할래말래";
 
@@ -123,7 +142,10 @@ export default function TopHeader({
               <AiOutlineLeft />
             </IconButton>
           )}
-          <Title>{title}</Title>
+          <TitleCol>
+            <Title>{title}</Title>
+            {headerSubtitle && <Subtitle>{headerSubtitle}</Subtitle>}
+          </TitleCol>
         </LeftArea>
         <RightArea>
           {rightActions.map((act) => (

@@ -1,6 +1,7 @@
 {
   "hosting": {
     "public": "build",
+    "predeploy": "mkdir -p build/landing && cp -R web/. build/landing/",
     "ignore": [
       "firebase.json",
       "**/.*",

@@ -105,9 +105,8 @@ export default function SplashPage() {
         const elapsed = Date.now() - startedAt;
         const wait = Math.max(0, MIN_SPLASH_MS - elapsed);
         setTimeout(() => {
-          // 폰번호 미인증 시 /link-phone으로 이동
-          const dest = phoneE164 ? "/home" : "/link-phone";
-          navigate(dest, { replace: true });
+          // 카카오 단일 로그인 전환으로 전화번호 인증 단계 제거 → 항상 /home
+          navigate("/home", { replace: true });
         }, wait);
       }
     })();

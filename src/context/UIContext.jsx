@@ -12,6 +12,8 @@ export function UIProvider({ children }) {
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null);
   const [bottomSheet, setBottomSheet] = useState(null);
+  // 상단 헤더 부제 (예: 구장 정하기 페이지의 "리바운드5 vs 패스트브레이")
+  const [headerSubtitle, setHeaderSubtitle] = useState("");
 
   const showToast = useCallback((opts) => {
     setToast({ message: opts.message, type: opts.type || "info" });
@@ -45,7 +47,9 @@ export function UIProvider({ children }) {
     hideModal,
     bottomSheet,
     showBottomSheet,
-    hideBottomSheet
+    hideBottomSheet,
+    headerSubtitle,
+    setHeaderSubtitle
   };
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;

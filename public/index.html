@@ -3,6 +3,21 @@
 
   <head>
     <meta charset="utf-8" />
+
+    <!-- PC(화면폭 1024px 이상)로 루트 접속 시 정적 랜딩으로, 모바일은 기존 앱(로그인) 유지 -->
+    <script>
+      (function () {
+        try {
+          var w = window.innerWidth || document.documentElement.clientWidth || 0;
+          var atRoot = location.pathname === "/" || location.pathname === "/index.html";
+          var forceApp = location.search.indexOf("app=1") !== -1;
+          if (w >= 1024 && atRoot && !forceApp) {
+            location.replace("/landing/");
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <title>hallemalle</title>
 
       <meta name="viewport"

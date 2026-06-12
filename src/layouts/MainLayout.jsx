@@ -123,6 +123,7 @@ export default function MainLayout({ hideHeader = false }) {
     if (p.startsWith("/matchingmanage")) return "할래말래 매칭관리";
     if (p === "/matching") return "매칭하기";
     if (p === "/match-roomlist") return "매칭룸";
+    if (p.endsWith("/venue")) return "구장 정하기";
     if (p.startsWith("/match-roomdetail")) return "매칭공간";
 
     // ✅ 새 페이지 타이틀

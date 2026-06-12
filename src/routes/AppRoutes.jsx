@@ -23,6 +23,7 @@ import SplashPage from "../pages/system/SplashPage";
 import { useAuth } from "../hooks/useAuth";
 import { useClub } from "../hooks/useClub";
 import WelcomePage from "../pages/auth/WelcomePage";
+import KakaoCallbackPage from "../pages/auth/KakaoCallbackPage";
 import SignupSuccessPage from "../pages/auth/SignupSuccessPage";
 import MatchRoomListPage from "../pages/matching/MatchRoomListPage";
 import MatchRoomDetailPage from "../pages/matching/MatchRoomDetailPage";
@@ -121,14 +122,9 @@ function RequireAuth({ children }) {
   return children;
 }
 
-const REVIEWER_EMAILS = ["appreview@hallamalle.com"];
-
+// 카카오 단일 로그인으로 전환하며 전화번호 인증 단계 제거 (2026-06-12).
+// 게이트는 통과만 시킨다. (/link-phone 라우트는 남겨두되 더 이상 진입하지 않음)
 function RequirePhone({ children }) {
-  const { userDoc, loading } = useAuth();
-  if (loading) return <AppLoadingPage />;
-  const email = (userDoc?.email || "").toLowerCase();
-  if (REVIEWER_EMAILS.includes(email)) return children;
-  if (!userDoc?.phoneE164) return <Navigate to="/link-phone" replace />;
   return children;
 }
 
@@ -256,6 +252,9 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/" element={<SplashPage />} />
 
+        {/* 카카오 웹 로그인 콜백 (인증 불필요) */}
+        <Route path="/oauth/kakao" element={<KakaoCallbackPage />} />
+
         <Route element={<AuthLayout />}>
           <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -358,6 +357,7 @@ export default function AppRoutes() {
           <Route path="/matching" element={<MatchingPage />} />
           <Route path="/match-roomlist" element={<MatchRoomListPage />} />
           <Route path="/match-roomdetail/:roomId" element={<MatchRoomDetailPage />} />
+          <Route path="/match-roomdetail/:roomId/venue" element={<MatchRoomDetailPage />} />
 
           <Route path="/venues/:id" element={<VenueDetailPage />} />
 

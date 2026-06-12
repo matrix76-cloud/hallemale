@@ -2,7 +2,7 @@
 // src/pages/matching/MatchRoomDetailPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
 import { images, playerAvatars } from "../../utils/imageAssets";
 import {
@@ -18,7 +18,33 @@ import {
 } from "../../services/matchRoomService";
 import PositionChip from "../../components/common/PositionChip";
 import { useClub } from "../../hooks/useClub";
+import { useAuth } from "../../hooks/useAuth";
+import { useUIContext } from "../../context/UIContext";
 import VenuePickerSheet from "../../components/common/VenuePickerSheet";
+import MatchRoomChat from "../../components/matchRoom/MatchRoomChat";
+import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
+import { getOrCreateDmRoom } from "../../services/chatService";
+import { getClubById } from "../../services/clubManageService";
+import { mrp } from "../../components/matchRoom/matchRoomPalette";
+
+/* 기획안 색 토큰 (할래말래_직접입력.html :root) — 폴백/참조용 */
+const HC = {
+  bg: "#070a14",
+  bg2: "#0c1020",
+  surface: "#121829",
+  surface2: "#171f33",
+  line: "#222d44",
+  line2: "#2c3a55",
+  t1: "#eef2ff",
+  t2: "#94a6c4",
+  t3: "#5d7095",
+  pu: "#7c5cff",
+  puD: "#5b3fd6",
+  puL: "#b3a0ff",
+  puBg: "#1a1640",
+  gr: "#1fd187",
+  grL: "#6ef0bb",
+};
 
 /* ==================== 헬퍼 ==================== */
 
@@ -44,8 +70,9 @@ const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
-  padding: 10px 0 24px;
+  background: ${({ theme, $dark }) =>
+    $dark ? mrp(theme.mode).bg : theme.colors.bg || "#f5f6fa"};
+  padding: ${({ $dark }) => ($dark ? "0" : "10px 0 24px")};
   display: flex;
   flex-direction: column;
 `;
@@ -255,6 +282,13 @@ const SectionCard = styled.div`
   gap: 10px;
 `;
 
+// 카드 없는 섹션 (구장 위치 선택 — 시안: 배경/테두리 없이 바로 노출)
+const BareSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
 const SectionTitleRow = styled.div`
   display: flex;
   align-items: center;
@@ -298,6 +332,7 @@ const MapBox = styled.div`
   height: 140px;
   border-radius: 8px;
   overflow: hidden;
+  cursor: ${({ $tappable }) => ($tappable ? "pointer" : "default")};
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
@@ -370,6 +405,463 @@ const PartnerVenueButton = styled.button`
   }
   &:active {
     transform: translateY(1px);
+  }
+`;
+
+/* ── 구장 정하기: 방식 선택 게이트 (직접 입력 MVP) ── */
+const ChoiceList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const ChoiceItem = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid
+    ${({ theme, $active }) =>
+      $active ? theme.colors.primary : theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  cursor: ${({ disabled }) => (disabled ? "not-allowed" : "pointer")};
+  opacity: ${({ disabled }) => (disabled ? 0.6 : 1)};
+  transition: border-color 0.15s ease;
+`;
+
+const ChoiceIconBox = styled.div`
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const ChoiceTextBox = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+`;
+
+const ChoiceTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const ChoiceDesc = styled.div`
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const ChoiceBadge = styled.span`
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: ${({ theme, $muted }) =>
+    $muted ? theme.colors.textWeak : theme.colors.primary};
+`;
+
+const ChoiceArrow = styled.span`
+  flex-shrink: 0;
+  font-size: 18px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const GateNotice = styled.div`
+  margin-top: 2px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textNormal};
+  background: ${({ theme }) => theme.colors.divider};
+
+  strong {
+    color: ${({ theme }) => theme.colors.textStrong};
+  }
+`;
+
+/* ── 매칭룸 셸 (기획안 HTML 1:1, 라이트/다크 자동 전환) ── */
+const DarkHeader = styled.div`
+  background: ${({ theme }) => mrp(theme.mode).bg};
+  padding: 14px 12px 0;
+`;
+
+const MatchInfoBar = styled.button`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: none;
+  border-radius: 12px;
+  background: ${({ theme }) => mrp(theme.mode).surface2};
+  cursor: pointer;
+`;
+
+const MatchInfoBarTitle = styled.span`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  letter-spacing: -0.02em;
+`;
+
+const MatchInfoToggle = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).puD};
+  flex-shrink: 0;
+`;
+
+const VsCard = styled.div`
+  background: ${({ theme }) => mrp(theme.mode).vsCardBg};
+  box-shadow: ${({ theme }) => mrp(theme.mode).vsCardShadow};
+  border: 0.5px solid ${({ theme }) => mrp(theme.mode).line2};
+  border-radius: 18px;
+  padding: 20px 16px 16px;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(
+      circle,
+      ${({ theme }) => mrp(theme.mode).puBg},
+      transparent 70%
+    );
+    opacity: 0.7;
+    display: ${({ theme }) => (mrp(theme.mode).vsGlow ? "block" : "none")};
+  }
+`;
+
+const VsRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+`;
+
+const VsTeam = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-align: center;
+`;
+
+const Crest = styled.div`
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 900;
+  overflow: hidden;
+  border: 0.5px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: ${({ theme, $home }) =>
+    $home ? mrp(theme.mode).crestHomeBg : mrp(theme.mode).crestBg};
+  color: ${({ theme, $home }) => ($home ? "#fff" : mrp(theme.mode).t2)};
+`;
+
+const CrestImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const VsNm = styled.div`
+  font-size: 15px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+`;
+
+const VsMeta = styled.div`
+  font-size: 10px;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  margin-top: 2px;
+`;
+
+const VsMid = styled.div`
+  flex-shrink: 0;
+  text-align: center;
+  padding-bottom: 22px;
+`;
+
+const VsX = styled.div`
+  font-size: 24px;
+  font-weight: 900;
+  color: ${({ theme }) => mrp(theme.mode).puL};
+  line-height: 1;
+`;
+
+const Stepper = styled.div`
+  display: flex;
+  align-items: flex-start;
+  padding: 18px 4px 2px;
+`;
+
+const Step = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 15px;
+    left: -50%;
+    width: 100%;
+    height: 2px;
+    background: ${({ theme }) => mrp(theme.mode).line2};
+    z-index: 1;
+  }
+  &:first-child::before {
+    display: none;
+  }
+`;
+
+const StepDot = styled.div`
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 2;
+  ${({ theme, $state }) => {
+    const c = mrp(theme.mode);
+    const check = theme.mode === "dark" ? "#04140d" : "#fff";
+    return $state === "done"
+      ? `background:${c.gr};border:1.5px solid ${c.gr};color:${check};`
+      : $state === "cur"
+      ? `background:${c.pu};border:1.5px solid ${c.puL};color:#fff;box-shadow:0 0 0 4px ${c.puBg};`
+      : `background:${c.surface2};border:1.5px solid ${c.line2};color:${c.t3};`;
+  }}
+`;
+
+const StepLb = styled.div`
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: ${({ theme, $on }) =>
+    $on ? mrp(theme.mode).t1 : mrp(theme.mode).t3};
+`;
+
+const QuickTabs = styled.div`
+  display: flex;
+  gap: 7px;
+  padding: 12px 0;
+`;
+
+const QuickTab = styled.button`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 13px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  border: 0.5px solid
+    ${({ theme, $on }) => ($on ? mrp(theme.mode).puD : mrp(theme.mode).line2)};
+  background: ${({ theme, $on }) => {
+    const c = mrp(theme.mode);
+    return $on ? `linear-gradient(135deg, ${c.puBg}, ${c.surface})` : c.surface;
+  }};
+  color: ${({ theme, $on }) => ($on ? mrp(theme.mode).t1 : mrp(theme.mode).t2)};
+`;
+
+/* venue 전용 페이지 상단 (탭 대신 "‹ 채팅 / 구장 정하기 제목") */
+const VenueTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+`;
+const BackToChat = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  flex-shrink: 0;
+  border: 0.5px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  color: ${({ theme }) => mrp(theme.mode).t2};
+`;
+const VenueTitle = styled.div`
+  font-size: 15px;
+  font-weight: 800;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+`;
+
+/* venue 전용 페이지 헤더 (기획안: ‹ 구장 정하기 / 팀명, 로고 없음) */
+const VenueHead = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 2px 4px;
+`;
+const VenueBack = styled.button`
+  font-size: 22px;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  padding: 2px 2px 0 0;
+  flex-shrink: 0;
+`;
+const VenueHeadTitle = styled.div`
+  font-size: 20px;
+  font-weight: 800;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+`;
+const VenueHeadSub = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  margin-top: 2px;
+`;
+
+/* "어떻게 구장을 정할까요?" 라벨 */
+const AskLabel = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  margin: 8px 0 2px;
+`;
+
+/* 게이트 항목 (카드 스타일 제거 — 평평한 리스트) */
+const OptCard = styled.button`
+  width: 100%;
+  text-align: left;
+  padding: 14px 2px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  transition: 0.15s;
+  background: none;
+  border: none;
+  border-bottom: 0.5px solid ${({ theme }) => mrp(theme.mode).line};
+  cursor: ${({ disabled }) => (disabled ? "not-allowed" : "pointer")};
+  opacity: ${({ disabled }) => (disabled ? 0.55 : 1)};
+`;
+const Oic = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: ${({ theme, $primary }) =>
+    $primary
+      ? `linear-gradient(145deg, ${mrp(theme.mode).pu}, ${mrp(theme.mode).puD})`
+      : mrp(theme.mode).surface2};
+`;
+const Ob = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+const OptT = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+`;
+const OptD = styled.div`
+  font-size: 10px;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  margin-top: 2px;
+`;
+const Chips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+`;
+const Pill = styled.span`
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+  ${({ theme, $tone }) => {
+    const c = mrp(theme.mode);
+    const map = {
+      p: [c.puBg, c.puL],
+      g: [c.grBg, c.grL],
+      y: [c.yeBg, c.yeL],
+      b: [c.blBg, c.blL],
+    };
+    const [bg, fg] = map[$tone] || map.p;
+    return `background:${bg};color:${fg};`;
+  }}
+`;
+const Arr = styled.span`
+  font-size: 15px;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  flex-shrink: 0;
+`;
+const NoticeInfo = styled.div`
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: 11px;
+  margin-top: 4px;
+  background: ${({ theme }) => mrp(theme.mode).blBg};
+  color: ${({ theme }) => mrp(theme.mode).blL};
+  border: 0.5px solid ${({ theme }) => mrp(theme.mode).blBorder};
+
+  b {
+    font-weight: 700;
   }
 `;
 
@@ -936,6 +1428,9 @@ export default function MatchRoomDetailPage() {
   const navigate = useNavigate();
   const params = useParams();
   const { club } = useClub();
+  const { firebaseUser, userDoc } = useAuth();
+  const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
+  const { setHeaderSubtitle } = useUIContext() || {};
 
   const myClubId = toStr(club?.clubId || club?.id);
   const roomId = toStr(params?.roomId || params?.matchId);
@@ -953,9 +1448,13 @@ export default function MatchRoomDetailPage() {
   const [myLineupOpen, setMyLineupOpen] = useState(false);
   const [oppLineupOpen, setOppLineupOpen] = useState(false);
 
+  // 매치 정보 · 진행 단계 카드 접기/펼치기 (시안 기준 기본 펼침)
+  const [matchInfoOpen, setMatchInfoOpen] = useState(true);
+
   const [fieldAddress, setFieldAddress] = useState("");
   const [fieldLatLng, setFieldLatLng] = useState(null);
   const [venuePickerOpen, setVenuePickerOpen] = useState(false);
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [venueImageUrl, setVenueImageUrl] = useState("");
   const mapRef = useRef(null);
   const mapObjRef = useRef(null);
@@ -963,6 +1462,15 @@ export default function MatchRoomDetailPage() {
 
   const [editMode, setEditMode] = useState(false);
   const initOnceRef = useRef(false);
+
+  // 구장 정하기 방식 선택 게이트: "none"(아직 선택 전) | "direct"(직접 입력 · 현장 정산)
+  const [venueMode, setVenueMode] = useState("none");
+
+  // 매칭룸 탭은 URL로 분리: /match-roomdetail/:id (채팅) vs /:id/venue (구장 정하기 별도 페이지)
+  const location = useLocation();
+  const isVenue = location.pathname.endsWith("/venue");
+  // 상대 팀장과의 DM 채팅방 id (getOrCreateDmRoom으로 확보)
+  const [chatId, setChatId] = useState("");
 
   const [myScoreInput, setMyScoreInput] = useState("");
   const [oppScoreInput, setOppScoreInput] = useState("");
@@ -1047,6 +1555,50 @@ export default function MatchRoomDetailPage() {
     if (savedComment) setResultComment(savedComment);
   }, [room, myClubId]);
 
+  // 구장 정하기 페이지일 때 상단 헤더 부제에 "내 팀 vs 상대팀" 표시
+  useEffect(() => {
+    if (!setHeaderSubtitle) return;
+    if (isVenue && room) {
+      const actorId = toStr(room.actorClubId);
+      const iAmActor = !!myClubId && !!actorId && myClubId === actorId;
+      const myT = iAmActor ? room.myTeam : room.oppTeam;
+      const oppT = iAmActor ? room.oppTeam : room.myTeam;
+      const myN = toStr(myT?.name) || "내 팀";
+      const oppN = toStr(oppT?.name) || "상대팀";
+      setHeaderSubtitle(`${myN} vs ${oppN}`);
+    } else {
+      setHeaderSubtitle("");
+    }
+    return () => setHeaderSubtitle && setHeaderSubtitle("");
+  }, [isVenue, room, myClubId, setHeaderSubtitle]);
+
+  // 상대 팀장과의 DM 채팅방 확보 (매칭룸 채팅 탭에서 사용)
+  useEffect(() => {
+    if (!room || !myUid || !myClubId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const actorId = toStr(room.actorClubId);
+        const targetId = toStr(room.targetClubId);
+        const oppClubId = myClubId === actorId ? targetId : actorId;
+        if (!oppClubId) return;
+        const oppClub = await getClubById(oppClubId);
+        const oppOwnerUid = toStr(oppClub?.ownerUid);
+        if (!oppOwnerUid || oppOwnerUid === myUid) return;
+        const dm = await getOrCreateDmRoom({
+          myUid,
+          otherUid: oppOwnerUid,
+          createdFrom: "matchRoom",
+          createdFromRefId: toStr(roomId),
+        });
+        if (alive && dm) setChatId(toStr(dm));
+      } catch (e) {}
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [room, myUid, myClubId, roomId]);
+
   useEffect(() => {
     const kakao = window.kakao;
     const st = toStr(room?.status);
@@ -1076,7 +1628,7 @@ export default function MatchRoomDetailPage() {
 
     if (typeof kakao.maps.load === "function") kakao.maps.load(runInit);
     else runInit();
-  }, [room?.status, fieldLatLng]);
+  }, [room?.status, fieldLatLng, venueMode]);
 
   useEffect(() => {
     const kakao = window.kakao;
@@ -1126,6 +1678,16 @@ export default function MatchRoomDetailPage() {
       setFieldLatLng({ lat: Number(venue.lat), lng: Number(venue.lng) });
     }
     setVenueImageUrl(toStr(venue.imageUrl));
+  };
+
+  // 카카오T식 지도 픽커에서 위치 확정
+  const handleMapPickerConfirm = ({ address, lat, lng }) => {
+    if (address) setFieldAddress(address);
+    if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+      setFieldLatLng({ lat: Number(lat), lng: Number(lng) });
+    }
+    setVenueImageUrl(""); // 지도로 직접 잡은 위치는 제휴구장 이미지 해제
+    setMapPickerOpen(false);
   };
 
   const openAddressSearch = () => {
@@ -1227,6 +1789,8 @@ export default function MatchRoomDetailPage() {
     : [];
 
   const isAdjusting = status === "accepted" || status === "proposed";
+  // accepted 상태에서 아직 직접 입력을 고르기 전이면 "구장 정하기 방식 선택" 게이트 노출
+  const showVenueGate = status === "accepted" && venueMode !== "direct";
   const proposerClubId = toStr(room.proposedByClubId);
   const iAmProposer = !!myClubId && !!proposerClubId && myClubId === proposerClubId;
   const canEdit = status === "accepted" ? true : status === "proposed" ? editMode : false;
@@ -1235,6 +1799,31 @@ export default function MatchRoomDetailPage() {
   const isConfirmed = status === "confirmed";
   const isFinished = status === "finished";
   const isCancelled = status === "cancelled";
+
+  // 진행단계 스텝퍼 (직접 입력 흐름: 조율 → 구장 → 합의 → 확정)
+  const STEP_LABELS = ["조율", "구장", "결제", "확정"];
+  const stepStates = (() => {
+    if (status === "accepted") return ["done", "cur", "todo", "todo"];
+    if (status === "proposed") return ["done", "done", "cur", "todo"];
+    if (status === "confirmed") return ["done", "done", "done", "cur"];
+    if (status === "finished") return ["done", "done", "done", "done"];
+    if (status === "cancelled") return ["done", "todo", "todo", "todo"];
+    return ["cur", "todo", "todo", "todo"];
+  })();
+
+  const oppName = toStr(oppTeamView?.name) || "상대팀";
+  const chatSystemNotice =
+    status === "accepted"
+      ? `${oppName}와 매칭이 성사됐어요 · 일정을 조율해 보세요`
+      : status === "proposed"
+      ? "구장·일정이 제안됐어요 · 채팅으로 조율하세요"
+      : status === "confirmed"
+      ? "경기가 확정됐어요 🎉"
+      : status === "finished"
+      ? "경기가 종료됐어요 · 수고하셨습니다"
+      : status === "cancelled"
+      ? "이 매칭은 취소되었습니다"
+      : "";
 
   const resultState = toStr(room.resultState);
   const resultSubmittedBy = toStr(room?.result?.submittedByClubId);
@@ -1575,8 +2164,89 @@ export default function MatchRoomDetailPage() {
 
   return (
     <>
-      <PageWrap>
+      <PageWrap $dark={!isVenue}>
+        <DarkHeader>
+          {isVenue ? null : (
+            <>
+              <MatchInfoBar
+                type="button"
+                onClick={() => setMatchInfoOpen((o) => !o)}
+                aria-expanded={matchInfoOpen}
+              >
+                <MatchInfoBarTitle>📋 매치 정보 · 진행 단계</MatchInfoBarTitle>
+                <MatchInfoToggle>{matchInfoOpen ? "접기 ▲" : "펼치기 ▼"}</MatchInfoToggle>
+              </MatchInfoBar>
+
+              {matchInfoOpen && (
+                <VsCard>
+                  <VsRow>
+                    <VsTeam>
+                      <Crest $home>
+                        {myTeamView?.logoUrl ? (
+                          <CrestImg src={myTeamView.logoUrl} alt={myTeamView?.name} />
+                        ) : (
+                          toStr(myTeamView?.name)[0] || "R"
+                        )}
+                      </Crest>
+                      <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
+                    </VsTeam>
+
+                    <VsMid>
+                      <VsX>VS</VsX>
+                    </VsMid>
+
+                    <VsTeam>
+                      <Crest>
+                        {oppTeamView?.logoUrl ? (
+                          <CrestImg src={oppTeamView.logoUrl} alt={oppTeamView?.name} />
+                        ) : (
+                          oppName[0] || "F"
+                        )}
+                      </Crest>
+                      <VsNm>{oppName}</VsNm>
+                    </VsTeam>
+                  </VsRow>
+
+                  <Stepper>
+                    {STEP_LABELS.map((lb, i) => (
+                      <Step key={lb}>
+                        <StepDot $state={stepStates[i]}>
+                          {stepStates[i] === "done" ? "✓" : i + 1}
+                        </StepDot>
+                        <StepLb $on={stepStates[i] !== "todo"}>{lb}</StepLb>
+                      </Step>
+                    ))}
+                  </Stepper>
+                </VsCard>
+              )}
+
+              <QuickTabs>
+                <QuickTab type="button" $on onClick={() => navigate(`/match-roomdetail/${roomId}`)}>
+                  💬 채팅
+                </QuickTab>
+                <QuickTab
+                  type="button"
+                  onClick={() => navigate(`/match-roomdetail/${roomId}/venue`)}
+                >
+                  🏟 구장 정하기
+                </QuickTab>
+              </QuickTabs>
+            </>
+          )}
+        </DarkHeader>
+
+        {!isVenue ? (
+          <MatchRoomChat
+            chatId={chatId}
+            myUid={myUid}
+            opponentName={oppName}
+            systemNotice={chatSystemNotice}
+          />
+        ) : (
+          <>
         <Inner>
+          {/* 라인업 카드 삭제: 상단 VS 헤더와 중복 (기획안 구장 정하기 화면엔 없음) */}
+          {false && (
           <MatchCard>
             <TeamBlock $withDivider>
               <TeamHeaderRow>
@@ -1644,24 +2314,67 @@ export default function MatchRoomDetailPage() {
               )}
             </TeamBlock>
           </MatchCard>
+          )}
 
           {isAdjusting && (
             <>
-              <SectionCard>
-                <SectionTitleRow>
-                  <SectionTitleLeft>
-                    <SectionIcon>🏟️</SectionIcon>
-                    <span>구장</span>
-                  </SectionTitleLeft>
-                  <SectionTitleActions />
-                </SectionTitleRow>
+              {showVenueGate && (
+                <>
+                  <AskLabel>어떻게 구장을 정할까요?</AskLabel>
 
+                  <OptCard type="button" disabled>
+                    <Oic>🏟️</Oic>
+                    <Ob>
+                      <OptT>제휴구장 예약</OptT>
+                      <OptD>앱에서 결제 · 자동 확정</OptD>
+                      <Chips>
+                        <Pill $tone="p">준비중</Pill>
+                        <Pill $tone="g">에스크로 안전결제</Pill>
+                      </Chips>
+                    </Ob>
+                    <Arr>›</Arr>
+                  </OptCard>
+
+                  <OptCard
+                    type="button"
+                    $primary
+                    onClick={() => setVenueMode("direct")}
+                  >
+                    <Oic $primary>📍</Oic>
+                    <Ob>
+                      <OptT>직접 입력</OptT>
+                      <OptD>현장 정산 · 결제 없음</OptD>
+                      <Chips>
+                        <Pill $tone="y">팀끼리 직접 합의</Pill>
+                        <Pill $tone="b">이 흐름 →</Pill>
+                      </Chips>
+                    </Ob>
+                    <Arr>›</Arr>
+                  </OptCard>
+
+                  <NoticeInfo>
+                    <span>ⓘ</span>
+                    <div>
+                      직접 입력은 앱 결제 없이 <b>현장에서 정산</b>해요. 수락하면 바로
+                      경기가 확정됩니다.
+                    </div>
+                  </NoticeInfo>
+                </>
+              )}
+
+              {!showVenueGate && (
+                <>
+              <BareSection>
                 {venueImageUrl ? (
                   <VenueImageBox>
                     <VenueImage src={venueImageUrl} alt="구장 이미지" />
                   </VenueImageBox>
                 ) : (
-                  <MapBox ref={mapRef} />
+                  <MapBox
+                    ref={mapRef}
+                    $tappable={canEdit}
+                    onClick={canEdit ? () => setMapPickerOpen(true) : undefined}
+                  />
                 )}
 
                 {canEdit && (
@@ -1679,8 +2392,8 @@ export default function MatchRoomDetailPage() {
                   <FieldName>{toStr(fieldAddress) || "구장 주소를 선택해 주세요."}</FieldName>
 
                   {canEdit ? (
-                    <FieldEditButton type="button" onClick={openAddressSearch}>
-                      수정
+                    <FieldEditButton type="button" onClick={() => setMapPickerOpen(true)}>
+                      {toStr(fieldAddress) ? "변경" : "지도에서 선택"}
                     </FieldEditButton>
                   ) : (
                     <FieldEditButton type="button" onClick={() => setEditMode(true)}>
@@ -1688,7 +2401,7 @@ export default function MatchRoomDetailPage() {
                     </FieldEditButton>
                   )}
                 </FieldRow>
-              </SectionCard>
+              </BareSection>
 
               {canEdit ? (
                 <SectionCard>
@@ -1759,6 +2472,8 @@ export default function MatchRoomDetailPage() {
                   </SectionTitleRow>
                   <ResultStatusText>{room.scheduledAt ? `${formatKoreanDateTime(room.scheduledAt)} 예정` : "일정 정보가 없습니다."}</ResultStatusText>
                 </SectionCard>
+              )}
+                </>
               )}
             </>
           )}
@@ -2028,13 +2743,16 @@ export default function MatchRoomDetailPage() {
           )}
         </Inner>
 
-        {status === "accepted" && (
+        {status === "accepted" && venueMode === "direct" && (
           <>
-            <NoticeText>제안하면 상대팀이 확인 후 확정할 수 있어요.</NoticeText>
+            <NoticeText>제안하면 상대팀이 확인 후 확정할 수 있어요. (직접 입력 · 현장 정산)</NoticeText>
             <ActionsWrap>
               <PrimaryButton type="button" onClick={handlePropose} disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng}>
                 매칭 일정·장소 제안
               </PrimaryButton>
+              <MutedButton type="button" onClick={() => setVenueMode("none")}>
+                구장 방식 다시 선택
+              </MutedButton>
               <SecondaryButton type="button" onClick={handleCancelMatch}>
                 매칭 취소
               </SecondaryButton>
@@ -2078,6 +2796,8 @@ export default function MatchRoomDetailPage() {
                 </ActionsWrap>
               </>
             )}
+          </>
+        )}
           </>
         )}
       </PageWrap>
@@ -2144,6 +2864,22 @@ export default function MatchRoomDetailPage() {
         open={venuePickerOpen}
         onClose={() => setVenuePickerOpen(false)}
         onPick={handlePickVenue}
+      />
+
+      <MapLocationPicker
+        open={mapPickerOpen}
+        subtitle={(() => {
+          const iAmActor = !!myClubId && !!actorClubId && myClubId === actorClubId;
+          const myT = iAmActor ? room.myTeam : room.oppTeam;
+          const oppT = iAmActor ? room.oppTeam : room.myTeam;
+          const myN = toStr(myT?.name) || "내 팀";
+          const oppN = toStr(oppT?.name) || "상대팀";
+          return `${myN} vs ${oppN}`;
+        })()}
+        initialLatLng={fieldLatLng}
+        initialAddress={toStr(fieldAddress)}
+        onClose={() => setMapPickerOpen(false)}
+        onConfirm={handleMapPickerConfirm}
       />
     </>
   );

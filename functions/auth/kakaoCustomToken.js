@@ -8,10 +8,52 @@ const { getAdmin } = require("../firebaseAdmin");
  *
  * 흐름:
  * 1) 클라이언트가 카카오 accessToken을 POST로 전달
+ *    - 앱(RN): 네이티브 카카오 SDK가 발급한 accessToken을 그대로 전달
+ *    - 웹 브라우저: accessToken이 없고 { code, redirectUri }를 전달 →
+ *      여기서 kauth.kakao.com/oauth/token 으로 교환하여 accessToken 획득
  * 2) 카카오 /v2/user/me API로 토큰 검증 + 사용자 정보 획득
  * 3) Firebase Custom Token 생성 (uid = "kakao:{kakaoUserId}")
  * 4) Custom Token 반환 → 클라이언트가 signInWithCustomToken()
  */
+
+// 할래말래 전용 카카오 앱(ID 1485029) REST API 키. (env KAKAO_REST_KEY 우선)
+const KAKAO_REST_KEY = "25dbce8c048d516861332a9f6b682f35";
+// 카카오 앱 보안 > Client Secret (카카오 로그인). 신규 앱은 기본 활성화 상태라 토큰 교환 시 필수.
+const KAKAO_CLIENT_SECRET = "lkkGHtMJRaaZN7RAg0uDKHEn0iGdySfO";
+
+/** 웹 Authorization Code → accessToken 교환 (카카오 REST API) */
+async function exchangeCodeForToken({ code, redirectUri }) {
+  const restKey = process.env.KAKAO_REST_KEY || KAKAO_REST_KEY;
+  if (!restKey) {
+    throw new Error("KAKAO_REST_KEY env is not configured");
+  }
+
+  const params = new URLSearchParams({
+    grant_type: "authorization_code",
+    client_id: restKey,
+    redirect_uri: redirectUri,
+    code,
+  });
+  // 카카오 콘솔에서 Client Secret이 활성화된 경우 필수
+  const clientSecret = process.env.KAKAO_CLIENT_SECRET || KAKAO_CLIENT_SECRET;
+  if (clientSecret) {
+    params.append("client_secret", clientSecret);
+  }
+
+  const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
+    body: params.toString(),
+  });
+
+  const tokenJson = await tokenRes.json();
+  if (!tokenRes.ok || !tokenJson.access_token) {
+    console.error("카카오 토큰 교환 실패:", tokenRes.status, JSON.stringify(tokenJson));
+    throw new Error(tokenJson.error_description || "code exchange failed");
+  }
+  return tokenJson.access_token;
+}
+
 exports.kakaoCustomToken = onRequest(
   { region: "asia-northeast3", cors: true },
   async (req, res) => {
@@ -20,13 +62,24 @@ exports.kakaoCustomToken = onRequest(
       return;
     }
 
-    const { accessToken } = req.body;
-    if (!accessToken) {
-      res.status(400).json({ error: "accessToken is required" });
+    let { accessToken } = req.body;
+    const { code, redirectUri } = req.body;
+
+    if (!accessToken && !code) {
+      res.status(400).json({ error: "accessToken or code is required" });
       return;
     }
 
     try {
+      // 웹: Authorization Code → accessToken 교환
+      if (!accessToken && code) {
+        if (!redirectUri) {
+          res.status(400).json({ error: "redirectUri is required for code flow" });
+          return;
+        }
+        accessToken = await exchangeCodeForToken({ code, redirectUri });
+      }
+
       // 1) 카카오 API로 사용자 정보 조회 (토큰 검증)
       const kakaoRes = await fetch("https://kapi.kakao.com/v2/user/me", {
         headers: { Authorization: `Bearer ${accessToken}` },
