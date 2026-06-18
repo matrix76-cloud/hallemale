@@ -205,6 +205,8 @@ export default function MatchRoomChat({
   myUid,
   opponentName = "상대팀",
   systemNotice = "",
+  pinnedCard = null,
+  aboveInput = null,
 }) {
   const fileRef = useRef(null);
   const scrollRef = useRef(null);
@@ -301,6 +303,7 @@ export default function MatchRoomChat({
     <Wrap>
       <ChatScroll ref={scrollRef}>
         {!!systemNotice && <SysMsg>{systemNotice}</SysMsg>}
+        {pinnedCard}
         {rows.length === 0 && <SysMsg>대화를 시작해 보세요.</SysMsg>}
 
         {rows.map((row) => {
@@ -327,6 +330,8 @@ export default function MatchRoomChat({
           );
         })}
       </ChatScroll>
+
+      {aboveInput}
 
       <InputBar>
         <HiddenFile

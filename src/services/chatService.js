@@ -84,6 +84,51 @@ export async function getOrCreateDmRoom({
   return dmKey;
 }
 
+// 매칭룸 전용 채팅방: 키를 matchRoomId 기준으로 만들어 "각 매칭룸마다 독립 채팅" 보장.
+// (DM은 두 UID로만 키를 만들어 같은 두 팀의 여러 매칭룸이 채팅을 공유하는 문제가 있음)
+export async function getOrCreateMatchRoomChat({
+  matchRoomId,
+  myUid,
+  otherUid,
+} = {}) {
+  const roomId = String(matchRoomId || "").trim();
+  if (!roomId) throw new Error("getOrCreateMatchRoomChat: matchRoomId is required");
+  if (!myUid) throw new Error("getOrCreateMatchRoomChat: myUid is required");
+
+  const chatId = `match_${roomId}`;
+  const roomRef = doc(db, "chatRooms", chatId);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (snap.exists()) return;
+
+    const participantUids = otherUid ? sortPair(myUid, otherUid) : [String(myUid)];
+
+    tx.set(roomRef, {
+      id: chatId,
+      type: "matchRoom",
+      matchRoomId: roomId,
+      participantUids,
+      createdAt: serverTimestamp(),
+      createdByUid: myUid,
+      createdFrom: "matchRoom",
+      createdFromRefId: roomId,
+
+      lastMessageText: "",
+      lastMessageAt: null,
+      lastMessageFromUid: "",
+
+      lastReadAtBy: {},
+      firstEnterAtBy: {},
+      lastEnterAtBy: {},
+      remindersBy: {},
+      mutedBy: {},
+    });
+  });
+
+  return chatId;
+}
+
 export async function getChatRoom({ chatId } = {}) {
   if (!chatId) throw new Error("getChatRoom: chatId is required");
 

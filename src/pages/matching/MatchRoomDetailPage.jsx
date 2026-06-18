@@ -23,7 +23,8 @@ import { useUIContext } from "../../context/UIContext";
 import VenuePickerSheet from "../../components/common/VenuePickerSheet";
 import MatchRoomChat from "../../components/matchRoom/MatchRoomChat";
 import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
-import { getOrCreateDmRoom } from "../../services/chatService";
+import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
+import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
 import { mrp } from "../../components/matchRoom/matchRoomPalette";
 
@@ -70,8 +71,8 @@ const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
-  background: ${({ theme, $dark }) =>
-    $dark ? mrp(theme.mode).bg : theme.colors.bg || "#f5f6fa"};
+  /* 페이지 배경을 채팅과 동일한 톤(mrp bg2)으로 통일 → 흰색/회색 섞임 방지 */
+  background: ${({ theme }) => mrp(theme.mode).bg2};
   padding: ${({ $dark }) => ($dark ? "0" : "10px 0 24px")};
   display: flex;
   flex-direction: column;
@@ -82,6 +83,15 @@ const Inner = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
+`;
+
+/* /venue(구장 정하기) 화면 하단에 도킹되는 채팅 — 입력창이 항상 보이도록 */
+const VenueChatDock = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 32vh;
+  min-height: 220px;
+  border-top: 6px solid ${({ theme }) => theme.colors.bg || "#f5f6fa"};
 `;
 
 const MatchCard = styled.div`
@@ -353,6 +363,120 @@ const VenueImage = styled.img`
   height: 100%;
   object-fit: cover;
   display: block;
+`;
+
+/* ───── 채팅 속 구장 제안 카드 ───── */
+const PropCard = styled.div`
+  align-self: stretch;
+  margin: 4px 0 2px;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  border-radius: 14px;
+  overflow: hidden;
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  box-shadow: 0 4px 14px -8px rgba(0, 0, 0, 0.18);
+`;
+const PropMapWrap = styled.div`
+  position: relative;
+  padding: 8px 8px 0;
+`;
+const PropBadge = styled.div`
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+`;
+const PropBody = styled.div`
+  padding: 10px 13px 13px;
+`;
+const PropName = styled.div`
+  font-size: 14px;
+  font-weight: 800;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fff" : "#111827")};
+`;
+const PropRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 12px;
+`;
+const PropK = styled.span`
+  color: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.55)" : "#6b7280")};
+`;
+const PropV = styled.span`
+  color: ${({ theme }) => (theme.mode === "dark" ? "#e5e7eb" : "#111827")};
+  font-weight: 600;
+  text-align: right;
+`;
+const PropV2 = styled(PropV)`
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a78bfa" : "#6c5ce7")};
+`;
+
+/* ───── 입력창 위 고정 액션바 ───── */
+const ActBar = styled.div`
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 0.5px solid
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.08)" : "#eef0f3")};
+  background: ${({ theme }) => (theme.mode === "dark" ? theme.colors.bg : "#fff")};
+`;
+const ActPrimary = styled.button`
+  flex: 1.4;
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "linear-gradient(135deg,#7c6cff,#6c5ce7)"
+      : "#6c5ce7"};
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+`;
+const ActGhost = styled.button`
+  flex: 1;
+  border: 1px solid
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.18)" : "#d1d5db")};
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#e5e7eb" : "#374151")};
+`;
+const ActStack = styled.div`
+  padding: 8px 12px 10px;
+  border-top: 0.5px solid
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.08)" : "#eef0f3")};
+  background: ${({ theme }) => (theme.mode === "dark" ? theme.colors.bg : "#fff")};
+`;
+const ActRow = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+const ActNote = styled.div`
+  font-size: 12px;
+  font-weight: 500;
+  margin: 0 2px 8px;
+  color: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.6)" : "#6b7280")};
+`;
+
+const FieldMapWrap = styled.div`
+  margin-top: 8px;
 `;
 
 const FieldRow = styled.div`
@@ -1459,12 +1583,13 @@ export default function MatchRoomDetailPage() {
   const mapRef = useRef(null);
   const mapObjRef = useRef(null);
   const markerRef = useRef(null);
+  const venueAutoOpenRef = useRef(false);
 
   const [editMode, setEditMode] = useState(false);
   const initOnceRef = useRef(false);
 
-  // 구장 정하기 방식 선택 게이트: "none"(아직 선택 전) | "direct"(직접 입력 · 현장 정산)
-  const [venueMode, setVenueMode] = useState("none");
+  // 결제 흐름 제거 → 항상 직접 입력(현장 정산). 방식 선택 게이트 미사용.
+  const [venueMode, setVenueMode] = useState("direct");
 
   // 매칭룸 탭은 URL로 분리: /match-roomdetail/:id (채팅) vs /:id/venue (구장 정하기 별도 페이지)
   const location = useLocation();
@@ -1585,19 +1710,34 @@ export default function MatchRoomDetailPage() {
         const oppClub = await getClubById(oppClubId);
         const oppOwnerUid = toStr(oppClub?.ownerUid);
         if (!oppOwnerUid || oppOwnerUid === myUid) return;
-        const dm = await getOrCreateDmRoom({
+        // 매칭룸마다 독립 채팅 (chatId = match_{roomId})
+        const cid = await getOrCreateMatchRoomChat({
+          matchRoomId: toStr(roomId),
           myUid,
           otherUid: oppOwnerUid,
-          createdFrom: "matchRoom",
-          createdFromRefId: toStr(roomId),
         });
-        if (alive && dm) setChatId(toStr(dm));
+        if (alive && cid) setChatId(toStr(cid));
       } catch (e) {}
     })();
     return () => {
       alive = false;
     };
   }, [room, myUid, myClubId, roomId]);
+
+  // 구장 정하기 진입 시 "구장부터" 선택하도록 지도 피커를 먼저 한 번 자동 오픈.
+  // (선택 후엔 폼에 [선택된 구장 + 날짜] 표시)
+  useEffect(() => {
+    if (!isVenue) {
+      venueAutoOpenRef.current = false;
+      return;
+    }
+    if (venueAutoOpenRef.current) return;
+    const st = toStr(room?.status);
+    if (st === "accepted" && !fieldLatLng) {
+      venueAutoOpenRef.current = true;
+      setMapPickerOpen(true);
+    }
+  }, [isVenue, room?.status, fieldLatLng]);
 
   useEffect(() => {
     const kakao = window.kakao;
@@ -1688,6 +1828,8 @@ export default function MatchRoomDetailPage() {
     }
     setVenueImageUrl(""); // 지도로 직접 잡은 위치는 제휴구장 이미지 해제
     setMapPickerOpen(false);
+    // 위치 확정 → 구장 정하기 폼(선택된 구장 + 날짜)으로 이동
+    if (!isVenue) navigate(`/match-roomdetail/${roomId}/venue`);
   };
 
   const openAddressSearch = () => {
@@ -1801,14 +1943,15 @@ export default function MatchRoomDetailPage() {
   const isCancelled = status === "cancelled";
 
   // 진행단계 스텝퍼 (직접 입력 흐름: 조율 → 구장 → 합의 → 확정)
-  const STEP_LABELS = ["조율", "구장", "결제", "확정"];
+  // 결제 단계 제거 (현장 정산만 있어 앱 결제 없음)
+  const STEP_LABELS = ["조율", "구장", "확정"];
   const stepStates = (() => {
-    if (status === "accepted") return ["done", "cur", "todo", "todo"];
-    if (status === "proposed") return ["done", "done", "cur", "todo"];
-    if (status === "confirmed") return ["done", "done", "done", "cur"];
-    if (status === "finished") return ["done", "done", "done", "done"];
-    if (status === "cancelled") return ["done", "todo", "todo", "todo"];
-    return ["cur", "todo", "todo", "todo"];
+    if (status === "accepted") return ["done", "cur", "todo"];
+    if (status === "proposed") return ["done", "done", "cur"];
+    if (status === "confirmed") return ["done", "done", "done"];
+    if (status === "finished") return ["done", "done", "done"];
+    if (status === "cancelled") return ["done", "todo", "todo"];
+    return ["cur", "todo", "todo"];
   })();
 
   const oppName = toStr(oppTeamView?.name) || "상대팀";
@@ -2162,6 +2305,78 @@ export default function MatchRoomDetailPage() {
     setCalMonth(m);
   };
 
+  // ───── 채팅 안에 노출할 구장 제안 카드 (status=proposed) ─────
+  const chatPinnedCard =
+    status === "proposed" ? (
+      <PropCard>
+        <PropMapWrap>
+          <PropBadge>🗺️ 지도 위치</PropBadge>
+          <VenueMiniMap latLng={fieldLatLng} height={118} />
+        </PropMapWrap>
+        <PropBody>
+          <PropName>{toStr(fieldAddress) || "선택한 구장 위치"}</PropName>
+          <PropRow>
+            <PropK>일시</PropK>
+            <PropV>
+              {room.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "-"}
+            </PropV>
+          </PropRow>
+          <PropRow>
+            <PropK>정산</PropK>
+            <PropV2>현장 정산 · 앱 결제 없음</PropV2>
+          </PropRow>
+        </PropBody>
+      </PropCard>
+    ) : null;
+
+  // ───── 입력창 위 고정 액션바 ─────
+  let chatAboveInput = null;
+  if (status === "accepted") {
+    chatAboveInput = (
+      <ActBar>
+        <ActPrimary
+          type="button"
+          onClick={() => setMapPickerOpen(true)}
+        >
+          📍 구장·일정 제안하기
+        </ActPrimary>
+      </ActBar>
+    );
+  } else if (status === "proposed") {
+    chatAboveInput = iAmProposer ? (
+      <ActStack>
+        <ActNote>상대팀 응답을 기다리는 중…</ActNote>
+        <ActRow>
+          <ActGhost
+            type="button"
+            onClick={() => navigate(`/match-roomdetail/${roomId}/venue`)}
+          >
+            제안 수정
+          </ActGhost>
+          <ActGhost type="button" onClick={handleCancelMatch}>
+            제안 취소
+          </ActGhost>
+        </ActRow>
+      </ActStack>
+    ) : (
+      <ActBar>
+        <ActGhost
+          type="button"
+          onClick={() => navigate(`/match-roomdetail/${roomId}/venue`)}
+        >
+          다른 일정·거절
+        </ActGhost>
+        <ActPrimary
+          type="button"
+          onClick={handleConfirmSchedule}
+          disabled={!canConfirm}
+        >
+          수락하고 확정
+        </ActPrimary>
+      </ActBar>
+    );
+  }
+
   return (
     <>
       <PageWrap $dark={!isVenue}>
@@ -2220,17 +2435,6 @@ export default function MatchRoomDetailPage() {
                 </VsCard>
               )}
 
-              <QuickTabs>
-                <QuickTab type="button" $on onClick={() => navigate(`/match-roomdetail/${roomId}`)}>
-                  💬 채팅
-                </QuickTab>
-                <QuickTab
-                  type="button"
-                  onClick={() => navigate(`/match-roomdetail/${roomId}/venue`)}
-                >
-                  🏟 구장 정하기
-                </QuickTab>
-              </QuickTabs>
             </>
           )}
         </DarkHeader>
@@ -2241,6 +2445,8 @@ export default function MatchRoomDetailPage() {
             myUid={myUid}
             opponentName={oppName}
             systemNotice={chatSystemNotice}
+            pinnedCard={chatPinnedCard}
+            aboveInput={chatAboveInput}
           />
         ) : (
           <>
@@ -2322,23 +2528,14 @@ export default function MatchRoomDetailPage() {
                 <>
                   <AskLabel>어떻게 구장을 정할까요?</AskLabel>
 
-                  <OptCard type="button" disabled>
-                    <Oic>🏟️</Oic>
-                    <Ob>
-                      <OptT>제휴구장 예약</OptT>
-                      <OptD>앱에서 결제 · 자동 확정</OptD>
-                      <Chips>
-                        <Pill $tone="p">준비중</Pill>
-                        <Pill $tone="g">에스크로 안전결제</Pill>
-                      </Chips>
-                    </Ob>
-                    <Arr>›</Arr>
-                  </OptCard>
-
                   <OptCard
                     type="button"
                     $primary
-                    onClick={() => setVenueMode("direct")}
+                    onClick={() => {
+                      setVenueMode("direct");
+                      // 직접 입력 = 지도부터 바로 (시안: 위치 선택 → 일정)
+                      setMapPickerOpen(true);
+                    }}
                   >
                     <Oic $primary>📍</Oic>
                     <Ob>
@@ -2365,27 +2562,12 @@ export default function MatchRoomDetailPage() {
               {!showVenueGate && (
                 <>
               <BareSection>
-                {venueImageUrl ? (
+                {/* 정보입력 화면(시안 화면2)엔 지도 풀박스를 두지 않음.
+                    지도 선택은 아래 "지도에서 선택" → MapLocationPicker(시안 화면1)에서만. */}
+                {venueImageUrl && (
                   <VenueImageBox>
                     <VenueImage src={venueImageUrl} alt="구장 이미지" />
                   </VenueImageBox>
-                ) : (
-                  <MapBox
-                    ref={mapRef}
-                    $tappable={canEdit}
-                    onClick={canEdit ? () => setMapPickerOpen(true) : undefined}
-                  />
-                )}
-
-                {canEdit && (
-                  <PartnerVenueRow>
-                    <PartnerVenueButton
-                      type="button"
-                      onClick={() => setVenuePickerOpen(true)}
-                    >
-                      🏟️ 할래말래 제휴구장에서 선택
-                    </PartnerVenueButton>
-                  </PartnerVenueRow>
                 )}
 
                 <FieldRow>
@@ -2401,6 +2583,13 @@ export default function MatchRoomDetailPage() {
                     </FieldEditButton>
                   )}
                 </FieldRow>
+
+                {/* 선택한 구장은 주소 + 지도 미리보기 함께 표시 */}
+                {fieldLatLng && (
+                  <FieldMapWrap>
+                    <VenueMiniMap latLng={fieldLatLng} height={150} />
+                  </FieldMapWrap>
+                )}
               </BareSection>
 
               {canEdit ? (
@@ -2750,9 +2939,6 @@ export default function MatchRoomDetailPage() {
               <PrimaryButton type="button" onClick={handlePropose} disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng}>
                 매칭 일정·장소 제안
               </PrimaryButton>
-              <MutedButton type="button" onClick={() => setVenueMode("none")}>
-                구장 방식 다시 선택
-              </MutedButton>
               <SecondaryButton type="button" onClick={handleCancelMatch}>
                 매칭 취소
               </SecondaryButton>
@@ -2798,6 +2984,15 @@ export default function MatchRoomDetailPage() {
             )}
           </>
         )}
+
+        <VenueChatDock>
+          <MatchRoomChat
+            chatId={chatId}
+            myUid={myUid}
+            opponentName={oppName}
+            systemNotice=""
+          />
+        </VenueChatDock>
           </>
         )}
       </PageWrap>
@@ -2878,7 +3073,13 @@ export default function MatchRoomDetailPage() {
         })()}
         initialLatLng={fieldLatLng}
         initialAddress={toStr(fieldAddress)}
-        onClose={() => setMapPickerOpen(false)}
+        onClose={() => {
+          setMapPickerOpen(false);
+          // 구장을 안 잡고 닫으면 빈 폼 대신 채팅으로 되돌림 ("무조건 구장부터" 강제)
+          if (isVenue && !fieldLatLng) {
+            navigate(`/match-roomdetail/${roomId}`);
+          }
+        }}
         onConfirm={handleMapPickerConfirm}
       />
     </>

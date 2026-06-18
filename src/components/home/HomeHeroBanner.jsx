@@ -83,17 +83,17 @@ const SlideImg = styled.img`
 
 const TextLayer = styled.div`
   position: absolute;
-  top: ${({ offsetY }) => `${36 + (offsetY || 0)}px`};
+  top: ${({ $offsetY }) => `${36 + ($offsetY || 0)}px`};
 
-  ${({ side, offsetX }) =>
-    side === "right"
+  ${({ $side, $offsetX }) =>
+    $side === "right"
       ? `
-        right: ${18 + (offsetX || 0)}px;
+        right: ${18 + ($offsetX || 0)}px;
         left: 92px;
         text-align: right;
       `
       : `
-        left: ${18 + (offsetX || 0)}px;
+        left: ${18 + ($offsetX || 0)}px;
         right: 92px;
         text-align: left;
       `}
@@ -223,9 +223,9 @@ export default function HomeHeroBanner() {
             <SlideImg src={banner.src} alt={banner.alt} />
 
             <TextLayer
-              side={banner.side || "left"}
-              offsetX={banner.offsetX || 0}
-              offsetY={banner.offsetY || 0}
+              $side={banner.side || "left"}
+              $offsetX={banner.offsetX || 0}
+              $offsetY={banner.offsetY || 0}
             >
               <Title style={{ textAlign: banner.textAlign || "left" }}>
                 {banner.title}

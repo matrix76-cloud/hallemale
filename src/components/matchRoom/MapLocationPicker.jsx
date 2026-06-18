@@ -10,6 +10,13 @@ import { mrp } from "./matchRoomPalette";
 
 const SEOUL = { lat: 37.5665, lng: 126.978 };
 
+// {lat:0,lng:0}(바다)·NaN·null 등 무효 좌표 거르기
+const isValidLatLng = (p) =>
+  !!p &&
+  Number.isFinite(Number(p.lat)) &&
+  Number.isFinite(Number(p.lng)) &&
+  !(Number(p.lat) === 0 && Number(p.lng) === 0);
+
 export default function MapLocationPicker({
   open,
   subtitle = "",
@@ -22,10 +29,11 @@ export default function MapLocationPicker({
   const mapObjRef = useRef(null);
   const geocoderRef = useRef(null);
   const idleListenerRef = useRef(null);
+  const resizeObsRef = useRef(null);
 
   const [pickName, setPickName] = useState("");
   const [pickAddr, setPickAddr] = useState("");
-  const centerRef = useRef(initialLatLng || SEOUL);
+  const centerRef = useRef(isValidLatLng(initialLatLng) ? initialLatLng : SEOUL);
 
   // 좌표 → 주소 역지오코딩
   const reverseGeocode = (lat, lng) => {
@@ -46,30 +54,34 @@ export default function MapLocationPicker({
     });
   };
 
-  // 지도 초기화 (오버레이가 열릴 때마다)
+  // 지도 초기화 — maptest처럼 최소 구성. (relayout 루프·ResizeObserver 제거)
   useEffect(() => {
     if (!open) return;
     const kakao = window.kakao;
     if (!kakao || !kakao.maps) return;
 
-    const runInit = () => {
-      if (!mapRef.current) return;
-      const start = initialLatLng || SEOUL;
+    let cancelled = false;
+
+    const create = () => {
+      if (cancelled || !mapRef.current) return;
+
+      // 컨테이너 크기가 0이면(오버레이가 펼쳐지는 중) 잡힐 때까지 대기.
+      if (mapRef.current.offsetWidth === 0 || mapRef.current.offsetHeight === 0) {
+        requestAnimationFrame(create);
+        return;
+      }
+
+      // 유효한 좌표만 사용. {lat:0,lng:0}(바다)·NaN·null 은 무효 → 서울 폴백.
+      const valid = isValidLatLng(initialLatLng);
+      const start = valid ? initialLatLng : SEOUL;
       centerRef.current = start;
+      mapRef.current.innerHTML = "";
 
       const map = new kakao.maps.Map(mapRef.current, {
         center: new kakao.maps.LatLng(start.lat, start.lng),
         level: 4,
       });
       mapObjRef.current = map;
-
-      // 컨테이너 사이즈 확정 후 재배치 (초기 0높이 방지)
-      setTimeout(() => {
-        try {
-          map.relayout();
-          map.setCenter(new kakao.maps.LatLng(start.lat, start.lng));
-        } catch (e) {}
-      }, 60);
 
       // 지도가 멈출 때마다 중앙 좌표 → 주소
       const onIdle = () => {
@@ -82,23 +94,50 @@ export default function MapLocationPicker({
       idleListenerRef.current = onIdle;
       kakao.maps.event.addListener(map, "idle", onIdle);
 
-      // 첫 주소
       if (initialAddress) {
         setPickName("지도에서 선택한 위치");
         setPickAddr(initialAddress);
       }
       reverseGeocode(start.lat, start.lng);
+
+      // 저장된 유효 좌표가 없으면 현재 위치로 이동
+      if (!valid && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (cancelled || mapObjRef.current !== map) return;
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+            centerRef.current = { lat, lng };
+            try {
+              map.setCenter(new kakao.maps.LatLng(lat, lng));
+            } catch (e) {}
+            reverseGeocode(lat, lng);
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 8000 }
+        );
+      }
     };
 
-    if (typeof kakao.maps.load === "function") kakao.maps.load(runInit);
-    else runInit();
+    if (typeof kakao.maps.load === "function") {
+      kakao.maps.load(() => {
+        if (!cancelled) create();
+      });
+    } else {
+      create();
+    }
 
     return () => {
+      cancelled = true;
       try {
         const kakao = window.kakao;
         if (kakao && mapObjRef.current && idleListenerRef.current) {
           kakao.maps.event.removeListener(mapObjRef.current, "idle", idleListenerRef.current);
         }
+      } catch (e) {}
+      try {
+        if (mapRef.current) mapRef.current.innerHTML = "";
       } catch (e) {}
       mapObjRef.current = null;
       idleListenerRef.current = null;
@@ -332,9 +371,12 @@ const MapArea = styled.div`
   border-radius: 14px;
   overflow: hidden;
   border: 0.5px solid ${({ theme }) => P(theme).line2};
+  background: ${({ theme }) => (theme.mode === "dark" ? P(theme).surface : "#e5e7eb")};
 `;
 
 const MapCanvas = styled.div`
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
 `;
