@@ -1,12 +1,12 @@
 /* eslint-disable */
 // src/context/ThemeContext.jsx
-// 다크/라이트 모드 토글 + localStorage 영속 (기본 다크)
+// 다크/라이트 모드 토글 + localStorage 영속 (기본 라이트)
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 const STORAGE_KEY = "halle.theme.mode";
 
 const ThemeModeContext = createContext({
-  mode: "dark",
+  mode: "light",
   setMode: () => {},
   toggleMode: () => {},
 });
@@ -16,7 +16,7 @@ function readInitialMode() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === "light" || saved === "dark") return saved;
   } catch (e) {}
-  return "dark";
+  return "light";
 }
 
 export function ThemeModeProvider({ children }) {
