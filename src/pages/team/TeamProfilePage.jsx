@@ -165,18 +165,8 @@ const buildRecentResults = (stats, count = 5) => {
 
   const norm = raw.map(normalizeOne).filter(Boolean);
 
-  // ✅ 최신이 index 0(앞) → 앞에서 count개 그대로 (최신이 앞)
-  if (norm.length > 0) return norm.slice(0, count);
-
-  // ✅ fallback: winRate 기반 더미 생성(기존 로직 유지)
-  const winRate = typeof s.winRate === "number" ? s.winRate : null;
-  if (winRate === null) return [];
-
-  const winsApprox = Math.round(winRate * count);
-  const arr = [];
-  for (let i = 0; i < winsApprox && arr.length < count; i += 1) arr.push("W");
-  while (arr.length < count) arr.push("L");
-  return arr;
+  // 실제 경기 결과만 사용. 기록 없으면 빈 배열(미표시) — 승률로 가짜(패패패) 생성 안 함
+  return norm.length > 0 ? norm.slice(0, count) : [];
 };
 
 /* =============== 레이아웃/스타일 =============== */

@@ -427,6 +427,7 @@ export function adaptMatchRequestToRoom(docId, data) {
 
     proposedByClubId: toStr(d.proposedByClubId),
     confirmedByClubId: toStr(d.confirmedByClubId),
+    cancelledByClubId: toStr(d.cancelledByClubId),
 
     field,
     fieldAddress: toStr(field?.address || d.fieldAddress || ""),
@@ -647,16 +648,21 @@ export async function confirmProposedSchedule({ matchRequestId, confirmedByClubI
   return true;
 }
 
-export async function cancelMatchRequest({ matchRequestId }) {
+export async function cancelMatchRequest({ matchRequestId, cancelledByClubId } = {}) {
   const id = toStr(matchRequestId);
   if (!id) throw new Error("cancelMatchRequest: matchRequestId is required");
 
   const ref = doc(db, "match_requests", id);
 
-  await updateDoc(ref, {
+  const patch = {
     status: "cancelled",
     updatedAt: serverTimestamp(),
-  });
+  };
+  // 누가 취소했는지 기록 (취소 화면 사유 표시용)
+  const by = toStr(cancelledByClubId);
+  if (by) patch.cancelledByClubId = by;
+
+  await updateDoc(ref, patch);
 
   return true;
 }

@@ -236,8 +236,19 @@ export default function MatchRoomChat({
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length]);
+    if (!el) return;
+    // 메시지 변동/방 진입 시 항상 맨 아래(최신)로. 렌더·이미지 반영 타이밍까지 커버.
+    const toBottom = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    toBottom();
+    const raf = requestAnimationFrame(toBottom);
+    const t = setTimeout(toBottom, 80);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [messages, chatId]);
 
   const rows = useMemo(() => {
     const arr = [];

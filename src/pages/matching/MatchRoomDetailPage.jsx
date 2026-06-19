@@ -73,9 +73,22 @@ const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
 const PageWrap = styled.div`
   /* 채팅($dark)은 뷰포트에 꽉 차게 고정 → 페이지 스크롤 없이 입력창 하단 고정.
      구장 정하기(venue)는 내용이 길어 스크롤 허용. */
-  ${({ $dark }) =>
-    $dark
-      ? `flex: 1; min-height: 0; overflow: hidden;`
+  ${({ $dark, $confirmed }) =>
+    $confirmed
+      ? `
+        /* 확정 화면: 헤더 뺀 뷰포트 높이 안에서 전체가 일반 스크롤 (공유버튼 고정 안 함) */
+        height: calc(100dvh - 52px - env(safe-area-inset-top));
+        overflow-y: auto;
+      `
+      : $dark
+      ? `
+        /* 헤더(52px+safe area) 뺀 뷰포트 높이로 하드 고정 →
+           메시지는 내부 스크롤, 입력창은 항상 화면 하단 고정 */
+        height: calc(100dvh - 52px - env(safe-area-inset-top));
+        max-height: calc(100dvh - 52px - env(safe-area-inset-top));
+        min-height: 0;
+        overflow: hidden;
+      `
       : `min-height: calc(100vh - 56px);`}
   /* 페이지 배경을 채팅과 동일한 톤(mrp bg2)으로 통일 → 흰색/회색 섞임 방지 */
   background: ${({ theme }) => mrp(theme.mode).bg2};
@@ -89,6 +102,20 @@ const Inner = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
+`;
+
+/* 로딩/빈 상태 — 화면 중앙, 굵지 않은 글씨 */
+const CenterState = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
+  text-align: center;
 `;
 
 /* /venue(구장 정하기) 화면 하단에 도킹되는 채팅 — 입력창이 항상 보이도록 */
@@ -503,6 +530,213 @@ const TopActionBtn = styled.button`
       ? "linear-gradient(135deg,#7c6cff,#6c5ce7)"
       : "#6c5ce7"};
   box-shadow: 0 6px 16px -8px rgba(108, 92, 231, 0.6);
+`;
+
+/* ───── 경기 확정(confirmed) 전용 화면 ───── */
+const ConfWrap = styled.div`
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 18px calc(28px + env(safe-area-inset-bottom));
+  background: ${({ theme }) => mrp(theme.mode).bg2};
+`;
+const ConfCheck = styled.div`
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 46px;
+  line-height: 1;
+  box-shadow: 0 14px 30px -12px rgba(22, 163, 74, 0.65);
+  margin-top: 6px;
+`;
+const ConfTitle = styled.div`
+  margin: 18px 0 0;
+  font-size: 24px;
+  font-weight: 900;
+  text-align: center;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+`;
+const ConfTitleMark = styled.span`
+  background: linear-gradient(transparent 55%, rgba(34, 197, 94, 0.28) 0);
+  padding: 0 4px;
+`;
+const ConfSub = styled.div`
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+`;
+const ConfStepperWrap = styled.div`
+  width: 100%;
+  max-width: 360px;
+  margin: 18px 0 0;
+`;
+const Ticket = styled.div`
+  width: 100%;
+  max-width: 360px;
+  margin: 22px 0 0;
+  border-radius: 18px;
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+`;
+const TicketHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px dashed ${({ theme }) => mrp(theme.mode).line2};
+`;
+const TicketBrand = styled.span`
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: ${({ theme }) => mrp(theme.mode).puL};
+`;
+const TicketBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #16a34a;
+  &::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #16a34a;
+  }
+`;
+const TicketBody = styled.div`
+  padding: 18px 16px;
+`;
+const TicketRows = styled.div`
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+const TicketRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+`;
+const TicketRowK = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 56px;
+  flex-shrink: 0;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  font-weight: 600;
+`;
+const TicketRowV = styled.span`
+  flex: 1;
+  font-weight: 600;
+  word-break: keep-all;
+`;
+const DirBtn = styled.button`
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).puL};
+  cursor: pointer;
+`;
+const ShareBtn = styled.button`
+  width: 100%;
+  max-width: 360px;
+  margin: 22px 0 0;
+  border: none;
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #7c6cff, #6c5ce7);
+  box-shadow: 0 12px 24px -12px rgba(108, 92, 231, 0.7);
+`;
+
+/* ───── 경기 취소(cancelled) 전용 화면 ───── */
+const CancelIcon = styled.div`
+  width: 66px;
+  height: 66px;
+  border-radius: 16px;
+  background: ${({ theme }) => mrp(theme.mode).surface2};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 800;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  margin-top: 10px;
+`;
+const CancelCard = styled.div`
+  width: 100%;
+  max-width: 360px;
+  margin: 22px 0 0;
+  border-radius: 16px;
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.35);
+  padding: 4px 16px;
+`;
+const CancelRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  font-size: 13px;
+  & + & {
+    border-top: 1px solid ${({ theme }) => mrp(theme.mode).line};
+  }
+`;
+const CancelK = styled.span`
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  font-weight: 600;
+`;
+const CancelV = styled.span`
+  color: ${({ theme }) => mrp(theme.mode).t1};
+  font-weight: 800;
+  text-align: right;
+`;
+const CancelInfo = styled.div`
+  width: 100%;
+  max-width: 360px;
+  margin: 14px 0 0;
+  display: flex;
+  gap: 8px;
+  border-radius: 12px;
+  padding: 13px 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.12)" : "#eef2ff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
+
+  b {
+    font-weight: 800;
+  }
 `;
 
 const FieldMapWrap = styled.div`
@@ -2069,7 +2303,7 @@ export default function MatchRoomDetailPage() {
   if (loading) {
     return (
       <PageWrap>
-        <Inner>매칭 정보를 불러오는 중입니다…</Inner>
+        <CenterState>매칭 정보를 불러오는 중입니다…</CenterState>
       </PageWrap>
     );
   }
@@ -2077,7 +2311,7 @@ export default function MatchRoomDetailPage() {
   if (!room) {
     return (
       <PageWrap>
-        <Inner>매칭 정보를 찾을 수 없습니다.</Inner>
+        <CenterState>매칭 정보를 찾을 수 없습니다.</CenterState>
       </PageWrap>
     );
   }
@@ -2313,7 +2547,7 @@ export default function MatchRoomDetailPage() {
 
   const handleCancelMatch = async () => {
     try {
-      await cancelMatchRequest({ matchRequestId: room.id });
+      await cancelMatchRequest({ matchRequestId: room.id, cancelledByClubId: myClubId });
       await refresh();
       goBackOrHome(navigate);
     } catch (e) {
@@ -2508,6 +2742,57 @@ export default function MatchRoomDetailPage() {
     return `${h ? `${h}시간` : ""}${m ? ` ${m}분` : ""}`.trim();
   })();
 
+  // ───── 확정 화면용: "5.16(토) 16:00-18:00" 포맷 ─────
+  const confDateLabel = (() => {
+    if (!room.scheduledAt) return "일정 미정";
+    const d = new Date(room.scheduledAt);
+    if (Number.isNaN(d.getTime())) return "일정 미정";
+    const wk = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+    const dur = Number(durationMin) || Number(room?.durationMin) || 120;
+    const e = new Date(d.getTime() + dur * 60 * 1000);
+    const hm = (x) => `${pad2(x.getHours())}:${pad2(x.getMinutes())}`;
+    return `${d.getMonth() + 1}.${d.getDate()}(${wk}) ${hm(d)}-${hm(e)}`;
+  })();
+
+  const openDirections = () => {
+    const name = encodeURIComponent(toStr(fieldAddress) || "경기 구장");
+    const url =
+      fieldLatLng?.lat && fieldLatLng?.lng
+        ? `https://map.kakao.com/link/to/${name},${fieldLatLng.lat},${fieldLatLng.lng}`
+        : `https://map.kakao.com/link/search/${name}`;
+    window.open(url, "_blank");
+  };
+
+  const shareMatch = async () => {
+    const myName = toStr(myTeamView?.name) || "우리 팀";
+    const text =
+      `[경기 확정] ${myName} vs ${oppName}\n` +
+      `일시: ${confDateLabel}\n` +
+      `구장: ${toStr(fieldAddress) || "-"}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "경기 확정", text });
+      } else {
+        await navigator.clipboard.writeText(text);
+        window.alert("경기 정보가 복사되었어요.");
+      }
+    } catch (e) {}
+  };
+
+  // ───── 취소 화면용 ─────
+  const cancelledBy = toStr(room?.cancelledByClubId);
+  const iCancelled = !!cancelledBy && cancelledBy === myClubId;
+  const cancelReasonLabel = !cancelledBy
+    ? "경기 취소"
+    : iCancelled
+    ? "우리팀 취소"
+    : "상대팀 취소";
+  const cancelSubText = !cancelledBy
+    ? "확정된 경기가 취소됐어요."
+    : iCancelled
+    ? "우리팀 사정으로 확정된 경기가 취소됐어요."
+    : "상대팀 사정으로 확정된 경기가 취소됐어요.";
+
   const chatPinnedCard =
     status === "proposed" ? (
       <PropCard>
@@ -2607,11 +2892,184 @@ export default function MatchRoomDetailPage() {
     );
   }
 
+  // 경기 결과 입력/제출/인정 섹션 (확정 화면·결과 화면에서 공용)
+  const resultSection = (
+    <SectionCard>
+      <SectionTitleRow>
+        <SectionTitleLeft>
+          <SectionIcon>📊</SectionIcon>
+          <span>경기 결과</span>
+        </SectionTitleLeft>
+        <SectionTitleActions />
+      </SectionTitleRow>
+
+      {!resultState && !canOpenResultInput && (
+        <ResultInfoBox>
+          경기 시작 후 <strong>{venueDurLabel || "경기 시간"}</strong>이 지나면 경기 결과를 입력할 수 있어요.
+          {resultOpenAtLabel ? (
+            <>
+              <br />
+              입력 가능 시간: <strong>{resultOpenAtLabel}</strong>
+            </>
+          ) : null}
+        </ResultInfoBox>
+      )}
+
+      {!resultState && canOpenResultInput && (
+        <>
+          <ResultScoreRow>
+            <ScoreBlock>
+              <ScoreTeamLabel>{myTeamView?.name || "우리팀"}</ScoreTeamLabel>
+              <ScoreInput
+                inputMode="numeric"
+                pattern="\\d*"
+                value={myScoreInput}
+                onChange={(e) => setMyScoreInput(e.target.value.replace(/[^\d]/g, ""))}
+              />
+            </ScoreBlock>
+            <ScoreSeparator>:</ScoreSeparator>
+            <ScoreBlock>
+              <ScoreTeamLabel>{oppTeamView?.name || "상대팀"}</ScoreTeamLabel>
+              <ScoreInput
+                inputMode="numeric"
+                pattern="\\d*"
+                value={oppScoreInput}
+                onChange={(e) => setOppScoreInput(e.target.value.replace(/[^\d]/g, ""))}
+              />
+            </ScoreBlock>
+          </ResultScoreRow>
+
+          <ResultStatusText>사진(선택)과 코멘트를 남길 수 있어요.</ResultStatusText>
+
+          <PhotoRow>
+            {resultFiles.map((f, idx) => {
+              const src = URL.createObjectURL(f);
+              return (
+                <PhotoThumb key={`${f.name}-${idx}`}>
+                  <PhotoImg src={src} alt="picked" />
+                  <PhotoRemove type="button" onClick={() => removePickedFile(idx)}>
+                    ×
+                  </PhotoRemove>
+                </PhotoThumb>
+              );
+            })}
+            {resultFiles.length < 6 && (
+              <PhotoAdd type="button" onClick={() => fileRef.current?.click()}>
+                ＋
+              </PhotoAdd>
+            )}
+          </PhotoRow>
+
+          <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onFilesChanged} />
+
+          <TextArea
+            value={resultComment}
+            onChange={(e) => setResultComment(e.target.value)}
+            placeholder="코멘트 (예: 매너 좋았습니다. 다음에 또 경기해요!)"
+          />
+
+          <ActionsWrap>
+            <PrimaryButton
+              type="button"
+              onClick={handleSubmitResult}
+              disabled={resultBusy || !toStr(myScoreInput) || !toStr(oppScoreInput)}
+            >
+              {resultBusy ? "처리중..." : "결과 제출"}
+            </PrimaryButton>
+          </ActionsWrap>
+        </>
+      )}
+
+      {resultState === "waiting_accept" && (
+        <>
+          <ScoreHero>
+            <ScoreHeroNum>{String(actorScoreSaved ?? "-")}</ScoreHeroNum>
+            <ScoreHeroSep>:</ScoreHeroSep>
+            <ScoreHeroNum>{String(targetScoreSaved ?? "-")}</ScoreHeroNum>
+          </ScoreHero>
+          <ScoreHeroHint>상대팀 승인을 기다리는 중입니다.</ScoreHeroHint>
+
+          {savedComment ? (
+            <CommentStack>
+              {commentBlocks.map((b) => (
+                <CommentItem key={b.key}>
+                  <CommentHeader>{b.header}</CommentHeader>
+                  <CommentBody>{b.body}</CommentBody>
+                </CommentItem>
+              ))}
+            </CommentStack>
+          ) : null}
+
+          {savedPhotoUrls.length > 0 ? (
+            <FullPhotoList>
+              {savedPhotoUrls.map((url, idx) => (
+                <FullPhotoItem key={`${url}-${idx}`}>
+                  <FullPhotoImg src={url} alt="result" />
+                </FullPhotoItem>
+              ))}
+            </FullPhotoList>
+          ) : null}
+
+          {!iSubmittedResult ? (
+            <>
+              <ResultStatusText>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ResultStatusText>
+              <ResultActionsRow>
+                <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
+                  {resultBusy ? "처리중..." : "결과 인정"}
+                </ResultButton>
+                <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
+                  이의 제기
+                </ResultButton>
+              </ResultActionsRow>
+            </>
+          ) : (
+            <ResultStatusText>상대팀 승인을 기다리는 중입니다.</ResultStatusText>
+          )}
+        </>
+      )}
+
+      {(resultState === "confirmed" || isFinished) && (
+        <>
+          <ScoreHero>
+            <ScoreHeroNum>{String(actorScoreSaved ?? "-")}</ScoreHeroNum>
+            <ScoreHeroSep>:</ScoreHeroSep>
+            <ScoreHeroNum>{String(targetScoreSaved ?? "-")}</ScoreHeroNum>
+          </ScoreHero>
+          <ScoreHeroHint>경기 결과가 확정되었습니다.</ScoreHeroHint>
+          {savedComment ? (
+            <CommentStack>
+              {commentBlocks.map((b) => (
+                <CommentItem key={b.key}>
+                  <CommentHeader>{b.header}</CommentHeader>
+                  <CommentBody>{b.body}</CommentBody>
+                </CommentItem>
+              ))}
+            </CommentStack>
+          ) : null}
+          {savedPhotoUrls.length > 0 ? (
+            <FullPhotoList>
+              {savedPhotoUrls.map((url, idx) => (
+                <FullPhotoItem key={`${url}-${idx}`}>
+                  <FullPhotoImg src={url} alt="result" />
+                </FullPhotoItem>
+              ))}
+            </FullPhotoList>
+          ) : null}
+        </>
+      )}
+
+      {resultState === "disputed" && <ResultStatusText>이의 제기 상태입니다. 관리자 검토 후 처리됩니다.</ResultStatusText>}
+    </SectionCard>
+  );
+
   return (
     <>
-      <PageWrap $dark={!isVenue}>
+      <PageWrap
+        $dark={!isVenue}
+        $confirmed={!isVenue && (status === "confirmed" || status === "cancelled")}
+      >
         <DarkHeader>
-          {isVenue ? null : (
+          {isVenue || status === "confirmed" || status === "cancelled" || status === "finished" ? null : (
             <>
               <MatchInfoBar
                 type="button"
@@ -2675,7 +3133,113 @@ export default function MatchRoomDetailPage() {
           )}
         </DarkHeader>
 
-        {!isVenue ? (
+        {!isVenue && status === "cancelled" ? (
+          <ConfWrap>
+            <CancelIcon>✕</CancelIcon>
+            <ConfTitle>경기가 취소됐어요</ConfTitle>
+            <ConfSub>{cancelSubText}</ConfSub>
+
+            <CancelCard>
+              <CancelRow>
+                <CancelK>사유</CancelK>
+                <CancelV>{cancelReasonLabel}</CancelV>
+              </CancelRow>
+              <CancelRow>
+                <CancelK>정산</CancelK>
+                <CancelV>현장 정산 · 결제 없음</CancelV>
+              </CancelRow>
+            </CancelCard>
+
+            <CancelInfo>
+              <span>ⓘ</span>
+              <div>
+                직접 입력 경기는 앱 결제가 없어 <b>환불 절차가 없어요.</b> 별도 정산이
+                있었다면 두 팀이 직접 정리해요.
+              </div>
+            </CancelInfo>
+
+            <ShareBtn type="button" onClick={() => navigate("/matching")}>
+              새 매칭 찾기
+            </ShareBtn>
+          </ConfWrap>
+        ) : !isVenue && (status === "confirmed" || status === "finished") ? (
+          <ConfWrap>
+            <ConfCheck>✓</ConfCheck>
+            <ConfTitle>
+              <ConfTitleMark>{isFinished ? "경기 종료" : "경기 확정!"}</ConfTitleMark>
+            </ConfTitle>
+            <ConfSub>
+              {isFinished ? (
+                <>경기가 종료됐어요. 수고하셨습니다!</>
+              ) : (
+                <>
+                  상대팀이 제안을 수락했어요.
+                  <br />
+                  현장에서 만나 정산하면 끝!
+                </>
+              )}
+            </ConfSub>
+
+            <Ticket>
+              <TicketHead>
+                <TicketBrand>MATCH TICKET</TicketBrand>
+                <TicketBadge>확정됨</TicketBadge>
+              </TicketHead>
+              <TicketBody>
+                <VsRow>
+                  <VsTeam role="button" onClick={() => goTeamDetail(myTeamView)}>
+                    <Crest $home>
+                      {myTeamView?.logoUrl ? (
+                        <CrestImg src={myTeamView.logoUrl} alt={myTeamView?.name} />
+                      ) : (
+                        toStr(myTeamView?.name)[0] || "R"
+                      )}
+                    </Crest>
+                    <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
+                  </VsTeam>
+
+                  <VsMid>
+                    <VsX>VS</VsX>
+                  </VsMid>
+
+                  <VsTeam role="button" onClick={() => goTeamDetail(oppTeamView)}>
+                    <Crest>
+                      {oppTeamView?.logoUrl ? (
+                        <CrestImg src={oppTeamView.logoUrl} alt={oppTeamView?.name} />
+                      ) : (
+                        oppName[0] || "F"
+                      )}
+                    </Crest>
+                    <VsNm>{oppName}</VsNm>
+                  </VsTeam>
+                </VsRow>
+
+                <TicketRows>
+                  <TicketRow>
+                    <TicketRowK>📅 일시</TicketRowK>
+                    <TicketRowV>{confDateLabel}</TicketRowV>
+                  </TicketRow>
+                  <TicketRow>
+                    <TicketRowK>📍 구장</TicketRowK>
+                    <TicketRowV>{toStr(fieldAddress) || "직접 입력 구장"}</TicketRowV>
+                    {fieldLatLng?.lat && fieldLatLng?.lng ? (
+                      <DirBtn type="button" onClick={openDirections}>
+                        길찾기
+                      </DirBtn>
+                    ) : null}
+                  </TicketRow>
+                </TicketRows>
+              </TicketBody>
+            </Ticket>
+
+            <ShareBtn type="button" onClick={shareMatch}>
+              ↗ 공유하기
+            </ShareBtn>
+
+            {/* 경기 결과 입력/제출/인정 — 확정 화면에서 바로 (별도 채팅 없음) */}
+            {resultSection}
+          </ConfWrap>
+        ) : !isVenue ? (
           <>
             {chatTopBar}
             <MatchRoomChat

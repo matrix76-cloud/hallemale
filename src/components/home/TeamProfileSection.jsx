@@ -267,8 +267,8 @@ const MatchRoomLinkText = styled.div`
 /* ✅ 3개 박스 업그레이드 */
 const StatRow = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
 `;
 
 const StatValue = styled.div`
@@ -277,8 +277,8 @@ const StatValue = styled.div`
 `;
 
 const NumberBadge = styled.div`
-  width: 62px;
-  height: 48px;
+  width: 100%;
+  height: 42px;
   border-radius: 8px;
   display: grid;
   place-items: center;
@@ -289,7 +289,7 @@ const NumberBadge = styled.div`
 `;
 
 const NumberText = styled.div`
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1;
   letter-spacing: -0.8px;
   color: ${({ theme }) => theme.colors.textStrong};
@@ -311,15 +311,13 @@ const StatItem = styled.button`
       ? theme.colors.surface
       : "linear-gradient(180deg, #ffffff 0%, #f9fafb 100%)"};
   border-radius: 8px;
-  padding: 12px 12px 12px;
+  padding: 10px 7px;
   cursor: pointer;
-  text-align: left;
 
   display: flex;
   flex-direction: column;
-  gap: 10px;
-
-  min-height: 98px;
+  align-items: center;
+  gap: 8px;
 
   box-shadow: ${({ theme }) =>
     theme.mode === "dark"
@@ -332,7 +330,9 @@ const StatItem = styled.button`
 `;
 
 const StatLabel = styled.div`
-  font-size: 12px;
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
@@ -389,6 +389,8 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts }) 
         matchRoomCounts?.done,
       0
     );
+
+    const cancelled = safeCount(matchRoomCounts?.cancelled, 0);
 
 
 
@@ -501,6 +503,13 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts }) 
                 <NumberText>{past}</NumberText>
               </NumberBadge>
 
+            </StatItem>
+
+            <StatItem type="button" onClick={() => goMatchRoomList("cancelled")}>
+              <StatLabel>취소된 경기</StatLabel>
+              <NumberBadge>
+                <NumberText>{cancelled}</NumberText>
+              </NumberBadge>
             </StatItem>
           </StatRow>
         </MatchRoomCard>

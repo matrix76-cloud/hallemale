@@ -28,34 +28,37 @@ function mergeDocsById(a, b) {
   return Object.values(map);
 }
 
-// 확정 경기는 시작시각(scheduledAt) 도달 시 '지난 경기'로 이동 (목록 페이지와 동일 기준)
-function isStarted(r) {
-  const t = r?.scheduledAt ? new Date(r.scheduledAt).getTime() : NaN;
-  return Number.isFinite(t) && Date.now() >= t;
+// 확정 경기는 종료시각(시작 + 경기시간) 도달 시 '지난 경기'로 이동 (목록 페이지와 동일 기준)
+function isEnded(r) {
+  const start = r?.scheduledAt ? new Date(r.scheduledAt).getTime() : NaN;
+  if (!Number.isFinite(start)) return false;
+  const durMin = Number(r?.durationMin) > 0 ? Number(r.durationMin) : 120; // 기본 2시간
+  return Date.now() >= start + durMin * 60 * 1000;
 }
 
 function countByStatus(rows) {
   let ongoing = 0;
   let confirmed = 0;
   let past = 0;
+  let cancelled = 0;
 
   for (const r of rows || []) {
     const st = toStr(r?.status);
     if (st === "accepted" || st === "proposed") ongoing += 1;
     else if (st === "confirmed") {
-      if (isStarted(r)) past += 1; // 시작된 확정 경기 → 지난 경기
+      if (isEnded(r)) past += 1; // 종료된 확정 경기 → 지난 경기
       else confirmed += 1;
     } else if (st === "finished") past += 1;
-    // cancelled는 어디에도 카운트하지 않음
+    else if (st === "cancelled") cancelled += 1;
   }
 
-  return { ongoing, confirmed, past };
+  return { ongoing, confirmed, past, cancelled };
 }
 
 export default function useMatchRoomCounts({ clubId } = {}) {
   const myClubId = toStr(clubId);
 
-  const [counts, setCounts] = useState({ ongoing: 0, confirmed: 0, past: 0 });
+  const [counts, setCounts] = useState({ ongoing: 0, confirmed: 0, past: 0, cancelled: 0 });
   const [loading, setLoading] = useState(false);
 
   const aRef = useRef([]); // actor side docs
@@ -65,7 +68,7 @@ export default function useMatchRoomCounts({ clubId } = {}) {
     if (!myClubId) {
       aRef.current = [];
       bRef.current = [];
-      setCounts({ ongoing: 0, confirmed: 0, past: 0 });
+      setCounts({ ongoing: 0, confirmed: 0, past: 0, cancelled: 0 });
       setLoading(false);
       return;
     }
@@ -75,7 +78,7 @@ export default function useMatchRoomCounts({ clubId } = {}) {
     const col = collection(db, "match_requests");
 
     // ✅ 홈에서 필요한 상태만 구독 (cancelled 제외)
-    const statusIn = ["accepted", "proposed", "confirmed", "finished"];
+    const statusIn = ["accepted", "proposed", "confirmed", "finished", "cancelled"];
 
     const qActor = query(col, where("actorClubId", "==", myClubId), where("status", "in", statusIn));
     const qTarget = query(col, where("targetClubId", "==", myClubId), where("status", "in", statusIn));

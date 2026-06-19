@@ -6,7 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { images } from "../../utils/imageAssets";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 import Spinner from "../../components/common/Spinner";
-import { loadMatchRoomListPageData } from "../../services/matchRoomService";
+import { loadMatchRoomListPageData, cancelMatchRequest } from "../../services/matchRoomService";
 import { useClub } from "../../hooks/useClub";
 
 /* ==================== 헬퍼 ==================== */
@@ -300,6 +300,22 @@ const Divider = styled.div`
   margin: 2px 14px;
 `;
 
+const CancelBtn = styled.button`
+  margin: 8px 12px 4px;
+  width: calc(100% - 24px);
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.border || "#e5e7eb"};
+  background: transparent;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fca5a5" : "#dc2626")};
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active {
+    opacity: 0.8;
+  }
+`;
+
 const StateWrap = styled.div`
   padding: 32px 4px;
   display: flex;
@@ -334,10 +350,11 @@ export default function MatchRoomListPage() {
     const sp = new URLSearchParams(location.search || "");
     const raw = toStr(sp.get("tab")).toLowerCase();
 
-    // 홈에서 넘기는 값: ongoing | confirmed | past
+    // 홈에서 넘기는 값: ongoing | confirmed | past | cancelled
     if (raw === "ongoing" || raw === "adjusting") return "adjusting";
     if (raw === "confirmed") return "confirmed";
     if (raw === "past" || raw === "finished") return "past";
+    if (raw === "cancelled" || raw === "canceled") return "cancelled";
 
     // 파라미터 없으면 전체(섹션 3개를 아래로 쭉)
     return "all";
@@ -366,29 +383,62 @@ export default function MatchRoomListPage() {
     };
   }, [myClubId]);
 
-  // 확정 경기는 시작시각(scheduledAt)이 지나면 '지난 경기'로 이동 (2-9)
-  const isStarted = (r) => {
-    const t = r?.scheduledAt ? new Date(r.scheduledAt).getTime() : NaN;
-    return Number.isFinite(t) && Date.now() >= t;
+  // 확정 경기는 종료시각(시작 + 경기시간)이 지나면 '지난 경기'로 이동 (2-9)
+  const isEnded = (r) => {
+    const start = r?.scheduledAt ? new Date(r.scheduledAt).getTime() : NaN;
+    if (!Number.isFinite(start)) return false;
+    const durMin = Number(r?.durationMin) > 0 ? Number(r.durationMin) : 120; // 기본 2시간
+    return Date.now() >= start + durMin * 60 * 1000;
   };
 
+  // 정렬용: 최신 시간 먼저 (scheduledAt → updatedAt → createdAt)
+  const toMs = (v) => {
+    if (!v) return 0;
+    if (typeof v === "object" && typeof v.toDate === "function") {
+      try {
+        return v.toDate().getTime();
+      } catch (e) {
+        return 0;
+      }
+    }
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+  const byLatest = (a, b) =>
+    (toMs(b?.scheduledAt) || toMs(b?.updatedAt) || toMs(b?.createdAt)) -
+    (toMs(a?.scheduledAt) || toMs(a?.updatedAt) || toMs(a?.createdAt));
+
+  // 확정 경기는 오름차순(곧 열릴 경기가 위)
+  const bySoonest = (a, b) =>
+    (toMs(a?.scheduledAt) || toMs(a?.updatedAt) || toMs(a?.createdAt)) -
+    (toMs(b?.scheduledAt) || toMs(b?.updatedAt) || toMs(b?.createdAt));
+
   const adjustingRooms = useMemo(
-    () => rooms.filter((r) => r.status === "accepted" || r.status === "proposed"),
+    () =>
+      rooms
+        .filter((r) => r.status === "accepted" || r.status === "proposed")
+        .sort(byLatest),
     [rooms]
   );
 
   const confirmedRooms = useMemo(
-    () => rooms.filter((r) => r.status === "confirmed" && !isStarted(r)),
+    () =>
+      rooms.filter((r) => r.status === "confirmed" && !isEnded(r)).sort(bySoonest),
     [rooms]
   );
 
   const pastRooms = useMemo(
     () =>
-      rooms.filter(
-        (r) =>
-          r.status === "finished" ||
-          (r.status === "confirmed" && isStarted(r))
-      ),
+      rooms
+        .filter(
+          (r) => r.status === "finished" || (r.status === "confirmed" && isEnded(r))
+        )
+        .sort(byLatest),
+    [rooms]
+  );
+
+  const cancelledRooms = useMemo(
+    () => rooms.filter((r) => r.status === "cancelled").sort(byLatest),
     [rooms]
   );
 
@@ -396,6 +446,7 @@ export default function MatchRoomListPage() {
     if (tab === "adjusting") return "조율중 경기";
     if (tab === "confirmed") return "확정된 경기";
     if (tab === "past") return "지난 경기";
+    if (tab === "cancelled") return "취소된 경기";
     return "매칭룸";
   }, [tab]);
 
@@ -403,8 +454,9 @@ export default function MatchRoomListPage() {
     if (tab === "adjusting") return `조율중인 경기 ${adjustingRooms.length}개`;
     if (tab === "confirmed") return `확정된 경기 ${confirmedRooms.length}개`;
     if (tab === "past") return `지난 경기 ${pastRooms.length}개`;
+    if (tab === "cancelled") return `취소된 경기 ${cancelledRooms.length}개`;
     return `조율중 ${adjustingRooms.length} · 확정 ${confirmedRooms.length} · 지난경기 ${pastRooms.length}`;
-  }, [tab, adjustingRooms.length, confirmedRooms.length, pastRooms.length]);
+  }, [tab, adjustingRooms.length, confirmedRooms.length, pastRooms.length, cancelledRooms.length]);
 
   const handleClickRoom = (roomId) => {
     navigate(`/match-roomdetail/${roomId}`);
@@ -470,9 +522,27 @@ export default function MatchRoomListPage() {
   };
 
 
+  const handleCancelRoom = async (e, room) => {
+    e.stopPropagation();
+    if (!room?.id) return;
+    if (!window.confirm("이 확정 경기를 취소할까요? 취소하면 되돌릴 수 없어요.")) return;
+    try {
+      await cancelMatchRequest({ matchRequestId: room.id });
+      // 로컬 상태 즉시 반영 → 취소된 경기로 이동
+      setRooms((prev) =>
+        prev.map((r) => (r.id === room.id ? { ...r, status: "cancelled" } : r))
+      );
+    } catch (err) {
+      window.alert(err?.message || "경기 취소에 실패했습니다.");
+    }
+  };
+
   const renderRoomCard = (room) => {
     const { myTeam, oppTeam } = room || {};
     const { text } = getVsStatus(room);
+    // 지난 경기(경기 종료 or finished) = 상태칩·취소버튼 숨김
+    const isPast = isEnded(room) || toStr(room?.status) === "finished";
+    const canCancel = toStr(room?.status) === "confirmed" && !isPast;
 
     return (
       <RoomCard key={room.id} onClick={() => handleClickRoom(room.id)} role="button" tabIndex={0}>
@@ -480,7 +550,7 @@ export default function MatchRoomListPage() {
           <MatchTitle>
             {(toStr(myTeam?.name) || "우리팀")} vs {(toStr(oppTeam?.name) || "상대팀")}
           </MatchTitle>
-          <VsStatusPill>{text || "일정 조율중"}</VsStatusPill>
+          {!isPast && <VsStatusPill>{text || "일정 조율중"}</VsStatusPill>}
         </MatchHeader>
 
         {renderTeamBlock({ team: myTeam, recent: room?.myRecent, fallbackName: "우리팀" })}
@@ -488,6 +558,12 @@ export default function MatchRoomListPage() {
         <Divider />
 
         {renderTeamBlock({ team: oppTeam, recent: room?.oppRecent, fallbackName: "상대팀" })}
+
+        {canCancel && (
+          <CancelBtn type="button" onClick={(e) => handleCancelRoom(e, room)}>
+            경기 취소하기
+          </CancelBtn>
+        )}
       </RoomCard>
     );
   };
@@ -496,8 +572,9 @@ export default function MatchRoomListPage() {
     if (tab === "adjusting") return adjustingRooms;
     if (tab === "confirmed") return confirmedRooms;
     if (tab === "past") return pastRooms;
+    if (tab === "cancelled") return cancelledRooms;
     return [];
-  }, [tab, adjustingRooms, confirmedRooms, pastRooms]);
+  }, [tab, adjustingRooms, confirmedRooms, pastRooms, cancelledRooms]);
 
   return (
     <PageWrap>
@@ -550,6 +627,16 @@ export default function MatchRoomListPage() {
                 ) : (
                   <EmptyText>지난 게임 기록이 아직 없습니다.</EmptyText>
                 )}
+
+                {cancelledRooms.length > 0 && (
+                  <>
+                    <TitleCard>
+                      <TitleText>취소된 경기</TitleText>
+                      <SubText>{cancelledRooms.length}개</SubText>
+                    </TitleCard>
+                    {cancelledRooms.map((room) => renderRoomCard(room))}
+                  </>
+                )}
               </RoomList>
             ) : (
               <RoomList>
@@ -561,6 +648,8 @@ export default function MatchRoomListPage() {
                       ? "조율중인 매칭이 아직 없습니다."
                       : tab === "confirmed"
                       ? "확정된 매칭이 아직 없습니다."
+                      : tab === "cancelled"
+                      ? "취소된 경기가 없습니다."
                       : "지난 게임 기록이 아직 없습니다."}
                   </EmptyText>
                 )}
