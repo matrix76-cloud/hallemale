@@ -316,6 +316,7 @@ const VsDivider = styled.div`
 `;
 
 const SectionCard = styled.div`
+  width: 100%;
   background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
   padding: 14px 14px 16px;
@@ -539,6 +540,7 @@ const ConfWrap = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 14px;
   padding: 26px 18px calc(28px + env(safe-area-inset-bottom));
   background: ${({ theme }) => mrp(theme.mode).bg2};
 `;
@@ -3164,22 +3166,6 @@ export default function MatchRoomDetailPage() {
           </ConfWrap>
         ) : !isVenue && (status === "confirmed" || status === "finished") ? (
           <ConfWrap>
-            <ConfCheck>✓</ConfCheck>
-            <ConfTitle>
-              <ConfTitleMark>{isFinished ? "경기 종료" : "경기 확정!"}</ConfTitleMark>
-            </ConfTitle>
-            <ConfSub>
-              {isFinished ? (
-                <>경기가 종료됐어요. 수고하셨습니다!</>
-              ) : (
-                <>
-                  상대팀이 제안을 수락했어요.
-                  <br />
-                  현장에서 만나 정산하면 끝!
-                </>
-              )}
-            </ConfSub>
-
             <Ticket>
               <TicketHead>
                 <TicketBrand>MATCH TICKET</TicketBrand>
@@ -3231,10 +3217,6 @@ export default function MatchRoomDetailPage() {
                 </TicketRows>
               </TicketBody>
             </Ticket>
-
-            <ShareBtn type="button" onClick={shareMatch}>
-              ↗ 공유하기
-            </ShareBtn>
 
             {/* 경기 결과 입력/제출/인정 — 확정 화면에서 바로 (별도 채팅 없음) */}
             {resultSection}
