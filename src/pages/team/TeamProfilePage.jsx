@@ -19,7 +19,6 @@ import Spinner from "../../components/common/Spinner";
 
 import { useAuth } from "../../hooks/useAuth";
 import { setFavoriteTeam } from "../../services/favoriteService";
-import { getOrCreateDmRoom } from "../../services/chatService";
 import { createMatchRequest } from "../../services/matchingService";
 
 import { useClub } from "../../hooks/useClub";
@@ -880,7 +879,6 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const [fav, setFav] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
 
-  const [contactBusy, setContactBusy] = useState(false);
 
   const [pastMatches, setPastMatches] = useState([]);
   const [pastMatchesLoading, setPastMatchesLoading] = useState(false);
@@ -1061,44 +1059,6 @@ useEffect(() => {
       alert("즐겨찾기 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setFavBusy(false);
-    }
-  };
-
-  const onContactTeam = async () => {
-    if (!team) return;
-
-    if (!myUid) {
-      alert("로그인이 필요합니다.");
-      return;
-    }
-
-    if (!team.ownerUid) {
-      alert("팀장 정보를 확인할 수 없습니다.");
-      return;
-    }
-
-    if (String(team.ownerUid) === String(myUid)) {
-      return;
-    }
-
-    if (contactBusy) return;
-
-    try {
-      setContactBusy(true);
-
-      const chatId = await getOrCreateDmRoom({
-        myUid: String(myUid),
-        otherUid: String(team.ownerUid),
-        createdFrom: "teamProfile",
-        createdFromRefId: String(teamId || ""),
-      });
-
-      nav(`/chats/${chatId}`);
-    } catch (e) {
-      console.warn("[TeamProfile] contact team failed:", e?.message || e);
-      alert("채팅을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setContactBusy(false);
     }
   };
 
@@ -1511,9 +1471,6 @@ useEffect(() => {
           {!isMyTeam && !embed && (
             <BottomBar>
               <BottomRow>
-                <CTAButton type="button" onClick={onContactTeam} disabled={contactBusy}>
-                  📨 팀장에게 연락
-                </CTAButton>
                 <CTAButton type="button" $primary onClick={onMatchRequestClick} disabled={myTeamLoading}>
                   <TbBallBasketball size={18} />
                   {myTeamLoading ? "불러오는 중..." : "매칭 신청"}

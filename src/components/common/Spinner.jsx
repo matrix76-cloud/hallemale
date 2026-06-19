@@ -6,9 +6,9 @@ const spin = keyframes`
 `;
 
 const SIZES = {
-  sm: { box: 56, font: 10, border: 3 },
-  md: { box: 80, font: 12, border: 4 },
-  lg: { box: 110, font: 14, border: 5 },
+  sm: { box: 38, font: 9, border: 2 },
+  md: { box: 54, font: 10, border: 3 },
+  lg: { box: 74, font: 12, border: 4 },
 };
 
 const Wrap = styled.div`

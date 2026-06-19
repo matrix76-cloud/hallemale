@@ -35,7 +35,7 @@ const SplashImage = styled.img`
   display: block;
   transform-origin: 50% 42%;
   will-change: transform, opacity;
-  animation: ${kenBurns} 2600ms ease-out both;
+  animation: ${kenBurns} 1000ms ease-out both;
 `;
 
 export default function SplashPage() {
@@ -58,7 +58,7 @@ export default function SplashPage() {
 
     if (!isLoggedIn) {
       onceRef.current = true;
-      const t = setTimeout(() => navigate("/welcome", { replace: true }), 2200);
+      const t = setTimeout(() => navigate("/welcome", { replace: true }), 1000);
       return () => clearTimeout(t);
     }
 
@@ -66,51 +66,35 @@ export default function SplashPage() {
 
     onceRef.current = true;
 
-    (async () => {
-      const startedAt = Date.now();
-      const MIN_SPLASH_MS = 2200;
+    const SPLASH_MS = 1000;
 
-      try {
-        const tasks = [];
+    console.log("[SplashPage] ready", {
+      isLoggedIn,
+      uid: uid ? "ok" : "missing",
+      activeTeamId: activeTeamId || "(none)",
+    });
 
-        console.log("[SplashPage] ready", {
-          isLoggedIn,
-          uid: uid ? "ok" : "missing",
-          activeTeamId: activeTeamId || "(none)",
-        });
+    // ✅ 프리로드는 백그라운드로만 실행(대기하지 않음)
+    // - schema dump: 서비스에서 env로 on/off 처리 (REACT_APP_SCHEMA_DUMP=1일 때만 실제 실행)
+    Promise.all([
+      runSchemaDumpFront({
+        rootCollections: ["chatRooms", "clubs","community_posts","games","match_requests","notifications","users","users_by_phone"],
+        sampleCount: 2,
+        maxDepth: 2,
+        schemaDepth: 6,
+      }),
+      preloadHomeData(uid),
+      ...(activeTeamId ? [preloadMatchingHomeData(activeTeamId)] : []),
+    ]).catch((e) => {
+      console.error("[SplashPage] preload failed:", e);
+    });
 
-        // ✅ schema dump: 서비스에서 env로 on/off 처리 (Splash에서 별도 체크 X)
-        // - REACT_APP_SCHEMA_DUMP=1 이면 덤프 실행
-        // - 아니면 서비스에서 disabled 로그 찍고 return null
-        tasks.push(
-          runSchemaDumpFront({
-            rootCollections: ["chatRooms", "clubs","community_posts","games","match_requests","notifications","users","users_by_phone"],
-            sampleCount: 2,
-            maxDepth: 2,
-            schemaDepth: 6,
-          })
-        );
-
-        // ✅ 홈 전체 프리로드(필수)
-        tasks.push(preloadHomeData(uid));
-
-        // ✅ 매칭 프리로드(팀이 있을 때만)
-        if (activeTeamId) {
-          tasks.push(preloadMatchingHomeData(activeTeamId));
-        }
-
-        await Promise.all(tasks);
-      } catch (e) {
-        console.error("[SplashPage] preload failed:", e);
-      } finally {
-        const elapsed = Date.now() - startedAt;
-        const wait = Math.max(0, MIN_SPLASH_MS - elapsed);
-        setTimeout(() => {
-          // 카카오 단일 로그인 전환으로 전화번호 인증 단계 제거 → 항상 /home
-          navigate("/home", { replace: true });
-        }, wait);
-      }
-    })();
+    // ✅ 프리로드 완료 여부와 무관하게 1초 후 무조건 이동
+    const t = setTimeout(() => {
+      // 카카오 단일 로그인 전환으로 전화번호 인증 단계 제거 → 항상 /home
+      navigate("/home", { replace: true });
+    }, SPLASH_MS);
+    return () => clearTimeout(t);
   }, [
     authLoading,
     clubLoading,
