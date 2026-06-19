@@ -24,6 +24,7 @@ import VenuePickerSheet from "../../components/common/VenuePickerSheet";
 import MatchRoomChat from "../../components/matchRoom/MatchRoomChat";
 import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
+import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCelebration";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
 import { mrp } from "../../components/matchRoom/matchRoomPalette";
@@ -369,7 +370,9 @@ const VenueImage = styled.img`
 const PropCard = styled.div`
   align-self: stretch;
   margin: 4px 0 2px;
-  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  border: 1px solid
+    ${({ theme, $confirmed }) =>
+      $confirmed ? "rgba(22,163,74,.45)" : mrp(theme.mode).line2};
   border-radius: 14px;
   overflow: hidden;
   background: ${({ theme }) => mrp(theme.mode).surface};
@@ -384,7 +387,8 @@ const PropBadge = styled.div`
   top: 14px;
   left: 14px;
   z-index: 2;
-  background: rgba(0, 0, 0, 0.62);
+  background: ${({ $confirmed }) =>
+    $confirmed ? "#16a34a" : "rgba(0, 0, 0, 0.62)"};
   color: #fff;
   font-size: 10.5px;
   font-weight: 600;
@@ -477,6 +481,57 @@ const ActNote = styled.div`
 
 const FieldMapWrap = styled.div`
   margin-top: 8px;
+`;
+
+const DurationWrap = styled.div`
+  margin-top: 12px;
+`;
+const DurationLabel = styled.div`
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#e5e7eb" : "#374151")};
+`;
+const DurationRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+`;
+const DurationChip = styled.button`
+  border: 1px solid
+    ${({ theme, $on }) =>
+      $on ? "#6c5ce7" : theme.mode === "dark" ? "rgba(255,255,255,.16)" : "#d1d5db"};
+  background: ${({ theme, $on }) =>
+    $on ? "#6c5ce7" : theme.mode === "dark" ? "transparent" : "#fff"};
+  color: ${({ $on, theme }) =>
+    $on ? "#fff" : theme.mode === "dark" ? "#e5e7eb" : "#374151"};
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+`;
+
+const CheckRow = styled.label`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 2px;
+  padding: 11px 12px;
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.14)" : "#e1e4ea")};
+  border-radius: 11px;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.04)" : "#fafbfc")};
+  cursor: pointer;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#e5e7eb" : "#374151")};
+  input {
+    width: 17px;
+    height: 17px;
+    margin-top: 1px;
+    accent-color: #6c5ce7;
+    flex-shrink: 0;
+  }
 `;
 
 const FieldRow = styled.div`
@@ -1566,17 +1621,20 @@ export default function MatchRoomDetailPage() {
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
+  const [durationMin, setDurationMin] = useState(120); // 경기 진행 시간(분), 기본 2시간
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
 
   const [myLineupOpen, setMyLineupOpen] = useState(false);
   const [oppLineupOpen, setOppLineupOpen] = useState(false);
 
-  // 매치 정보 · 진행 단계 카드 접기/펼치기 (시안 기준 기본 펼침)
-  const [matchInfoOpen, setMatchInfoOpen] = useState(true);
+  // 매치 정보 · 진행 단계 카드 접기/펼치기 — 메시지 화면을 넓게 쓰도록 기본 접힘
+  const [matchInfoOpen, setMatchInfoOpen] = useState(false);
 
   const [fieldAddress, setFieldAddress] = useState("");
   const [fieldLatLng, setFieldLatLng] = useState(null);
+  const [venueConfirmChecked, setVenueConfirmChecked] = useState(false); // "구장 예약 직접 확인" 체크
+  const [showConfirmAnim, setShowConfirmAnim] = useState(false); // (2-7) 확정 축하 애니메이션
   const [venuePickerOpen, setVenuePickerOpen] = useState(false);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [venueImageUrl, setVenueImageUrl] = useState("");
@@ -1666,6 +1724,9 @@ export default function MatchRoomDetailPage() {
     const lng = room?.fieldLng;
     if (addr) setFieldAddress(addr);
     if (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) setFieldLatLng({ lat: Number(lat), lng: Number(lng) });
+
+    const dur = room?.durationMin;
+    if (Number.isFinite(Number(dur)) && Number(dur) > 0) setDurationMin(Number(dur));
 
     const st = toStr(room?.status);
     const proposer = toStr(room?.proposedByClubId);
@@ -1984,13 +2045,16 @@ export default function MatchRoomDetailPage() {
 
   const canAcceptResult = isConfirmed && resultState === "waiting_accept" && !iSubmittedResult && !resultBusy;
 
-  /* ✅ 경기 결과 입력 노출 타이밍: 경기 시작(확정 scheduledAt) + 1시간 후 */
+  /* ✅ 경기 결과 입력 노출 타이밍: 경기 시작(확정 scheduledAt) + 선택한 경기 시간(durationMin) 후 */
   const scheduledAtMs = (() => {
     const t = room?.scheduledAt ? new Date(room.scheduledAt).getTime() : NaN;
     return Number.isFinite(t) ? t : NaN;
   })();
 
-  const resultOpenAtMs = Number.isFinite(scheduledAtMs) ? scheduledAtMs + 60 * 60 * 1000 : NaN;
+  const resultDurMin = Number(room?.durationMin) || Number(durationMin) || 120;
+  const resultOpenAtMs = Number.isFinite(scheduledAtMs)
+    ? scheduledAtMs + resultDurMin * 60 * 1000
+    : NaN;
   const canOpenResultInput = !resultState && Number.isFinite(resultOpenAtMs) && Date.now() >= resultOpenAtMs;
 
   const resultOpenAtLabel = Number.isFinite(resultOpenAtMs)
@@ -2108,6 +2172,7 @@ export default function MatchRoomDetailPage() {
         scheduledAtISO: iso,
         fieldAddress,
         fieldLatLng,
+        durationMin,
         proposedByClubId: myClubId,
       });
       await refresh();
@@ -2121,6 +2186,7 @@ export default function MatchRoomDetailPage() {
     if (!myClubId) return;
     try {
       await confirmProposedSchedule({ matchRequestId: room.id, confirmedByClubId: myClubId });
+      setShowConfirmAnim(true); // (2-7) 확정 애니메이션
       await refresh();
     } catch (e) {
       window.alert(e?.message || "일정 확정에 실패했습니다.");
@@ -2306,6 +2372,17 @@ export default function MatchRoomDetailPage() {
   };
 
   // ───── 채팅 안에 노출할 구장 제안 카드 (status=proposed) ─────
+  const venueWhenLabel = room.scheduledAt
+    ? formatKoreanDateTime(room.scheduledAt)
+    : "-";
+  const venueDurLabel = (() => {
+    const d = Number(durationMin) || Number(room?.durationMin) || 0;
+    if (!d) return "";
+    const h = Math.floor(d / 60);
+    const m = d % 60;
+    return `${h ? `${h}시간` : ""}${m ? ` ${m}분` : ""}`.trim();
+  })();
+
   const chatPinnedCard =
     status === "proposed" ? (
       <PropCard>
@@ -2317,10 +2394,38 @@ export default function MatchRoomDetailPage() {
           <PropName>{toStr(fieldAddress) || "선택한 구장 위치"}</PropName>
           <PropRow>
             <PropK>일시</PropK>
-            <PropV>
-              {room.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "-"}
-            </PropV>
+            <PropV>{venueWhenLabel}</PropV>
           </PropRow>
+          {venueDurLabel && (
+            <PropRow>
+              <PropK>경기 시간</PropK>
+              <PropV>{venueDurLabel}</PropV>
+            </PropRow>
+          )}
+          <PropRow>
+            <PropK>정산</PropK>
+            <PropV2>현장 정산 · 앱 결제 없음</PropV2>
+          </PropRow>
+        </PropBody>
+      </PropCard>
+    ) : status === "confirmed" ? (
+      <PropCard $confirmed>
+        <PropMapWrap>
+          <PropBadge $confirmed>✅ 경기 확정</PropBadge>
+          <VenueMiniMap latLng={fieldLatLng} height={118} />
+        </PropMapWrap>
+        <PropBody>
+          <PropName>{toStr(fieldAddress) || "확정된 구장"}</PropName>
+          <PropRow>
+            <PropK>일시</PropK>
+            <PropV>{venueWhenLabel}</PropV>
+          </PropRow>
+          {venueDurLabel && (
+            <PropRow>
+              <PropK>경기 시간</PropK>
+              <PropV>{venueDurLabel}</PropV>
+            </PropRow>
+          )}
           <PropRow>
             <PropK>정산</PropK>
             <PropV2>현장 정산 · 앱 결제 없음</PropV2>
@@ -2590,6 +2695,16 @@ export default function MatchRoomDetailPage() {
                     <VenueMiniMap latLng={fieldLatLng} height={150} />
                   </FieldMapWrap>
                 )}
+
+                {/* (2-2) 직접입력 구장 안내 */}
+                <NoticeInfo>
+                  <span>ⓘ</span>
+                  <div>
+                    할래말래 <b>제휴 구장만</b> 앱에서 예약·결제가 가능합니다. 직접 입력
+                    구장은 <b>매칭 전용</b>이며, 실제 이용 가능 여부·예약·문의는 이용자가
+                    직접 진행해야 합니다.
+                  </div>
+                </NoticeInfo>
               </BareSection>
 
               {canEdit ? (
@@ -2649,6 +2764,38 @@ export default function MatchRoomDetailPage() {
                   </DateTimeRow>
 
                   <DateValue>{combinedLabel}</DateValue>
+
+                  {/* (2-5) 경기 진행 시간 선택 */}
+                  <DurationWrap>
+                    <DurationLabel>⏱ 경기 시간</DurationLabel>
+                    <DurationRow>
+                      {[
+                        { m: 60, t: "1시간" },
+                        { m: 90, t: "1시간 30분" },
+                        { m: 120, t: "2시간" },
+                        { m: 150, t: "2시간 30분" },
+                        { m: 180, t: "3시간" },
+                      ].map((o) => (
+                        <DurationChip
+                          key={o.m}
+                          type="button"
+                          $on={durationMin === o.m}
+                          onClick={() => setDurationMin(o.m)}
+                        >
+                          {o.t}
+                        </DurationChip>
+                      ))}
+                    </DurationRow>
+                  </DurationWrap>
+
+                  {/* (2-6) 시간대 안내 */}
+                  <NoticeInfo style={{ marginTop: 10 }}>
+                    <span>ⓘ</span>
+                    <div>
+                      직접 입력 구장은 <b>앱 결제·자동 확정이 없어요.</b> 가용 여부·대관·정산은
+                      두 팀이 직접 확인·진행해요.
+                    </div>
+                  </NoticeInfo>
                 </SectionCard>
               ) : (
                 <SectionCard>
@@ -2692,7 +2839,7 @@ export default function MatchRoomDetailPage() {
 
                 {!resultState && !canOpenResultInput && (
                   <ResultInfoBox>
-                    경기 시작 후 <strong>1시간</strong>이 지나면 경기 결과 입력 화면이 노출됩니다.
+                    경기 시작 후 <strong>{venueDurLabel || "경기 시간"}</strong>이 지나면 경기 결과 입력 화면이 노출됩니다.
                     {resultOpenAtLabel ? (
                       <>
                         <br />
@@ -2935,8 +3082,19 @@ export default function MatchRoomDetailPage() {
         {status === "accepted" && venueMode === "direct" && (
           <>
             <NoticeText>제안하면 상대팀이 확인 후 확정할 수 있어요. (직접 입력 · 현장 정산)</NoticeText>
+
+            {/* (2-3) 구장 예약 직접 확인 체크박스 */}
+            <CheckRow>
+              <input
+                type="checkbox"
+                checked={venueConfirmChecked}
+                onChange={(e) => setVenueConfirmChecked(e.target.checked)}
+              />
+              <span>구장 예약은 직접 해야 함을 확인했습니다.</span>
+            </CheckRow>
+
             <ActionsWrap>
-              <PrimaryButton type="button" onClick={handlePropose} disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng}>
+              <PrimaryButton type="button" onClick={handlePropose} disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng || !venueConfirmChecked}>
                 매칭 일정·장소 제안
               </PrimaryButton>
               <SecondaryButton type="button" onClick={handleCancelMatch}>
@@ -3081,6 +3239,17 @@ export default function MatchRoomDetailPage() {
           }
         }}
         onConfirm={handleMapPickerConfirm}
+      />
+
+      <MatchConfirmCelebration
+        open={showConfirmAnim}
+        onClose={() => setShowConfirmAnim(false)}
+        subtitle={[
+          toStr(fieldAddress),
+          room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "",
+        ]
+          .filter(Boolean)
+          .join("\n")}
       />
     </>
   );

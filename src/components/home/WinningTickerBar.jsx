@@ -2,7 +2,6 @@
 /* eslint-disable */
 import React, { useMemo } from "react";
 import styled, { keyframes } from "styled-components";
-import { TEAMS } from "../../mock/teamsMock";
 
 // 왼쪽 → 오른쪽으로 계속 흐르는 애니메이션
 const scroll = keyframes`
@@ -33,15 +32,19 @@ const Segment = styled.span`
   padding: 0 24px;
 `;
 
-export default function WinningTickerBar() {
-  const textLine = useMemo(() => {
-    const items = TEAMS.filter(
-      (t) => t.streak && t.streak.type === "WIN" && t.streak.count > 0
-    ).map((t) => `${t.name} ${t.streak.count}연승 중`);
+// ✅ 실데이터 기반 연승 티커
+// items: homeService.winningTeamsHighlight ([{ name, winStreak, streakLabel, ... }])
+export default function WinningTickerBar({ items = [] }) {
+  const segments = useMemo(() => {
+    return (items || [])
+      .filter((t) => t && Number(t.winStreak) > 0)
+      .map((t) => `${t.name} ${t.winStreak}연승 중`);
+  }, [items]);
 
-    if (!items.length) return "지금 바로 매칭을 시작해보세요!";
-    return items.join("  ·  ");
-  }, []);
+  // 연승팀이 없으면 티커 숨김
+  if (!segments.length) return null;
+
+  const textLine = segments.join("  ·  ");
 
   return (
     <Bar>

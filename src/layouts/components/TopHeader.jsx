@@ -166,13 +166,6 @@ export default function TopHeader({
           <IconButton type="button" onClick={handleBellClick}>
             <PiBellLight />
           </IconButton>
-
-          <IconButton type="button" onClick={handleChatClick}>
-            <AiOutlineMessage />
-            {unreadChatCount > 0 && (
-              <Badge>{unreadChatCount > 99 ? "99+" : unreadChatCount}</Badge>
-            )}
-          </IconButton>
         </RightIcons>
       </TabHeaderWrap>
     );
@@ -185,13 +178,6 @@ export default function TopHeader({
       <RightIcons>
         <IconButton type="button" onClick={handleBellClick}>
           <PiBellLight />
-        </IconButton>
-
-        <IconButton type="button" onClick={handleChatClick}>
-          <AiOutlineMessage />
-          {unreadChatCount > 0 && (
-            <Badge>{unreadChatCount > 99 ? "99+" : unreadChatCount}</Badge>
-          )}
         </IconButton>
       </RightIcons>
     </TabHeaderWrap>

@@ -175,7 +175,7 @@ export default function MyProfilePage() {
     if (key === "privacy") nav("/privacy");
     if (key === "terms") nav("/terms");
 
-    if (key === "cs") window.alert("문의하기 기능은 준비 중입니다.");
+    if (key === "cs") nav("/my/inquiry");
 
     if (key === "logout") {
       const ok = window.confirm("로그아웃할까요?");
@@ -647,9 +647,16 @@ export default function MyProfilePage() {
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
 
+              <MenuItemButton onClick={() => handleSettingMenuClick("cs")}>
+                <MenuTextWrap>
+                  <MenuTitle>1:1 문의</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
               <MenuItemButton onClick={() => handleSettingMenuClick("privacy")}>
                 <MenuTextWrap>
-                  <MenuTitle>개인정보 처리지침</MenuTitle>
+                  <MenuTitle>개인정보처리방침</MenuTitle>
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>

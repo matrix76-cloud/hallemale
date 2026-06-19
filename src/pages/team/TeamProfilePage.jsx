@@ -128,8 +128,8 @@ const formatUpdateDate = (value) => {
 
 /**
  * ✅ 최근 전적 배열 변환
- * - Firestore stats.recentResults: "최신이 제일 뒤"
- * - UI: "최신이 제일 앞"으로 보여주기 위해 reverse
+ * - Firestore stats.recentResults: "최신이 index 0(맨 앞)" (matchRoomService.computeNextStats 기준)
+ * - UI: "최신이 제일 앞"으로 표시 → 순서 그대로 앞에서 count개
  */
 const buildRecentResults = (stats, count = 5) => {
   const s = stats || {};
@@ -165,8 +165,8 @@ const buildRecentResults = (stats, count = 5) => {
 
   const norm = raw.map(normalizeOne).filter(Boolean);
 
-  // ✅ 최신이 제일 뒤 → 뒤에서 count개 뽑고 reverse해서 최신이 앞
-  if (norm.length > 0) return norm.slice(-count).reverse();
+  // ✅ 최신이 index 0(앞) → 앞에서 count개 그대로 (최신이 앞)
+  if (norm.length > 0) return norm.slice(0, count);
 
   // ✅ fallback: winRate 기반 더미 생성(기존 로직 유지)
   const winRate = typeof s.winRate === "number" ? s.winRate : null;

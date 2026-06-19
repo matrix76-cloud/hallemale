@@ -266,7 +266,7 @@ export async function getTeamProfile(teamId) {
     updatedAt: rawStats.updatedAt || null,
   };
 
-  // ✅ streak도 실데이터 recentResults 기반 (최신이 뒤)
+  // ✅ streak도 실데이터 recentResults 기반 (최신이 index 0, matchRoomService.computeNextStats 기준)
   const computeStreakFromRecentResultsLast = (recentResults) => {
     const arr = Array.isArray(recentResults) ? recentResults : [];
     if (!arr.length) return null;
@@ -282,17 +282,17 @@ export async function getTeamProfile(teamId) {
       return null;
     };
 
-    const last = normalize(arr[arr.length - 1]);
-    if (!last) return null;
+    const latest = normalize(arr[0]);
+    if (!latest) return null;
 
     let count = 0;
-    for (let i = arr.length - 1; i >= 0; i -= 1) {
+    for (let i = 0; i < arr.length; i += 1) {
       const cur = normalize(arr[i]);
-      if (cur !== last) break;
+      if (cur !== latest) break;
       count += 1;
     }
 
-    return { type: last, count };
+    return { type: latest, count };
   };
 
   const streakObj = computeStreakFromRecentResultsLast(stats.recentResults);

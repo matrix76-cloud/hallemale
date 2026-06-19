@@ -150,18 +150,15 @@ export default function AppFooter({
     { label: "개인정보처리방침" },
   ],
   contact = {
-    phone: "1588-9023",
-    email: "이메일 kkan902@gmail.com ",
-    hours: "운영시간 09:00 ~ 18:00",
+    email: "hallae@ilsaeng.com",
   },
   company = {
-    operatorLine: "할래말래 | 운영사: 할래말래",
-    address: "주소: 경기도 남양주시 덕소읍 23번지",
-    bizNo: "사업자등록번호: 218-72-099323",
-    ceo: "대표자: 한주성",
-    commerceNo: "통신판매업 신고번호: 남양주 230-22-3213",
+    operatorLine: "상호 일생 | 대표 한주성",
+    bizNo: "사업자등록번호 225-06-57521",
+    address:
+      "주소 경기도 남양주시 화도읍 마석중앙로37번길 45, 504호-N141호(별나라프라자)",
   },
-  copyright = "© 2025 Service. All rights reserved.",
+  copyright = "© 2026 할래말래. All rights reserved.",
 }) {
   return (
     <Wrap>
@@ -173,28 +170,34 @@ export default function AppFooter({
         <LinkRow>{(links || []).map(renderLink)}</LinkRow>
 
         <ContactRow>
-          <ContactItem>
-            <FiPhone size={13} />
-            <span>{contact?.phone || "전화번호"}</span>
-          </ContactItem>
+          {contact?.phone && (
+            <ContactItem>
+              <FiPhone size={13} />
+              <span>{contact.phone}</span>
+            </ContactItem>
+          )}
 
-          <ContactItem>
-            <FiMail size={13} />
-            <span>{contact?.email || "이메일"}</span>
-          </ContactItem>
+          {contact?.email && (
+            <ContactItem>
+              <FiMail size={13} />
+              <span>이메일 {contact.email}</span>
+            </ContactItem>
+          )}
 
-          <ContactItem>
-            <FiClock size={13} />
-            <span>{contact?.hours || "운영시간"}</span>
-          </ContactItem>
+          {contact?.hours && (
+            <ContactItem>
+              <FiClock size={13} />
+              <span>{contact.hours}</span>
+            </ContactItem>
+          )}
         </ContactRow>
 
         <Card>
           <CardTitle>{company?.operatorLine || "운영사 정보"}</CardTitle>
-          <CardLine>{company?.address || "경기도 남양주시"}</CardLine>
-          <CardLine>{company?.bizNo || "사업자등록번호 자리"}</CardLine>
-          <CardLine>{company?.ceo || "대표자 자리"}</CardLine>
-          <CardLine>{company?.commerceNo || "통신판매업 신고번호"}</CardLine>
+          {company?.bizNo && <CardLine>{company.bizNo}</CardLine>}
+          {company?.address && <CardLine>{company.address}</CardLine>}
+          {company?.ceo && <CardLine>{company.ceo}</CardLine>}
+          {company?.commerceNo && <CardLine>{company.commerceNo}</CardLine>}
         </Card>
 
         <Copy>{copyright}</Copy>

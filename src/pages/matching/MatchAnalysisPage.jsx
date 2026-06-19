@@ -14,6 +14,7 @@ import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip"
 import { images } from "../../utils/imageAssets";
 import { useClubContext } from "../../context/ClubContext";
 import { getTeamProfile } from "../../services/teamService";
+import { estimateWinProbability } from "../../utils/matchAnalysis";
 
 import AnimatedAiRing from "./components/AnimatedAiRing";
 
@@ -38,18 +39,6 @@ const MATCH_SIZE_LABEL = {
   "4v4": "4 vs 4",
   "5v5": "5 vs 5",
 };
-
-function hashInt(str) {
-  const s = String(str || "");
-  let h = 0;
-  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-function mockWinProb(myClubId, oppClubId) {
-  const h = hashInt(`${myClubId}::${oppClubId}`);
-  return 55 + (h % 24); // 55~78
-}
 
 function toNum(n, fallback = null) {
   const v = Number(n);
@@ -752,8 +741,12 @@ export default function MatchAnalysisPage() {
     const myWin = calcWinRatePercent(myTeam);
     const oppWin = calcWinRatePercent(oppTeam);
 
-    const prob = mockWinProb(myTeam.clubId || myTeam.id, oppTeam.clubId || oppTeam.id);
-    const confidence = prob >= 70 ? "높음" : prob >= 60 ? "중간" : "낮음";
+    // ✅ 실데이터(stats/members) 기반 승률 추정
+    const est = estimateWinProbability(myTeam, oppTeam);
+    const prob = est.prob;
+    const confidence = est.confidence;
+    const insufficient = est.insufficient;
+    const reasons = Array.isArray(est.reasons) ? est.reasons : [];
 
     const myRecent = buildRecentResultsFromTeam(myTeam, 5);
     const oppRecent = buildRecentResultsFromTeam(oppTeam, 5);
@@ -767,6 +760,8 @@ export default function MatchAnalysisPage() {
     return {
       prob,
       confidence,
+      insufficient,
+      reasons,
       my: {
         clubId: myTeam.clubId || myTeam.id,
         name: myTeam.name,
@@ -1145,11 +1140,24 @@ export default function MatchAnalysisPage() {
             </SectionHead>
 
             <AiBox>
-              <Bullet>
-                • {opp.name}와의 매치업은 <b>{view.prob}%</b> 확률로 승리 가능성이 있어요.
-              </Bullet>
-              <Bullet>• 평균 키/멤버 수/승률/가드 비중을 종합해 전개를 예측합니다.</Bullet>
-              <Bullet>• 데이터가 쌓이면 선수 스탯 기반으로 더 정교한 분석이 가능합니다.</Bullet>
+              {view.insufficient ? (
+                <>
+                  <Bullet>
+                    • 아직 경기 기록이 부족해 승률을 <b>{view.prob}%</b>(균형)으로 추정했어요.
+                  </Bullet>
+                  <Bullet>• 매칭을 치르고 결과가 쌓이면 분석 정확도가 올라가요.</Bullet>
+                </>
+              ) : (
+                <>
+                  <Bullet>
+                    • {opp.name}와의 매치업은 <b>{view.prob}%</b> 확률로 승리 가능성이 있어요. (신뢰도{" "}
+                    {view.confidence})
+                  </Bullet>
+                  {view.reasons.map((line, idx) => (
+                    <Bullet key={`reason-${idx}`}>• {line}</Bullet>
+                  ))}
+                </>
+              )}
             </AiBox>
           </Section>
         </Card>

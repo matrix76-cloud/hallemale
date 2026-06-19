@@ -366,15 +366,30 @@ export default function MatchRoomListPage() {
     };
   }, [myClubId]);
 
+  // 확정 경기는 시작시각(scheduledAt)이 지나면 '지난 경기'로 이동 (2-9)
+  const isStarted = (r) => {
+    const t = r?.scheduledAt ? new Date(r.scheduledAt).getTime() : NaN;
+    return Number.isFinite(t) && Date.now() >= t;
+  };
+
   const adjustingRooms = useMemo(
     () => rooms.filter((r) => r.status === "accepted" || r.status === "proposed"),
     [rooms]
   );
 
-  const confirmedRooms = useMemo(() => rooms.filter((r) => r.status === "confirmed"), [rooms]);
+  const confirmedRooms = useMemo(
+    () => rooms.filter((r) => r.status === "confirmed" && !isStarted(r)),
+    [rooms]
+  );
 
   const pastRooms = useMemo(
-    () => rooms.filter((r) => r.status === "finished" || r.status === "cancelled"),
+    () =>
+      rooms.filter(
+        (r) =>
+          r.status === "finished" ||
+          r.status === "cancelled" ||
+          (r.status === "confirmed" && isStarted(r))
+      ),
     [rooms]
   );
 

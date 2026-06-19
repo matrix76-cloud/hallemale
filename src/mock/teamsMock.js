@@ -104,16 +104,8 @@ export const TEAMS = [
         "주말 위주로 함께 즐겁게 뛸 팀원을 찾고 있어요. 성실하게 나와주시는 분이면 실력은 상관없습니다.",
     },
 
-    media: [
-      {
-        id: "cheongcho_media_1",
-        type: "photo",
-        url:
-          "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1200&auto=format&fit=crop",
-        title: "한강 공원 3:3 경기",
-        description: "한강 공원 3:3 경기",
-      },
-    ],
+    // 초상권: 실제 인물 경기 사진 제거. 미디어 없음(섹션 자연 숨김).
+    media: [],
 
     stats: {
       totalMatches: 32,
@@ -275,16 +267,8 @@ export const TEAMS = [
         "하프코트 세트오펜스를 좋아하시는 분이면 환영입니다. 동호회 대회 경험 있으시면 더 좋아요.",
     },
 
-    media: [
-      {
-        id: "deokso_media_1",
-        type: "photo",
-        url:
-          "https://images.unsplash.com/photo-1519865885898-a54a6f2c7eea?w=1200&auto=format&fit=crop",
-        title: "덕소 체육관 경기",
-        description: "덕소 체육관 5:5 친선 경기",
-      },
-    ],
+    // 초상권: 실제 인물 경기 사진 제거. 미디어 없음(섹션 자연 숨김).
+    media: [],
 
     stats: {
       totalMatches: 28,
@@ -444,16 +428,8 @@ export const TEAMS = [
         "현재는 내부 스쿼드 위주로만 운영 중입니다. 스파링 매칭은 언제든 환영해요.",
     },
 
-    media: [
-      {
-        id: "li_media_1",
-        type: "photo",
-        url:
-          "https://images.unsplash.com/photo-1519860783530-8ac3a4992a94?w=1200&auto=format&fit=crop",
-        title: "실내 코트 스크림",
-        description: "마포 실내 코트 5:5 스크림",
-      },
-    ],
+    // 초상권: 실제 인물 경기 사진 제거. 미디어 없음(섹션 자연 숨김).
+    media: [],
 
     stats: {
       totalMatches: 24,
@@ -612,16 +588,8 @@ export const TEAMS = [
         "신촌 인근에서 자주 모이는 팀입니다. 농구 좋아하는 대학(원)생이면 누구나 지원 가능해요.",
     },
 
-    media: [
-      {
-        id: "shinchon_media_1",
-        type: "photo",
-        url:
-          "https://images.unsplash.com/photo-1525130413817-d45c1d127c42?w=1200&auto=format&fit=crop",
-        title: "신촌 코트 연습",
-        description: "신촌 인근 실외 코트 러닝",
-      },
-    ],
+    // 초상권: 실제 인물 경기 사진 제거. 미디어 없음(섹션 자연 숨김).
+    media: [],
 
     stats: {
       totalMatches: 18,
@@ -781,16 +749,8 @@ export const TEAMS = [
         "한강 인근 직장인 위주 팀입니다. 체력 자신 있는 분, 빅맨 포지션 특히 환영해요.",
     },
 
-    media: [
-      {
-        id: "bulldogs_media_1",
-        type: "photo",
-        url:
-          "https://images.unsplash.com/photo-1519861531291-6814f06acf51?w=1200&auto=format&fit=crop",
-        title: "한강 야외 코트 경기",
-        description: "한강 야외 코트에서 진행한 친선 경기",
-      },
-    ],
+    // 초상권: 실제 인물 경기 사진 제거. 미디어 없음(섹션 자연 숨김).
+    media: [],
 
     stats: {
       totalMatches: 20,

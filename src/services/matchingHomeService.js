@@ -28,12 +28,15 @@ function normalizeStats(stats) {
       ? wins / totalMatches
       : 0;
 
+  const recentResults = Array.isArray(s.recentResults) ? s.recentResults : [];
+
   return {
     wins,
     losses,
     draws,
     totalMatches,
     winRate,
+    recentResults,
   };
 }
 

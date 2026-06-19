@@ -150,6 +150,7 @@ export default function MainLayout({ hideHeader = false }) {
     if (p === "/my/posts") return "내가 쓴 게시글";
     if (p === "/my/personal-matches") return "개인 활동 경기";
     if (p === "/my/matched-matches") return "내가 매칭된 경기";
+    if (p === "/my/inquiry") return "1:1 문의";
 
     if (p === "/settings/notifications") return "알림 설정";
     if (p === "/settings/notices") return "공지사항";
@@ -187,6 +188,7 @@ export default function MainLayout({ hideHeader = false }) {
     p.startsWith("/communitypost") ||
     p === "/my/personal-matches" ||
     p === "/my/matched-matches" ||
+    p === "/my/inquiry" ||
     p === "/my/team-invites" ||
     p.startsWith("/my/team-invites/") ||
     p.includes("/join-requests") ||

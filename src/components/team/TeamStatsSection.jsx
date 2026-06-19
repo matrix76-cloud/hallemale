@@ -59,7 +59,7 @@ function computeWinRatePercent(stats) {
   return 0;
 }
 
-// ✅ 최신이 제일 뒤인 recentResults에서 “최근 상태” 계산
+// ✅ 최신이 index 0인 recentResults에서 “최근 상태” 계산 (matchRoomService.computeNextStats 기준)
 function computeStreakFromRecentResultsLast(recentResults) {
   const arr = Array.isArray(recentResults) ? recentResults : [];
   if (arr.length === 0) return { type: null, count: 0 };
@@ -75,16 +75,16 @@ function computeStreakFromRecentResultsLast(recentResults) {
     return null;
   };
 
-  const last = normalize(arr[arr.length - 1]);
-  if (!last) return { type: null, count: 0 };
+  const latest = normalize(arr[0]);
+  if (!latest) return { type: null, count: 0 };
 
   let count = 0;
-  for (let i = arr.length - 1; i >= 0; i -= 1) {
+  for (let i = 0; i < arr.length; i += 1) {
     const cur = normalize(arr[i]);
-    if (cur !== last) break;
+    if (cur !== latest) break;
     count += 1;
   }
-  return { type: last, count };
+  return { type: latest, count };
 }
 
 function formatStreakText(streakObj) {

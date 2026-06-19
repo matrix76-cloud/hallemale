@@ -345,6 +345,7 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
 
       status: normalizeRoomStatus(mr?.status),
       scheduledAt: mr?.scheduledAt || null,
+      durationMin: Number.isFinite(Number(mr?.durationMin)) ? Number(mr.durationMin) : null,
 
       proposedByClubId: toStr(mr?.proposedByClubId),
       confirmedByClubId: toStr(mr?.confirmedByClubId),
@@ -422,6 +423,7 @@ export function adaptMatchRequestToRoom(docId, data) {
     targetClubId: toStr(d.targetClubId),
 
     scheduledAt: d.scheduledAt || null,
+    durationMin: Number.isFinite(Number(d.durationMin)) ? Number(d.durationMin) : null,
 
     proposedByClubId: toStr(d.proposedByClubId),
     confirmedByClubId: toStr(d.confirmedByClubId),
@@ -509,11 +511,61 @@ export async function loadMatchRoomDetail(matchRequestId) {
 
 /* ========================= propose / confirm / cancel ========================= */
 
+/* ───── 매칭룸 이벤트 푸시 알림 (상대 팀장에게) ─────
+   sendPushTick은 targetIds(uid)로 발송하므로 수신 팀의 ownerUid를 명시한다. */
+async function notifyMatchRoomEvent({ matchId, recipientClubId, subType, type, title, body }) {
+  try {
+    const rid = toStr(recipientClubId);
+    if (!rid || !toStr(matchId)) return;
+    const clubSnap = await getDoc(doc(db, "clubs", rid));
+    const ownerUid = toStr(clubSnap.exists() ? clubSnap.data()?.ownerUid : "");
+    if (!ownerUid) return;
+
+    await addDoc(collection(db, "notifications"), {
+      kind: "match",
+      subType,
+      type,
+      title,
+      body,
+      targetType: "USER",
+      targetIds: [ownerUid],
+      linkType: "match",
+      linkTargetId: toStr(matchId),
+      meta: { matchId: toStr(matchId), deepLink: `/match-roomdetail/${toStr(matchId)}` },
+      push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      prefsCategory: "match",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      readBy: {},
+    });
+  } catch (e) {
+    console.warn("[matchRoom] notifyMatchRoomEvent failed:", e?.message || e);
+  }
+}
+
+// matchId로 mr 읽어 actor/target 중 actorClubId가 아닌 쪽(상대) clubId 반환
+async function getOpponentClubId(matchId, actingClubId) {
+  try {
+    const snap = await getDoc(doc(db, "match_requests", toStr(matchId)));
+    if (!snap.exists()) return "";
+    const mr = snap.data() || {};
+    const a = toStr(mr.actorClubId);
+    const t = toStr(mr.targetClubId);
+    const acting = toStr(actingClubId);
+    if (acting && acting === a) return t;
+    if (acting && acting === t) return a;
+    return "";
+  } catch (e) {
+    return "";
+  }
+}
+
 export async function proposeMatchSchedule({
   matchRequestId,
   scheduledAtISO,
   fieldAddress,
   fieldLatLng,
+  durationMin,
   proposedByClubId,
 } = {}) {
   const id = toStr(matchRequestId);
@@ -533,16 +585,32 @@ export async function proposeMatchSchedule({
 
   const ref = doc(db, "match_requests", id);
 
+  const durMin = Number.isFinite(Number(durationMin)) ? Number(durationMin) : 120;
+
   await updateDoc(ref, {
     status: "proposed",
     scheduledAt: iso,
 
     field: { address: addr, lat, lng },
+    durationMin: durMin,
     proposedByClubId: proposer,
     proposedAt: serverTimestamp(),
 
     updatedAt: serverTimestamp(),
   });
+
+  // (1-13) 제의 알림 → 상대 팀장
+  const oppForPropose = await getOpponentClubId(id, proposer);
+  if (oppForPropose) {
+    await notifyMatchRoomEvent({
+      matchId: id,
+      recipientClubId: oppForPropose,
+      subType: "matchProposed",
+      type: "match_proposed",
+      title: "구장·일정 제안 도착",
+      body: "상대팀이 구장·일정을 제안했어요. 확인하고 수락해 주세요.",
+    });
+  }
 
   return true;
 }
@@ -562,6 +630,19 @@ export async function confirmProposedSchedule({ matchRequestId, confirmedByClubI
     confirmedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  // (1-13) 경기 확정 알림 → 제안했던 상대 팀장
+  const oppForConfirm = await getOpponentClubId(id, confirmer);
+  if (oppForConfirm) {
+    await notifyMatchRoomEvent({
+      matchId: id,
+      recipientClubId: oppForConfirm,
+      subType: "matchConfirmed",
+      type: "match_confirmed",
+      title: "경기 확정 🎉",
+      body: "상대팀이 수락해 경기가 확정됐어요! 일정을 확인하세요.",
+    });
+  }
 
   return true;
 }
@@ -664,6 +745,19 @@ export async function submitMatchResultWithMedia({
 
     updatedAt: serverTimestamp(),
   });
+
+  // (1-13) 결과 입력 알림 → 상대 팀장 (확인/인정 요청)
+  const oppForResult = await getOpponentClubId(id, by);
+  if (oppForResult) {
+    await notifyMatchRoomEvent({
+      matchId: id,
+      recipientClubId: oppForResult,
+      subType: "matchResultSubmitted",
+      type: "match_result_submitted",
+      title: "경기 결과 입력됨",
+      body: `상대팀이 경기 결과(${as} : ${ts})를 입력했어요. 확인하고 인정해 주세요.`,
+    });
+  }
 
   return { ok: true, photoUrls: uploadedUrls };
 }

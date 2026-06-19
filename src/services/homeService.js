@@ -69,6 +69,39 @@ function teamRankingComparator(a, b) {
   return na > nb ? 1 : -1;
 }
 
+// ✅ 경기 결과 1건을 W/L/D 로 정규화
+function normalizeResultToken(x) {
+  const v = String(x || "").trim().toUpperCase();
+  if (v === "W" || v === "L" || v === "D") return v;
+  if (v === "WIN") return "W";
+  if (v === "LOSE" || v === "LOSS") return "L";
+  if (v === "DRAW") return "D";
+  if (v.includes("승")) return "W";
+  if (v.includes("패")) return "L";
+  if (v.includes("무")) return "D";
+  return null;
+}
+
+// ✅ 연승(연속 승리) 계산
+// - 데이터 소스: clubs/{id}.stats.recentResults (최신이 index 0, matchRoomService.computeNextStats 기준)
+// - 가장 최근 경기부터 보며 '승'이 연속되는 동안 카운트, '패/무'를 만나면 중단
+function computeWinStreak(recentResults) {
+  const arr = Array.isArray(recentResults) ? recentResults : [];
+  if (!arr.length) return 0;
+
+  let count = 0;
+  for (let i = 0; i < arr.length; i += 1) {
+    const cur = normalizeResultToken(arr[i]);
+    if (cur === "W") {
+      count += 1;
+      continue;
+    }
+    // 패/무 또는 알 수 없는 값이면 중단
+    break;
+  }
+  return count;
+}
+
 function calcWinRate(stats) {
   if (!stats) return 0;
   const winRate = safeNumber(stats.winRate, NaN);
@@ -86,6 +119,7 @@ function normalizeClubDoc(id, data) {
   const losses = safeNumber(stats.losses, 0);
   const draws = safeNumber(stats.draws, 0);
   const totalMatches = safeNumber(stats.totalMatches, wins + losses + draws);
+  const recentResults = Array.isArray(stats.recentResults) ? stats.recentResults : [];
 
   return {
     clubId: id,
@@ -107,6 +141,7 @@ function normalizeClubDoc(id, data) {
       draws,
       totalMatches,
       winRate: calcWinRate({ ...stats, wins, losses, draws, totalMatches }),
+      recentResults,
     },
     createdAt: data?.createdAt || null,
     updatedAt: data?.updatedAt || null,
@@ -321,7 +356,37 @@ export async function loadHomePageData({ uid } = {}) {
       draws: t.stats?.draws || 0,
     }));
 
-  const winningTeamsHighlight = [...teamRankingTop5].slice(0, 5);
+  // ✅ 연승팀 하이라이트 (실데이터 recentResults 기반)
+  // - 2연승 이상인 팀만, 연승 수 → 승률 순으로 정렬해서 최대 5팀
+  const WIN_STREAK_MIN = 2;
+  const winningTeamsHighlight = [...allClubs]
+    .map((t) => ({
+      team: t,
+      winStreak: computeWinStreak(t.stats?.recentResults),
+    }))
+    .filter((x) => x.winStreak >= WIN_STREAK_MIN)
+    .sort((a, b) => {
+      if (b.winStreak !== a.winStreak) return b.winStreak - a.winStreak;
+      return (b.team.stats?.winRate || 0) - (a.team.stats?.winRate || 0);
+    })
+    .slice(0, 5)
+    .map(({ team, winStreak }) => ({
+      rank: 0,
+      clubId: team.clubId,
+      id: team.clubId,
+      name: team.name,
+      region: team.region,
+      regionSido: team.regionSido,
+      regionGu: team.regionGu,
+      logoUrl: team.logoUrl,
+      winRate: team.stats?.winRate || 0,
+      totalMatches: team.stats?.totalMatches || 0,
+      wins: team.stats?.wins || 0,
+      losses: team.stats?.losses || 0,
+      draws: team.stats?.draws || 0,
+      winStreak,
+      streakLabel: `${winStreak}연승 중`,
+    }));
 
   // 개인 랭킹 Top5
   // const playerRankingTop5 = await buildPlayerRankingTop5(db);

@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import HomeHeroBanner from "../../components/home/HomeHeroBanner";
 import TeamProfileSection from "../../components/home/TeamProfileSection";
 import WinningTeamsSection from "../../components/home/WinningTeamsSection";
+import WinningTickerBar from "../../components/home/WinningTickerBar";
 import TeamRankingSection from "../../components/home/TeamRankingSection";
 import PlayerRankingSection from "../../components/home/PlayerRankingSection";
 import FavoriteTeamsSection from "../../components/home/FavoriteTeamsSection";
@@ -15,7 +16,6 @@ import FavoritePlayersSection from "../../components/home/FavoritePlayersSection
 import AppFooter from "../../components/common/AppFooter";
 
 import { useAuth } from "../../hooks/useAuth";
-import ImpactTickerBar from "../../components/home/ImpactDonationBar";
 import Spinner from "../../components/common/Spinner";
 import { useHomeData } from "../../hooks/useHomeData";
 import { useClub } from "../../hooks/useClub";
@@ -91,7 +91,6 @@ export default function HomePage() {
 
   const footerLinks = useMemo(
     () => [
-      { label: "고객센터", onClick: () => navigate("/support") },
       { label: "이용약관", onClick: () => navigate("/terms") },
       { label: "개인정보처리방침", onClick: () => navigate("/privacy") },
     ],
@@ -116,10 +115,6 @@ export default function HomePage() {
     return (
       <Wrap>
         <Content>
-          <TickerRow onClick={() => navigate("/impact")}>
-            <ImpactTickerBar totalPoints={1020} wonPerPoint={10} />
-          </TickerRow>
-
           <HeroRow>
             <HomeHeroBanner />
           </HeroRow>
@@ -149,16 +144,13 @@ export default function HomePage() {
   return (
     <Wrap>
       <Content>
-        <TickerRow onClick={() => navigate("/impact")}>
-          <ImpactTickerBar totalPoints={1020} wonPerPoint={10} />
-        </TickerRow>
-
         <HeroRow>
           <HomeHeroBanner />
         </HeroRow>
 
         <Inner>
           <TeamProfileSection team={myTeam} rank={myTeamRank || 1} matchRoomCounts={matchRoomCounts} />
+          <WinningTickerBar items={winningTeamsHighlight} />
           <WinningTeamsSection items={winningTeamsHighlight} />
           <TeamRankingSection rows={teamRankingTop5} />
           <PlayerRankingSection rows={playerRankingTop5} />

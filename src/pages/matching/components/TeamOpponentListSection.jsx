@@ -182,18 +182,25 @@ function getWinRatePercent(t) {
   return Math.round((wins / total) * 100);
 }
 
+// 실제 경기결과(recentResults)만 사용. 승률로 합성하지 않음(없으면 빈 배열 → 미표시).
 function getRecentResults(t, count = 5) {
-  const wins = t?.stats?.wins ?? 0;
-  const losses = t?.stats?.losses ?? 0;
-  const draws = t?.stats?.draws ?? 0;
-  const total = wins + losses + draws;
-  if (!total) return [];
-  const winRate = wins / total;
-  const winCount = Math.round(winRate * count);
-  const arr = [];
-  for (let i = 0; i < winCount && arr.length < count; i += 1) arr.push("W");
-  while (arr.length < count) arr.push("L");
-  return arr;
+  const raw =
+    (Array.isArray(t?.stats?.recentResults) && t.stats.recentResults) ||
+    (Array.isArray(t?.recentResults) && t.recentResults) ||
+    [];
+  const norm = raw
+    .map((x) => {
+      const v = String((x && (x.result || x.value || x.r)) ?? x ?? "")
+        .trim()
+        .toLowerCase();
+      if (v === "w" || v === "win" || v === "승") return "W";
+      if (v === "d" || v === "draw" || v === "무") return "D";
+      if (v === "l" || v === "lose" || v === "패") return "L";
+      return null;
+    })
+    .filter(Boolean);
+  if (norm.length === 0) return [];
+  return norm.slice(0, count); // 최신이 index 0(앞) → 그대로 앞에서 count개
 }
 
 export default function TeamOpponentListSection({
@@ -269,9 +276,9 @@ export default function TeamOpponentListSection({
                       </div>
                     </SummaryRow>
 
-                    <SummaryRow>
-                      <RecentLabel>최근 경기기록</RecentLabel>
-                      {recentResults.length > 0 ? (
+                    {recentResults.length > 0 && (
+                      <SummaryRow>
+                        <RecentLabel>최근 경기기록</RecentLabel>
                         <RecentDots>
                           {recentResults.map((r, idx2) => {
                             if (r === "W")
@@ -281,16 +288,8 @@ export default function TeamOpponentListSection({
                             return <LoseChip key={`${team.clubId}-r${idx2}`} size="sm" />;
                           })}
                         </RecentDots>
-                      ) : (
-                        <RecentDots>
-                          <SoonDot />
-                          <SoonDot />
-                          <SoonDot />
-                          <SoonDot />
-                          <SoonDot />
-                        </RecentDots>
-                      )}
-                    </SummaryRow>
+                      </SummaryRow>
+                    )}
                   </ContentArea>
                 </Row>
               </TeamBlock>

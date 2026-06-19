@@ -7,6 +7,11 @@
 import React, { useMemo } from "react";
 import styled from "styled-components";
 import { images } from "../../../utils/imageAssets";
+import {
+  estimateWinProbability,
+  recommendationScore,
+  buildRecommendBlurb,
+} from "../../../utils/matchAnalysis";
 import AnimatedAiRing from "./AnimatedAiRing";
 
 const AiSection = styled.section`
@@ -104,6 +109,15 @@ const TeamName = styled.div`
   text-overflow: ellipsis;
 `;
 
+const Blurb = styled.div`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
 const Btn = styled.button`
   height: 34px;
   border-radius: 999px;
@@ -125,38 +139,28 @@ const Btn = styled.button`
   }
 `;
 
-function hashInt(str) {
-  const s = String(str || "");
-  let h = 0;
-  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-function mockWinProb({ myClubId, opponentClubId }) {
-  const h = hashInt(`${myClubId}::${opponentClubId}`);
-  return 55 + (h % 24);
-}
-
-function pickTwoTeams({ myTeam, opponentTeams }) {
+// ✅ 추천팀 선정: 지역+전력유사도+활동량 점수(recommendationScore)로 정렬
+function pickRecommendedTeams({ myTeam, opponentTeams, count = 2 }) {
   const list = Array.isArray(opponentTeams) ? opponentTeams : [];
   if (!myTeam || list.length === 0) return [];
 
   const myId = String(myTeam.clubId || myTeam.id || "").trim();
-  const mySido = String(myTeam.regionSido || "").trim();
-
   const withoutMe = list.filter((t) => String(t.clubId || t.id || "").trim() !== myId);
 
-  const same = mySido
-    ? withoutMe.filter((t) => String(t.regionSido || "").trim() === mySido)
-    : [];
+  const scored = withoutMe.map((t) => ({
+    team: t,
+    score: recommendationScore(myTeam, t),
+  }));
 
-  const base = same.length >= 2 ? same : withoutMe;
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    // 동점이면 clubId로 안정 정렬(결정적)
+    return String(a.team.clubId || a.team.id || "").localeCompare(
+      String(b.team.clubId || b.team.id || "")
+    );
+  });
 
-  const sorted = [...base].sort((a, b) =>
-    String(a.clubId || "").localeCompare(String(b.clubId || ""))
-  );
-
-  return sorted.slice(0, 2);
+  return scored.slice(0, count).map((x) => x.team);
 }
 
 export default function AiRecommendedTeamsSection({
@@ -164,20 +168,25 @@ export default function AiRecommendedTeamsSection({
   opponentTeams,
   onOpenAnalysis,
 }) {
-  const picks = useMemo(() => pickTwoTeams({ myTeam, opponentTeams }), [myTeam, opponentTeams]);
+  const picks = useMemo(
+    () => pickRecommendedTeams({ myTeam, opponentTeams }),
+    [myTeam, opponentTeams]
+  );
 
   return (
     <AiSection>
       <AiHeaderRow>
         <AiTitle>AI가 추천한 매칭 팀</AiTitle>
-        <AiSub>내 팀과 같은 지역의 팀을 우선으로 분석해요.</AiSub>
+        <AiSub>지역·전력·활동량을 종합해 해볼 만한 팀을 추천해요.</AiSub>
       </AiHeaderRow>
 
       <AiScrollRow>
-        {picks.map((team, idx) => {
-          const myId = String(myTeam?.clubId || myTeam?.id || "").trim();
+        {picks.map((team) => {
           const oppId = String(team.clubId || team.id || "").trim();
-          const prob = mockWinProb({ myClubId: myId, opponentClubId: oppId });
+          // ✅ 실데이터(stats/members) 기반 승률 추정 + 동적 문구
+          const est = estimateWinProbability(myTeam, team);
+          const prob = est.prob;
+          const blurb = buildRecommendBlurb(myTeam, team);
 
           return (
             <AiTeamCard key={oppId}>
@@ -195,6 +204,8 @@ export default function AiRecommendedTeamsSection({
                 <TeamNameRow>
                   <TeamName title={team.name}>{team.name}</TeamName>
                 </TeamNameRow>
+
+                <Blurb title={blurb}>{blurb}</Blurb>
 
                 <Btn type="button" onClick={() => onOpenAnalysis && onOpenAnalysis(oppId)}>
                   분석결과 보기

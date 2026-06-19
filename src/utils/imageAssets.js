@@ -26,46 +26,12 @@ import logoShinchonSharks from "../assets/teams/logo_shinchon_sharks.png";
 import logoHangangBulldogs from "../assets/teams/logo_hangang_bulldogs.png";
 
 /* =========================
- * 선수 아바타 – TEAMS.players.userId 와 매칭
- * 파일 위치 예시:
- *   src/assets/players/user_cheongcho_han_juseong.png
- *   ...
+ * 선수 아바타
+ * ⚠️ 초상권: 실제 인물 얼굴 사진(src/assets/players/user_*.png)은
+ *   초상권 리스크 차단을 위해 전면 미사용 처리함.
+ *   playerAvatars 매핑은 비워 두고, 소비 측은 images.logo 로 폴백.
+ *   (mock 구조/필드는 유지 — photoUrl/avatarUrl 폴백 체인이 처리)
  * ========================= */
-
-/* 청춘호랑이 */
-import avatarUserCheongchoHanJuseong from "../assets/players/user_cheongcho_han_juseong.png";
-import avatarUserCheongchoMoonGyeongbin from "../assets/players/user_cheongcho_moon_gyeongbin.png";
-import avatarUserCheongchoKimMinjun from "../assets/players/user_cheongcho_kim_minjun.png";
-import avatarUserCheongchoKimGiyong from "../assets/players/user_cheongcho_kim_giyong.png";
-import avatarUserCheongchoLeeSeonwoo from "../assets/players/user_cheongcho_lee_seonwoo.png";
-
-/* 덕소독수리 */
-import avatarUserDeoksoKimDoyun from "../assets/players/user_deokso_kim_doyun.png";
-import avatarUserDeoksoKimDongcheon from "../assets/players/user_deokso_kim_dongcheon.png";
-import avatarUserDeoksoJeongHwan from "../assets/players/user_deokso_jeong_hwan.png";
-import avatarUserDeoksoByunYumin from "../assets/players/user_deokso_byun_yumin.png";
-import avatarUserDeoksoKwonHyeokju from "../assets/players/user_deokso_kwon_hyeokju.png";
-
-/* LI이언 */
-import avatarUserLionNamHyoseung from "../assets/players/user_lion_nam_hyoseung.png";
-import avatarUserLionLeeSangjun from "../assets/players/user_lion_lee_sangjun.png";
-import avatarUserLionSeoJun from "../assets/players/user_lion_seo_jun.png";
-import avatarUserLionOhSeungeob from "../assets/players/user_lion_oh_seungeob.png";
-import avatarUserLionShinJongmin from "../assets/players/user_lion_shin_jongmin.png";
-
-/* 신촌샤크 */
-import avatarUserShinchonParkJunyoung from "../assets/players/user_shinchon_park_junyoung.png";
-import avatarUserShinchonLeeJaehun from "../assets/players/user_shinchon_lee_jaehun.png";
-import avatarUserShinchonKimHayoung from "../assets/players/user_shinchon_kim_hayoung.png";
-import avatarUserShinchonChoiMinhyuk from "../assets/players/user_shinchon_choi_minhyuk.png";
-import avatarUserShinchonJungNayeon from "../assets/players/user_shinchon_jung_nayeon.png";
-
-/* 한강불독 */
-import avatarUserBulldogsKangTaehyun from "../assets/players/user_bulldogs_kang_taehyun.png";
-import avatarUserBulldogsYoonSungmin from "../assets/players/user_bulldogs_yoon_sungmin.png";
-import avatarUserBulldogsHanJiyoon from "../assets/players/user_bulldogs_han_jiyoon.png";
-import avatarUserBulldogsSongWoojin from "../assets/players/user_bulldogs_song_woojin.png";
-import avatarUserBulldogsChoMinseo from "../assets/players/user_bulldogs_cho_minseo.png";
 
 
 
@@ -76,8 +42,7 @@ import teamRecruitIcon from "../assets/teams/teamRecruitIcon.png";
 import teamHighlightIcon from "../assets/teams/teamHighlightIcon.png";
 import teamMediaIcon from "../assets/teams/teamMediaIcon.png";
 
-import teamMediaSamplePhoto1 from "../assets/teams/sampleplay1.png";
-import teamMediaSamplePhoto2 from "../assets/teams/sampleplay2.png";
+// 초상권: 실제 인물 경기 샘플 사진(sampleplay1/2) 미사용 + 제거.
 
 
 import homeBanner1 from "../assets/images/home-banner-1.png";
@@ -149,8 +114,6 @@ export const images = {
   teamMembersIcon,
   teamRecruitIcon,
   teamMediaIcon,
-  teamMediaSamplePhoto1,
-  teamMediaSamplePhoto2,
   playerHeroBasket: require("../assets/players/player-hero-basket.png"), // 녹색 히어로 우측 일러스트
   playerInfoIcon: require("../assets/players/player-info.png"),          // 기본 정보 아이콘
   playerStatsIcon: require("../assets/players/player-stats.png"),        // 플레이 스타일/스탯
@@ -165,42 +128,11 @@ export const images = {
  * - key: TEAMS.players[user].userId
  * - value: 해당 이미지 import
  *
+ * ⚠️ 초상권: 실제 인물 얼굴 사진 매핑을 전면 제거함.
+ *   소비 측은 `playerAvatars[uid] || images.logo` 로 자동 폴백되어
+ *   화면이 깨지지 않음. (구조는 유지 — 추후 안전한 이미지로 다시 매핑 가능)
+ *
  * 사용 예:
- *   const avatarSrc = playerAvatars[player.userId] || images.profileDefault;
+ *   const avatarSrc = playerAvatars[player.userId] || images.logo;
  */
-export const playerAvatars = {
-  /* 청춘호랑이 */
-  user_cheongcho_han_juseong: avatarUserCheongchoHanJuseong,
-  user_cheongcho_moon_gyeongbin: avatarUserCheongchoMoonGyeongbin,
-  user_cheongcho_kim_minjun: avatarUserCheongchoKimMinjun,
-  user_cheongcho_kim_giyong: avatarUserCheongchoKimGiyong,
-  user_cheongcho_lee_seonwoo: avatarUserCheongchoLeeSeonwoo,
-
-  /* 덕소독수리 */
-  user_deokso_kim_doyun: avatarUserDeoksoKimDoyun,
-  user_deokso_kim_dongcheon: avatarUserDeoksoKimDongcheon,
-  user_deokso_jeong_hwan: avatarUserDeoksoJeongHwan,
-  user_deokso_byun_yumin: avatarUserDeoksoByunYumin,
-  user_deokso_kwon_hyeokju: avatarUserDeoksoKwonHyeokju,
-
-  /* LI이언 */
-  user_lion_nam_hyoseung: avatarUserLionNamHyoseung,
-  user_lion_lee_sangjun: avatarUserLionLeeSangjun,
-  user_lion_seo_jun: avatarUserLionSeoJun,
-  user_lion_oh_seungeob: avatarUserLionOhSeungeob,
-  user_lion_shin_jongmin: avatarUserLionShinJongmin,
-
-  /* 신촌샤크 */
-  user_shinchon_park_junyoung: avatarUserShinchonParkJunyoung,
-  user_shinchon_lee_jaehun: avatarUserShinchonLeeJaehun,
-  user_shinchon_kim_hayoung: avatarUserShinchonKimHayoung,
-  user_shinchon_choi_minhyuk: avatarUserShinchonChoiMinhyuk,
-  user_shinchon_jung_nayeon: avatarUserShinchonJungNayeon,
-
-  /* 한강불독 */
-  user_bulldogs_kang_taehyun: avatarUserBulldogsKangTaehyun,
-  user_bulldogs_yoon_sungmin: avatarUserBulldogsYoonSungmin,
-  user_bulldogs_han_jiyoon: avatarUserBulldogsHanJiyoon,
-  user_bulldogs_song_woojin: avatarUserBulldogsSongWoojin,
-  user_bulldogs_cho_minseo: avatarUserBulldogsChoMinseo,
-};
+export const playerAvatars = {};

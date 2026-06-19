@@ -19,17 +19,6 @@ const BANNERS = [
     offsetY: 0,
   },
   {
-    id: 2,
-    src: images.homeBanner2,
-    alt: "홈 배너 2",
-    title: "득점이 곧,\n기부가 된다",
-    desc: "할래말래에서 득점할 때마다 어려운 이웃에게 기부",
-    side: "right",
-    textAlign: "right",
-    offsetX: 0,
-    offsetY: 0,
-  },
-  {
     id: 3,
     src: images.homeBanner3,
     alt: "홈 배너 3",
