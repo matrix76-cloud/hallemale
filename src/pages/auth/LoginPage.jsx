@@ -81,7 +81,7 @@ export default function LoginPage() {
 
   const busy = isSubmitting || preloading || postLoginPreload;
 
-  // ⚠️ 테스트용 임시 구글 로그인 — 테스트 끝나면 이 핸들러 + 아래 GoogleBtn 제거
+  // 구글 소셜 로그인
   const handleGoogle = async () => {
     if (busy) return;
 
@@ -179,7 +179,7 @@ export default function LoginPage() {
           카카오로 시작하기
         </KakaoBtn>
 
-        {/* ⚠️ 테스트용 임시 구글 로그인 버튼 — 테스트 끝나면 이 블록 제거 */}
+        {/* 구글 소셜 로그인 버튼 */}
         <GoogleBtn type="button" onClick={handleGoogle} disabled={busy}>
           <GoogleIcon viewBox="0 0 18 18" aria-hidden="true">
             <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z" />
@@ -292,7 +292,7 @@ const KakaoIcon = styled.svg`
   color: #191600;
 `;
 
-/* ⚠️ 테스트용 임시 구글 버튼 스타일 — 테스트 끝나면 제거 */
+/* 구글 소셜 로그인 버튼 스타일 */
 const GoogleBtn = styled.button`
   width: 100%;
   height: 52px;
