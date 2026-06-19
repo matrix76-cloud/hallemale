@@ -15,6 +15,7 @@ import { FiHeart } from "react-icons/fi";
 import TodayMatchesStripFlat from "../../components/community/TodayMatchesStripFlat";
 import { listTodayBasketballGames } from "../../services/gamesService";
 import { images } from "../../utils/imageAssets";
+import EmptyState from "../../components/common/EmptyState";
 
 const HERO_BY_COMMENTS = 15;
 const HERO_BY_VIEWS = 300;
@@ -634,7 +635,7 @@ export default function CommunityListPage() {
             </React.Fragment>
           ))
         ) : (
-          <EmptyBox>{String(q || "").trim() ? "검색 결과가 없습니다." : "아직 등록된 게시글이 없습니다."}</EmptyBox>
+          <EmptyState text={String(q || "").trim() ? "검색 결과가 없습니다." : "아직 등록된 게시글이 없습니다."} />
         )}
       </Inner>
 

@@ -37,6 +37,7 @@ import {
 import Spinner from "../../components/common/Spinner";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
+import EmptyState from "../../components/common/EmptyState";
 
 /* ====================== Render ====================== */
 
@@ -1219,7 +1220,7 @@ export default function TeamManagePage() {
           {invitesLoading ? (
             <InviteEmpty>불러오는 중...</InviteEmpty>
           ) : pendingInvites.length === 0 ? (
-            <InviteEmpty>아직 보낸 초대가 없습니다.</InviteEmpty>
+            <EmptyState compact text="아직 보낸 초대가 없습니다." />
           ) : (
             <InviteList>
               {pendingInvites.map((inv) => {
@@ -1260,7 +1261,7 @@ export default function TeamManagePage() {
           {membersLoading ? (
             <InviteEmpty>불러오는 중...</InviteEmpty>
           ) : (members || []).length === 0 ? (
-            <InviteEmpty>팀 멤버가 없습니다.</InviteEmpty>
+            <EmptyState compact text="팀 멤버가 없습니다." />
           ) : (
             <InviteList>
               {(members || []).map((m) => {
@@ -1385,7 +1386,11 @@ export default function TeamManagePage() {
 
                 <ResultList>
                   {searchResult.length === 0 ? (
-                    <ResultEmpty>{searching ? "불러오는 중..." : "표시할 선수가 없습니다."}</ResultEmpty>
+                    searching ? (
+                      <ResultEmpty>불러오는 중...</ResultEmpty>
+                    ) : (
+                      <EmptyState compact text="표시할 선수가 없습니다." />
+                    )
                   ) : (
                     searchResult.map((u) => {
                       const checked = selectedUserId === u.uid;

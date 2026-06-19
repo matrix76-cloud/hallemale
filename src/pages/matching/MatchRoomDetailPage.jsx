@@ -21,6 +21,7 @@ import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
 import { useUIContext } from "../../context/UIContext";
 import VenuePickerSheet from "../../components/common/VenuePickerSheet";
+import EmptyState from "../../components/common/EmptyState";
 import MatchRoomChat from "../../components/matchRoom/MatchRoomChat";
 import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
@@ -3754,7 +3755,7 @@ export default function MatchRoomDetailPage() {
                     ))}
                   </FullPhotoList>
                 ) : (
-                  <ResultStatusText>아직 등록된 사진이 없습니다.</ResultStatusText>
+                  <EmptyState compact text="아직 등록된 사진이 없습니다." />
                 )}
               </SectionCard>
 
@@ -3789,7 +3790,7 @@ export default function MatchRoomDetailPage() {
                     ))}
                   </CommentStack>
                 ) : (
-                  <ResultStatusText>아직 등록된 코멘트가 없습니다.</ResultStatusText>
+                  <EmptyState compact text="아직 등록된 코멘트가 없습니다." />
                 )}
               </SectionCard>
             </>

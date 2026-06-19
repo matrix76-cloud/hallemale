@@ -7,6 +7,7 @@ import { images } from "../../utils/imageAssets";
 import { useClub } from "../../hooks/useClub";
 import { loadMatchRoomListPageData } from "../../services/matchRoomService";
 import Spinner from "../../components/common/Spinner";
+import EmptyState from "../../components/common/EmptyState";
 
 /**
  * 매칭된 경기 목록 페이지
@@ -111,7 +112,7 @@ export default function MyMatchedMatchesPage() {
         ) : error ? (
           <EmptyWrap>{error}</EmptyWrap>
         ) : view.length === 0 ? (
-          <EmptyWrap>아직 매칭된 경기 기록이 없습니다.</EmptyWrap>
+          <EmptyState text="아직 매칭된 경기 기록이 없습니다." />
         ) : (
           <MatchList>
             {view.map((m) => (

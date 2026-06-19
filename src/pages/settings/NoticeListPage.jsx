@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import Spinner from "../../components/common/Spinner";
 import { subscribePublishedNotices } from "../../services/noticesService";
+import EmptyState from "../../components/common/EmptyState";
 
 const Wrap = styled.div`
   padding: 16px 16px 32px;
@@ -171,7 +172,7 @@ export default function NoticeListPage() {
       ) : err ? (
         <ErrorBox>{err}</ErrorBox>
       ) : !rows.length ? (
-        <Empty>아직 등록된 공지사항이 없습니다.</Empty>
+        <EmptyState text="아직 등록된 공지사항이 없습니다." />
       ) : (
         <List>
           {rows.map((n) => {

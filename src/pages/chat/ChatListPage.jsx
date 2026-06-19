@@ -8,6 +8,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { listMyChatRooms } from "../../services/chatService";
 import { getUserPublicMeta, getOtherUidFromRoom } from "../../services/counterpartService";
 import Spinner from "../../components/common/Spinner";
+import EmptyState from "../../components/common/EmptyState";
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
@@ -365,7 +366,7 @@ export default function ChatListPage() {
   if (!rooms.length) {
     return (
       <PageWrap>
-        <EmptyText>아직 시작된 채팅이 없습니다.</EmptyText>
+        <EmptyState text="아직 시작된 채팅이 없습니다." />
       </PageWrap>
     );
   }

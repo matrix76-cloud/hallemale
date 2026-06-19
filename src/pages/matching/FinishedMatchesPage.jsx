@@ -7,6 +7,7 @@ import Spinner from "../../components/common/Spinner";
 import { images } from "../../utils/imageAssets";
 import { listFinishedMatchesPage } from "../../services/matchRoomService";
 import { useClub } from "../../hooks/useClub";
+import EmptyState from "../../components/common/EmptyState";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -305,7 +306,7 @@ export default function FinishedMatchesPage() {
         {!loading && error ? <ErrorCard>{error}</ErrorCard> : null}
 
         {!loading && !error && viewRows.length === 0 ? (
-          <EmptyCard>{myClubId ? "내 팀의 완료된 경기가 없습니다." : "완료된 경기가 없습니다."}</EmptyCard>
+          <EmptyState text={myClubId ? "내 팀의 완료된 경기가 없습니다." : "완료된 경기가 없습니다."} />
         ) : null}
 
         {viewRows.map((r) => (

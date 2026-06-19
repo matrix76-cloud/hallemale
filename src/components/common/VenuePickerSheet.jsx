@@ -9,6 +9,7 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { FiX } from "react-icons/fi";
 import { listActiveVenues } from "../../services/venuesService";
+import EmptyState from "./EmptyState";
 
 export default function VenuePickerSheet({
   open,
@@ -83,7 +84,7 @@ export default function VenuePickerSheet({
           {loading ? (
             <Empty>구장 목록을 불러오는 중…</Empty>
           ) : venues.length === 0 ? (
-            <Empty>등록된 제휴구장이 없습니다.</Empty>
+            <EmptyState compact text="등록된 제휴구장이 없습니다." />
           ) : (
             <List>
               {venues.map((v) => (

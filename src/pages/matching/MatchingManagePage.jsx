@@ -17,6 +17,7 @@ import {
 } from "../../services/matchingService";
 import { fetchLineupRosterProfiles } from "../../services/lineupRosterService";
 import PositionChip from "../../components/common/PositionChip";
+import EmptyState from "../../components/common/EmptyState";
 import { FiInfo } from "react-icons/fi";
 
 /* ========================= helpers ========================= */
@@ -912,11 +913,13 @@ export default function MatchingManagePage() {
         {!loading && err && <StateWrap>{err}</StateWrap>}
 
         {!loading && !err && visibleItems.length === 0 && (
-          <StateWrap>
-            {activeTab === "closed"
-              ? "취소되거나 거부된 제안이 없습니다."
-              : "표시할 매칭이 없습니다."}
-          </StateWrap>
+          <EmptyState
+            text={
+              activeTab === "closed"
+                ? "취소되거나 거부된 제안이 없습니다."
+                : "표시할 매칭이 없습니다."
+            }
+          />
         )}
 
         {!loading && !err && visibleItems.length > 0 && (

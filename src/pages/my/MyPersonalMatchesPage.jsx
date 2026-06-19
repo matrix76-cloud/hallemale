@@ -7,6 +7,7 @@ import { images } from "../../utils/imageAssets";
 import { useClub } from "../../hooks/useClub";
 import { loadMatchRoomListPageData } from "../../services/matchRoomService";
 import Spinner from "../../components/common/Spinner";
+import EmptyState from "../../components/common/EmptyState";
 
 /**
  * 개인 활동 경기 목록 페이지
@@ -112,7 +113,7 @@ export default function MyPersonalMatchesPage() {
         ) : error ? (
           <EmptyWrap>{error}</EmptyWrap>
         ) : view.length === 0 ? (
-          <EmptyWrap>아직 기록된 개인 활동 경기가 없습니다.</EmptyWrap>
+          <EmptyState text="아직 기록된 개인 활동 경기가 없습니다." />
         ) : (
           <MatchList>
             {view.map((m) => (

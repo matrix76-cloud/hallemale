@@ -8,6 +8,7 @@ import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 import Spinner from "../../components/common/Spinner";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
+import EmptyState from "../../components/common/EmptyState";
 import { listPendingJoinRequestsForClub } from "../../services/joinRequestService";
 
 function toDateSafe(v) {
@@ -75,7 +76,7 @@ export default function TeamJoinRequestsPage() {
           <Spinner size="lg" />
         </Center>
       ) : !hasAny ? (
-        <EmptyText>대기중인 참여요청이 없습니다.</EmptyText>
+        <EmptyState text="대기중인 참여요청이 없습니다." />
       ) : (
         <List>
           {items.map((r) => {

@@ -15,6 +15,7 @@ import { db } from "../../services/firebase";
 import Spinner from "../../components/common/Spinner";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { listMyReceivedInvites } from "../../services/inviteService";
+import EmptyState from "../../components/common/EmptyState";
 
 function toDateSafe(v) {
   if (!v) return null;
@@ -118,7 +119,7 @@ export default function MyTeamInvitesPage() {
           <Spinner size="lg" />
         </Center>
       ) : !hasAny ? (
-        <EmptyText>받은 초대가 없습니다.</EmptyText>
+        <EmptyState text="받은 초대가 없습니다." />
       ) : (
         <>
           {pendingList.length > 0 ? (

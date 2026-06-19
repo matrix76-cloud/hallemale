@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
 import { createInquiry, getMyInquiries } from "../../services/inquiryService";
+import EmptyState from "../../components/common/EmptyState";
 
 const CATEGORIES = [
   { value: "account", label: "계정/로그인" },
@@ -175,7 +176,7 @@ export default function InquiryPage() {
         </CenterBox>
       ) : list.length === 0 ? (
         <CenterBox>
-          <EmptyText>아직 등록한 문의가 없어요.</EmptyText>
+          <EmptyState text="아직 등록한 문의가 없어요." />
         </CenterBox>
       ) : (
         <List>

@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import styled from "styled-components";
 import { WinChip, DrawChip, LoseChip } from "../common/ResultChip";
+import EmptyState from "../common/EmptyState";
 
 const Wrap = styled.div`
   display: flex;
@@ -200,7 +201,7 @@ export default function TeamMatchHistorySection({
     });
   }, [matches, teamClubId]);
 
-  if (!list.length) return <EmptyText>지난 경기 기록이 아직 없습니다.</EmptyText>;
+  if (!list.length) return <EmptyState compact text="지난 경기 기록이 아직 없습니다." />;
 
   return (
     <Wrap>

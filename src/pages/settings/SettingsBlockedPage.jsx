@@ -12,6 +12,7 @@ import {
   unhidePost,
 } from "../../services/userBlockService";
 import Spinner from "../../components/common/Spinner";
+import EmptyState from "../../components/common/EmptyState";
 
 const Wrap = styled.div`
   padding: 16px 16px 32px;
@@ -190,7 +191,7 @@ export default function SettingsBlockedPage() {
 
       <SectionTitle>차단한 사용자 ({users.length})</SectionTitle>
       {users.length === 0 ? (
-        <Empty>차단한 사용자가 없습니다.</Empty>
+        <EmptyState text="차단한 사용자가 없습니다." />
       ) : (
         <List>
           {users.map((u) => (
@@ -211,7 +212,7 @@ export default function SettingsBlockedPage() {
 
       <SectionTitle>숨긴 게시글 ({posts.length})</SectionTitle>
       {posts.length === 0 ? (
-        <Empty>숨긴 게시글이 없습니다.</Empty>
+        <EmptyState text="숨긴 게시글이 없습니다." />
       ) : (
         <List>
           {posts.map((p) => (

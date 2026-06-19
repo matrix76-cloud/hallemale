@@ -15,6 +15,7 @@ import {
   formatDuration,
 } from "../../services/playerHealthService";
 import { isInWebView, onceFromApp } from "../../bridge/webviewBridge";
+import EmptyState from "../common/EmptyState";
 
 const Section = styled.section`
   margin-top: 12px;
@@ -309,7 +310,7 @@ export default function PlayerActivitySection({ playerId, isSelf }) {
       )}
 
       {sessions.length === 0 ? (
-        <Empty>기록된 활동이 없습니다.</Empty>
+        <EmptyState compact text="기록된 활동이 없습니다." />
       ) : (
         <SessionList>
           {sessions.map((s) => (

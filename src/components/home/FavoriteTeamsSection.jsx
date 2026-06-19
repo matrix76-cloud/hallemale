@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { images } from "../../utils/imageAssets";
+import EmptyState from "../common/EmptyState";
 
 const SectionWrap = styled.section`
   margin-top: 10px;
@@ -143,7 +144,7 @@ export default function FavoriteTeamsSection({ items = [] }) {
       </HeaderRow>
 
       {!limitedItems.length ? (
-        <EmptyBox>즐겨찾기한 팀이 없습니다.</EmptyBox>
+        <EmptyState compact text="즐겨찾기한 팀이 없습니다." />
       ) : (
         <SlideRow ref={slideRef}>
           {limitedItems.map((t) => {

@@ -8,6 +8,7 @@ import React from "react";
 import styled from "styled-components";
 import { images, playerAvatars } from "../../utils/imageAssets";
 import PositionChip from "../common/PositionChip";
+import EmptyState from "../common/EmptyState";
 
 const Wrap = styled.div`
   display: flex;
@@ -115,7 +116,7 @@ function positionLabel(pos) {
 export default function TeamMembersSection({ members = [], onPlayerClick }) {
   const list = Array.isArray(members) ? members : [];
   if (!list.length) {
-    return <SubText>등록된 팀원이 없습니다.</SubText>;
+    return <EmptyState compact text="등록된 팀원이 없습니다." />;
   }
 
   return (

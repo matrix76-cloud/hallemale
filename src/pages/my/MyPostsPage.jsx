@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { listMyCommunityPosts } from "../../services/communityService";
 import Spinner from "../../components/common/Spinner";
+import EmptyState from "../../components/common/EmptyState";
 
 export default function MyPostsPage() {
   const navigate = useNavigate();
@@ -60,7 +61,7 @@ export default function MyPostsPage() {
         ) : error ? (
           <EmptyWrap>{error}</EmptyWrap>
         ) : posts.length === 0 ? (
-          <EmptyWrap>아직 작성한 게시글이 없습니다.</EmptyWrap>
+          <EmptyState text="아직 작성한 게시글이 없습니다." />
         ) : (
           <PostList>
             {posts.map((p) => (

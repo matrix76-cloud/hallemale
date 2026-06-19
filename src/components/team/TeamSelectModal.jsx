@@ -11,6 +11,7 @@ import styled from "styled-components";
 import { FiX, FiSearch } from "react-icons/fi";
 import { images } from "../../utils/imageAssets";
 import { useAuth } from "../../hooks/useAuth";
+import EmptyState from "../common/EmptyState";
 import { listClubsForPicker, createJoinRequestToClub } from "../../services/teamService";
 
 export default function TeamSelectModal({
@@ -202,7 +203,7 @@ export default function TeamSelectModal({
           ) : error ? (
             <EmptyText>{error}</EmptyText>
           ) : filtered.length === 0 ? (
-            <EmptyText>표시할 팀이 없습니다.</EmptyText>
+            <EmptyState compact text="표시할 팀이 없습니다." />
           ) : (
             filtered.map((c) => {
               const checked = selectedClubId === c.clubId;

@@ -5,6 +5,7 @@
 import React, { useMemo } from "react";
 import styled, { useTheme } from "styled-components";
 import { FiCalendar, FiZap, FiClock, FiTrendingUp } from "react-icons/fi";
+import EmptyState from "../common/EmptyState";
 
 const Section = styled.section`
   margin-top: 12px;
@@ -151,9 +152,7 @@ export default function PlayerMonthlyStatsSection({ sessions = [] }) {
             이번 달 활동
           </Title>
         </HeaderRow>
-        <div style={{ padding: "20px 0", textAlign: "center", color: theme.colors.textWeak, fontSize: 12 }}>
-          기록된 활동이 없습니다.
-        </div>
+        <EmptyState compact text="기록된 활동이 없습니다." />
       </Section>
     );
   }

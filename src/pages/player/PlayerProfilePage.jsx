@@ -20,6 +20,7 @@ import PlayerActivitySection from "../../components/player/PlayerActivitySection
 import PlayerAbilitySection from "../../components/player/PlayerAbilitySection";
 import PlayerHealthSection from "../../components/player/PlayerHealthSection";
 import PlayerMonthlyStatsSection from "../../components/player/PlayerMonthlyStatsSection";
+import EmptyState from "../../components/common/EmptyState";
 
 /* =============== 헬퍼: 포지션/실력 라벨 =============== */
 
@@ -1008,7 +1009,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                 ))}
               </MediaList>
             ) : (
-              <PlaceholderText>등록된 미디어가 없습니다.</PlaceholderText>
+              <EmptyState compact text="등록된 미디어가 없습니다." />
             )}
           </Section>
 

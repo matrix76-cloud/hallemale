@@ -15,6 +15,7 @@ import {
   getSystemMockNotifications,
   markNotificationRead,
 } from "../../services/notificationService";
+import EmptyState from "../../components/common/EmptyState";
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
@@ -233,7 +234,7 @@ export default function NotificationsPage() {
 
   return (
     <PageWrap>
-      {!hasAny && !loading && <EmptyText>아직 받은 알림이 없습니다.</EmptyText>}
+      {!hasAny && !loading && <EmptyState text="아직 받은 알림이 없습니다." />}
       {loading && !hasAny && <EmptyText>불러오는 중…</EmptyText>}
 
       {hasAny && (

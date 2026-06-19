@@ -8,6 +8,7 @@ import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip"
 import Spinner from "../../components/common/Spinner";
 import { loadMatchRoomListPageData, cancelMatchRequest } from "../../services/matchRoomService";
 import { useClub } from "../../hooks/useClub";
+import EmptyState from "../../components/common/EmptyState";
 
 /* ==================== 헬퍼 ==================== */
 
@@ -601,7 +602,7 @@ export default function MatchRoomListPage() {
                     {adjustingRooms.map((room) => renderRoomCard(room))}
                   </>
                 ) : (
-                  <EmptyText>조율중인 매칭이 아직 없습니다.</EmptyText>
+                  <EmptyState text="조율중인 매칭이 아직 없습니다." />
                 )}
 
                 {confirmedRooms.length > 0 ? (
@@ -613,7 +614,7 @@ export default function MatchRoomListPage() {
                     {confirmedRooms.map((room) => renderRoomCard(room))}
                   </>
                 ) : (
-                  <EmptyText>확정된 매칭이 아직 없습니다.</EmptyText>
+                  <EmptyState text="확정된 매칭이 아직 없습니다." />
                 )}
 
                 {pastRooms.length > 0 ? (
@@ -625,7 +626,7 @@ export default function MatchRoomListPage() {
                     {pastRooms.map((room) => renderRoomCard(room))}
                   </>
                 ) : (
-                  <EmptyText>지난 게임 기록이 아직 없습니다.</EmptyText>
+                  <EmptyState text="지난 게임 기록이 아직 없습니다." />
                 )}
 
                 {cancelledRooms.length > 0 && (
@@ -643,15 +644,17 @@ export default function MatchRoomListPage() {
                 {listToRender.length > 0 ? (
                   listToRender.map((room) => renderRoomCard(room))
                 ) : (
-                  <EmptyText>
-                    {tab === "adjusting"
-                      ? "조율중인 매칭이 아직 없습니다."
-                      : tab === "confirmed"
-                      ? "확정된 매칭이 아직 없습니다."
-                      : tab === "cancelled"
-                      ? "취소된 경기가 없습니다."
-                      : "지난 게임 기록이 아직 없습니다."}
-                  </EmptyText>
+                  <EmptyState
+                    text={
+                      tab === "adjusting"
+                        ? "조율중인 매칭이 아직 없습니다."
+                        : tab === "confirmed"
+                        ? "확정된 매칭이 아직 없습니다."
+                        : tab === "cancelled"
+                        ? "취소된 경기가 없습니다."
+                        : "지난 게임 기록이 아직 없습니다."
+                    }
+                  />
                 )}
               </RoomList>
             )}

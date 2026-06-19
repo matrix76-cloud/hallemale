@@ -15,6 +15,7 @@ import PositionChip from "../../components/common/PositionChip";
 
 import FilterSearchBar from "../../components/common/FilterSearchBar";
 import FilterBottomSheet from "../../components/common/FilterBottomSheet";
+import EmptyState from "../../components/common/EmptyState";
 
 const PageWrap = styled.div`
   min-height: 100vh;
@@ -577,7 +578,7 @@ export default function PlayerRankingFullPage() {
           })}
         </Card>
 
-        {!rankedRows.length && !loading && <EmptyText>표시할 랭킹이 없어요.</EmptyText>}
+        {!rankedRows.length && !loading && <EmptyState text="표시할 랭킹이 없어요." />}
 
         {loading && (
           <Center>

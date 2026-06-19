@@ -9,6 +9,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { db } from "../../services/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Spinner from "../../components/common/Spinner";
+import EmptyState from "../../components/common/EmptyState";
 
 const Page = styled.div`
   min-height: 100vh;
@@ -117,7 +118,7 @@ export default function EventPage() {
       ) : err ? (
         <State>{err}</State>
       ) : !data ? (
-        <State>이벤트가 없습니다.</State>
+        <EmptyState text="이벤트가 없습니다." />
       ) : (
         <>
           {data.imageUrl ? (

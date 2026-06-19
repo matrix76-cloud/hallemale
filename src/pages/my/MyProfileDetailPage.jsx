@@ -8,6 +8,7 @@ import { images, playerAvatars } from "../../utils/imageAssets";
 import { TEAMS_BY_ID } from "../../mock/teamsMock";
 import { useAuth } from "../../hooks/useAuth";
 import SubHeaderBar from "../../layouts/components/SubHeaderBar";
+import EmptyState from "../../components/common/EmptyState";
 
 /**
  * 내 프로필 보기 페이지 (실데이터 기반)
@@ -141,7 +142,7 @@ export default function MyProfileDetailPage() {
               </SectionHeaderRow>
 
               {careers.length === 0 ? (
-                <EmptyText>아직 등록된 경력이 없습니다.</EmptyText>
+                <EmptyState text="아직 등록된 경력이 없습니다." />
               ) : (
                 <CareerList>
                   {careers.map((c) => (
