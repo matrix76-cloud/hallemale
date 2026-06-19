@@ -99,6 +99,7 @@ import AdminCommunityPostDetailPage from "../pages/admin/AdminCommunityPostDetai
 import AdminCommunityReportsPage from "../pages/admin/AdminCommunityReportsPage";
 import AdminNotifyNoticesPage from "../pages/admin/AdminNotifyNoticesPage";
 import AdminNotifyPushPage from "../pages/admin/AdminNotifyPushPage";
+import AdminInquiriesPage from "../pages/admin/AdminInquiriesPage";
 import AdminSettingsAdminsPage from "../pages/admin/AdminSettingsAdminsPage";
 import AdminSettingsPolicyPage from "../pages/admin/AdminSettingsPolicyPage";
 import AdminGamesUpcomingPage from "../pages/admin/AdminGamesUpcomingPage";
@@ -335,6 +336,7 @@ export default function AppRoutes() {
           <Route path="/admin/chat/list/:chatId" element={<AdminChatRoomDetailPage />} />
           <Route path="/admin/banners" element={<AdminBannersPage />} />
           <Route path="/admin/venues" element={<AdminVenuesPage />} />
+          <Route path="/admin/inquiries" element={<AdminInquiriesPage />} />
           <Route path="/admin/popups" element={<AdminEventPopupsPage />} />
           <Route path="/admin/updates" element={<AdminUpdatesPage />} />
         </Route>

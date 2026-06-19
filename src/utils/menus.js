@@ -22,6 +22,7 @@ import {
   IoSettingsOutline,
   IoImageOutline,
   IoLocationOutline,
+  IoMailOutline,
 } from "react-icons/io5";
 
 const A = "/admin";
@@ -82,6 +83,12 @@ export const MENUS = [
     to: `${A}/venues`,
     icon: IoLocationOutline,
     label: "구장 관리",
+  },
+  {
+    key: "inquiries",
+    to: `${A}/inquiries`,
+    icon: IoMailOutline,
+    label: "1:1 문의",
   },
 
   // ━━━ 커뮤니티 ━━━
