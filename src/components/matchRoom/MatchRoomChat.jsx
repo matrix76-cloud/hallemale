@@ -38,7 +38,7 @@ const ChatScroll = styled.div`
 
 const SysMsg = styled.div`
   align-self: center;
-  font-size: 9.5px;
+  font-size: 12px;
   text-align: center;
   color: ${({ theme }) => mrp(theme.mode).t3};
   background: ${({ theme }) => mrp(theme.mode).surface};
@@ -59,15 +59,15 @@ const Bubble = styled.div`
 `;
 
 const Who = styled.div`
-  font-size: 9px;
+  font-size: 11.5px;
   color: ${({ theme }) => mrp(theme.mode).t3};
   padding: 0 4px;
 `;
 
 const Msg = styled.div`
-  font-size: 11.5px;
-  line-height: 1.45;
-  padding: 8px 11px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  padding: 9px 13px;
   border-radius: 14px;
   white-space: pre-line;
   word-break: break-word;
@@ -89,7 +89,7 @@ const Msg = styled.div`
 `;
 
 const Tm = styled.div`
-  font-size: 8.5px;
+  font-size: 10.5px;
   color: ${({ theme }) => mrp(theme.mode).t3};
   padding: 0 4px;
 `;
@@ -143,8 +143,8 @@ const Field = styled.input`
   background: ${({ theme }) => mrp(theme.mode).surface};
   border: 0.5px solid ${({ theme }) => mrp(theme.mode).line};
   border-radius: 30px;
-  padding: 8px 14px;
-  font-size: 11.5px;
+  padding: 10px 15px;
+  font-size: 14.5px;
   color: ${({ theme }) => mrp(theme.mode).t1};
   outline: none;
 

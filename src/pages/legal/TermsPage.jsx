@@ -213,8 +213,7 @@ export default function TermsPage() {
           <Head>
             <Title>{doc.title || "서비스 이용약관"}</Title>
             <Meta>
-              운영자: 할래말래컴퍼니
-              {doc.updatedAt ? ` · 최근 업데이트: ${fmtYmd(doc.updatedAt)}` : ""}
+              {doc.updatedAt ? `최근 업데이트: ${fmtYmd(doc.updatedAt)}` : ""}
             </Meta>
           </Head>
           <Divider />
@@ -241,7 +240,7 @@ export default function TermsPage() {
 
         <Head>
           <Title>서비스 이용약관</Title>
-          <Meta>운영자: 할래말래컴퍼니 · 최근 업데이트: 2025-12-18</Meta>
+          <Meta>최근 업데이트: 2025-12-18</Meta>
         </Head>
 
         <Toc aria-label="목차">
@@ -269,9 +268,9 @@ export default function TermsPage() {
 
           <H3>제1조 (목적)</H3>
           <P>
-            본 약관은 할래말래컴퍼니(이하 “운영자”)가 제공하는 생활체육 경기
-            매칭 플랫폼 “할래말래”(이하 “서비스”)의 이용과 관련하여 운영자와 이용자
-            간의 권리·의무 및 책임사항을 규정함을 목적으로 합니다.
+            본 약관은 운영자가 제공하는 생활체육 경기 매칭 플랫폼 “할래말래”(이하
+            “서비스”)의 이용과 관련하여 운영자와 이용자 간의 권리·의무 및 책임사항을
+            규정함을 목적으로 합니다.
           </P>
 
           <H3>제2조 (용어의 정의)</H3>

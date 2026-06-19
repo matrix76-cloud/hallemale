@@ -60,13 +60,15 @@ const Track = styled.div`
 const Slide = styled.div`
   min-width: 100%;
   width: 100%;
+  aspect-ratio: 2 / 1;
   flex-shrink: 0;
   position: relative;
 `;
 
 const SlideImg = styled.img`
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
   display: block;
 `;
 

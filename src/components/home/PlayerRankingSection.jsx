@@ -340,8 +340,8 @@ export default function PlayerRankingSection({ rows = [] }) {
           const clubName = p.clubName || "소속 없음";
 
           const isTop1 = rank === 1;
-          const isTop3 = rank === 3;
-          const highlight = isTop1 || isTop3;
+          const isNew = !!p.isNew; // 7일 내 랭킹 신규 진입자
+          const highlight = isTop1 || isNew;
 
           return (
             <RowWrap key={`${p.userId || index}-${rank}`}>
@@ -354,7 +354,7 @@ export default function PlayerRankingSection({ rows = [] }) {
                 ) : (
                   <RankNumber>{rank}</RankNumber>
                 )}
-                {isTop3 && <NewBadge>NEW</NewBadge>}
+                {isNew && <NewBadge>NEW</NewBadge>}
               </RankCell>
 
               <PlayerCard

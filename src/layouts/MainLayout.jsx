@@ -19,6 +19,7 @@ const Wrap = styled.div`
 
 const Main = styled.main`
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 `;
@@ -205,6 +206,7 @@ export default function MainLayout({ hideHeader = false }) {
     p.startsWith("/notification") ||
     p === "/matching" ||
     p.startsWith("/matching/analysis") ||
+    p.startsWith("/match-roomdetail") ||
     p.startsWith("/chats") ||
     p === "/terms" ||
     p === "/privacy" ||

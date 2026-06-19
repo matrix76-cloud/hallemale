@@ -71,7 +71,12 @@ const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
 /* ==================== 스타일 ==================== */
 
 const PageWrap = styled.div`
-  min-height: calc(100vh - 56px);
+  /* 채팅($dark)은 뷰포트에 꽉 차게 고정 → 페이지 스크롤 없이 입력창 하단 고정.
+     구장 정하기(venue)는 내용이 길어 스크롤 허용. */
+  ${({ $dark }) =>
+    $dark
+      ? `flex: 1; min-height: 0; overflow: hidden;`
+      : `min-height: calc(100vh - 56px);`}
   /* 페이지 배경을 채팅과 동일한 톤(mrp bg2)으로 통일 → 흰색/회색 섞임 방지 */
   background: ${({ theme }) => mrp(theme.mode).bg2};
   padding: ${({ $dark }) => ($dark ? "0" : "10px 0 24px")};
@@ -479,6 +484,27 @@ const ActNote = styled.div`
   color: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.6)" : "#6b7280")};
 `;
 
+/* ───── 채팅 메시지 위에 고정되는 제안 바 (accepted) ───── */
+const TopActionBar = styled.div`
+  padding: 8px 12px 10px;
+  background: ${({ theme }) => mrp(theme.mode).bg2};
+`;
+const TopActionBtn = styled.button`
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "linear-gradient(135deg,#7c6cff,#6c5ce7)"
+      : "#6c5ce7"};
+  box-shadow: 0 6px 16px -8px rgba(108, 92, 231, 0.6);
+`;
+
 const FieldMapWrap = styled.div`
   margin-top: 8px;
 `;
@@ -510,6 +536,82 @@ const DurationChip = styled.button`
   padding: 8px 13px;
   border-radius: 999px;
   cursor: pointer;
+`;
+
+/* ───── 시각(시작 시간) 탭 선택 — 고르면 그 시각부터 2시간 ───── */
+const TimeWrap = styled.div`
+  margin-top: 14px;
+`;
+const TimeHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+`;
+const TimeTitle = styled.div`
+  font-size: 13px;
+  font-weight: 800;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fff" : "#1f2937")};
+`;
+const TimeHint = styled.div`
+  font-size: 11px;
+  color: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.55)" : "#9ca3af")};
+`;
+const HourScroll = styled.div`
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  &::-webkit-scrollbar {
+    height: 0;
+  }
+`;
+const HourChip = styled.button`
+  flex: 0 0 auto;
+  min-width: 52px;
+  padding: 13px 0;
+  border-radius: 12px;
+  border: 1px solid
+    ${({ theme, $on }) =>
+      $on ? "#6c5ce7" : theme.mode === "dark" ? "rgba(255,255,255,.14)" : "#e5e7eb"};
+  background: ${({ theme, $on }) =>
+    $on ? "#6c5ce7" : theme.mode === "dark" ? theme.colors.surface : "#fff"};
+  color: ${({ $on, theme }) =>
+    $on ? "#fff" : theme.mode === "dark" ? "#e5e7eb" : "#374151"};
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: ${({ $on }) => ($on ? "none" : "0 1px 3px rgba(0,0,0,.06)")};
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.32;
+    text-decoration: line-through;
+    box-shadow: none;
+  }
+`;
+const TimeSummary = styled.div`
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 15px;
+  border-radius: 13px;
+  border: 1px solid
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(124,108,255,.4)" : "rgba(108,92,231,.35)")};
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,108,255,.1)" : "#f6f4fe")};
+`;
+const TimeRange = styled.div`
+  font-size: 16px;
+  font-weight: 800;
+  color: #6c5ce7;
+`;
+const TimeTotal = styled.div`
+  font-size: 12.5px;
+  font-weight: 600;
+  color: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.7)" : "#6b7280")};
 `;
 
 const CheckRow = styled.label`
@@ -713,11 +815,11 @@ const MatchInfoToggle = styled.span`
 `;
 
 const VsCard = styled.div`
-  background: ${({ theme }) => mrp(theme.mode).vsCardBg};
-  box-shadow: ${({ theme }) => mrp(theme.mode).vsCardShadow};
-  border: 0.5px solid ${({ theme }) => mrp(theme.mode).line2};
-  border-radius: 18px;
-  padding: 20px 16px 16px;
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  border-radius: 0;
+  padding: 8px 8px 4px;
   position: relative;
   overflow: hidden;
 
@@ -752,6 +854,7 @@ const VsTeam = styled.div`
   align-items: center;
   gap: 10px;
   min-width: 0;
+  cursor: pointer;
   text-align: center;
 `;
 
@@ -1096,6 +1199,11 @@ const MonthNavButton = styled.button`
   padding: 4px;
   cursor: pointer;
   color: ${({ theme }) => theme.colors.textWeak};
+
+  &:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
 `;
 
 const WeekRow = styled.div`
@@ -1150,6 +1258,15 @@ const DayCell = styled.button`
       color:${theme.colors.textStrong};
     `;
   }}
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.28;
+    background: transparent;
+    border: none;
+    color: ${({ theme }) => theme.colors.textWeak};
+    text-decoration: line-through;
+  }
 `;
 
 const NoticeText = styled.div`
@@ -1730,8 +1847,9 @@ export default function MatchRoomDetailPage() {
 
     const st = toStr(room?.status);
     const proposer = toStr(room?.proposedByClubId);
+    const wantCounter = !!location.state?.counter; // 받은 팀이 "다른 일정 제안"으로 진입
     if (st === "accepted") setEditMode(true);
-    else if (st === "proposed") setEditMode(!!myClubId && proposer === myClubId);
+    else if (st === "proposed") setEditMode(wantCounter || (!!myClubId && proposer === myClubId));
     else setEditMode(false);
 
     if (room.myScore != null) setMyScoreInput(String(room.myScore));
@@ -2343,13 +2461,20 @@ export default function MatchRoomDetailPage() {
   const todayM = today.getMonth();
   const todayD = today.getDate();
 
+  const todayMidnight = new Date(todayY, todayM, todayD);
+  const atCurrentMonth = calYear === todayY && calMonth === todayM;
+
   const handleDayClick = (day) => {
     if (!day) return;
+    // 지난 날짜는 선택 불가
+    if (new Date(calYear, calMonth, day) < todayMidnight) return;
     const dateStr = `${calYear}-${pad2(calMonth + 1)}-${pad2(day)}`;
     setSelectedDate(dateStr);
   };
 
   const goPrevMonth = () => {
+    // 이번 달보다 과거로는 이동 금지
+    if (atCurrentMonth) return;
     let y = calYear;
     let m = calMonth - 1;
     if (m < 0) {
@@ -2434,21 +2559,18 @@ export default function MatchRoomDetailPage() {
       </PropCard>
     ) : null;
 
-  // ───── 입력창 위 고정 액션바 ─────
-  let chatAboveInput = null;
+  // ───── 채팅 메시지 위에 고정되는 액션 바 (accepted / proposed 공통) ─────
+  let chatTopBar = null;
   if (status === "accepted") {
-    chatAboveInput = (
-      <ActBar>
-        <ActPrimary
-          type="button"
-          onClick={() => setMapPickerOpen(true)}
-        >
-          📍 구장·일정 제안하기
-        </ActPrimary>
-      </ActBar>
+    chatTopBar = (
+      <TopActionBar>
+        <TopActionBtn type="button" onClick={() => setMapPickerOpen(true)}>
+          구장·일정 제안하기
+        </TopActionBtn>
+      </TopActionBar>
     );
   } else if (status === "proposed") {
-    chatAboveInput = iAmProposer ? (
+    chatTopBar = iAmProposer ? (
       <ActStack>
         <ActNote>상대팀 응답을 기다리는 중…</ActNote>
         <ActRow>
@@ -2467,9 +2589,12 @@ export default function MatchRoomDetailPage() {
       <ActBar>
         <ActGhost
           type="button"
-          onClick={() => navigate(`/match-roomdetail/${roomId}/venue`)}
+          onClick={() => {
+            setEditMode(true);
+            navigate(`/match-roomdetail/${roomId}/venue`, { state: { counter: true } });
+          }}
         >
-          다른 일정·거절
+          다른 일정 제안
         </ActGhost>
         <ActPrimary
           type="button"
@@ -2500,7 +2625,10 @@ export default function MatchRoomDetailPage() {
               {matchInfoOpen && (
                 <VsCard>
                   <VsRow>
-                    <VsTeam>
+                    <VsTeam
+                      role="button"
+                      onClick={() => goTeamDetail(myTeamView)}
+                    >
                       <Crest $home>
                         {myTeamView?.logoUrl ? (
                           <CrestImg src={myTeamView.logoUrl} alt={myTeamView?.name} />
@@ -2515,7 +2643,10 @@ export default function MatchRoomDetailPage() {
                       <VsX>VS</VsX>
                     </VsMid>
 
-                    <VsTeam>
+                    <VsTeam
+                      role="button"
+                      onClick={() => goTeamDetail(oppTeamView)}
+                    >
                       <Crest>
                         {oppTeamView?.logoUrl ? (
                           <CrestImg src={oppTeamView.logoUrl} alt={oppTeamView?.name} />
@@ -2545,14 +2676,16 @@ export default function MatchRoomDetailPage() {
         </DarkHeader>
 
         {!isVenue ? (
-          <MatchRoomChat
-            chatId={chatId}
-            myUid={myUid}
-            opponentName={oppName}
-            systemNotice={chatSystemNotice}
-            pinnedCard={chatPinnedCard}
-            aboveInput={chatAboveInput}
-          />
+          <>
+            {chatTopBar}
+            <MatchRoomChat
+              chatId={chatId}
+              myUid={myUid}
+              opponentName={oppName}
+              systemNotice={chatSystemNotice}
+              pinnedCard={chatPinnedCard}
+            />
+          </>
         ) : (
           <>
         <Inner>
@@ -2717,10 +2850,9 @@ export default function MatchRoomDetailPage() {
                     <SectionTitleActions />
                   </SectionTitleRow>
 
-                  <DateTimeRow>
-                    <CalendarWrap>
+                  <CalendarWrap>
                       <CalendarHeader>
-                        <MonthNavButton type="button" onClick={goPrevMonth}>
+                        <MonthNavButton type="button" onClick={goPrevMonth} disabled={atCurrentMonth}>
                           ‹
                         </MonthNavButton>
                         <MonthLabel>
@@ -2744,12 +2876,14 @@ export default function MatchRoomDetailPage() {
                           const isToday = calYear === todayY && calMonth === todayM && day === todayD;
                           const dateStr = `${calYear}-${pad2(calMonth + 1)}-${pad2(day)}`;
                           const isSelected = selectedDate === dateStr;
+                          const isPast = new Date(calYear, calMonth, day) < todayMidnight;
 
                           return (
                             <DayCell
                               key={idx}
                               type="button"
                               onClick={() => handleDayClick(day)}
+                              disabled={isPast}
                               $isToday={isToday}
                               $isSelected={isSelected}
                             >
@@ -2758,35 +2892,85 @@ export default function MatchRoomDetailPage() {
                           );
                         })}
                       </DaysGrid>
-                    </CalendarWrap>
+                  </CalendarWrap>
 
-                    <TimeInput value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)} />
-                  </DateTimeRow>
-
-                  <DateValue>{combinedLabel}</DateValue>
-
-                  {/* (2-5) 경기 진행 시간 선택 */}
-                  <DurationWrap>
-                    <DurationLabel>⏱ 경기 시간</DurationLabel>
-                    <DurationRow>
-                      {[
-                        { m: 60, t: "1시간" },
-                        { m: 90, t: "1시간 30분" },
-                        { m: 120, t: "2시간" },
-                        { m: 150, t: "2시간 30분" },
-                        { m: 180, t: "3시간" },
-                      ].map((o) => (
-                        <DurationChip
-                          key={o.m}
-                          type="button"
-                          $on={durationMin === o.m}
-                          onClick={() => setDurationMin(o.m)}
-                        >
-                          {o.t}
-                        </DurationChip>
-                      ))}
-                    </DurationRow>
-                  </DurationWrap>
+                  {/* (2-4) 시작 시각 탭 → 그 시각부터 2시간 고정 */}
+                  <TimeWrap>
+                    <TimeHead>
+                      <TimeTitle>🕐 시간</TimeTitle>
+                      <TimeHint>시작·종료 시각을 탭</TimeHint>
+                    </TimeHead>
+                    <HourScroll>
+                      {Array.from({ length: 24 }, (_, i) => i).map((h) => {
+                        const hhmm = `${pad2(h)}:00`;
+                        const sH = selectedTime
+                          ? parseInt(selectedTime.slice(0, 2), 10)
+                          : null;
+                        // 선택된 칩 = 시작~마지막. 칩 개수 = 게임 시간(시간)
+                        const lastH = sH != null ? sH + durationMin / 60 - 1 : null;
+                        const on = sH != null && h >= sH && h <= lastH;
+                        // 선택한 날짜가 오늘이면 지난 시각은 선택 불가
+                        const selIsToday =
+                          selectedDate ===
+                          `${todayY}-${pad2(todayM + 1)}-${pad2(todayD)}`;
+                        const isPastHour =
+                          selIsToday &&
+                          (h < today.getHours() ||
+                            (h === today.getHours() && today.getMinutes() > 0));
+                        return (
+                          <HourChip
+                            key={h}
+                            type="button"
+                            $on={on}
+                            disabled={isPastHour}
+                            onClick={() => {
+                              if (isPastHour) return;
+                              if (!selectedTime) {
+                                setSelectedTime(hhmm);
+                                setDurationMin(60); // 하나 클릭 → 그 시각 하나(1시간)
+                                return;
+                              }
+                              const start = parseInt(selectedTime.slice(0, 2), 10);
+                              if (h === start) {
+                                // 시작 시각 다시 → 해제
+                                setSelectedTime("");
+                                setDurationMin(60);
+                              } else if (h > start) {
+                                const lastH = start + durationMin / 60 - 1;
+                                if (h === lastH) {
+                                  // 종료 시각 다시 탭 → 그 시각 제거(한 칸 축소)
+                                  setDurationMin(durationMin - 60);
+                                } else {
+                                  // 늦은 시각 → 그 시각 포함해 연속 선택 (7→10이면 7~10)
+                                  setDurationMin((h - start + 1) * 60);
+                                }
+                              } else {
+                                // 더 이른 시각 → 새 시작(하나)
+                                setSelectedTime(hhmm);
+                                setDurationMin(60);
+                              }
+                            }}
+                          >
+                            {h}
+                          </HourChip>
+                        );
+                      })}
+                    </HourScroll>
+                    {selectedTime ? (
+                      <TimeSummary>
+                        <TimeRange>
+                          {selectedTime} -{" "}
+                          {pad2(
+                            (parseInt(selectedTime.slice(0, 2), 10) +
+                              durationMin / 60) %
+                              24
+                          )}
+                          :00
+                        </TimeRange>
+                        <TimeTotal>총 {durationMin / 60}시간</TimeTotal>
+                      </TimeSummary>
+                    ) : null}
+                  </TimeWrap>
 
                   {/* (2-6) 시간대 안내 */}
                   <NoticeInfo style={{ marginTop: 10 }}>
@@ -3126,14 +3310,19 @@ export default function MatchRoomDetailPage() {
               </>
             ) : (
               <>
-                <NoticeText>상대팀이 일정/장소를 제안했어요. 확정하거나 수정 제안할 수 있어요.</NoticeText>
+                <NoticeText>
+                  다른 일정·구장으로 역제안할 수 있어요. (이 제안 수락은 채팅에서)
+                </NoticeText>
                 <ActionsWrap>
-                  <PrimaryButton type="button" onClick={handleConfirmSchedule} disabled={!canConfirm}>
-                    일정 확정
-                  </PrimaryButton>
-                  <MutedButton type="button" onClick={() => setEditMode(true)}>
-                    수정 제안
-                  </MutedButton>
+                  {editMode ? (
+                    <PrimaryButton type="button" onClick={handlePropose} disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng}>
+                      역제안 보내기
+                    </PrimaryButton>
+                  ) : (
+                    <PrimaryButton type="button" onClick={() => setEditMode(true)}>
+                      다른 일정·구장 제안하기
+                    </PrimaryButton>
+                  )}
                   <SecondaryButton type="button" onClick={handleCancelMatch}>
                     매칭 취소
                   </SecondaryButton>

@@ -387,7 +387,6 @@ export default function MatchRoomListPage() {
       rooms.filter(
         (r) =>
           r.status === "finished" ||
-          r.status === "cancelled" ||
           (r.status === "confirmed" && isStarted(r))
       ),
     [rooms]

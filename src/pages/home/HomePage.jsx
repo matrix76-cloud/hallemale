@@ -35,11 +35,12 @@ const Content = styled.div`
 `;
 
 const TickerRow = styled.div`
-  margin: -16px -16px 0;
+  /* 좌우 패딩 없이 화면 끝까지 (PageContainer 16px 상쇄) */
+  margin: 0 -16px;
 `;
 
 const HeroRow = styled.div`
-  margin: 0 -16px 0;
+  margin: -16px -16px 0;
 `;
 
 const Inner = styled.div`
@@ -150,7 +151,9 @@ export default function HomePage() {
 
         <Inner>
           <TeamProfileSection team={myTeam} rank={myTeamRank || 1} matchRoomCounts={matchRoomCounts} />
-          <WinningTickerBar items={winningTeamsHighlight} />
+          <TickerRow>
+            <WinningTickerBar items={winningTeamsHighlight} />
+          </TickerRow>
           <WinningTeamsSection items={winningTeamsHighlight} />
           <TeamRankingSection rows={teamRankingTop5} />
           <PlayerRankingSection rows={playerRankingTop5} />

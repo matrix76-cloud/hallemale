@@ -8,20 +8,21 @@ import { useClub } from "../../hooks/useClub";
 import { useHomeData } from "../../hooks/useHomeData";
 import { useMatchingData } from "../../hooks/useMatchingData";
 
-import splashImg from "../../assets/images/splash_hallemalla.png";
+import splashImg from "../../assets/images/splash_player.png";
 import { runSchemaDumpFront } from "../../services/schemaDumpService";
 
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+// 실사 사진이 천천히 확대되는 Ken Burns 줌 + 페이드인
+const kenBurns = keyframes`
+  0%   { opacity: 0; transform: scale(1); }
+  18%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1.1); }
 `;
 
 const Wrap = styled.div`
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.bg : "#f3f4f6"};
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -30,11 +31,11 @@ const Wrap = styled.div`
 const SplashImage = styled.img`
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   display: block;
-
-  opacity: 0;
-  animation: ${fadeIn} 1200ms ease-out forwards;
+  transform-origin: 50% 42%;
+  will-change: transform, opacity;
+  animation: ${kenBurns} 2600ms ease-out both;
 `;
 
 export default function SplashPage() {
@@ -57,7 +58,7 @@ export default function SplashPage() {
 
     if (!isLoggedIn) {
       onceRef.current = true;
-      const t = setTimeout(() => navigate("/welcome", { replace: true }), 1200);
+      const t = setTimeout(() => navigate("/welcome", { replace: true }), 2200);
       return () => clearTimeout(t);
     }
 
@@ -67,7 +68,7 @@ export default function SplashPage() {
 
     (async () => {
       const startedAt = Date.now();
-      const MIN_SPLASH_MS = 1200;
+      const MIN_SPLASH_MS = 2200;
 
       try {
         const tasks = [];

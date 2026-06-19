@@ -7,10 +7,55 @@ import {
   doc,
   getDoc,
   getDocs,
+  setDoc,
   query,
   limit,
 } from "firebase/firestore";
 import { listPlayerRankingTopApprox } from "./rankingService";
+
+// 랭킹 신규 진입자 판정(NEW): rankings/playerTop 스냅샷에 "처음 진입 시각" 기록.
+// - 일주일 전엔 이 순위에 없던 사람만 isNew=true (진입 후 7일간)
+// - 최초 스냅샷(이전 기록 없음)은 baseline → 아무도 NEW 아님
+async function applyPlayerRankingNew(players) {
+  const list = Array.isArray(players) ? players : [];
+  const NEW_MS = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  try {
+    const ref = doc(db, "rankings", "playerTop");
+    const snap = await getDoc(ref);
+    const existed = snap.exists();
+    const prev = (existed && snap.data()?.firstSeen) || {};
+
+    const nextFirstSeen = {};
+    for (const p of list) {
+      const uid = String(p?.userId || "").trim();
+      if (!uid) continue;
+      nextFirstSeen[uid] = Number(prev[uid]) > 0 ? Number(prev[uid]) : now;
+    }
+
+    // 변경(진입/이탈/신규) 있을 때만 기록
+    const prevKeys = Object.keys(prev).sort().join(",");
+    const nextKeys = Object.keys(nextFirstSeen).sort().join(",");
+    const changed =
+      !existed ||
+      prevKeys !== nextKeys ||
+      Object.keys(nextFirstSeen).some(
+        (k) => Number(prev[k]) !== Number(nextFirstSeen[k])
+      );
+    if (changed) {
+      await setDoc(ref, { firstSeen: nextFirstSeen, updatedAt: now }, { merge: false });
+    }
+
+    return list.map((p) => {
+      const uid = String(p?.userId || "").trim();
+      const fs = Number(nextFirstSeen[uid]);
+      return { ...p, isNew: existed && fs > 0 && now - fs < NEW_MS };
+    });
+  } catch (e) {
+    console.warn("[homeService] applyPlayerRankingNew failed:", e?.message || e);
+    return list.map((p) => ({ ...p, isNew: false }));
+  }
+}
 
 let _countApiChecked = false;
 let _getCountFromServer = null;
@@ -392,11 +437,13 @@ export async function loadHomePageData({ uid } = {}) {
   // const playerRankingTop5 = await buildPlayerRankingTop5(db);
 
 
-  const playerRankingTop5 = await listPlayerRankingTopApprox({
+  let playerRankingTop5 = await listPlayerRankingTopApprox({
     top: 5,
     candidateSize: 200,
     debugLog: false,
   });
+  // 랭킹 신규 진입자(NEW): 7일 전엔 이 순위에 없던 사람만 isNew=true
+  playerRankingTop5 = await applyPlayerRankingNew(playerRankingTop5);
 
   // ✅ 즐겨찾기 로드
   const favoriteTeamIds = Array.isArray(me?.favoriteTeamIds)

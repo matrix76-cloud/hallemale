@@ -99,25 +99,7 @@ export default function MapLocationPicker({
         setPickAddr(initialAddress);
       }
       reverseGeocode(start.lat, start.lng);
-
-      // 저장된 유효 좌표가 없으면 현재 위치로 이동
-      if (!valid && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (cancelled || mapObjRef.current !== map) return;
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-            centerRef.current = { lat, lng };
-            try {
-              map.setCenter(new kakao.maps.LatLng(lat, lng));
-            } catch (e) {}
-            reverseGeocode(lat, lng);
-          },
-          () => {},
-          { enableHighAccuracy: true, timeout: 8000 }
-        );
-      }
+      // (현재 위치 자동 이동 제거 — 위치 권한 알림창 안 뜨게)
     };
 
     if (typeof kakao.maps.load === "function") {
@@ -236,9 +218,6 @@ export default function MapLocationPicker({
             <Mk>📍</Mk>
             <PinShadow />
           </CenterPin>
-          <MyLoc type="button" onClick={goMyLocation}>
-            🎯
-          </MyLoc>
         </MapArea>
 
         <PickCard>

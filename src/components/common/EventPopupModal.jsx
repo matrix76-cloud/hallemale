@@ -9,6 +9,7 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
 import { listVisibleEventPopups } from "../../services/eventPopupsService";
+import { useAuth } from "../../hooks/useAuth";
 
 const Overlay = styled.div`
   position: fixed;
@@ -116,20 +117,27 @@ function dismissForToday(id) {
 export default function EventPopupModal() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { isLoggedIn, loading: authLoading } = useAuth();
 
   const [popup, setPopup] = useState(null);
   const [closed, setClosed] = useState(false);
 
-  const isAdminPath = String(location.pathname || "").startsWith("/admin");
+  const pathname = String(location.pathname || "");
+  const isAdminPath = pathname.startsWith("/admin");
+  // 스플래시(/) · 인증 화면에서는 표시 안 함 → 로그인 후 홈 등 실제 화면에서만
+  const isSplashPath = pathname === "/" || pathname === "/index.html";
   const isAuthPath =
-    String(location.pathname || "").startsWith("/login") ||
-    String(location.pathname || "").startsWith("/welcome") ||
-    String(location.pathname || "").startsWith("/signup") ||
-    String(location.pathname || "").startsWith("/find-") ||
-    String(location.pathname || "").startsWith("/link-phone");
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/welcome") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/find-") ||
+    pathname.startsWith("/link-phone");
+
+  // 로그인 완료 + 어드민/인증/스플래시가 아닌 실제 화면에서만 노출
+  const blocked = isAdminPath || isAuthPath || isSplashPath || authLoading || !isLoggedIn;
 
   useEffect(() => {
-    if (isAdminPath || isAuthPath) return;
+    if (blocked) return;
 
     let alive = true;
     (async () => {
@@ -145,9 +153,9 @@ export default function EventPopupModal() {
     return () => {
       alive = false;
     };
-  }, [isAdminPath, isAuthPath]);
+  }, [blocked, pathname]);
 
-  if (isAdminPath || isAuthPath) return null;
+  if (blocked) return null;
   if (!popup || closed) return null;
 
   const handleDismissToday = () => {

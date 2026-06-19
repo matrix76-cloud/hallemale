@@ -218,8 +218,7 @@ export default function PrivacyPage() {
           <Head>
             <Title>{doc.title || "개인정보처리방침"}</Title>
             <Meta>
-              운영자: 할래말래컴퍼니
-              {doc.updatedAt ? ` · 최근 업데이트: ${fmtYmd(doc.updatedAt)}` : ""}
+              {doc.updatedAt ? `최근 업데이트: ${fmtYmd(doc.updatedAt)}` : ""}
             </Meta>
           </Head>
           <Divider />
@@ -247,7 +246,7 @@ export default function PrivacyPage() {
 
         <Head>
           <Title>개인정보처리방침</Title>
-          <Meta>운영자: 할래말래컴퍼니 · 최근 업데이트: 2025-12-18</Meta>
+          <Meta>최근 업데이트: 2025-12-18</Meta>
         </Head>
 
         <Toc aria-label="목차">

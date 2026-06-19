@@ -28,6 +28,12 @@ function mergeDocsById(a, b) {
   return Object.values(map);
 }
 
+// 확정 경기는 시작시각(scheduledAt) 도달 시 '지난 경기'로 이동 (목록 페이지와 동일 기준)
+function isStarted(r) {
+  const t = r?.scheduledAt ? new Date(r.scheduledAt).getTime() : NaN;
+  return Number.isFinite(t) && Date.now() >= t;
+}
+
 function countByStatus(rows) {
   let ongoing = 0;
   let confirmed = 0;
@@ -36,8 +42,11 @@ function countByStatus(rows) {
   for (const r of rows || []) {
     const st = toStr(r?.status);
     if (st === "accepted" || st === "proposed") ongoing += 1;
-    else if (st === "confirmed") confirmed += 1;
-    else if (st === "finished") past += 1;
+    else if (st === "confirmed") {
+      if (isStarted(r)) past += 1; // 시작된 확정 경기 → 지난 경기
+      else confirmed += 1;
+    } else if (st === "finished") past += 1;
+    // cancelled는 어디에도 카운트하지 않음
   }
 
   return { ongoing, confirmed, past };
