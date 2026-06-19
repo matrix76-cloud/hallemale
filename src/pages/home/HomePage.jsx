@@ -2,7 +2,7 @@
 // (Context 기반: HomePage에서 loadHomePageData 직접 호출 금지)
 /* eslint-disable */
 import React, { useMemo, useEffect } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
 
 import HomeHeroBanner from "../../components/home/HomeHeroBanner";
@@ -63,6 +63,41 @@ const LoadingCenter = styled.div`
   padding: 24px 0;
 `;
 
+/* ───── 홈 로딩 스켈레톤 ───── */
+const shimmer = keyframes`
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+`;
+const SkelBlock = styled.div`
+  position: relative;
+  overflow: hidden;
+  border-radius: ${({ $r }) => $r || 12}px;
+  height: ${({ $h }) => $h || 120}px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#e9ecef"};
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      ${({ theme }) =>
+        theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.65)"},
+      transparent
+    );
+    animation: ${shimmer} 1.4s ease-in-out infinite;
+  }
+`;
+const SkelInner = styled.div`
+  padding: 16px 10px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`;
+
 export default function HomePage() {
   const navigate = useNavigate();
   const { firebaseUser, userDoc, isLoggedIn, loading: authLoading } = useAuth();
@@ -120,13 +155,13 @@ export default function HomePage() {
             <HomeHeroBanner />
           </HeroRow>
 
-          <LoadingCenter>
-            <Spinner />
-          </LoadingCenter>
-
-          <FooterBleed>
-            <AppFooter brand="할래말래" links={footerLinks} />
-          </FooterBleed>
+          {/* 스피너 대신 스켈레톤으로 채워 휑한 느낌 제거 */}
+          <SkelInner>
+            <SkelBlock $h={96} />
+            <SkelBlock $h={34} $r={10} />
+            <SkelBlock $h={150} />
+            <SkelBlock $h={150} />
+          </SkelInner>
         </Content>
       </Wrap>
     );
