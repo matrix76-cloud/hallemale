@@ -1,9 +1,9 @@
 /* eslint-disable */
-// src/pages/CommunityListPage.jsx
-// ✅ 좋아요 표시: react-icons (FiHeart)로 메타에 추가
-// ✅ 상단 경기 스트립: Firestore games(오늘 날짜) → TodayMatchesStripFlat이 기대하는 "그룹 데이터"로 변환
-// ✅ 로고 표시: TodayMatchesStripFlat에서 쓰는 homeLogo/awayLogo/home/away 메타를 채워줌
-// ✅ 경기 없으면 탭은 보여주고 클릭 시 "금일 예정된 경기 없습니다"
+// src/pages/community/CommunityListPage.jsx
+// ✅ 카테고리 탭(자유/상대모집/경기후기)으로 필터링
+// ✅ 상대모집 탭: 최근 24시간 내 새 글 있으면 N 뱃지
+// ✅ 글 메타: ♥좋아요 · 💬댓글 · 작성자 · 시간(상대시간)
+// ✅ 글쓰기: 우하단 "✏️ 글쓰기" 알약 버튼
 
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
@@ -11,17 +11,16 @@ import { useNavigate } from "react-router-dom";
 import { loadCommunityList } from "../../services/communityService";
 import { useAuth } from "../../hooks/useAuth";
 import FilterSearchBar from "../../components/common/FilterSearchBar";
-import { FiHeart } from "react-icons/fi";
-import TodayMatchesStripFlat from "../../components/community/TodayMatchesStripFlat";
-import { listTodayBasketballGames } from "../../services/gamesService";
-import { images } from "../../utils/imageAssets";
+import { FiHeart, FiMessageCircle, FiEdit3, FiUsers, FiAward } from "react-icons/fi";
 import EmptyState from "../../components/common/EmptyState";
 
-const HERO_BY_COMMENTS = 15;
-const HERO_BY_VIEWS = 300;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-const HALF_BY_COMMENTS = 5;
-const HALF_BY_VIEWS = 100;
+const CATEGORIES = [
+  { key: "free", label: "자유", Icon: FiMessageCircle },
+  { key: "recruit", label: "상대모집", Icon: FiUsers },
+  { key: "review", label: "경기후기", Icon: FiAward },
+];
 
 /* =============== 레이아웃 =============== */
 
@@ -39,6 +38,66 @@ const Inner = styled.div`
 
 const SearchWrap = styled.div`
   margin-top: 6px;
+`;
+
+/* =============== 카테고리 탭 =============== */
+
+const TabBar = styled.div`
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  max-width: 480px;
+  margin: 0 auto;
+`;
+
+const TabButton = styled.button`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid
+    ${({ theme, $active }) =>
+      $active
+        ? theme.colors.primary
+        : theme.mode === "dark"
+        ? theme.colors.border
+        : "rgba(0,0,0,0.10)"};
+  background: ${({ theme, $active }) =>
+    $active
+      ? theme.mode === "dark"
+        ? "rgba(124,92,255,0.18)"
+        : "#eef2ff"
+      : theme.mode === "dark"
+      ? theme.colors.surface
+      : "#ffffff"};
+  color: ${({ theme, $active }) =>
+    $active ? theme.colors.primary : theme.colors.textNormal};
+
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
+const TabBadge = styled.span`
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.danger || "#ef4444"};
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
 `;
 
 /* =============== 구분 라인 =============== */
@@ -71,16 +130,17 @@ const FloatingWriteButton = styled.button`
   position: fixed;
   right: 18px;
   bottom: 90px;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
   border: none;
   background: ${({ theme }) => theme.colors.primary};
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 25px;
+  font-size: 15px;
+  font-weight: 700;
   color: #ffffff;
   cursor: pointer;
 
@@ -89,54 +149,7 @@ const FloatingWriteButton = styled.button`
   }
 `;
 
-/* =============== 공용 메타/텍스트 =============== */
-
-const MetaRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: ${({ theme }) => theme.colors.textWeak};
-`;
-
-const Dot = styled.span`
-  &::before {
-    content: "·";
-    margin: 0 2px;
-  }
-`;
-
-const LikeMeta = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-`;
-
-const LikeIcon = styled(FiHeart)`
-  font-size: 12px;
-`;
-
-const TitleText = styled.div`
-  font-size: ${({ $big }) => ($big ? "17px" : "15px")};
-  font-weight: ${({ $big }) => ($big ? 700 : 600)};
-  color: ${({ theme }) => theme.colors.textStrong};
-  line-height: 1.45;
-  word-break: break-word;
-`;
-
-const Snippet = styled.div`
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.55;
-  color: ${({ theme }) => theme.colors.textNormal};
-  display: -webkit-box;
-  -webkit-line-clamp: ${({ $lines }) => $lines || 2};
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-`;
-
-/* =============== 카드 3종 =============== */
+/* =============== 게시글 행 =============== */
 
 const CardBtn = styled.button`
   width: 100%;
@@ -144,25 +157,86 @@ const CardBtn = styled.button`
   background: transparent;
   cursor: pointer;
   text-align: left;
-  margin: 10px 0px;
+  padding: 0;
 
   &:active {
     opacity: 0.85;
   }
 `;
 
-/* ----- Level 1: compact ----- */
-const CompactRow = styled.div`
-  padding: 15px 0;
+const PostRow = styled.div`
+  padding: 14px 12px;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
 `;
 
-const CompactThumb = styled.div`
-  flex: 0 0 60px;
-  height: 60px;
-  border-radius: 6px;
+const PostBody = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+`;
+
+const TitleText = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  line-height: 1.4;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+`;
+
+const Snippet = styled.div`
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textNormal};
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+`;
+
+const MetaRow = styled.div`
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const MetaItem = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  svg {
+    font-size: 13px;
+  }
+`;
+
+const MetaAuthor = styled.span`
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-weight: 600;
+`;
+
+const Dot = styled.span`
+  &::before {
+    content: "·";
+    margin: 0 4px;
+  }
+`;
+
+const RightThumb = styled.div`
+  flex: 0 0 76px;
+  width: 76px;
+  height: 76px;
+  border-radius: 8px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
@@ -176,242 +250,22 @@ const ThumbImg = styled.div`
   background-position: center;
 `;
 
-const CompactBody = styled.div`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-`;
+/* =============== 헬퍼 =============== */
 
-/* ----- Level 2: half image ----- */
-
-const HalfRow = styled.div`
-  display: flex;
-  gap: 12px;
-  align-items: stretch;
-  flex-direction: ${({ $reverse }) => ($reverse ? "row-reverse" : "row")};
-`;
-
-const HalfMedia = styled.div`
-  flex: 0 0 46%;
-  max-width: 46%;
-  border-radius: 8px;
-  overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  height: 102px;
-`;
-
-const HalfMediaImg = styled.div`
-  width: 100%;
-  height: 100%;
-  background-image: ${({ src }) => `url(${src})`};
-  background-size: cover;
-  background-position: center;
-`;
-
-const HalfBody = styled.div`
-  flex: 1;
-  min-width: 0;
-  padding-top: 2px;
-`;
-
-/* ----- Level 3: hero ----- */
-const HeroWrap = styled.div`
-  padding: 14px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`;
-
-const HeroMedia = styled.div`
-  width: 100%;
-  border-radius: 8px;
-  overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  height: 190px;
-`;
-
-const HeroMediaImg = styled.div`
-  width: 100%;
-  height: 100%;
-  background-image: ${({ src }) => `url(${src})`};
-  background-size: cover;
-  background-position: center;
-`;
-
-const HeroBody = styled.div`
-  padding: 0 2px;
-`;
-
-/* ----- 텍스트 히어로(이미지 없는데 레벨2/3) ----- */
-const TextHero = styled.div`
-  padding: 14px 0;
-`;
-
-const TextHeroBox = styled.div`
-  border-radius: 8px;
-  padding: 14px 14px 16px;
-  background: ${({ theme }) =>
-    theme.mode === "dark"
-      ? `linear-gradient(135deg, ${theme.colors.surface} 0%, ${theme.colors.card} 60%, ${theme.colors.card} 100%)`
-      : "linear-gradient(135deg, #eef2ff 0%, #f3f4f6 60%, #ffffff 100%)"};
-  border: 1px solid ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.border : "rgba(0, 0, 0, 0.04)"};
-`;
-
-const TopArea = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`;
-
-const TodayLoadingHint = styled.div`
-  padding: 0 16px;
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textWeak};
-`;
-
-function getLevel(post) {
-  const views = Number(post?.views || 0);
-  const comments = Number(post?.commentsCount || 0);
-
-  if (comments >= HERO_BY_COMMENTS || views >= HERO_BY_VIEWS) return 3;
-  if (comments >= HALF_BY_COMMENTS || views >= HALF_BY_VIEWS) return 2;
-  return 1;
-}
-
-function buildMetaText(post) {
-  const likes = Number(post?.likes || 0);
-
-  return (
-    <MetaRow>
-      <span>{post.authorName}</span>
-      <Dot />
-      <span>{post.createdAt}</span>
-      <Dot />
-      <span>조회 {post.views}</span>
-      <Dot />
-      <span>댓글 {post.commentsCount}</span>
-      <>
-        <Dot />
-        <LikeMeta>
-          <LikeIcon />
-          {likes}
-        </LikeMeta>
-      </>
-    </MetaRow>
-  );
-}
-
-function leagueLabel(league) {
-  const l = String(league || "").toLowerCase().trim();
-  if (l === "nba") return "NBA";
-  if (l === "kbl") return "KBL";
-  return "농구";
-}
-
-function safeLogoUrl(v) {
-  const s = String(v || "").trim();
-  return s || (images?.logo || "");
-}
-
-function pickTeamLogo(team) {
-  if (!team) return safeLogoUrl("");
-  return (
-    safeLogoUrl(team.logoUrl) ||
-    safeLogoUrl(team.logo) ||
-    safeLogoUrl(team.logoPath) ||
-    safeLogoUrl(team.imageUrl) ||
-    safeLogoUrl(team.image) ||
-    safeLogoUrl("")
-  );
-}
-
-function buildItemFromGame(g) {
-  const homeObj = g?.home || {};
-  const awayObj = g?.away || {};
-
-  const homeName = String(homeObj?.name || "").trim();
-  const awayName = String(awayObj?.name || "").trim();
-
-  const homeLogo = pickTeamLogo(homeObj) || safeLogoUrl(images?.logo);
-  const awayLogo = pickTeamLogo(awayObj) || safeLogoUrl(images?.logo);
-
-  const title =
-    homeName && awayName ? `${homeName} vs ${awayName}` : String(g?.leagueName || "오늘 경기");
-
-  const time = String(g?.startTime || "").trim();
-  const stadium = String(g?.stadium || "").trim();
-  const sub = [time, stadium].filter(Boolean).join(" · ");
-
-  const league = String(g?.league || "").toLowerCase().trim();
-  const status = String(g?.status || "").toLowerCase().trim();
-  const badge = status === "live" ? "LIVE" : leagueLabel(league);
-
-  return {
-    id: String(g?.gameId || g?.id || ""),
-    key: String(g?.gameId || g?.id || ""),
-    title,
-    sub,
-    badge,
-    league,
-    empty: false,
-
-    // ✅ TodayMatchesStripFlat 로고/팀 정보
-    home: { name: homeName, logoUrl: homeLogo },
-    away: { name: awayName, logoUrl: awayLogo },
-    homeLogo,
-    awayLogo,
-
-    raw: g,
-  };
-}
-
-function buildEmptyItemForLeague(league) {
-  const l = String(league || "").toLowerCase().trim();
-  const label = leagueLabel(l);
-  const fallback = safeLogoUrl(images?.logo);
-
-  return {
-    id: `${l}-empty`,
-    key: `${l}-empty`,
-    title: label,
-    sub: "금일 예정된 경기 없습니다",
-    badge: label,
-    league: l,
-    empty: true,
-
-    // ✅ empty도 로고 필드 채워서 깨진 이미지 방지
-    home: { name: "", logoUrl: fallback },
-    away: { name: "", logoUrl: fallback },
-    homeLogo: fallback,
-    awayLogo: fallback,
-
-    raw: null,
-  };
-}
-
-function buildStripGroupsFromItems(items) {
-  const safeItems = Array.isArray(items) ? items : [];
-
-  const kblItems = safeItems.filter((x) => String(x?.league || "").toLowerCase() === "kbl");
-  const nbaItems = safeItems.filter((x) => String(x?.league || "").toLowerCase() === "nba");
-
-  const featured =
-    safeItems.length > 0
-      ? safeItems
-      : [buildEmptyItemForLeague("kbl"), buildEmptyItemForLeague("nba")];
-
-  const kbl = kblItems.length > 0 ? kblItems : [buildEmptyItemForLeague("kbl")];
-  const nba = nbaItems.length > 0 ? nbaItems : [buildEmptyItemForLeague("nba")];
-
-  return [
-    { key: "featured", label: "주요 경기", items: featured },
-    { key: "kbl", label: "KBL", items: kbl },
-    { key: "nba", label: "NBA", items: nba },
-  ];
+function timeAgo(ms) {
+  if (!ms) return "";
+  const diff = Date.now() - Number(ms);
+  if (diff < 0) return "방금";
+  const m = 60 * 1000;
+  const h = 60 * m;
+  const d = 24 * h;
+  if (diff < m) return "방금";
+  if (diff < h) return `${Math.floor(diff / m)}분 전`;
+  if (diff < d) return `${Math.floor(diff / h)}시간 전`;
+  if (diff < 2 * d) return "어제";
+  if (diff < 7 * d) return `${Math.floor(diff / d)}일 전`;
+  const date = new Date(Number(ms));
+  return `${date.getMonth() + 1}.${date.getDate()}`;
 }
 
 export default function CommunityListPage() {
@@ -423,9 +277,7 @@ export default function CommunityListPage() {
   const [loading, setLoading] = useState(true);
   const [errText, setErrText] = useState("");
   const [q, setQ] = useState("");
-
-  const [stripData, setStripData] = useState(() => buildStripGroupsFromItems([]));
-  const [todayLoading, setTodayLoading] = useState(true);
+  const [activeCat, setActiveCat] = useState("free");
 
   useEffect(() => {
     let alive = true;
@@ -462,49 +314,30 @@ export default function CommunityListPage() {
     };
   }, [myUid]);
 
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      setTodayLoading(true);
-
-      try {
-        const out = await listTodayBasketballGames({
-          leagues: ["kbl", "nba"],
-          limitCount: 120,
-        });
-
-        if (!alive) return;
-
-        const items = (out?.games || []).map(buildItemFromGame).filter((x) => !!x?.id);
-
-        setStripData(buildStripGroupsFromItems(items));
-      } catch (e) {
-        console.error("[CommunityListPage] today games load failed:", e?.code, e?.message, e);
-        if (!alive) return;
-        setStripData(buildStripGroupsFromItems([]));
-      } finally {
-        if (!alive) return;
-        setTodayLoading(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // 상대모집 탭: 최근 24시간 내 새 글 존재 여부 → N 뱃지
+  const recruitHasNew = useMemo(() => {
+    const now = Date.now();
+    return (posts || []).some(
+      (p) =>
+        String(p.category || "free") === "recruit" &&
+        p.createdAtMs &&
+        now - p.createdAtMs < DAY_MS
+    );
+  }, [posts]);
 
   const filteredPosts = useMemo(() => {
     const key = String(q || "").trim().toLowerCase();
-    if (!key) return posts;
 
-    return (posts || []).filter((p) => {
-      const title = String(p.title || "").toLowerCase();
-      const content = String(p.content || "").toLowerCase();
-      const author = String(p.authorName || "").toLowerCase();
-      return title.includes(key) || content.includes(key) || author.includes(key);
-    });
-  }, [posts, q]);
+    return (posts || [])
+      .filter((p) => String(p.category || "free") === activeCat)
+      .filter((p) => {
+        if (!key) return true;
+        const title = String(p.title || "").toLowerCase();
+        const content = String(p.content || "").toLowerCase();
+        const author = String(p.authorName || "").toLowerCase();
+        return title.includes(key) || content.includes(key) || author.includes(key);
+      });
+  }, [posts, q, activeCat]);
 
   const handleClickPost = (postId) => () => {
     navigate(`/communitypost/${postId}`);
@@ -517,106 +350,57 @@ export default function CommunityListPage() {
   const hasPosts = filteredPosts && filteredPosts.length > 0;
 
   const renderPost = (post) => {
-    const level = getLevel(post);
     const hasImage = !!post.image;
-
-    if (level === 3) {
-      if (hasImage) {
-        return (
-          <CardBtn onClick={handleClickPost(post.id)}>
-            <HeroWrap>
-              <HeroMedia>
-                <HeroMediaImg src={post.image} />
-              </HeroMedia>
-              <HeroBody>
-                <TitleText $big>{post.title}</TitleText>
-                <Snippet $lines={2}>{post.content}</Snippet>
-                <div style={{ marginTop: 8 }}>{buildMetaText(post)}</div>
-              </HeroBody>
-            </HeroWrap>
-          </CardBtn>
-        );
-      }
-
-      return (
-        <CardBtn onClick={handleClickPost(post.id)}>
-          <TextHero>
-            <TextHeroBox>
-              <TitleText $big>{post.title}</TitleText>
-              <Snippet $lines={3}>{post.content}</Snippet>
-              <div style={{ marginTop: 10 }}>{buildMetaText(post)}</div>
-            </TextHeroBox>
-          </TextHero>
-        </CardBtn>
-      );
-    }
-
-    if (level === 2) {
-      if (hasImage) {
-        return (
-          <CardBtn onClick={handleClickPost(post.id)}>
-            <HalfRow $reverse>
-              <HalfMedia>
-                <HalfMediaImg src={post.image} />
-              </HalfMedia>
-              <HalfBody>
-                <TitleText>{post.title}</TitleText>
-                <div style={{ marginTop: 8 }}>{buildMetaText(post)}</div>
-              </HalfBody>
-            </HalfRow>
-          </CardBtn>
-        );
-      }
-
-      return (
-        <CardBtn onClick={handleClickPost(post.id)}>
-          <TextHero>
-            <TextHeroBox>
-              <TitleText>{post.title}</TitleText>
-              <Snippet $lines={2}>{post.content}</Snippet>
-              <div style={{ marginTop: 8 }}>{buildMetaText(post)}</div>
-            </TextHeroBox>
-          </TextHero>
-        </CardBtn>
-      );
-    }
 
     return (
       <CardBtn onClick={handleClickPost(post.id)}>
-        <CompactRow>
-          {hasImage && (
-            <CompactThumb>
-              <ThumbImg src={post.image} />
-            </CompactThumb>
-          )}
-
-          <CompactBody>
+        <PostRow>
+          <PostBody>
             <TitleText>{post.title}</TitleText>
-            <div style={{ marginTop: 6 }}>{buildMetaText(post)}</div>
-          </CompactBody>
-        </CompactRow>
+            {post.content ? <Snippet>{post.content}</Snippet> : null}
+            <MetaRow>
+              <MetaItem>
+                <FiHeart />
+                {Number(post.likes || 0)}
+              </MetaItem>
+              <MetaItem>
+                <FiMessageCircle />
+                {Number(post.commentsCount || 0)}
+              </MetaItem>
+              <span>
+                <MetaAuthor>{post.authorName}</MetaAuthor>
+                <Dot />
+                {timeAgo(post.createdAtMs)}
+              </span>
+            </MetaRow>
+          </PostBody>
+
+          {hasImage && (
+            <RightThumb>
+              <ThumbImg src={post.image} />
+            </RightThumb>
+          )}
+        </PostRow>
       </CardBtn>
     );
   };
 
   return (
     <PageWrap>
-      <TopArea>
-        <TodayMatchesStripFlat
-          data={stripData}
-          initialKey="featured"
-          onItemClick={(it) => {
-            if (it?.empty) {
-              window.alert("금일 예정된 경기 없습니다");
-              return;
-            }
-          }}
-        />
-
-        {todayLoading && (
-          <TodayLoadingHint>오늘 경기 불러오는 중…</TodayLoadingHint>
-        )}
-      </TopArea>
+      <TabBar>
+        {CATEGORIES.map(({ key, label, Icon }) => (
+          <TabButton
+            key={key}
+            type="button"
+            $active={activeCat === key}
+            onClick={() => setActiveCat(key)}
+          >
+            <Icon />
+            {label}
+            {key === "recruit" && recruitHasNew && <TabBadge>N</TabBadge>}
+          </TabButton>
+        ))}
+      </TabBar>
 
       <Inner>
         <SearchWrap>
@@ -640,7 +424,8 @@ export default function CommunityListPage() {
       </Inner>
 
       <FloatingWriteButton type="button" onClick={handleClickWrite}>
-        +
+        <FiEdit3 />
+        글쓰기
       </FloatingWriteButton>
     </PageWrap>
   );

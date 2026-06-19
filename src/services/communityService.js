@@ -129,6 +129,7 @@ export async function loadCommunityList({
       authorName: meta.name || "상대",
       authorAvatar: meta.avatar || "",
       canChat: !!(myUid && authorUid && String(myUid) !== String(authorUid)),
+      category: String(p.category || "free"),
       title: String(p.title || "").trim(),
       content: String(p.content || "").trim(),
       image: pickThumb(p),
@@ -292,6 +293,7 @@ export async function createCommunityPost({
   myUid,
   title,
   content,
+  category = "free", // ✅ 자유(free) / 상대모집(recruit) / 경기후기(review)
   imageFiles = [], // ✅ File[]
 } = {}) {
   const uid = String(myUid || "").trim();
@@ -303,6 +305,10 @@ export async function createCommunityPost({
   if (!t) throw new Error("createCommunityPost: title is required");
   if (!c) throw new Error("createCommunityPost: content is required");
 
+  const cat = ["free", "recruit", "review"].includes(String(category))
+    ? String(category)
+    : "free";
+
   const picked = Array.isArray(imageFiles) ? imageFiles.slice(0, 4) : [];
 
   // 1) post doc 먼저 만들기
@@ -310,6 +316,7 @@ export async function createCommunityPost({
     authorUid: uid,
     title: t,
     content: c,
+    category: cat,
     media: { images: [] },
     stats: { views: 0, commentsCount: 0, likes: 0 },
     createdAt: serverTimestamp(),
