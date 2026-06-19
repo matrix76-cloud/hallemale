@@ -47,10 +47,18 @@ export default function SplashPage() {
   const { preloadMatchingHomeData } = useMatchingData();
 
   const onceRef = useRef(false);
+  const timerRef = useRef(null);
 
   const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
   const activeTeamId = String(club?.id || "").trim();
   const phoneE164 = String(userDoc?.phoneE164 || "").trim();
+
+  // 언마운트 때만 타이머 정리 (의존성 변경으로 인한 재실행에선 타이머를 지우지 않음)
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (onceRef.current) return;
@@ -58,8 +66,8 @@ export default function SplashPage() {
 
     if (!isLoggedIn) {
       onceRef.current = true;
-      const t = setTimeout(() => navigate("/welcome", { replace: true }), 1000);
-      return () => clearTimeout(t);
+      timerRef.current = setTimeout(() => navigate("/welcome", { replace: true }), 1000);
+      return;
     }
 
     if (!uid) return;
@@ -90,11 +98,11 @@ export default function SplashPage() {
     });
 
     // ✅ 프리로드 완료 여부와 무관하게 1초 후 무조건 이동
-    const t = setTimeout(() => {
+    // (cleanup으로 지우지 않음 — 의존성 재실행 때 타이머가 사라져 멈추는 문제 방지)
+    timerRef.current = setTimeout(() => {
       // 카카오 단일 로그인 전환으로 전화번호 인증 단계 제거 → 항상 /home
       navigate("/home", { replace: true });
     }, SPLASH_MS);
-    return () => clearTimeout(t);
   }, [
     authLoading,
     clubLoading,
