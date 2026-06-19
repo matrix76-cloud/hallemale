@@ -667,7 +667,7 @@ const BottomBar = styled.div`
 
 const BottomRow = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 8px;
 `;
 
@@ -675,8 +675,9 @@ const CTAButton = styled.button`
   width: 100%;
   border: none;
   border-radius: 999px;
-  height: 45px;
-  font-size: 14px;
+  height: 52px;
+  font-size: 16px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
