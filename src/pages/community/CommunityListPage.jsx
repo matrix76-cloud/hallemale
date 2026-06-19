@@ -27,7 +27,7 @@ const CATEGORIES = [
 const PageWrap = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.bg};
-  padding: 8px 0 90px;
+  padding: 0 0 90px;
 `;
 
 const Inner = styled.div`
@@ -38,6 +38,7 @@ const Inner = styled.div`
 
 const SearchWrap = styled.div`
   margin-top: 6px;
+  padding: 0 12px;
 `;
 
 /* =============== 카테고리 탭 =============== */
@@ -45,7 +46,7 @@ const SearchWrap = styled.div`
 const TabBar = styled.div`
   display: flex;
   gap: 8px;
-  padding: 8px 12px 4px;
+  padding: 4px 12px 4px;
   max-width: 480px;
   margin: 0 auto;
 `;
@@ -86,18 +87,12 @@ const TabButton = styled.button`
 
 const TabBadge = styled.span`
   position: absolute;
-  top: -3px;
-  right: -3px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
+  top: 4px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: ${({ theme }) => theme.colors.danger || "#ef4444"};
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 16px;
-  text-align: center;
 `;
 
 /* =============== 구분 라인 =============== */
@@ -397,7 +392,7 @@ export default function CommunityListPage() {
           >
             <Icon />
             {label}
-            {key === "recruit" && recruitHasNew && <TabBadge>N</TabBadge>}
+            {key === "recruit" && recruitHasNew && <TabBadge />}
           </TabButton>
         ))}
       </TabBar>

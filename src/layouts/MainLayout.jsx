@@ -201,6 +201,7 @@ export default function MainLayout({ hideHeader = false }) {
     p === "/matches/finished";
 
   const isFullScreenPage =
+    p === "/community" ||
     p.startsWith("/team") ||
     p.startsWith("/player") ||
     p.startsWith("/notification") ||
