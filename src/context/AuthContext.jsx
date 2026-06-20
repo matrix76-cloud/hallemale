@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/context/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { watchAuthState, signOutUser } from "../services/authService";
+import { watchAuthState, signOutUser, consumeRedirectResultIfAny } from "../services/authService";
 import { getUserDoc } from "../services/userService";
 import { registerFcmToken, unregisterFcmToken } from "../services/fcmService";
 import { db } from "../services/firebase";
@@ -51,6 +51,12 @@ export function AuthProvider({ children }) {
 
   // Auth 상태 구독 + users 문서 1회 로드
   useEffect(() => {
+    // 구글/애플 redirect 로그인 복귀 결과 소비 (모바일 팝업 차단 시 redirect 폴백).
+    // 이 호출이 있어야 redirect 복귀 후 로그인이 완료되어 onAuthStateChanged가 발화한다.
+    consumeRedirectResultIfAny().catch((e) =>
+      console.warn("[AuthProvider] consumeRedirectResult failed:", e?.message || e)
+    );
+
     const unsub = watchAuthState(async (user) => {
       setFirebaseUser(user || null);
 

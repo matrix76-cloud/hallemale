@@ -10,6 +10,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
+  where,
+  deleteDoc,
+  addDoc,
   writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
@@ -150,4 +154,180 @@ export async function transferTeamLeader({ clubId, fromUid, toUid }) {
 
   await batch.commit();
   return true;
+}
+
+// ─────────────────────────────────────────────────────────────
+// ✅ 회원탈퇴 시 내가 팀장인 팀 자동 처리
+// - 다른 멤버가 있으면: 가장 먼저 합류한 멤버에게 팀장 자동 위임
+// - 혼자뿐이면: 팀 해체
+// - best-effort: 팀 처리 실패가 탈퇴를 막지 않도록 내부에서 에러를 흡수
+// ─────────────────────────────────────────────────────────────
+
+function tsToMillis(v) {
+  try {
+    if (v && typeof v.toMillis === "function") return v.toMillis();
+  } catch (e) {}
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/** 위임 대상(후계자) 선정: 본인 제외, 가장 먼저 합류한 멤버 */
+async function pickHeirUid({ clubId, excludeUid }) {
+  const cid = safeStr(clubId);
+  const ex = safeStr(excludeUid);
+  const candidates = new Map(); // uid -> joinedAt(ms)
+
+  // 1) members 서브컬렉션 우선(합류 시각 기준 정렬 가능)
+  try {
+    const snap = await getDocs(collection(db, "clubs", cid, "members"));
+    snap.forEach((d) => {
+      const data = d.data() || {};
+      const uid = safeStr(data.uid || data.userId || d.id);
+      if (!uid || uid === ex) return;
+      candidates.set(uid, tsToMillis(data.joinedAt || data.createdAt));
+    });
+  } catch (e) {}
+
+  // 2) 서브컬렉션이 비어 있으면 SSOT(users.activeTeamId)로 보강
+  if (candidates.size === 0) {
+    try {
+      const usnap = await getDocs(
+        query(collection(db, "users"), where("activeTeamId", "==", cid))
+      );
+      usnap.forEach((d) => {
+        if (d.id && d.id !== ex) candidates.set(d.id, Number.MAX_SAFE_INTEGER);
+      });
+    } catch (e) {}
+  }
+
+  let heir = "";
+  let best = Infinity;
+  for (const [uid, ms] of candidates) {
+    if (ms < best) {
+      best = ms;
+      heir = uid;
+    }
+  }
+  return heir;
+}
+
+/** 떠나는 팀장 → 새 팀장으로 위임 (떠나는 팀장 member 문서는 삭제) */
+async function transferLeadershipOnWithdraw({ clubId, fromUid, toUid }) {
+  const cid = safeStr(clubId);
+  const from = safeStr(fromUid);
+  const to = safeStr(toUid);
+
+  const batch = writeBatch(db);
+
+  batch.update(doc(db, "clubs", cid), {
+    ownerUid: to,
+    updatedAt: serverTimestamp(),
+  });
+
+  // 떠나는 팀장 멤버십 제거 (users 문서는 탈퇴 로직에서 삭제됨)
+  batch.delete(doc(db, "clubs", cid, "members", from));
+
+  // 새 팀장 승격
+  batch.set(
+    doc(db, "clubs", cid, "members", to),
+    { uid: to, role: "owner", isCaptain: true, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+  batch.set(
+    doc(db, "users", to),
+    {
+      roleInTeam: "owner",
+      isTeamCaptain: true,
+      activeTeamId: cid,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await batch.commit();
+}
+
+/** 혼자뿐인 팀 해체 (best-effort) */
+async function disbandSoloClub({ clubId }) {
+  const cid = safeStr(clubId);
+  const subNames = ["members", "invites", "joinRequests"];
+  for (const sub of subNames) {
+    try {
+      const snap = await getDocs(collection(db, "clubs", cid, sub));
+      await Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
+    } catch (e) {}
+  }
+  try {
+    await deleteDoc(doc(db, "clubs", cid));
+  } catch (e) {}
+}
+
+/** 새 팀장에게 위임 알림 */
+async function notifyNewLeader({ clubId, toUid, clubName, actorUid }) {
+  try {
+    await addDoc(collection(db, "notifications"), {
+      clubId,
+      kind: "team",
+      subType: "TEAM_LEADER_TRANSFERRED",
+      type: "team_leader_transferred",
+      title: "팀장이 되었습니다",
+      body: clubName
+        ? `${clubName} 팀의 팀장 권한이 위임되었습니다.`
+        : "팀장 권한이 위임되었습니다.",
+      targetType: "USER",
+      targetIds: [safeStr(toUid)],
+      actorUid: actorUid || "",
+      linkType: "team",
+      linkTargetId: clubId,
+      meta: { clubId, deepLink: "/my" },
+      push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      prefsCategory: "teamDecision",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      readBy: {},
+    });
+  } catch (e) {
+    console.warn("[withdraw] notifyNewLeader failed:", e?.message || e);
+  }
+}
+
+/**
+ * 회원탈퇴 시 호출 — 내가 팀장(ownerUid)인 모든 팀을 자동 처리.
+ * @returns {Promise<{reassigned: Array<{clubId:string,newOwnerUid:string}>, disbanded: string[]}>}
+ */
+export async function reassignOrDisbandOwnedClubsOnWithdraw({ uid }) {
+  const u = safeStr(uid);
+  const reassigned = [];
+  const disbanded = [];
+  if (!u) return { reassigned, disbanded };
+
+  let ownedDocs = [];
+  try {
+    const snap = await getDocs(
+      query(collection(db, "clubs"), where("ownerUid", "==", u))
+    );
+    ownedDocs = snap.docs;
+  } catch (e) {
+    console.warn("[withdraw] query owned clubs failed:", e?.message || e);
+    return { reassigned, disbanded };
+  }
+
+  for (const clubDoc of ownedDocs) {
+    const cid = clubDoc.id;
+    const clubName = safeStr(clubDoc.data()?.name);
+    try {
+      const heir = await pickHeirUid({ clubId: cid, excludeUid: u });
+      if (heir) {
+        await transferLeadershipOnWithdraw({ clubId: cid, fromUid: u, toUid: heir });
+        await notifyNewLeader({ clubId: cid, toUid: heir, clubName, actorUid: u });
+        reassigned.push({ clubId: cid, newOwnerUid: heir });
+      } else {
+        await disbandSoloClub({ clubId: cid });
+        disbanded.push(cid);
+      }
+    } catch (e) {
+      console.warn(`[withdraw] handle owned club ${cid} failed:`, e?.message || e);
+    }
+  }
+
+  return { reassigned, disbanded };
 }

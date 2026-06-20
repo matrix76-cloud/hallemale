@@ -363,6 +363,31 @@ const ItemMetaRow = styled.div`
   flex-wrap: wrap;
 `;
 
+const StatsRow = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+`;
+
+const StatPill = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: ${({ theme }) =>
+    theme?.mode === "dark" ? "rgba(99,102,241,0.12)" : "#eef2ff"};
+  color: ${({ theme }) => theme?.colors?.textNormal || "#374151"};
+  font-size: 11px;
+
+  b {
+    color: ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
+    font-weight: 700;
+    font-size: 12px;
+  }
+`;
+
 const InactiveBadge = styled.span`
   display: inline-flex;
   align-items: center;
@@ -394,11 +419,19 @@ function makeEmptyForm() {
     desc: "",
     imageUrl: "",
     storagePath: "",
+    linkUrl: "",
     side: "left",
     textAlign: "left",
     order: 0,
     active: true,
   };
+}
+
+function fmtCtr(impressions, clicks) {
+  const imp = Number(impressions) || 0;
+  const clk = Number(clicks) || 0;
+  if (imp <= 0) return "0%";
+  return `${((clk / imp) * 100).toFixed(1)}%`;
 }
 
 function fmtYmdHm(d) {
@@ -476,6 +509,7 @@ export default function AdminBannersPage() {
       desc: row.desc,
       imageUrl: row.imageUrl,
       storagePath: row.storagePath,
+      linkUrl: row.linkUrl || "",
       side: row.side,
       textAlign: row.textAlign,
       order: row.order,
@@ -659,6 +693,15 @@ function BannersSection({
               />
             </Field>
 
+            <Field>
+              <Label>이동 URL (배너 클릭 시 이동 · 선택)</Label>
+              <Input
+                value={form.linkUrl}
+                onChange={(e) => updateForm({ linkUrl: e.target.value })}
+                placeholder="예: https://example.com (외부) 또는 /team/create (앱 내부)"
+              />
+            </Field>
+
             <Row>
               <Field>
                 <Label>이미지 위치</Label>
@@ -755,6 +798,22 @@ function BannersSection({
                     <span>{fmtYmdHm(row.createdAt)}</span>
                     {!row.active && <InactiveBadge>비활성</InactiveBadge>}
                   </ItemMetaRow>
+                  {row.linkUrl ? (
+                    <ItemMetaRow>
+                      <span>🔗 {row.linkUrl}</span>
+                    </ItemMetaRow>
+                  ) : null}
+                  <StatsRow>
+                    <StatPill>
+                      노출 <b>{(row.impressions || 0).toLocaleString()}</b>회
+                    </StatPill>
+                    <StatPill>
+                      클릭 <b>{(row.clicks || 0).toLocaleString()}</b>회
+                    </StatPill>
+                    <StatPill>
+                      CTR <b>{fmtCtr(row.impressions, row.clicks)}</b>
+                    </StatPill>
+                  </StatsRow>
                 </ItemMeta>
 
                 <ItemActions>

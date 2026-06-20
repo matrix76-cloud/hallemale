@@ -1,9 +1,14 @@
 // src/components/home/HomeHeroBanner.jsx
 /* eslint-disable */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import styled, { keyframes } from "styled-components";
 import { images } from "../../utils/imageAssets";
-import { listActiveBanners } from "../../services/bannersService";
+import {
+  listActiveBanners,
+  incrementBannerImpression,
+  incrementBannerClick,
+} from "../../services/bannersService";
 
 // 어드민에서 등록된 배너가 없을 때만 사용하는 fallback (기본 4개)
 const BANNERS = [
@@ -63,6 +68,7 @@ const Slide = styled.div`
   aspect-ratio: 2 / 1;
   flex-shrink: 0;
   position: relative;
+  cursor: ${({ $clickable }) => ($clickable ? "pointer" : "default")};
 `;
 
 const SlideImg = styled.img`
@@ -151,6 +157,7 @@ function normalizeRemoteBanner(b) {
     alt: title || "홈 배너",
     title,
     desc: String(b.desc || ""),
+    linkUrl: String(b.linkUrl || ""),
     side: b.side || "left",
     textAlign: b.textAlign || "left",
     offsetX: 0,
@@ -159,8 +166,10 @@ function normalizeRemoteBanner(b) {
 }
 
 export default function HomeHeroBanner() {
+  const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const [remoteBanners, setRemoteBanners] = useState(null); // null = 로딩중, [] = 비어있음
+  const seenImpRef = useRef(new Set()); // 이번 마운트에서 노출 집계한 배너 id
 
   useEffect(() => {
     let alive = true;
@@ -201,6 +210,39 @@ export default function HomeHeroBanner() {
     return () => clearInterval(timer);
   }, [total]);
 
+  // ✅ 현재 보이는 배너 노출 집계 (세션당 배너별 1회 — 자동 회전/재방문 인플레 방지)
+  useEffect(() => {
+    if (!Array.isArray(remoteBanners) || remoteBanners.length === 0) return;
+    const b = banners[index];
+    if (!b || !b.id) return;
+    if (seenImpRef.current.has(b.id)) return;
+    seenImpRef.current.add(b.id);
+
+    const key = `halle.bannerImp.${b.id}`;
+    try {
+      if (window.sessionStorage?.getItem(key)) return; // 이미 이 세션에서 집계됨
+      window.sessionStorage?.setItem(key, "1");
+    } catch (e) {}
+
+    incrementBannerImpression(b.id);
+  }, [index, banners, remoteBanners]);
+
+  const handleBannerClick = (banner) => {
+    const isRemote = Array.isArray(remoteBanners) && remoteBanners.length > 0;
+    if (isRemote && banner?.id) {
+      incrementBannerClick(banner.id);
+    }
+
+    const url = String(banner?.linkUrl || "").trim();
+    if (!url) return;
+
+    if (/^https?:\/\//i.test(url)) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      navigate(url.startsWith("/") ? url : `/${url}`);
+    }
+  };
+
   const handleDotClick = (i) => setIndex(i);
   const offset = -(index * 100);
 
@@ -210,7 +252,11 @@ export default function HomeHeroBanner() {
     <Wrap>
       <Track style={{ transform: `translateX(${offset}%)` }}>
         {banners.map((banner) => (
-          <Slide key={banner.id}>
+          <Slide
+            key={banner.id}
+            $clickable={!!banner.linkUrl}
+            onClick={() => handleBannerClick(banner)}
+          >
             <SlideImg src={banner.src} alt={banner.alt} />
 
             <TextLayer

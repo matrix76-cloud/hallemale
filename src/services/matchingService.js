@@ -5,7 +5,7 @@
 // - notifications(팀단위) 생성: 상대팀용(push ON) + 우리팀용(push OFF)
 // ✅ 라인업 스냅샷 SSOT: actorLineup/targetLineup 자체 필드(memberIds/memberCount/previewMembers)
 
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
@@ -217,12 +217,18 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
 
   if (myId !== targetClubId) throw new Error("수락 권한이 없습니다.");
 
-  await updateDoc(doc(db, "match_requests", matchId), {
+  // 미확인 배지: 수락 = 새 활동 → 신청팀(상대)에게 "조율중" 배지. 수락한 나는 본 것으로 처리.
+  const acceptorUid = toStr(auth.currentUser?.uid);
+  const acceptPatch = {
     status: "accepted",
     updatedAt: serverTimestamp(),
     acceptedAt: serverTimestamp(),
     acceptedByClubId: myId,
-  });
+    lastActivityAt: serverTimestamp(),
+  };
+  if (acceptorUid) acceptPatch[`lastSeenBy.${acceptorUid}`] = serverTimestamp();
+
+  await updateDoc(doc(db, "match_requests", matchId), acceptPatch);
 
   const fromTeamSnapshot = n?.fromTeamSnapshot || null;
   const toTeamSnapshot = n?.toTeamSnapshot || null;

@@ -2,13 +2,15 @@
 // src/pages/CommunityDetailPage.jsx
 // 생활체육 매칭 — 커뮤니티 게시글 상세 페이지
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
+import { FiHeart, FiMessageCircle, FiMoreVertical, FiCornerUpLeft, FiSend } from "react-icons/fi";
 import {
   loadCommunityPostDetail,
   addCommunityComment,
   toggleCommunityLike,
+  toggleCommunityCommentLike,
   incrementCommunityPostViews,
 } from "../../services/communityService";
 import { createPostReport } from "../../services/postReportService";
@@ -16,50 +18,47 @@ import { blockAuthorAndHidePost } from "../../services/userBlockService";
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
 
+/* =============== 상대시간 헬퍼 =============== */
+
+function timeAgo(ms) {
+  if (!ms) return "";
+  const diff = Date.now() - Number(ms);
+  if (diff < 0) return "방금";
+  const m = 60 * 1000;
+  const h = 60 * m;
+  const d = 24 * h;
+  if (diff < m) return "방금";
+  if (diff < h) return `${Math.floor(diff / m)}분 전`;
+  if (diff < d) return `${Math.floor(diff / h)}시간 전`;
+  if (diff < 2 * d) return "어제";
+  if (diff < 7 * d) return `${Math.floor(diff / d)}일 전`;
+  const date = new Date(Number(ms));
+  return `${date.getMonth() + 1}.${date.getDate()}`;
+}
+
 /* =============== 레이아웃 =============== */
 
 const PageWrap = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors?.bg || "#ffffff"};
-  padding: 12px 0 90px;
+  padding: 0 0 90px;
 `;
 
 const Inner = styled.div`
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
-  padding: 0 12px 24px;
+  padding: 0 0 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
 `;
 
-/* =============== 헤더 / 뒤로가기 =============== */
-
-const HeaderRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-const BackButton = styled.button`
-  border: none;
-  background: none;
-  padding: 4px 6px;
-  font-size: 14px;
-  cursor: pointer;
-  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
-
-  &:active {
-    opacity: 0.7;
-  }
-`;
-
-const HeaderTitle = styled.h1`
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
+/* 본문 ↔ 댓글 구분 회색 띠 */
+const SectionBand = styled.div`
+  height: 8px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0, 0, 0, 0.35)" : "#eceef1"};
 `;
 
 /* =============== 게시글 카드 =============== */
@@ -68,7 +67,8 @@ const PostCard = styled.article`
   background: ${({ theme }) => theme.colors?.card || "#ffffff"};
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  padding: 8px 16px 14px;
 `;
 
 const AuthorRow = styled.div`
@@ -84,6 +84,7 @@ const Avatar = styled.div`
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors?.surface : "#e5e7eb"};
   overflow: hidden;
+  flex-shrink: 0;
 `;
 
 const AvatarImg = styled.div`
@@ -111,42 +112,93 @@ const MetaText = styled.span`
   color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
 `;
 
-const ChatBadge = styled.button`
+/* =============== 케밥 메뉴 =============== */
+
+const KebabWrap = styled.div`
   margin-left: auto;
+  position: relative;
+`;
+
+const KebabBtn = styled.button`
   border: none;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 11px;
+  background: none;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : (theme.colors?.primarySoft || "#eef2ff")};
-  color: ${({ theme }) =>
-    theme.mode === "dark" ? "#a5b4fc" : (theme.colors?.primary || "#4f46e5")};
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
+  font-size: 20px;
 
   &:active {
-    opacity: 0.7;
+    opacity: 0.6;
   }
 `;
 
+const MenuBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+`;
+
+const Menu = styled.div`
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1201;
+  min-width: 120px;
+  background: ${({ theme }) => theme.colors?.card || "#ffffff"};
+  border: 1px solid ${({ theme }) => theme.colors?.border || "rgba(0,0,0,0.08)"};
+  border-radius: 10px;
+  box-shadow: ${({ theme }) =>
+    theme.shadows?.card || "0 12px 32px rgba(15, 23, 42, 0.18)"};
+  overflow: hidden;
+  padding: 4px;
+`;
+
+const MenuItem = styled.button`
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: ${({ $danger, theme }) =>
+    $danger
+      ? theme.mode === "dark"
+        ? "#fca5a5"
+        : theme.colors?.danger || "#b91c1c"
+      : theme.colors?.textStrong || "#111827"};
+
+  &:active {
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"};
+  }
+`;
+
+/* =============== 게시글 본문 =============== */
+
 const PostTitle = styled.h2`
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
   line-height: 1.4;
 `;
 
 const PostContent = styled.p`
   margin: 0;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.65;
   color: ${({ theme }) => theme.colors?.textNormal || "#111827"};
   white-space: pre-line;
 `;
 
 const PostImageBox = styled.div`
-  margin-top: 4px;
-  border-radius: 8px;
+  margin-top: 2px;
+  border-radius: 10px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors?.surface : "#e5e7eb"};
@@ -161,60 +213,46 @@ const PostImage = styled.div`
   background-position: center;
 `;
 
-const PostMetaRow = styled.div`
+/* =============== 게시글 액션 (하트 / 댓글수) =============== */
+
+const PostStats = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid ${({ theme }) => theme.colors?.border || "rgba(0, 0, 0, 0.08)"};
+`;
+
+const StatBtn = styled.button`
+  border: none;
+  background: none;
+  padding: 2px 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
-`;
-
-const Dot = styled.span`
-  &::before {
-    content: "·";
-    margin: 0 2px;
-  }
-`;
-
-const ActionsRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-`;
-
-const LikeButton = styled.button`
-  border: none;
-  background: ${({ liked, theme }) =>
-    liked
-      ? theme.mode === "dark"
-        ? "rgba(248,113,113,0.16)"
-        : "#fee2e2"
-      : theme.mode === "dark"
-        ? "rgba(255,255,255,0.06)"
-        : "rgba(0,0,0,0.04)"};
-  color: ${({ liked, theme }) =>
-    liked
+  cursor: ${({ as }) => (as === "div" ? "default" : "pointer")};
+  font-size: 14px;
+  font-weight: 500;
+  color: ${({ $active, theme }) =>
+    $active
       ? theme.mode === "dark"
         ? "#fca5a5"
-        : "#b91c1c"
-      : theme.colors?.textNormal || "#111827"};
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 11px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+        : "#ef4444"
+      : theme.colors?.textWeak || "#6b7280"};
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
 
   &:active {
     opacity: 0.7;
   }
-`;
 
-const ActionText = styled.span`
-  font-size: 11px;
-  color: inherit;
+  &:disabled {
+    cursor: default;
+  }
 `;
 
 /* =============== 댓글 섹션 =============== */
@@ -222,7 +260,8 @@ const ActionText = styled.span`
 const CommentSection = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  padding: 16px 16px 0;
 `;
 
 const CommentHeaderRow = styled.div`
@@ -233,20 +272,28 @@ const CommentHeaderRow = styled.div`
 
 const CommentTitle = styled.h3`
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
 `;
 
 const CommentCount = styled.span`
-  font-size: 11px;
-  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
+  font-size: 15px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors?.primary || "#4f46e5"};
+`;
+
+const CommentEmpty = styled.div`
+  padding: 28px 0;
+  text-align: center;
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors?.textWeak || "#9ca3af"};
 `;
 
 const CommentList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 `;
 
 const CommentItem = styled.div`
@@ -265,15 +312,15 @@ const CommentBubble = styled.div`
   min-width: 0;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors?.surface : "#f9fafb"};
-  border-radius: 8px;
-  padding: 6px 8px;
+  border-radius: 10px;
+  padding: 8px 10px;
 `;
 
-const CommentAuthorRow = styled.div`
+const CommentTopRow = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 `;
 
 const CommentAuthorName = styled.span`
@@ -282,46 +329,97 @@ const CommentAuthorName = styled.span`
   color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
 `;
 
-const CommentMeta = styled.span`
+const CommentTime = styled.span`
+  margin-left: auto;
   font-size: 10px;
   color: ${({ theme }) => theme.colors?.textWeak || "#9ca3af"};
 `;
 
 const CommentContent = styled.p`
   margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.55;
   color: ${({ theme }) => theme.colors?.textNormal || "#111827"};
   white-space: pre-line;
 `;
 
-const ReplyTag = styled.span`
-  display: inline-block;
-  margin-right: 4px;
-  font-size: 10px;
-  color: ${({ theme }) => theme.colors?.primary || "#4f46e5"};
+const CommentActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 6px;
+`;
+
+const CmtActionBtn = styled.button`
+  border: none;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: ${({ $active, theme }) =>
+    $active
+      ? theme.mode === "dark"
+        ? "#fca5a5"
+        : "#ef4444"
+      : theme.colors?.textWeak || "#6b7280"};
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  &:active {
+    opacity: 0.7;
+  }
 `;
 
 const ReplyIndent = styled.div`
-  margin-left: 26px;
+  margin-left: 34px;
 `;
 
-/* =============== 댓글 입력 바 (목업용) =============== */
+/* =============== 하단 입력 바 =============== */
 
-const CommentInputBar = styled.div`
+const BottomBar = styled.div`
   position: fixed;
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  padding: 8px 12px 12px;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors?.card : "#f9fafb"};
   border-top: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.04)"};
+`;
+
+const ReplyContext = styled.div`
   display: flex;
+  align-items: center;
   gap: 8px;
+  padding: 8px 14px 0;
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors?.primary || "#4f46e5"};
+`;
+
+const ReplyCancel = styled.button`
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
+`;
+
+const InputRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 12px;
 `;
 
 const CommentInput = styled.input`
@@ -332,8 +430,8 @@ const CommentInput = styled.input`
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors?.surface : "#ffffff"};
   color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
   outline: none;
 
   &:focus {
@@ -341,18 +439,31 @@ const CommentInput = styled.input`
   }
 `;
 
-const CommentSendButton = styled.button`
+const SendIconBtn = styled.button`
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
   border: none;
   border-radius: 999px;
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: ${({ theme }) => theme.colors?.primary || "#4f46e5"};
   color: #ffffff;
   cursor: pointer;
 
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+
   &:active {
     opacity: 0.8;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 `;
 
@@ -390,29 +501,7 @@ const RetryButton = styled.button`
   }
 `;
 
-/* =============== 신고 =============== */
-
-const ReportRow = styled.div`
-  margin-top: 8px;
-  padding: 0 4px 4px;
-  display: flex;
-  justify-content: center;
-`;
-
-const ReportLink = styled.button`
-  border: none;
-  background: transparent;
-  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
-  font-size: 12px;
-  text-decoration: underline;
-  cursor: pointer;
-  padding: 8px 12px;
-
-  &:hover {
-    color: ${({ theme }) =>
-      theme.mode === "dark" ? "#fca5a5" : theme.colors?.danger || "#b91c1c"};
-  }
-`;
+/* =============== 신고 모달 =============== */
 
 const ReportOverlay = styled.div`
   position: fixed;
@@ -521,6 +610,8 @@ export default function CommunityDetailPage() {
   const { firebaseUser, userDoc } = useAuth();
   const myUid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
 
+  const inputRef = useRef(null);
+
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
 
@@ -530,6 +621,12 @@ export default function CommunityDetailPage() {
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
+
+  // 케밥 메뉴
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // 답글 대상 { id(root), authorName }
+  const [replyTo, setReplyTo] = useState(null);
 
   // 신고 모달
   const [reportOpen, setReportOpen] = useState(false);
@@ -543,7 +640,6 @@ export default function CommunityDetailPage() {
       const { post: detail, comments: list } = await loadCommunityPostDetail(postId, { myUid });
       setPost(detail || null);
       setComments(list || []);
-      console.log("[CommunityDetailPage] detail:", detail, list);
     } catch (e) {
       console.error("[CommunityDetailPage] load failed:", e?.code, e?.message, e);
       setPost(null);
@@ -556,12 +652,10 @@ export default function CommunityDetailPage() {
 
   useEffect(() => {
     let alive = true;
-
     (async () => {
       if (!alive) return;
       await reload();
     })();
-
     return () => {
       alive = false;
     };
@@ -596,6 +690,45 @@ export default function CommunityDetailPage() {
     } finally {
       setLikeBusy(false);
     }
+  };
+
+  const handleToggleCommentLike = async (cmt) => {
+    if (!myUid) {
+      alert("로그인 후 이용해주세요.");
+      return;
+    }
+    const nextLiked = !cmt.likedByMe;
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === cmt.id
+          ? {
+              ...c,
+              likedByMe: nextLiked,
+              likes: Math.max(0, (c.likes || 0) + (nextLiked ? 1 : -1)),
+            }
+          : c
+      )
+    );
+    try {
+      await toggleCommunityCommentLike({ postId, commentId: cmt.id, uid: myUid });
+    } catch (e) {
+      console.error("[CommunityDetailPage] comment like failed:", e?.message || e);
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === cmt.id
+            ? { ...c, likedByMe: cmt.likedByMe, likes: cmt.likes }
+            : c
+        )
+      );
+    }
+  };
+
+  const startReply = (cmt) => {
+    setReplyTo({
+      id: cmt.parentId || cmt.id,
+      authorName: cmt.authorName,
+    });
+    inputRef.current?.focus();
   };
 
   const openReport = () => {
@@ -666,8 +799,14 @@ export default function CommunityDetailPage() {
     if (submittingComment) return;
     setSubmittingComment(true);
     try {
-      await addCommunityComment({ postId, authorUid: myUid, content: text });
+      await addCommunityComment({
+        postId,
+        authorUid: myUid,
+        content: text,
+        parentId: replyTo?.id || null,
+      });
       setCommentText("");
+      setReplyTo(null);
       await reload();
     } catch (e) {
       console.error("[CommunityDetailPage] comment failed:", e?.message || e);
@@ -707,6 +846,48 @@ export default function CommunityDetailPage() {
 
   const commentCount = comments.length;
 
+  // 댓글 트리: 최상위 댓글 + parentId로 묶인 답글
+  const rootComments = comments.filter((c) => !c.parentId);
+  const repliesByParent = comments.reduce((acc, c) => {
+    if (c.parentId) {
+      (acc[c.parentId] = acc[c.parentId] || []).push(c);
+    }
+    return acc;
+  }, {});
+
+  const renderComment = (cmt, replyCount) => (
+    <CommentItem>
+      <CommentAvatar>
+        <AvatarImg src={cmt.authorAvatar} />
+      </CommentAvatar>
+
+      <CommentBubble>
+        <CommentTopRow>
+          <CommentAuthorName>{cmt.authorName}</CommentAuthorName>
+          <CommentTime>{timeAgo(cmt.createdAtMs) || cmt.createdAt}</CommentTime>
+        </CommentTopRow>
+
+        <CommentContent>{cmt.content}</CommentContent>
+
+        <CommentActions>
+          <CmtActionBtn
+            type="button"
+            $active={cmt.likedByMe}
+            onClick={() => handleToggleCommentLike(cmt)}
+          >
+            <FiHeart style={{ fill: cmt.likedByMe ? "currentColor" : "none" }} />
+            <span>{cmt.likes || 0}</span>
+          </CmtActionBtn>
+
+          <CmtActionBtn type="button" onClick={() => startReply(cmt)}>
+            <FiCornerUpLeft />
+            <span>{replyCount > 0 ? `답글 ${replyCount}` : "답글"}</span>
+          </CmtActionBtn>
+        </CommentActions>
+      </CommentBubble>
+    </CommentItem>
+  );
+
   return (
     <PageWrap>
       <Inner>
@@ -721,17 +902,62 @@ export default function CommunityDetailPage() {
               <MetaText>{post.createdAt}</MetaText>
             </AuthorInfo>
 
-            {post.canChat && (
-              <ChatBadge
+            <KebabWrap>
+              <KebabBtn
                 type="button"
-                onClick={() => alert("채팅방 연결은 추후 연동 예정입니다.")}
+                aria-label="더보기"
+                onClick={() => setMenuOpen((v) => !v)}
               >
-                1:1 채팅
-              </ChatBadge>
-            )}
+                <FiMoreVertical />
+              </KebabBtn>
+
+              {menuOpen && (
+                <>
+                  <MenuBackdrop onClick={() => setMenuOpen(false)} />
+                  <Menu>
+                    {post.isMine ? (
+                      <>
+                        <MenuItem
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            alert("수정 화면은 추후 구현 예정입니다.");
+                          }}
+                        >
+                          수정
+                        </MenuItem>
+                        <MenuItem
+                          type="button"
+                          $danger
+                          onClick={() => {
+                            setMenuOpen(false);
+                            alert("삭제 기능은 추후 구현 예정입니다.");
+                          }}
+                        >
+                          삭제
+                        </MenuItem>
+                      </>
+                    ) : (
+                      <MenuItem
+                        type="button"
+                        $danger
+                        onClick={() => {
+                          setMenuOpen(false);
+                          openReport();
+                        }}
+                      >
+                        신고
+                      </MenuItem>
+                    )}
+                  </Menu>
+                </>
+              )}
+            </KebabWrap>
           </AuthorRow>
 
           <PostTitle>{post.title}</PostTitle>
+
+          <PostContent>{post.content}</PostContent>
 
           {post.image && (
             <PostImageBox>
@@ -739,114 +965,91 @@ export default function CommunityDetailPage() {
             </PostImageBox>
           )}
 
-          <PostContent>{post.content}</PostContent>
-
-          <PostMetaRow>
-            <span>조회 {post.views}</span>
-            <Dot />
-            <span>좋아요 {post.likes}</span>
-            <Dot />
-            <span>댓글 {commentCount}</span>
-          </PostMetaRow>
-
-          <ActionsRow>
-            <LikeButton
+          <PostStats>
+            <StatBtn
               type="button"
-              liked={post.likedByMe}
+              $active={post.likedByMe}
               onClick={handleToggleLike}
               disabled={likeBusy}
             >
-              <span>{post.likedByMe ? "♥" : "♡"}</span>
-              <ActionText>좋아요</ActionText>
-            </LikeButton>
+              <FiHeart style={{ fill: post.likedByMe ? "currentColor" : "none" }} />
+              <span>{post.likes || 0}</span>
+            </StatBtn>
 
-            {post.isMine && (
-              <>
-                <LikeButton
-                  type="button"
-                  onClick={() => alert("수정 화면은 추후 구현 예정입니다.")}
-                >
-                  <ActionText>수정</ActionText>
-                </LikeButton>
-                <LikeButton
-                  type="button"
-                  onClick={() => alert("삭제 기능은 추후 구현 예정입니다.")}
-                >
-                  <ActionText>삭제</ActionText>
-                </LikeButton>
-              </>
-            )}
-          </ActionsRow>
-
-          {!post.isMine && (
-            <ReportRow>
-              <ReportLink type="button" onClick={openReport}>
-                🚩 신고 및 작성자 차단
-              </ReportLink>
-            </ReportRow>
-          )}
+            <StatBtn as="div">
+              <FiMessageCircle />
+              <span>{commentCount}</span>
+            </StatBtn>
+          </PostStats>
         </PostCard>
+
+        <SectionBand />
 
         <CommentSection>
           <CommentHeaderRow>
             <CommentTitle>댓글</CommentTitle>
-            <CommentCount>{commentCount}개</CommentCount>
+            <CommentCount>{commentCount}</CommentCount>
           </CommentHeaderRow>
 
+          {commentCount === 0 && (
+            <CommentEmpty>첫 댓글을 남겨보세요</CommentEmpty>
+          )}
+
           <CommentList>
-            {comments.map((cmt) => {
-              const isReply = !!cmt.parentId;
-
-              const content = (
-                <CommentItem key={cmt.id}>
-                  <CommentAvatar>
-                    <AvatarImg src={cmt.authorAvatar} />
-                  </CommentAvatar>
-
-                  <CommentBubble>
-                    <CommentAuthorRow>
-                      <CommentAuthorName>{cmt.authorName}</CommentAuthorName>
-                      <CommentMeta>{cmt.createdAt}</CommentMeta>
-                    </CommentAuthorRow>
-
-                    <CommentContent>
-                      {isReply && <ReplyTag>↳ 답글</ReplyTag>}
-                      {cmt.content}
-                    </CommentContent>
-                  </CommentBubble>
-                </CommentItem>
+            {rootComments.map((cmt) => {
+              const replies = repliesByParent[cmt.id] || [];
+              return (
+                <React.Fragment key={cmt.id}>
+                  {renderComment(cmt, replies.length)}
+                  {replies.map((rep) => (
+                    <ReplyIndent key={rep.id}>
+                      {renderComment(rep, 0)}
+                    </ReplyIndent>
+                  ))}
+                </React.Fragment>
               );
-
-              if (isReply) {
-                return <ReplyIndent key={cmt.id}>{content}</ReplyIndent>;
-              }
-              return content;
             })}
           </CommentList>
         </CommentSection>
       </Inner>
 
-      <CommentInputBar>
-        <CommentInput
-          placeholder="댓글을 입력하세요"
-          value={commentText}
-          onChange={(e) => setCommentText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
-              e.preventDefault();
-              handleSubmitComment();
+      <BottomBar>
+        {replyTo && (
+          <ReplyContext>
+            <span>↳ {replyTo.authorName}님에게 답글</span>
+            <ReplyCancel type="button" onClick={() => setReplyTo(null)}>
+              취소
+            </ReplyCancel>
+          </ReplyContext>
+        )}
+        <InputRow>
+          <CommentInput
+            ref={inputRef}
+            placeholder={
+              replyTo
+                ? `${replyTo.authorName}님에게 답글 남기기`
+                : `${post.authorName}님에게 댓글 남기기`
             }
-          }}
-          disabled={submittingComment}
-        />
-        <CommentSendButton
-          type="button"
-          onClick={handleSubmitComment}
-          disabled={!commentText.trim() || submittingComment}
-        >
-          {submittingComment ? "등록중" : "등록"}
-        </CommentSendButton>
-      </CommentInputBar>
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
+                e.preventDefault();
+                handleSubmitComment();
+              }
+            }}
+            disabled={submittingComment}
+          />
+          <SendIconBtn
+            type="button"
+            aria-label="댓글 등록"
+            onClick={handleSubmitComment}
+            disabled={!commentText.trim() || submittingComment}
+          >
+            <FiSend />
+          </SendIconBtn>
+        </InputRow>
+      </BottomBar>
 
       {reportOpen && (
         <ReportOverlay

@@ -242,6 +242,10 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
       authorAvatar: cm.avatar || "",
       content: String(c.content || "").trim(),
       createdAt: formatKST(c.createdAt || null),
+      createdAtMs: (() => {
+        const d = toDate(c.createdAt || null);
+        return d ? d.getTime() : 0;
+      })(),
       likes: Number(c?.stats?.likes || 0) || 0,
       likedByMe: false,
       isMine: !!(myUid && cAuthorUid && String(myUid) === String(cAuthorUid)),
@@ -456,6 +460,31 @@ export async function toggleCommunityLike({ postId, uid } = {}) {
     body: String(post?.title || "내 글에 좋아요가 눌렸어요"),
   });
 
+  return { liked: true };
+}
+
+export async function toggleCommunityCommentLike({ postId, commentId, uid } = {}) {
+  const pid = String(postId || "").trim();
+  const cid = String(commentId || "").trim();
+  const u = String(uid || "").trim();
+  if (!pid) throw new Error("toggleCommunityCommentLike: postId is required");
+  if (!cid) throw new Error("toggleCommunityCommentLike: commentId is required");
+  if (!u) throw new Error("toggleCommunityCommentLike: uid is required");
+
+  const cRef = doc(db, "community_posts", pid, "comments", cid);
+  const likeRef = doc(db, "community_posts", pid, "comments", cid, "likes", u);
+
+  const [cSnap, likeSnap] = await Promise.all([getDoc(cRef), getDoc(likeRef)]);
+  if (!cSnap.exists()) throw new Error("comment not found");
+
+  if (likeSnap.exists()) {
+    await deleteDoc(likeRef);
+    await updateDoc(cRef, { "stats.likes": increment(-1) });
+    return { liked: false };
+  }
+
+  await setDoc(likeRef, { uid: u, createdAt: serverTimestamp() });
+  await updateDoc(cRef, { "stats.likes": increment(1) });
   return { liked: true };
 }
 

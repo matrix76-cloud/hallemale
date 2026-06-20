@@ -166,6 +166,17 @@ function isPopupBlockedError(e) {
   );
 }
 
+/** 모바일 브라우저 여부 (팝업이 불안정하므로 redirect 방식 우선) */
+function isMobileBrowser() {
+  try {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua);
+  } catch {
+    return false;
+  }
+}
+
 /** RN WebView 안에서 SIGNIN_RESULT 대기 (글로벌 bridge 구독 사용) */
 function waitForSigninResult(timeoutMs = 60000) {
   return new Promise((resolve) => {
@@ -204,6 +215,13 @@ async function webSignInWithGoogle({ keepLogin }) {
   await setPersistence(auth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
 
   const provider = new GoogleAuthProvider();
+
+  // 모바일 브라우저는 팝업이 자주 차단/실패하므로 redirect 방식을 우선 사용.
+  // 복귀 후 consumeRedirectResultIfAny()가 로그인을 완료한다.
+  if (isMobileBrowser()) {
+    await signInWithRedirect(auth, provider);
+    return { success: true, provider: "google", strategy: "web_redirect_started" };
+  }
 
   try {
     const userCred = await signInWithPopup(auth, provider);

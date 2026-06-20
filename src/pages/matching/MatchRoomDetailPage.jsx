@@ -15,6 +15,7 @@ import {
   disputeMatchResult,
   appendMatchResultComment,
   appendMatchResultPhotos,
+  markMatchRoomSeen,
 } from "../../services/matchRoomService";
 import PositionChip from "../../components/common/PositionChip";
 import { useClub } from "../../hooks/useClub";
@@ -664,6 +665,21 @@ const DirBtn = styled.button`
   color: ${({ theme }) => mrp(theme.mode).puL};
   cursor: pointer;
 `;
+const LineupMiniBtn = styled.button`
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: ${({ theme, $on }) => ($on ? mrp(theme.mode).puBg : "transparent")};
+  font-size: 11.5px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).puL};
+  cursor: pointer;
+`;
+
 const ShareBtn = styled.button`
   width: 100%;
   max-width: 360px;
@@ -677,6 +693,84 @@ const ShareBtn = styled.button`
   cursor: pointer;
   background: linear-gradient(135deg, #7c6cff, #6c5ce7);
   box-shadow: 0 12px 24px -12px rgba(108, 92, 231, 0.7);
+`;
+
+/* ───── 경기 확정 상단 웅장 배너 ───── */
+const ConfBanner = styled.div`
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 18px;
+  border-radius: 20px;
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 60%, #15803d 100%);
+  box-shadow: 0 18px 38px -16px rgba(22, 163, 74, 0.7);
+`;
+const ConfBannerCheck = styled.div`
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+`;
+const ConfBannerTitle = styled.div`
+  font-size: 27px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+`;
+const ConfBannerSub = styled.div`
+  font-size: 12.5px;
+  font-weight: 600;
+  opacity: 0.92;
+  line-height: 1.5;
+`;
+
+/* ───── 확정 경기 취소 버튼 ───── */
+const ConfCancelBtn = styled.button`
+  width: 100%;
+  max-width: 360px;
+  margin: 14px 0 0;
+  padding: 13px;
+  border-radius: 12px;
+  border: 1px solid
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.18)" : "#e5e7eb")};
+  background: transparent;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fca5a5" : "#dc2626")};
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active {
+    opacity: 0.8;
+  }
+`;
+
+/* ───── 직접 입력 구장 안내 (작게) ───── */
+const VenueNote = styled.div`
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  gap: 7px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "#f3f4f6"};
+  color: ${({ theme }) => mrp(theme.mode).t3};
+
+  b {
+    color: ${({ theme }) => mrp(theme.mode).t2};
+    font-weight: 700;
+  }
 `;
 
 /* ───── 경기 취소(cancelled) 전용 화면 ───── */
@@ -2043,6 +2137,8 @@ export default function MatchRoomDetailPage() {
         const res = await loadMatchRoomDetail(roomId);
         if (cancelled) return;
         setRoom(res?.room || null);
+        // 상세를 열면 "본 것"으로 처리 → 홈/목록의 미확인 배지 해제 (지난 결과필요는 상태기반이라 유지)
+        markMatchRoomSeen({ matchRequestId: roomId });
       } catch (e) {
         console.error("[MatchRoomDetailPage] loadMatchRoomDetail failed", e);
         if (!cancelled) setRoom(null);
@@ -2556,6 +2652,12 @@ export default function MatchRoomDetailPage() {
     } catch (e) {
       window.alert(e?.message || "매칭 취소에 실패했습니다.");
     }
+  };
+
+  // 확정 경기 취소 — 되돌릴 수 없으므로 확인 후 진행
+  const handleCancelConfirmedMatch = async () => {
+    if (!window.confirm("이 확정 경기를 취소할까요? 취소하면 되돌릴 수 없어요.")) return;
+    await handleCancelMatch();
   };
 
   const onPickPhotos = () => {
@@ -3167,6 +3269,13 @@ export default function MatchRoomDetailPage() {
           </ConfWrap>
         ) : !isVenue && (status === "confirmed" || status === "finished") ? (
           <ConfWrap>
+            {isConfirmed && (
+              <ConfBanner>
+                <ConfBannerCheck>✓</ConfBannerCheck>
+                <ConfBannerTitle>경기 확정!</ConfBannerTitle>
+                <ConfBannerSub>상대 팀과 일정이 확정됐어요. 경기장에서 만나요!</ConfBannerSub>
+              </ConfBanner>
+            )}
             <Ticket>
               <TicketHead>
                 <TicketBrand>MATCH TICKET</TicketBrand>
@@ -3183,6 +3292,16 @@ export default function MatchRoomDetailPage() {
                       )}
                     </Crest>
                     <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
+                    <LineupMiniBtn
+                      type="button"
+                      $on={myLineupOpen}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMyLineupOpen((v) => !v);
+                      }}
+                    >
+                      {myLineupOpen ? "라인업 닫기" : "라인업 보기"}
+                    </LineupMiniBtn>
                   </VsTeam>
 
                   <VsMid>
@@ -3198,8 +3317,48 @@ export default function MatchRoomDetailPage() {
                       )}
                     </Crest>
                     <VsNm>{oppName}</VsNm>
+                    <LineupMiniBtn
+                      type="button"
+                      $on={oppLineupOpen}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOppLineupOpen((v) => !v);
+                      }}
+                    >
+                      {oppLineupOpen ? "라인업 닫기" : "라인업 보기"}
+                    </LineupMiniBtn>
                   </VsTeam>
                 </VsRow>
+
+                {myLineupOpen && (
+                  <LineupBox>
+                    <LineupTitleRow>
+                      <LineupTitle>{toStr(myTeamView?.name) || "우리팀"} 선수 명단</LineupTitle>
+                    </LineupTitleRow>
+                    <LineupList>
+                      {myPlayers.length > 0 ? (
+                        myPlayers.map((p) => renderPlayerRow(p, myRecord))
+                      ) : (
+                        <LineupTitle>등록된 선수가 없어요.</LineupTitle>
+                      )}
+                    </LineupList>
+                  </LineupBox>
+                )}
+
+                {oppLineupOpen && (
+                  <LineupBox>
+                    <LineupTitleRow>
+                      <LineupTitle>{oppName} 선수 명단</LineupTitle>
+                    </LineupTitleRow>
+                    <LineupList>
+                      {oppPlayers.length > 0 ? (
+                        oppPlayers.map((p) => renderPlayerRow(p, oppRecord))
+                      ) : (
+                        <LineupTitle>등록된 선수가 없어요.</LineupTitle>
+                      )}
+                    </LineupList>
+                  </LineupBox>
+                )}
 
                 <TicketRows>
                   <TicketRow>
@@ -3219,8 +3378,23 @@ export default function MatchRoomDetailPage() {
               </TicketBody>
             </Ticket>
 
+            <VenueNote>
+              <span>📌</span>
+              <span>
+                <b>구장 예약·문의는 직접 해주세요.</b> 할래말래의 직접 입력 구장은
+                매칭(상대·인원 모으기)만 도와드려요. 구장 예약과 문의는 이용자가 직접
+                진행해야 합니다.
+              </span>
+            </VenueNote>
+
             {/* 경기 결과 입력/제출/인정 — 확정 화면에서 바로 (별도 채팅 없음) */}
             {resultSection}
+
+            {isConfirmed && (
+              <ConfCancelBtn type="button" onClick={handleCancelConfirmedMatch}>
+                경기 취소하기
+              </ConfCancelBtn>
+            )}
           </ConfWrap>
         ) : !isVenue ? (
           <>

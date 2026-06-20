@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "../services/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { computeAttentionCounts } from "../utils/matchAttention";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -55,10 +56,12 @@ function countByStatus(rows) {
   return { ongoing, confirmed, past, cancelled };
 }
 
-export default function useMatchRoomCounts({ clubId } = {}) {
+export default function useMatchRoomCounts({ clubId, uid } = {}) {
   const myClubId = toStr(clubId);
+  const myUid = toStr(uid);
 
   const [counts, setCounts] = useState({ ongoing: 0, confirmed: 0, past: 0, cancelled: 0 });
+  const [attention, setAttention] = useState({ ongoing: 0, confirmed: 0, past: 0, cancelled: 0 });
   const [loading, setLoading] = useState(false);
 
   const aRef = useRef([]); // actor side docs
@@ -69,6 +72,7 @@ export default function useMatchRoomCounts({ clubId } = {}) {
       aRef.current = [];
       bRef.current = [];
       setCounts({ ongoing: 0, confirmed: 0, past: 0, cancelled: 0 });
+      setAttention({ ongoing: 0, confirmed: 0, past: 0, cancelled: 0 });
       setLoading(false);
       return;
     }
@@ -86,6 +90,7 @@ export default function useMatchRoomCounts({ clubId } = {}) {
     const recompute = () => {
       const merged = mergeDocsById(aRef.current, bRef.current);
       setCounts(countByStatus(merged));
+      setAttention(computeAttentionCounts(merged, { myUid, myClubId }));
       setLoading(false);
     };
 
@@ -123,11 +128,11 @@ export default function useMatchRoomCounts({ clubId } = {}) {
         unsubB && unsubB();
       } catch (e) {}
     };
-  }, [myClubId]);
+  }, [myClubId, myUid]);
 
   const value = useMemo(() => {
-    return { counts, loading, clubId: myClubId };
-  }, [counts, loading, myClubId]);
+    return { counts, attention, loading, clubId: myClubId };
+  }, [counts, attention, loading, myClubId]);
 
   return value;
 }

@@ -12,7 +12,9 @@ let analytics = null;
 
 const firebaseConfig = {
   apiKey: "AIzaSyDuU-SYy0dNSNiRzcdpO6wqDi7LG-uXSEU",
-  authDomain: "halle-bf789.firebaseapp.com",
+  // ✅ 서빙 도메인과 일치시켜 모바일 redirect 로그인 시 쿠키/ITP 차단 문제 해결.
+  //    hallaemallae.com 은 Firebase Hosting(halle-bf789)에 연결되어 /__/auth/ 핸들러를 제공함.
+  authDomain: "hallaemallae.com",
   projectId: "halle-bf789",
   storageBucket: "halle-bf789.firebasestorage.app",
   messagingSenderId: "939913723928",

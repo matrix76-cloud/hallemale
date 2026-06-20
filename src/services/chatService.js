@@ -248,6 +248,22 @@ async function updateLastMessageMeta({
     lastMessageAt: serverTimestamp(),
     lastMessageFromUid: String(fromUid || ""),
   });
+
+  // 매칭룸 채팅이면 match_requests 활동 갱신 → 상대 클럽에 "미확인" 배지(보낸 사람은 본 것으로 처리)
+  const cid = String(chatId || "");
+  if (cid.startsWith("match_")) {
+    const matchId = cid.slice("match_".length);
+    const sender = String(fromUid || "");
+    if (matchId) {
+      try {
+        const patch = { lastActivityAt: serverTimestamp() };
+        if (sender) patch[`lastSeenBy.${sender}`] = serverTimestamp();
+        await updateDoc(doc(db, "match_requests", matchId), patch);
+      } catch (e) {
+        console.warn("[chat] bump match activity failed:", e?.message || e);
+      }
+    }
+  }
 }
 
 async function notifyChatRecipients({ chatId, fromUid, preview } = {}) {

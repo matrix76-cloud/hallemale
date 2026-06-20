@@ -304,6 +304,7 @@ const StatHint = styled.div`
 
 
 const StatItem = styled.button`
+  position: relative;
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.06)"};
   background: ${({ theme }) =>
@@ -336,6 +337,24 @@ const StatLabel = styled.div`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
+// 반응 필요(미확인) 빨간 배지 — 박스 우상단
+const AttentionBadge = styled.span`
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff5a5a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(255, 90, 90, 0.45);
+`;
+
 
 
 function toInt(n, fallback = 0) {
@@ -343,7 +362,7 @@ function toInt(n, fallback = 0) {
   return Number.isFinite(v) ? v : fallback;
 }
 
-export default function TeamProfileSection({ team, rank = 1, matchRoomCounts }) {
+export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, matchRoomAttention }) {
   const navigate = useNavigate();
 
   if (!team) return null;
@@ -391,6 +410,12 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts }) 
     );
 
     const cancelled = safeCount(matchRoomCounts?.cancelled, 0);
+
+    // 반응 필요(미확인) 배지 수
+    const attnOngoing = safeCount(matchRoomAttention?.ongoing, 0);
+    const attnConfirmed = safeCount(matchRoomAttention?.confirmed, 0);
+    const attnPast = safeCount(matchRoomAttention?.past, 0);
+    const attnCancelled = safeCount(matchRoomAttention?.cancelled, 0);
 
 
 
@@ -482,22 +507,25 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts }) 
 
           <StatRow>
             <StatItem type="button" onClick={() => goMatchRoomList("ongoing")}>
+              {attnOngoing > 0 && <AttentionBadge>{attnOngoing}</AttentionBadge>}
               <StatLabel>조율중 경기</StatLabel>
               <NumberBadge>
                 <NumberText>{ongoing}</NumberText>
               </NumberBadge>
-     
+
             </StatItem>
 
             <StatItem type="button" onClick={() => goMatchRoomList("confirmed")}>
+              {attnConfirmed > 0 && <AttentionBadge>{attnConfirmed}</AttentionBadge>}
               <StatLabel>확정된 경기</StatLabel>
               <NumberBadge>
                 <NumberText>{confirmed}</NumberText>
               </NumberBadge>
-   
+
             </StatItem>
 
             <StatItem type="button" onClick={() => goMatchRoomList("past")}>
+              {attnPast > 0 && <AttentionBadge>{attnPast}</AttentionBadge>}
               <StatLabel>지난 경기</StatLabel>
               <NumberBadge>
                 <NumberText>{past}</NumberText>
@@ -506,6 +534,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts }) 
             </StatItem>
 
             <StatItem type="button" onClick={() => goMatchRoomList("cancelled")}>
+              {attnCancelled > 0 && <AttentionBadge>{attnCancelled}</AttentionBadge>}
               <StatLabel>취소된 경기</StatLabel>
               <NumberBadge>
                 <NumberText>{cancelled}</NumberText>

@@ -12,6 +12,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
   serverTimestamp,
   updateDoc,
@@ -40,10 +41,13 @@ function rowFromSnap(d) {
     desc: safeStr(data.desc),
     imageUrl: safeStr(data.imageUrl),
     storagePath: safeStr(data.storagePath),
+    linkUrl: safeStr(data.linkUrl),
     side: data.side === "right" ? "right" : "left",
     textAlign: data.textAlign === "right" ? "right" : "left",
     order: typeof data.order === "number" ? data.order : 0,
     active: data.active !== false, // 기본 true
+    impressions: typeof data.impressions === "number" ? data.impressions : 0,
+    clicks: typeof data.clicks === "number" ? data.clicks : 0,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   };
@@ -64,6 +68,7 @@ export async function createBanner({
   desc,
   imageUrl,
   storagePath,
+  linkUrl = "",
   side = "left",
   textAlign = "left",
   order = 0,
@@ -76,10 +81,13 @@ export async function createBanner({
     desc: safeStr(desc),
     imageUrl: safeStr(imageUrl),
     storagePath: safeStr(storagePath),
+    linkUrl: safeStr(linkUrl),
     side: side === "right" ? "right" : "left",
     textAlign: textAlign === "right" ? "right" : "left",
     order: Number(order) || 0,
     active: active !== false,
+    impressions: 0,
+    clicks: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -94,6 +102,7 @@ export async function updateBanner(id, patch) {
   if (patch.desc !== undefined) update.desc = safeStr(patch.desc);
   if (patch.imageUrl !== undefined) update.imageUrl = safeStr(patch.imageUrl);
   if (patch.storagePath !== undefined) update.storagePath = safeStr(patch.storagePath);
+  if (patch.linkUrl !== undefined) update.linkUrl = safeStr(patch.linkUrl);
   if (patch.side !== undefined) update.side = patch.side === "right" ? "right" : "left";
   if (patch.textAlign !== undefined) update.textAlign = patch.textAlign === "right" ? "right" : "left";
   if (patch.order !== undefined) update.order = Number(patch.order) || 0;
@@ -115,6 +124,28 @@ export async function deleteBanner({ id, storagePath }) {
     }
   }
   await deleteDoc(doc(db, "banners", bid));
+}
+
+// 배너 노출 +1 (광고주용 트래픽 집계)
+export async function incrementBannerImpression(id) {
+  const bid = safeStr(id);
+  if (!bid) return;
+  try {
+    await updateDoc(doc(db, "banners", bid), { impressions: increment(1) });
+  } catch (e) {
+    console.warn("[incrementBannerImpression] failed:", e?.message || e);
+  }
+}
+
+// 배너 클릭 +1 (광고주용 트래픽 집계)
+export async function incrementBannerClick(id) {
+  const bid = safeStr(id);
+  if (!bid) return;
+  try {
+    await updateDoc(doc(db, "banners", bid), { clicks: increment(1) });
+  } catch (e) {
+    console.warn("[incrementBannerClick] failed:", e?.message || e);
+  }
 }
 
 // 어드민용 — 모든 배너

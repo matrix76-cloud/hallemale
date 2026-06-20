@@ -19,6 +19,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { deleteUser } from "firebase/auth";
+import { reassignOrDisbandOwnedClubsOnWithdraw } from "./clubLeaderService";
 
 async function safeDelete(ref, label) {
   try {
@@ -103,20 +104,30 @@ export async function withdrawAccount() {
     console.warn("[withdraw] read user doc failed:", e?.message || e);
   }
 
-  // 2) 차단/숨김 데이터 삭제
+  // 2) 내가 팀장인 팀 자동 처리 (다른 멤버에게 위임 / 혼자면 해체)
+  //    - users 문서 삭제 전에 실행해야 권한이 유효함
+  //    - best-effort: 내부에서 에러 흡수하여 탈퇴를 막지 않음
+  try {
+    const r = await reassignOrDisbandOwnedClubsOnWithdraw({ uid: userDocId });
+    console.log("[withdraw] clubs handled:", r);
+  } catch (e) {
+    console.warn("[withdraw] reassign clubs failed:", e?.message || e);
+  }
+
+  // 3) 차단/숨김 데이터 삭제
   await safeDelete(doc(db, "user_blocks", uid), "user_blocks");
 
-  // 3) FCM 토큰 삭제
+  // 4) FCM 토큰 삭제
   await cleanupFcmTokens(uid);
   if (userDocId !== uid) await cleanupFcmTokens(userDocId);
 
-  // 4) phones 매핑 정리
+  // 5) phones 매핑 정리
   if (phoneE164) await cleanupPhones({ phoneE164, uid: userDocId });
 
-  // 5) users 문서 삭제
+  // 6) users 문서 삭제
   await safeDelete(doc(db, "users", userDocId), `users/${userDocId}`);
   if (userDocId !== uid) await safeDelete(doc(db, "users", uid), `users/${uid}`);
 
-  // 6) 마지막으로 Firebase Auth 계정 삭제 — requires-recent-login 가능
+  // 7) 마지막으로 Firebase Auth 계정 삭제 — requires-recent-login 가능
   await deleteUser(user);
 }

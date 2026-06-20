@@ -7,7 +7,7 @@
 //   - acceptResult: resultState=confirmed + status=finished + clubs.stats + users.stats 트랜잭션 반영(중복 방지)
 // - ✅ 사진/코멘트: match_requests.result.{comment, photoUrls, submittedByClubId, submittedAt} 저장
 
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import {
   collection,
   getDocs,
@@ -357,9 +357,16 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
       fieldLng:
         mr?.field?.lng != null && Number.isFinite(Number(mr.field.lng)) ? Number(mr.field.lng) : null,
 
+      // ✅ myScore=actorScore, oppScore=targetScore (문서 기준). 뷰어 기준 정렬은 iAmActor로.
       myScore: mr?.myScore ?? null,
       oppScore: mr?.oppScore ?? null,
       resultState: mr?.resultState ?? null,
+      result: mr?.result || null,
+      iAmActor,
+
+      // 미확인 배지용
+      lastActivityAt: mr?.lastActivityAt || null,
+      lastSeenBy: mr?.lastSeenBy || {},
 
       myRecent,
       oppRecent,
@@ -561,6 +568,28 @@ async function getOpponentClubId(matchId, actingClubId) {
   }
 }
 
+// ── 매칭룸 미확인 배지: 상세 열람 시 "본 시각" 기록(배지 해제) ──
+export async function markMatchRoomSeen({ matchRequestId, uid } = {}) {
+  const id = toStr(matchRequestId);
+  const u = toStr(uid || auth.currentUser?.uid);
+  if (!id || !u) return;
+  try {
+    await updateDoc(doc(db, "match_requests", id), {
+      [`lastSeenBy.${u}`]: serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn("[match] markMatchRoomSeen failed:", e?.message || e);
+  }
+}
+
+// 내 행동(제안/확정/취소/메시지)에 붙일 활동패치 — 상대에겐 새 알림, 나는 본 것으로 처리
+function activityPatch() {
+  const u = toStr(auth.currentUser?.uid);
+  const patch = { lastActivityAt: serverTimestamp() };
+  if (u) patch[`lastSeenBy.${u}`] = serverTimestamp();
+  return patch;
+}
+
 export async function proposeMatchSchedule({
   matchRequestId,
   scheduledAtISO,
@@ -598,6 +627,7 @@ export async function proposeMatchSchedule({
     proposedAt: serverTimestamp(),
 
     updatedAt: serverTimestamp(),
+    ...activityPatch(),
   });
 
   // (1-13) 제의 알림 → 상대 팀장
@@ -630,6 +660,7 @@ export async function confirmProposedSchedule({ matchRequestId, confirmedByClubI
     confirmedByClubId: confirmer,
     confirmedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    ...activityPatch(),
   });
 
   // (1-13) 경기 확정 알림 → 제안했던 상대 팀장
@@ -657,6 +688,7 @@ export async function cancelMatchRequest({ matchRequestId, cancelledByClubId } =
   const patch = {
     status: "cancelled",
     updatedAt: serverTimestamp(),
+    ...activityPatch(),
   };
   // 누가 취소했는지 기록 (취소 화면 사유 표시용)
   const by = toStr(cancelledByClubId);

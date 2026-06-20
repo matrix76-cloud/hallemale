@@ -122,8 +122,11 @@ export default function HomePage() {
     refreshFavorites && refreshFavorites(uid);
   }, [uid, refreshFavorites]);
 
-  // ✅ 매칭룸 카운트 실시간
-  const { counts: matchRoomCounts } = useMatchRoomCounts({ clubId: myClubId });
+  // ✅ 매칭룸 카운트 실시간 + 미확인(반응 필요) 배지
+  const { counts: matchRoomCounts, attention: matchRoomAttention } = useMatchRoomCounts({
+    clubId: myClubId,
+    uid,
+  });
 
   const footerLinks = useMemo(
     () => [
@@ -185,7 +188,12 @@ export default function HomePage() {
         </HeroRow>
 
         <Inner>
-          <TeamProfileSection team={myTeam} rank={myTeamRank || 1} matchRoomCounts={matchRoomCounts} />
+          <TeamProfileSection
+            team={myTeam}
+            rank={myTeamRank || 1}
+            matchRoomCounts={matchRoomCounts}
+            matchRoomAttention={matchRoomAttention}
+          />
           <TickerRow>
             <WinningTickerBar items={winningTeamsHighlight} />
           </TickerRow>

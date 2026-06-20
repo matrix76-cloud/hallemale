@@ -39,131 +39,102 @@ const Inner = styled.div`
   gap: 12px;
 `;
 
-const SectionCard = styled.div`
+/* ===== 완료된 경기 카드 (지난 경기 '완료된 경기'와 동일 스타일) ===== */
+const CompletedCard = styled.div`
   background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
-  padding: 14px 14px 16px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 13px;
+  padding: 12px 14px;
   box-shadow: ${({ theme }) => theme.shadows.card};
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  cursor: pointer;
+  &:active {
+    transform: translateY(1px);
+  }
 `;
 
-const MatchMetaTop = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 2px 2px 0;
-`;
-
-
-
-const MatchRow = styled.div`
+const CardTopRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
 `;
 
-const TeamSide = styled.div`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-const TeamSideRight = styled.div`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-`;
-
-const TeamLogoWrap = styled.div`
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  flex: 0 0 auto;
-`;
-
-const TeamLogo = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const TeamName = styled.div`
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.textStrong};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const Vs = styled.div`
-  font-size: 12px;
+const CardDate = styled.span`
+  font-size: 11px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const ScoreHero = styled.div`
+const ResultBadge = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  ${({ $outcome, theme }) => {
+    const dark = theme.mode === "dark";
+    if ($outcome === "win") return `color:${dark ? "#6ee0ab" : "#1e9e70"};`;
+    if ($outcome === "lose") return `color:${dark ? "#f87171" : "#dc2626"};`;
+    return `color:${dark ? "#b6b6bf" : "#65656e"};`;
+  }}
+`;
+
+const TeamsMini = styled.div`
   display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 10px;
-  padding: 2px 0 0;
+  align-items: center;
+  justify-content: space-around;
+  gap: 8px;
 `;
 
-const ScoreNum = styled.div`
-  font-size: 30px;
-  color: ${({ theme }) => theme.colors.textStrong};
-  letter-spacing: -0.02em;
+const MiniTeam = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
 `;
 
-const ScoreSep = styled.div`
-  font-size: 18px;
-  color: ${({ theme }) => theme.colors.textWeak};
-`;
-
-const Thumb = styled.div`
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  border-radius: 8px;
+const MiniLogo = styled.div`
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   overflow: hidden;
   background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
 `;
 
-const ThumbImg = styled.img`
+const MiniLogoImg = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 `;
 
-const ActionsRow = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 2px;
+const MiniName = styled.span`
+  max-width: 100%;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
-const DetailBtn = styled.button`
-  border: none;
-  border-radius: 999px;
-  background: ${({ theme }) => theme.colors.primary};
-  color: #ffffff;
-  font-size: 13px;
-  padding: 10px 14px;
-  cursor: pointer;
-  white-space: nowrap;
+const ScoreMid = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+`;
 
-  &:active {
-    transform: translateY(1px);
-  }
+const ScoreNum = styled.span`
+  font-size: 21px;
+  font-weight: 800;
+  color: ${({ $win, theme }) =>
+    $win ? (theme.mode === "dark" ? "#6ee0ab" : "#1e9e70") : theme.colors.textWeak};
+`;
+
+const ScoreColon = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const LoadMoreRow = styled.div`
@@ -204,16 +175,6 @@ const ErrorCard = styled.div`
   color: ${({ theme }) => theme.colors.danger};
   font-size: 13px;
   line-height: 1.5;
-`;
-
-const MetaLine = styled.div`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textWeak};
-`;
-
-const MetaLineStrong = styled.div`
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 export default function FinishedMatchesPage() {
@@ -270,24 +231,45 @@ export default function FinishedMatchesPage() {
 
   const viewRows = useMemo(() => {
     return (rows || []).map((r) => {
-      const actorLogo = toStr(r?.actorTeam?.logoUrl) || images.logo;
-      const targetLogo = toStr(r?.targetTeam?.logoUrl) || images.logo;
+      // 내 팀이 왼쪽에 오도록 정렬(완료된 경기 카드와 동일 관점) + 승/패 판정
+      const iAmActor = !myClubId || toStr(r?.actorClubId) === toStr(myClubId);
+      const myTeam = iAmActor ? r?.actorTeam : r?.targetTeam;
+      const oppTeam = iAmActor ? r?.targetTeam : r?.actorTeam;
+      const myScoreRaw = iAmActor ? r?.actorScore : r?.targetScore;
+      const oppScoreRaw = iAmActor ? r?.targetScore : r?.actorScore;
 
-      const photoUrls = Array.isArray(r?.result?.photoUrls) ? r.result.photoUrls : [];
-      const firstPhoto = photoUrls.length > 0 ? photoUrls[0] : "";
+      const myLogo = toStr(myTeam?.logoUrl) || images.logo;
+      const oppLogo = toStr(oppTeam?.logoUrl) || images.logo;
+      const myName = toStr(myTeam?.name) || "우리팀";
+      const oppName = toStr(oppTeam?.name) || "상대팀";
 
       const when = r?.scheduledAt ? formatKoreanDateTime(r.scheduledAt) : "";
-      const where = toStr(r?.fieldAddress);
 
-      const aName = toStr(r?.actorTeam?.name) || "팀";
-      const tName = toStr(r?.targetTeam?.name) || "팀";
+      const myNum = myScoreRaw != null && myScoreRaw !== "" ? Number(myScoreRaw) : null;
+      const oppNum = oppScoreRaw != null && oppScoreRaw !== "" ? Number(oppScoreRaw) : null;
+      const hasScore = Number.isFinite(myNum) && Number.isFinite(oppNum);
+      const outcome = !hasScore
+        ? null
+        : myNum > oppNum
+        ? "win"
+        : myNum < oppNum
+        ? "lose"
+        : "draw";
 
-      const aScore = r?.actorScore != null ? String(r.actorScore) : "-";
-      const tScore = r?.targetScore != null ? String(r.targetScore) : "-";
-
-      return { ...r, actorLogo, targetLogo, firstPhoto, when, where, aName, tName, aScore, tScore };
+      return {
+        ...r,
+        myLogo,
+        oppLogo,
+        myName,
+        oppName,
+        when,
+        myScore: hasScore ? myNum : "-",
+        oppScore: hasScore ? oppNum : "-",
+        hasScore,
+        outcome,
+      };
     });
-  }, [rows]);
+  }, [rows, myClubId]);
 
   const openDetail = (id) => {
     if (!id) return;
@@ -310,59 +292,43 @@ export default function FinishedMatchesPage() {
         ) : null}
 
         {viewRows.map((r) => (
-          <SectionCard key={r.id}>
-            {/* ✅ 날짜/구장 먼저 */}
-            <MatchMetaTop>
-              {r.when ? <MetaLineStrong>{r.when}</MetaLineStrong> : null}
-              {r.where ? <MetaLine>구장: {r.where}</MetaLine> : null}
+          <CompletedCard
+            key={r.id}
+            onClick={() => openDetail(r.id)}
+            role="button"
+            tabIndex={0}
+          >
+            <CardTopRow>
+              {r.when ? <CardDate>{r.when}</CardDate> : <span />}
+              {r.outcome && (
+                <ResultBadge $outcome={r.outcome}>
+                  {r.outcome === "win" ? "승리" : r.outcome === "lose" ? "패배" : "무승부"}
+                </ResultBadge>
+              )}
+            </CardTopRow>
 
-            </MatchMetaTop>
+            <TeamsMini>
+              <MiniTeam>
+                <MiniLogo>
+                  <MiniLogoImg src={r.myLogo} alt={r.myName} />
+                </MiniLogo>
+                <MiniName title={r.myName}>{r.myName}</MiniName>
+              </MiniTeam>
 
-            {/* 팀 vs 팀 */}
-            <MatchRow>
-              <TeamSide>
-                <TeamLogoWrap>
-                  <TeamLogo src={r.actorLogo} alt={r.aName} />
-                </TeamLogoWrap>
-                <TeamName title={r.aName}>{r.aName}</TeamName>
+              <ScoreMid>
+                <ScoreNum $win={r.hasScore && r.myScore > r.oppScore}>{r.myScore}</ScoreNum>
+                <ScoreColon>:</ScoreColon>
+                <ScoreNum $win={r.hasScore && r.oppScore > r.myScore}>{r.oppScore}</ScoreNum>
+              </ScoreMid>
 
-    
-
-              </TeamSide>
-
-              <Vs>VS</Vs>
-
-              <TeamSideRight>
-                <TeamName title={r.tName} style={{ textAlign: "right" }}>
-                  {r.tName}
-                </TeamName>
-                <TeamLogoWrap>
-                  <TeamLogo src={r.targetLogo} alt={r.tName} />
-                </TeamLogoWrap>
-              </TeamSideRight>
-            </MatchRow>
-
-            {/* 점수 */}
-            <ScoreHero>
-              <ScoreNum>{r.aScore}</ScoreNum>
-              <ScoreSep>:</ScoreSep>
-              <ScoreNum>{r.tScore}</ScoreNum>
-            </ScoreHero>
-
-            {/* 대표 사진 */}
-            {r.firstPhoto ? (
-              <Thumb>
-                <ThumbImg src={r.firstPhoto} alt="match" />
-              </Thumb>
-            ) : null}
-
-            {/* ✅ 상세 버튼(여기로 들어간다는 걸 알게) */}
-            <ActionsRow>
-              <DetailBtn type="button" onClick={() => openDetail(r.id)}>
-                상세내용 보기
-              </DetailBtn>
-            </ActionsRow>
-          </SectionCard>
+              <MiniTeam>
+                <MiniLogo>
+                  <MiniLogoImg src={r.oppLogo} alt={r.oppName} />
+                </MiniLogo>
+                <MiniName title={r.oppName}>{r.oppName}</MiniName>
+              </MiniTeam>
+            </TeamsMini>
+          </CompletedCard>
         ))}
 
         {!loading && !error && !done ? (

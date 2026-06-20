@@ -4,10 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
 import { images } from "../../utils/imageAssets";
-import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 import Spinner from "../../components/common/Spinner";
-import { loadMatchRoomListPageData, cancelMatchRequest } from "../../services/matchRoomService";
+import { loadMatchRoomListPageData } from "../../services/matchRoomService";
+import { listAllTeamsForRanking } from "../../services/teamRankingService";
 import { useClub } from "../../hooks/useClub";
+import { useAuth } from "../../hooks/useAuth";
+import { roomNeedsAttention } from "../../utils/matchAttention";
 import EmptyState from "../../components/common/EmptyState";
 
 /* ==================== 헬퍼 ==================== */
@@ -74,34 +76,43 @@ const clampNumber = (v, fallback = 0) => {
   return fallback;
 };
 
-const getStatsNumbers = (stats) => {
-  const s = stats || {};
+// 팀 랭킹 키 (팀 랭킹 페이지와 동일 기준: 점수→승률→승수→경기수→이름)
+const teamPerfKey = (team) => {
+  const s = team?.stats || {};
   const wins = clampNumber(typeof s.wins === "number" ? s.wins : s.totalWins, 0);
   const losses = clampNumber(typeof s.losses === "number" ? s.losses : s.totalLoses, 0);
   const draws = clampNumber(typeof s.draws === "number" ? s.draws : s.totalDraws, 0);
-
   const total = wins + losses + draws;
+  const points = wins * 5 + draws * 2 + losses * 1;
   const rawRate = typeof s.winRate === "number" ? s.winRate : total > 0 ? wins / total : 0;
-  const pct = Math.max(0, Math.min(100, Math.round(clampNumber(rawRate, 0) * 100)));
+  const winRatePct = Math.max(0, Math.min(100, Math.round(clampNumber(rawRate, 0) * 100)));
+  return { points, winRatePct, wins, total, name: toStr(team?.name).toLowerCase() };
+};
 
-  return { wins, losses, draws, winRatePct: pct };
+// 전체 팀을 정렬해 clubId → 순위(1-based) 맵 생성
+const buildTeamRankMap = (rows) => {
+  const sorted = [...(Array.isArray(rows) ? rows : [])].sort((a, b) => {
+    const ka = teamPerfKey(a);
+    const kb = teamPerfKey(b);
+    if (kb.points !== ka.points) return kb.points - ka.points;
+    if (kb.winRatePct !== ka.winRatePct) return kb.winRatePct - ka.winRatePct;
+    if (kb.wins !== ka.wins) return kb.wins - ka.wins;
+    if (kb.total !== ka.total) return kb.total - ka.total;
+    if (ka.name === kb.name) return 0;
+    return ka.name > kb.name ? 1 : -1;
+  });
+  const map = {};
+  sorted.forEach((t, idx) => {
+    const id = toStr(t?.clubId || t?.id);
+    if (id) map[id] = idx + 1;
+  });
+  return map;
 };
 
 const resolveLogoSrc = (team) => {
   const url = toStr(team?.logoUrl || team?.photoUrl);
   if (url) return url;
   return images.logo;
-};
-
-const resolveRegionText = (team) => {
-  return (
-    toStr(team?.region) ||
-    toStr(team?.regionText) ||
-    toStr(team?.areaText) ||
-    toStr(team?.location) ||
-    `${toStr(team?.regionSido)} ${toStr(team?.regionGu)}`.trim() ||
-    ""
-  );
 };
 
 /* ==================== 스타일 ==================== */
@@ -151,6 +162,7 @@ const RoomList = styled.div`
 `;
 
 const RoomCard = styled.div`
+  position: relative;
   width: 100%;
   background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
@@ -163,8 +175,21 @@ const RoomCard = styled.div`
   overflow: hidden;
 `;
 
+// 카드 미확인(반응 필요) 표시 — 우상단 빨간 점
+const CardAttnDot = styled.span`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff5a5a;
+  box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.card};
+  z-index: 1;
+`;
+
 const MatchHeader = styled.div`
-  padding: 10px 14px 8px;
+  padding: 9px 14px 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -177,39 +202,13 @@ const MatchTitle = styled.div`
 `;
 
 const VsStatusPill = styled.div`
-  padding: 7px 12px;
+  padding: 5px 10px;
   border-radius: 999px;
   background: ${({ theme }) =>
     theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
   color: ${({ theme }) => theme.colors.textStrong};
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
-`;
-
-const TeamBlock = styled.div`
-  padding: 10px 12px 12px;
-`;
-
-const LogoArea = styled.div`
-  width: 78px;
-  display: flex;
-  justify-content: center;
-`;
-
-const LogoOuter = styled.div`
-  position: relative;
-  width: 64px;
-  height: 64px;
-  flex-shrink: 0;
-`;
-
-const LogoWrap = styled.div`
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
-  border-radius: 8px;
 `;
 
 const LogoImg = styled.img`
@@ -217,21 +216,6 @@ const LogoImg = styled.img`
   height: 100%;
   display: block;
   object-fit: cover;
-`;
-
-const ContentArea = styled.div`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-`;
-
-const TeamNameRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
 `;
 
 const TeamName = styled.div`
@@ -242,79 +226,226 @@ const TeamName = styled.div`
   text-overflow: ellipsis;
 `;
 
-const TeamRegion = styled.div`
+/* 좌우 2열 팀 배치 (컴팩트) */
+const TeamsRow = styled.div`
+  display: flex;
+  align-items: stretch;
+  padding: 6px 10px 10px;
+`;
+
+const TeamCol = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+`;
+
+const ColLogo = styled.div`
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
+`;
+
+const ColName = styled(TeamName)`
+  max-width: 100%;
+  font-weight: 700;
+`;
+
+const RankBadge = styled.span`
+  margin-top: 1px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.10)" : "#e5e7eb"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#f3f4f6" : "#111827")};
   font-size: 12px;
+  font-weight: 700;
+`;
+
+const VsSep = styled.div`
+  flex-shrink: 0;
+  align-self: center;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+/* ===== 지난 경기: 섹션 헤더 ===== */
+const SectionHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 4px 9px;
+`;
+
+const SectionEmoji = styled.span`
+  font-size: 15px;
+  line-height: 1;
+`;
+
+const SectionLabel = styled.span`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme, $muted }) =>
+    $muted ? theme.colors.textNormal : theme.colors.textStrong};
+`;
+
+const SectionCount = styled.span`
+  font-size: 11px;
   color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const SectionCountBadge = styled.span`
+  background: #ff5a5a;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 8px;
+`;
+
+/* ===== 지난 경기: 공통 카드 상단행 / 미니 팀 ===== */
+const CardTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+`;
+
+const CardDate = styled.span`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const TeamsMini = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 8px;
+`;
+
+const MiniTeam = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+`;
+
+const MiniLogo = styled.div`
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
+`;
+
+const MiniLogoImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+`;
+
+const MiniName = styled.span`
+  max-width: 100%;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 `;
 
-const SummaryRow = styled.div`
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 13px;
-`;
-
-const SummaryText = styled.span`
-  color: ${({ theme }) => theme.colors.textNormal};
-`;
-
-const WinRateBadge = styled.span`
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
-  color: ${({ theme }) =>
-    theme.mode === "dark" ? "#a5b4fc" : "#2563eb"};
-  font-size: 12px;
-`;
-
-const RecentLabel = styled.span`
-  font-size: 12px;
+const MiniVs = styled.span`
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const RecentDots = styled.div`
-  display: flex;
+/* ===== 결과 입력 필요 카드 ===== */
+const PendingCard = styled.div`
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 14px;
+  padding: 13px 14px;
+  margin-bottom: 8px;
+`;
+
+const EndedBadge = styled.span`
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  flex-wrap: nowrap;
-  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#e7c66b" : "#c2890e")};
 `;
 
-const SoonDot = styled.div`
-  width: 14px;
-  height: 14px;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#d1d5db"};
-  border: 1px dashed ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.border : "#cbd5e1"};
-  box-sizing: border-box;
-`;
-
-const Divider = styled.div`
-  height: 1px;
-  background: ${({ theme }) => theme.colors.divider};
-  margin: 2px 14px;
-`;
-
-const CancelBtn = styled.button`
-  margin: 8px 12px 4px;
-  width: calc(100% - 24px);
-  padding: 10px;
+const ResultInputBtn = styled.button`
+  width: 100%;
+  margin-top: 12px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff;
+  border: none;
   border-radius: 10px;
-  border: 1px solid ${({ theme }) => theme.colors.border || "#e5e7eb"};
-  background: transparent;
-  color: ${({ theme }) => (theme.mode === "dark" ? "#fca5a5" : "#dc2626")};
+  padding: 11px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   &:active {
-    opacity: 0.8;
+    opacity: 0.85;
   }
+`;
+
+/* ===== 완료된 경기 카드 ===== */
+const CompletedCard = styled.div`
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 13px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+`;
+
+const ResultBadge = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  ${({ $outcome, theme }) => {
+    const dark = theme.mode === "dark";
+    if ($outcome === "win") return `color:${dark ? "#6ee0ab" : "#1e9e70"};`;
+    if ($outcome === "lose") return `color:${dark ? "#f87171" : "#dc2626"};`;
+    return `color:${dark ? "#b6b6bf" : "#65656e"};`;
+  }}
+`;
+
+const ScoreMid = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+`;
+
+const ScoreNum = styled.span`
+  font-size: 18px;
+  font-weight: 800;
+  color: ${({ $win, theme }) =>
+    $win ? (theme.mode === "dark" ? "#6ee0ab" : "#1e9e70") : theme.colors.textWeak};
+`;
+
+const ScoreColon = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const StateWrap = styled.div`
@@ -330,12 +461,6 @@ const EmptyText = styled.div`
   text-align: center;
 `;
 
-const Row = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-`;
-
 /* ==================== 페이지 ==================== */
 
 export default function MatchRoomListPage() {
@@ -343,9 +468,12 @@ export default function MatchRoomListPage() {
   const location = useLocation();
   const { club } = useClub();
   const myClubId = toStr(club?.clubId || club?.id);
+  const { firebaseUser, userDoc } = useAuth();
+  const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
 
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rankMap, setRankMap] = useState({});
 
   const tab = useMemo(() => {
     const sp = new URLSearchParams(location.search || "");
@@ -383,6 +511,22 @@ export default function MatchRoomListPage() {
       cancelled = true;
     };
   }, [myClubId]);
+
+  // 카드에 표시할 팀 순위 — 전체 팀 랭킹을 한 번 로드해 clubId→순위 맵 생성
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { rows } = await listAllTeamsForRanking();
+        if (alive) setRankMap(buildTeamRankMap(rows));
+      } catch (e) {
+        console.warn("[MatchRoomListPage] rank load failed:", e?.message || e);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // 확정 경기는 종료시각(시작 + 경기시간)이 지나면 '지난 경기'로 이동 (2-9)
   const isEnded = (r) => {
@@ -443,6 +587,16 @@ export default function MatchRoomListPage() {
     [rooms]
   );
 
+  // 지난 경기 → 결과 입력 필요(아직 finished 아님) / 완료(finished) 분리
+  const resultPendingRooms = useMemo(
+    () => pastRooms.filter((r) => toStr(r?.status) !== "finished"),
+    [pastRooms]
+  );
+  const completedRooms = useMemo(
+    () => pastRooms.filter((r) => toStr(r?.status) === "finished"),
+    [pastRooms]
+  );
+
   const titleText = useMemo(() => {
     if (tab === "adjusting") return "조율중 경기";
     if (tab === "confirmed") return "확정된 경기";
@@ -463,109 +617,140 @@ export default function MatchRoomListPage() {
     navigate(`/match-roomdetail/${roomId}`);
   };
 
-  const renderTeamBlock = ({ team, recent = [], fallbackName = "팀" }) => {
+  const renderTeamCol = ({ team, fallbackName = "팀" }) => {
     const name = toStr(team?.name) || fallbackName;
-    const regionText = resolveRegionText(team);
     const logoSrc = resolveLogoSrc(team);
-
-    const { wins, losses, draws, winRatePct } = getStatsNumbers(team?.stats);
-    const safeRecent = Array.isArray(recent) ? recent : [];
+    const clubId = toStr(team?.clubId || team?.id);
+    const rank = rankMap[clubId];
 
     return (
-      <TeamBlock>
-        <Row>
-          <LogoArea>
-            <LogoOuter>
-              <LogoWrap>
-                <LogoImg src={logoSrc} alt={name} />
-              </LogoWrap>
-            </LogoOuter>
-          </LogoArea>
-
-          <ContentArea>
-            <TeamNameRow>
-              <TeamName title={name}>{name}</TeamName>
-            </TeamNameRow>
-
-            <TeamRegion title={regionText}>{regionText || "지역 미등록"}</TeamRegion>
-
-            <SummaryRow>
-              <SummaryText>
-                {wins}승 {losses}패 {draws}무
-              </SummaryText>
-              <WinRateBadge>승률 {winRatePct}%</WinRateBadge>
-            </SummaryRow>
-
-            <SummaryRow>
-              <RecentLabel>최근 경기기록</RecentLabel>
-              <RecentDots>
-                {safeRecent.length > 0 ? (
-                  safeRecent.slice(0, 5).map((r, idx) => {
-                    if (r === "W") return <WinChip key={`${name}-rw-${idx}`} size="sm" />;
-                    if (r === "D") return <DrawChip key={`${name}-rd-${idx}`} size="sm" />;
-                    return <LoseChip key={`${name}-rl-${idx}`} size="sm" />;
-                  })
-                ) : (
-                  <>
-                    <SoonDot />
-                    <SoonDot />
-                    <SoonDot />
-                    <SoonDot />
-                    <SoonDot />
-                  </>
-                )}
-              </RecentDots>
-            </SummaryRow>
-          </ContentArea>
-        </Row>
-      </TeamBlock>
+      <TeamCol>
+        <ColLogo>
+          <LogoImg src={logoSrc} alt={name} />
+        </ColLogo>
+        <ColName title={name}>{name}</ColName>
+        <RankBadge>{rank ? `랭킹 ${rank}위` : "랭킹 미정"}</RankBadge>
+      </TeamCol>
     );
   };
 
 
-  const handleCancelRoom = async (e, room) => {
-    e.stopPropagation();
-    if (!room?.id) return;
-    if (!window.confirm("이 확정 경기를 취소할까요? 취소하면 되돌릴 수 없어요.")) return;
-    try {
-      await cancelMatchRequest({ matchRequestId: room.id });
-      // 로컬 상태 즉시 반영 → 취소된 경기로 이동
-      setRooms((prev) =>
-        prev.map((r) => (r.id === room.id ? { ...r, status: "cancelled" } : r))
-      );
-    } catch (err) {
-      window.alert(err?.message || "경기 취소에 실패했습니다.");
-    }
-  };
-
   const renderRoomCard = (room) => {
     const { myTeam, oppTeam } = room || {};
     const { text } = getVsStatus(room);
-    // 지난 경기(경기 종료 or finished) = 상태칩·취소버튼 숨김
+    // 지난 경기(경기 종료 or finished) = 상태칩 숨김
     const isPast = isEnded(room) || toStr(room?.status) === "finished";
-    const canCancel = toStr(room?.status) === "confirmed" && !isPast;
+    const needsAttn = roomNeedsAttention(room, { myUid, myClubId });
 
     return (
       <RoomCard key={room.id} onClick={() => handleClickRoom(room.id)} role="button" tabIndex={0}>
+        {needsAttn && <CardAttnDot />}
         <MatchHeader>
           <MatchTitle>
             {(toStr(myTeam?.name) || "우리팀")} vs {(toStr(oppTeam?.name) || "상대팀")}
           </MatchTitle>
-          {!isPast && <VsStatusPill>{text || "일정 조율중"}</VsStatusPill>}
+          {!isPast ? (
+            <VsStatusPill>{text || "일정 조율중"}</VsStatusPill>
+          ) : (
+            room?.scheduledAt && (
+              <VsStatusPill>{formatKoreanDateTime(room.scheduledAt)}</VsStatusPill>
+            )
+          )}
         </MatchHeader>
 
-        {renderTeamBlock({ team: myTeam, recent: room?.myRecent, fallbackName: "우리팀" })}
-
-        <Divider />
-
-        {renderTeamBlock({ team: oppTeam, recent: room?.oppRecent, fallbackName: "상대팀" })}
-
-        {canCancel && (
-          <CancelBtn type="button" onClick={(e) => handleCancelRoom(e, room)}>
-            경기 취소하기
-          </CancelBtn>
-        )}
+        <TeamsRow>
+          {renderTeamCol({ team: myTeam, fallbackName: "우리팀" })}
+          <VsSep>VS</VsSep>
+          {renderTeamCol({ team: oppTeam, fallbackName: "상대팀" })}
+        </TeamsRow>
       </RoomCard>
+    );
+  };
+
+  // 지난 경기 카드용 미니 팀(로고 + 팀명)
+  const renderMiniTeam = (team, fallbackName) => {
+    const name = toStr(team?.name) || fallbackName;
+    const logoSrc = resolveLogoSrc(team);
+    return (
+      <MiniTeam>
+        <MiniLogo>
+          <MiniLogoImg src={logoSrc} alt={name} />
+        </MiniLogo>
+        <MiniName title={name}>{name}</MiniName>
+      </MiniTeam>
+    );
+  };
+
+  // 결과 입력이 필요한 지난 경기 카드
+  const renderPendingCard = (room) => {
+    const { myTeam, oppTeam } = room || {};
+    const dateLabel = room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "";
+    const waiting = toStr(room?.resultState) === "waiting_accept";
+    return (
+      <PendingCard key={room.id}>
+        <CardTopRow>
+          <EndedBadge>⏱ 경기 종료</EndedBadge>
+          {dateLabel ? <CardDate>{dateLabel}</CardDate> : <span />}
+        </CardTopRow>
+        <TeamsMini>
+          {renderMiniTeam(myTeam, "우리팀")}
+          <MiniVs>VS</MiniVs>
+          {renderMiniTeam(oppTeam, "상대팀")}
+        </TeamsMini>
+        <ResultInputBtn type="button" onClick={() => handleClickRoom(room.id)}>
+          ✏️ {waiting ? "결과 확인하기" : "경기 결과 입력하기"}
+        </ResultInputBtn>
+      </PendingCard>
+    );
+  };
+
+  // 결과가 확정된(완료된) 지난 경기 카드
+  const renderCompletedCard = (room) => {
+    const { myTeam, oppTeam } = room || {};
+    const dateLabel = room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "";
+
+    // myTeam=뷰어, oppTeam=상대. 점수는 문서 기준(actor/target)이라 iAmActor로 좌/우 정렬
+    const iAmActor = room?.iAmActor !== false;
+    const leftScore = iAmActor ? room?.myScore : room?.oppScore;
+    const rightScore = iAmActor ? room?.oppScore : room?.myScore;
+    const hasScore = leftScore != null && rightScore != null;
+    const outcome = !hasScore
+      ? null
+      : leftScore > rightScore
+      ? "win"
+      : leftScore < rightScore
+      ? "lose"
+      : "draw";
+
+    return (
+      <CompletedCard
+        key={room.id}
+        onClick={() => handleClickRoom(room.id)}
+        role="button"
+        tabIndex={0}
+      >
+        <CardTopRow>
+          {dateLabel ? <CardDate>{dateLabel}</CardDate> : <span />}
+          {outcome && (
+            <ResultBadge $outcome={outcome}>
+              {outcome === "win" ? "승리" : outcome === "lose" ? "패배" : "무승부"}
+            </ResultBadge>
+          )}
+        </CardTopRow>
+        <TeamsMini>
+          {renderMiniTeam(myTeam, "우리팀")}
+          <ScoreMid>
+            <ScoreNum $win={hasScore && leftScore > rightScore}>
+              {hasScore ? leftScore : "-"}
+            </ScoreNum>
+            <ScoreColon>:</ScoreColon>
+            <ScoreNum $win={hasScore && rightScore > leftScore}>
+              {hasScore ? rightScore : "-"}
+            </ScoreNum>
+          </ScoreMid>
+          {renderMiniTeam(oppTeam, "상대팀")}
+        </TeamsMini>
+      </CompletedCard>
     );
   };
 
@@ -639,6 +824,36 @@ export default function MatchRoomListPage() {
                   </>
                 )}
               </RoomList>
+            ) : tab === "past" ? (
+              <RoomList>
+                {pastRooms.length === 0 ? (
+                  <EmptyState text="지난 게임 기록이 아직 없습니다." />
+                ) : (
+                  <>
+                    {resultPendingRooms.length > 0 && (
+                      <>
+                        <SectionHead>
+                          <SectionEmoji>🔔</SectionEmoji>
+                          <SectionLabel>결과 입력이 필요해요</SectionLabel>
+                          <SectionCountBadge>{resultPendingRooms.length}</SectionCountBadge>
+                        </SectionHead>
+                        {resultPendingRooms.map((room) => renderPendingCard(room))}
+                      </>
+                    )}
+
+                    {completedRooms.length > 0 && (
+                      <>
+                        <SectionHead>
+                          <SectionEmoji>✅</SectionEmoji>
+                          <SectionLabel $muted>완료된 경기</SectionLabel>
+                          <SectionCount>{completedRooms.length}</SectionCount>
+                        </SectionHead>
+                        {completedRooms.map((room) => renderCompletedCard(room))}
+                      </>
+                    )}
+                  </>
+                )}
+              </RoomList>
             ) : (
               <RoomList>
                 {listToRender.length > 0 ? (
@@ -650,9 +865,7 @@ export default function MatchRoomListPage() {
                         ? "조율중인 매칭이 아직 없습니다."
                         : tab === "confirmed"
                         ? "확정된 매칭이 아직 없습니다."
-                        : tab === "cancelled"
-                        ? "취소된 경기가 없습니다."
-                        : "지난 게임 기록이 아직 없습니다."
+                        : "취소된 경기가 없습니다."
                     }
                   />
                 )}
