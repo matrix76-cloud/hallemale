@@ -226,33 +226,6 @@ const Input = styled.input`
   }
 `;
 
-const Textarea = styled.textarea`
-  min-height: 60px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
-  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
-  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
-  font-size: 13px;
-  font-family: inherit;
-  resize: vertical;
-
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme?.colors?.primary || "#4f46e5"};
-  }
-`;
-
-const Select = styled.select`
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
-  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
-  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
-  font-size: 13px;
-`;
-
 const ToggleRow = styled.label`
   display: inline-flex;
   align-items: center;
@@ -528,10 +501,6 @@ export default function AdminBannersPage() {
       window.alert("이미지를 업로드해주세요.");
       return;
     }
-    if (!form.title.trim()) {
-      window.alert("제목을 입력해주세요.");
-      return;
-    }
     setBusy(true);
     try {
       if (isEditing) {
@@ -641,9 +610,8 @@ function BannersSection({
       <SpecBox>
         📐 권장 이미지 규격: <strong>1200 × 600 px (가로:세로 = 2:1)</strong>{" "}
         / PNG·JPG / 5MB 이하<br />
-        업로드 시 자동으로 1080px로 압축됩니다. 텍스트(제목·설명)는 이미지 위에 따로 그려지므로
-        텍스트가 들어간 이미지 대신 <strong>여백이 있는 일러스트/사진</strong>을 권장합니다.
-        <br />이미지 위치(왼쪽/오른쪽)와 텍스트 정렬을 조합해 자연스럽게 맞춰주세요.
+        업로드 시 자동으로 1080px로 압축됩니다. 배너에는 <strong>이미지만</strong> 노출되며,
+        클릭 시 등록한 이동 URL로 연결됩니다.
       </SpecBox>
 
       {/* 등록/수정 폼 (모달) */}
@@ -676,24 +644,6 @@ function BannersSection({
 
           <FormCol>
             <Field>
-              <Label>제목 (줄바꿈은 \n 가능)</Label>
-              <Textarea
-                value={form.title}
-                onChange={(e) => updateForm({ title: e.target.value })}
-                placeholder="예: 팀 만들고\n오늘 한 판 어때?"
-              />
-            </Field>
-
-            <Field>
-              <Label>설명</Label>
-              <Input
-                value={form.desc}
-                onChange={(e) => updateForm({ desc: e.target.value })}
-                placeholder="예: 친구/동호회 팀 생성하고 바로 매칭"
-              />
-            </Field>
-
-            <Field>
               <Label>이동 URL (배너 클릭 시 이동 · 선택)</Label>
               <Input
                 value={form.linkUrl}
@@ -703,28 +653,6 @@ function BannersSection({
             </Field>
 
             <Row>
-              <Field>
-                <Label>이미지 위치</Label>
-                <Select
-                  value={form.side}
-                  onChange={(e) => updateForm({ side: e.target.value })}
-                >
-                  <option value="left">왼쪽 (이미지 왼쪽 / 텍스트 오른쪽)</option>
-                  <option value="right">오른쪽 (이미지 오른쪽 / 텍스트 왼쪽)</option>
-                </Select>
-              </Field>
-
-              <Field>
-                <Label>텍스트 정렬</Label>
-                <Select
-                  value={form.textAlign}
-                  onChange={(e) => updateForm({ textAlign: e.target.value })}
-                >
-                  <option value="left">왼쪽 정렬</option>
-                  <option value="right">오른쪽 정렬</option>
-                </Select>
-              </Field>
-
               <Field>
                 <Label>표시 순서 (작을수록 앞)</Label>
                 <Input
@@ -792,8 +720,6 @@ function BannersSection({
                   <ItemTitle>{row.title || "(제목 없음)"}</ItemTitle>
                   <ItemDesc>{row.desc || "-"}</ItemDesc>
                   <ItemMetaRow>
-                    <span>이미지: {row.side === "right" ? "오른쪽" : "왼쪽"}</span>
-                    <span>정렬: {row.textAlign === "right" ? "오른쪽" : "왼쪽"}</span>
                     <span>순서: {row.order}</span>
                     <span>{fmtYmdHm(row.createdAt)}</span>
                     {!row.active && <InactiveBadge>비활성</InactiveBadge>}

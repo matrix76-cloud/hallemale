@@ -210,19 +210,15 @@ export default function HomeHeroBanner() {
     return () => clearInterval(timer);
   }, [total]);
 
-  // ✅ 현재 보이는 배너 노출 집계 (세션당 배너별 1회 — 자동 회전/재방문 인플레 방지)
+  // ✅ 현재 보이는 배너 노출 집계
+  // - 한 방문(마운트) 동안 배너별 1회만 집계 → 4초 자동 회전 반복 노출은 과집계하지 않음
+  // - 앱을 나갔다 다시 들어오면(재마운트) 다시 집계됨 (재방문 노출도 집계)
   useEffect(() => {
     if (!Array.isArray(remoteBanners) || remoteBanners.length === 0) return;
     const b = banners[index];
     if (!b || !b.id) return;
     if (seenImpRef.current.has(b.id)) return;
     seenImpRef.current.add(b.id);
-
-    const key = `halle.bannerImp.${b.id}`;
-    try {
-      if (window.sessionStorage?.getItem(key)) return; // 이미 이 세션에서 집계됨
-      window.sessionStorage?.setItem(key, "1");
-    } catch (e) {}
 
     incrementBannerImpression(b.id);
   }, [index, banners, remoteBanners]);
