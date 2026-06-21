@@ -100,11 +100,20 @@ const RightArea = styled.div`
 `;
 
 const TabHeaderWrap = styled(Wrap)`
+  position: relative;
   justify-content: space-between;
 `;
 
 const LeftSpacer = styled.div`
   width: 48px;
+`;
+
+/* 탭 헤더: 제목을 화면 정중앙에 고정 */
+const CenterTitle = styled(Title)`
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
 `;
 
 export default function TopHeader({
@@ -174,7 +183,7 @@ export default function TopHeader({
   return (
     <TabHeaderWrap>
       <LeftSpacer />
-      <Title>{title}</Title>
+      <CenterTitle>{title}</CenterTitle>
       <RightIcons>
         <IconButton type="button" onClick={handleBellClick}>
           <PiBellLight />

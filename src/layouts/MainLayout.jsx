@@ -121,7 +121,7 @@ export default function MainLayout({ hideHeader = false }) {
 
   const getTitle = () => {
     if (p.startsWith("/home")) return "할래말래";
-    if (p.startsWith("/matchingmanage")) return "할래말래 매칭관리";
+    if (p.startsWith("/matchingmanage")) return "매칭관리";
     if (p === "/matching") return "매칭하기";
     if (p === "/match-roomlist") return "매칭룸";
     if (p.endsWith("/venue")) return "구장 정하기";
@@ -159,10 +159,10 @@ export default function MainLayout({ hideHeader = false }) {
     if (p === "/settings/faq") return "FAQ";
     if (p === "/settings/password") return "비밀번호 변경";
 
-    if (p.startsWith("/my")) return "할래말래 내 정보";
+    if (p.startsWith("/my")) return "내 정보";
     if (p === "/community/write") return "게시글 쓰기";
     if (p.startsWith("/communitypost")) return "게시물";
-    if (p.startsWith("/community")) return "할래말래 커뮤니티";
+    if (p.startsWith("/community")) return "커뮤니티";
 
     if (p === "/my/team-invites") return "받은 초대";
     if (p.startsWith("/my/team-invites/")) return "초대 상세";

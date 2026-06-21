@@ -115,7 +115,7 @@ const TabBar = styled.div`
   gap: 8px;
   padding: 4px 12px 4px;
   max-width: 480px;
-  margin: 0 auto;
+  margin: 14px auto 0;
 `;
 
 const TabButton = styled.button`

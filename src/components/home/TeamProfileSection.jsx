@@ -34,7 +34,7 @@ const ProfileCard = styled.div`
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "transparent"};
   border-radius: 8px;
-  padding: 16px 16px 18px;
+  padding: 12px 14px;
   box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
@@ -49,21 +49,23 @@ const ProfileCard = styled.div`
 const TopRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 `;
 
 const LogoOuter = styled.div`
   position: relative;
-  width: 92px;
-  height: 92px;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 `;
 
 const LogoBase = styled.div`
-  width: 140px;
-  height: 100px;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#f4f4ff"};
@@ -86,42 +88,26 @@ const TeamMeta = styled.div`
   gap: 4px;
 `;
 
-const TeamNameRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-`;
-
 const TeamName = styled.div`
   font-size: 18px;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const MemberBadge = styled.div`
+  align-self: flex-start;
   padding: 2px 8px;
   border-radius: 999px;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#f4f4f5"};
   font-size: 11px;
   color: ${({ theme }) => theme.colors.textNormal};
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
 `;
 
 const MemberIcon = styled.span`
   font-size: 12px;
-`;
-
-const TeamDesc = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textWeak};
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  word-break: keep-all;
 `;
 
 const TagRow = styled.div`
@@ -133,7 +119,8 @@ const TagRow = styled.div`
 
 const Tag = styled.span`
   font-size: 11px;
-  color: ${({ theme }) => theme.colors.primary};
+  background: none;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 /* ============ 아래: 홈 액션 ============ */
@@ -153,12 +140,12 @@ const BigActionCard = styled.button`
   border-radius: 8px;
   background: ${({ theme }) => theme.colors.card};
   box-shadow: ${({ theme }) => theme.shadows.card};
-  padding: 14px 12px;
+  padding: 12px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 10px;
   text-align: center;
 
@@ -167,32 +154,17 @@ const BigActionCard = styled.button`
   }
 `;
 
-const BigTop = styled.div`
-  flex: 1;
-  min-width: 0;
+/* 🏀 + "매칭하기" 가로 한 줄 */
+const TitleRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
 `;
 
-const BigIconWrap = styled.div`
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-`;
 
 const BigIcon = styled.div`
-  font-size: 26px;
-`;
-
-const BigBody = styled.div`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  font-size: 20px;
+  line-height: 1;
 `;
 
 const BigTitle = styled.div`
@@ -200,12 +172,6 @@ const BigTitle = styled.div`
   color: ${({ theme }) => theme.colors.textStrong || "#111827"};
   font-weight: 600;
   letter-spacing: -0.2px;
-`;
-
-const BigSub = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textWeak};
-  line-height: 1.25;
 `;
 
 const GoPill = styled.div`
@@ -549,15 +515,12 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
           </LogoOuter>
 
           <TeamMeta>
-            <TeamNameRow>
-              <TeamName>{safeTeam.name}</TeamName>
-              <MemberBadge>
-                <MemberIcon>👥</MemberIcon>
-                <span>{memberCountLabel}</span>
-              </MemberBadge>
-            </TeamNameRow>
+            <TeamName>{safeTeam.name}</TeamName>
 
-            <TeamDesc>{safeTeam.description}</TeamDesc>
+            <MemberBadge>
+              <MemberIcon>👥</MemberIcon>
+              <span>{memberCountLabel}</span>
+            </MemberBadge>
 
             {safeTeam.tags && safeTeam.tags.length > 0 && (
               <TagRow>
@@ -571,14 +534,10 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
       </ProfileCard>
 
         <BigActionCard type="button" onClick={handleGoMatching}>
-          <BigIconWrap>
+          <TitleRow>
             <BigIcon>🏀</BigIcon>
-          </BigIconWrap>
-
-          <BigBody>
             <BigTitle>매칭하기</BigTitle>
-            <BigSub>다른 팀에게 연습경기 대결을 신청해요</BigSub>
-          </BigBody>
+          </TitleRow>
 
           <GoPill>GO</GoPill>
         </BigActionCard>

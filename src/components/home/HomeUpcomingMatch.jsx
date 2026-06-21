@@ -294,7 +294,7 @@ export default function HomeUpcomingMatch({ clubId }) {
       >
         <TopRow>
           <TopLeft>
-            다가오는 경기 <Dday>{formatDday(match.scheduledAt)}</Dday>
+            <Dday>{formatDday(match.scheduledAt)}</Dday>
           </TopLeft>
           <TopTime>{formatDateTime(match.scheduledAt)}</TopTime>
         </TopRow>
