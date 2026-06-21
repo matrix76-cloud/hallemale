@@ -65,7 +65,7 @@ const Track = styled.div`
 const Slide = styled.div`
   min-width: 100%;
   width: 100%;
-  aspect-ratio: 2 / 1;
+  ${({ $height }) => ($height ? `height: ${$height};` : `aspect-ratio: 2 / 1;`)}
   flex-shrink: 0;
   position: relative;
   cursor: ${({ $clickable }) => ($clickable ? "pointer" : "default")};
@@ -165,7 +165,7 @@ function normalizeRemoteBanner(b) {
   };
 }
 
-export default function HomeHeroBanner() {
+export default function HomeHeroBanner({ placement = "home", fallback = BANNERS, slideHeight = null }) {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const [remoteBanners, setRemoteBanners] = useState(null); // null = 로딩중, [] = 비어있음
@@ -175,7 +175,7 @@ export default function HomeHeroBanner() {
     let alive = true;
     (async () => {
       try {
-        const rows = await listActiveBanners();
+        const rows = await listActiveBanners(placement);
         if (!alive) return;
         setRemoteBanners(Array.isArray(rows) ? rows : []);
       } catch (e) {
@@ -186,15 +186,15 @@ export default function HomeHeroBanner() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [placement]);
 
-  // 어드민에 등록된 배너가 있으면 그걸 사용, 없으면 코드 내 기본 BANNERS
+  // 어드민에 등록된 배너가 있으면 그걸 사용, 없으면 fallback
   const banners = useMemo(() => {
     if (Array.isArray(remoteBanners) && remoteBanners.length > 0) {
       return remoteBanners.map(normalizeRemoteBanner);
     }
-    return BANNERS;
-  }, [remoteBanners]);
+    return fallback;
+  }, [remoteBanners, fallback]);
 
   const total = banners.length;
 
@@ -251,6 +251,7 @@ export default function HomeHeroBanner() {
           <Slide
             key={banner.id}
             $clickable={!!banner.linkUrl}
+            $height={slideHeight}
             onClick={() => handleBannerClick(banner)}
           >
             <SlideImg src={banner.src} alt={banner.alt} />

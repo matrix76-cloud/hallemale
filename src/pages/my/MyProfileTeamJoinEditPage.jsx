@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { images } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { getClubForPickerRow } from "../../services/teamService";
 import TeamSelectModal from "../../components/team/TeamSelectModal";
 
@@ -84,11 +84,11 @@ export default function MyProfileTeamJoinEditPage() {
               <TeamLeft>
                 <TeamLogoWrap>
                   <img
-                    src={pendingClubRow?.logoUrl || images.logo}
+                    src={teamLogoSrc(pendingClubRow?.logoUrl)}
                     alt="team"
                     onError={(e) => {
                       e.currentTarget.onerror = null;
-                      e.currentTarget.src = images.logo;
+                      e.currentTarget.src = images.teamPlaceholder;
                     }}
                   />
                 </TeamLogoWrap>
@@ -224,7 +224,7 @@ const TeamLeft = styled.div`
 const TeamLogoWrap = styled.div`
   width: 36px;
   height: 36px;
-  border-radius: 999px;
+  border-radius: 10px;
   overflow: hidden;
   background: ${({ theme }) => theme.colors.border};
   flex-shrink: 0;

@@ -9,6 +9,7 @@ import { TEAMS_BY_ID } from "../../mock/teamsMock";
 import { useAuth } from "../../hooks/useAuth";
 import SubHeaderBar from "../../layouts/components/SubHeaderBar";
 import EmptyState from "../../components/common/EmptyState";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 
 /**
  * 내 프로필 보기 페이지 (실데이터 기반)
@@ -31,8 +32,7 @@ export default function MyProfileDetailPage() {
   
 
   const avatarSrc = useMemo(() => {
-    const a = userDoc?.avatarUrl || (uid ? playerAvatars?.[uid] : "") || "";
-    return a || images.logo;
+    return userDoc?.avatarUrl || (uid ? playerAvatars?.[uid] : "") || "";
   }, [userDoc?.avatarUrl, uid]);
 
   const regionText = useMemo(() => {
@@ -95,7 +95,11 @@ export default function MyProfileDetailPage() {
             <ProfileCard>
               <ProfileTopRow>
                 <AvatarWrap>
-                  <Avatar src={avatarSrc} alt={userDoc?.nickname || "avatar"} />
+                  {avatarSrc ? (
+                    <Avatar src={avatarSrc} alt={userDoc?.nickname || "avatar"} />
+                  ) : (
+                    <AvatarPlaceholder size={64} />
+                  )}
                 </AvatarWrap>
 
                 <ProfileText>

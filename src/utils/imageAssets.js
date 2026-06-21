@@ -85,9 +85,31 @@ export const bottomTabIcons = {
 };
 
 
+// ✅ 팀 로고 미등록 시 기본 placeholder (회색 둥근 사각형 + 그룹 아이콘) — data URI
+const TEAM_PLACEHOLDER_SVG =
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>" +
+  "<rect width='64' height='64' rx='16' fill='#eef0f4'/>" +
+  "<g transform='translate(16,16) scale(1.33)' fill='#b8bfca'>" +
+  "<path d='M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z'/>" +
+  "</g></svg>";
+
+export const teamPlaceholder = `data:image/svg+xml,${encodeURIComponent(TEAM_PLACEHOLDER_SVG)}`;
+
+/**
+ * ✅ 팀 로고 표시용 헬퍼
+ * - 실제 로고가 있으면 그대로, 없거나(빈값) 기본 앱 로고(crown)면 그룹 placeholder 반환
+ * - 사용: teamLogoSrc(team.logoUrl) 또는 teamLogoSrc(team.logoUrl || images[team.logoKey])
+ */
+export const teamLogoSrc = (candidate) => {
+  const u = String(candidate || "").trim();
+  if (u && u !== logo) return u;
+  return teamPlaceholder;
+};
+
 export const images = {
   // 공용
   logo,
+  teamPlaceholder,
   welcomeHero,
   signupSuccess,
   // profileDefault,

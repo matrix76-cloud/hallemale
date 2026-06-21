@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import styled from "styled-components";
 import { TEAMS } from "../../mock/teamsMock";
-import { images, playerAvatars } from "../../utils/imageAssets";
+import { images, playerAvatars, teamLogoSrc } from "../../utils/imageAssets";
 
 // 경기 인원 옵션
 const MATCH_SIZES = [
@@ -56,7 +56,7 @@ const TeamHeaderRow = styled.div`
 const TeamLogo = styled.img`
   width: 52px;
   height: 52px;
-  border-radius: 999px;
+  border-radius: 14px;
   object-fit: cover;
 `;
 
@@ -488,7 +488,7 @@ export default function MatchingHomePage() {
         {/* 팀 카드 / 라인업 */}
         <TeamCard>
           <TeamHeaderRow>
-            <TeamLogo src={images[myTeam.logoKey]} alt={myTeam.name} />
+            <TeamLogo src={teamLogoSrc(images[myTeam.logoKey])} alt={myTeam.name} />
             <div>
               <TeamTitle>{myTeam.name}</TeamTitle>
               <TeamSub>{myTeam.description}</TeamSub>
@@ -718,7 +718,7 @@ export default function MatchingHomePage() {
                 >
                   <TeamLogoWrap>
                     <TeamLogoImg
-                      src={images[team.logoKey]}
+                      src={teamLogoSrc(images[team.logoKey])}
                       alt={team.name}
                     />
                   </TeamLogoWrap>

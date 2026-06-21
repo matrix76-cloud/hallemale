@@ -40,6 +40,17 @@ const formatKoreanDate = (iso) => {
   return `${month}.${date} (${day})`;
 };
 
+// 경기 날짜까지 D-day (당일 D-DAY, 미래 D-N, 과거 D+N)
+const formatDday = (iso) => {
+  if (!iso) return "";
+  const target = new Date(iso);
+  if (Number.isNaN(target.getTime())) return "";
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(target) - startOfDay(new Date())) / 86400000);
+  if (diffDays === 0) return "D-DAY";
+  return diffDays > 0 ? `D-${diffDays}` : `D+${Math.abs(diffDays)}`;
+};
+
 const getVsStatus = (room) => {
   const { status, scheduledAt, myScore, oppScore } = room || {};
 
@@ -112,7 +123,7 @@ const buildTeamRankMap = (rows) => {
 const resolveLogoSrc = (team) => {
   const url = toStr(team?.logoUrl || team?.photoUrl);
   if (url) return url;
-  return images.logo;
+  return images.teamPlaceholder;
 };
 
 /* ==================== 스타일 ==================== */
@@ -197,7 +208,8 @@ const MatchHeader = styled.div`
 
 const MatchTitle = styled.div`
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.textWeak};
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
 `;
 
@@ -243,6 +255,14 @@ const TeamCol = styled.div`
   gap: 4px;
 `;
 
+/* 1~3위: 프로필 위에 로고(왕관) 겹쳐 올리는 래퍼 (홈 랭킹과 동일) */
+const ColLogoBox = styled.div`
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+`;
+
 const ColLogo = styled.div`
   width: 46px;
   height: 46px;
@@ -252,20 +272,46 @@ const ColLogo = styled.div`
     theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
 `;
 
+/* 1~3위 프로필 위에 겹쳐지는 로고 (전체보기 페이지와 동일) */
+const CrownImg = styled.img`
+  position: absolute;
+  top: ${({ $sm }) => ($sm ? "-13px" : "-16px")};
+  left: 50%;
+  transform: translateX(-50%);
+  width: ${({ $sm }) => ($sm ? "23px" : "28px")};
+  height: ${({ $sm }) => ($sm ? "23px" : "28px")};
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
+`;
+
+/* 팀명(중앙 고정) + 랭킹(그 옆) 한 줄 배치 — 이름이 가운데 칸에 와서 위치가 밀리지 않음 */
+const NameRank = styled.div`
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto) 1fr;
+  align-items: baseline;
+  width: 100%;
+  column-gap: 4px;
+`;
+
 const ColName = styled(TeamName)`
+  grid-column: 2;
+  justify-self: center;
+  min-width: 0;
   max-width: 100%;
   font-weight: 700;
 `;
 
-const RankBadge = styled.span`
-  margin-top: 1px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(255,255,255,0.10)" : "#e5e7eb"};
-  color: ${({ theme }) => (theme.mode === "dark" ? "#f3f4f6" : "#111827")};
-  font-size: 12px;
+/* 랭킹 — 배경 없이 텍스트만 (1~3위는 보라색) */
+const RankText = styled.span`
+  grid-column: 3;
+  justify-self: start;
+  font-size: 11px;
   font-weight: 700;
+  color: ${({ $top, theme }) =>
+    $top ? theme.colors.primary : theme.colors.textWeak};
+  white-space: nowrap;
 `;
 
 const VsSep = styled.div`
@@ -340,6 +386,13 @@ const MiniTeam = styled.div`
   gap: 5px;
 `;
 
+const MiniLogoBox = styled.div`
+  position: relative;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+`;
+
 const MiniLogo = styled.div`
   width: 38px;
   height: 38px;
@@ -357,6 +410,9 @@ const MiniLogoImg = styled.img`
 `;
 
 const MiniName = styled.span`
+  grid-column: 2;
+  justify-self: center;
+  min-width: 0;
   max-width: 100%;
   font-size: 11.5px;
   font-weight: 700;
@@ -438,8 +494,13 @@ const ScoreMid = styled.div`
 const ScoreNum = styled.span`
   font-size: 18px;
   font-weight: 800;
-  color: ${({ $win, theme }) =>
-    $win ? (theme.mode === "dark" ? "#6ee0ab" : "#1e9e70") : theme.colors.textWeak};
+  ${({ $tone, theme }) => {
+    const dark = theme.mode === "dark";
+    // 내 팀 점수: 승=초록, 패=빨강. 무승부/상대 점수=기본 글씨색
+    if ($tone === "win") return `color:${dark ? "#6ee0ab" : "#1e9e70"};`;
+    if ($tone === "lose") return `color:${dark ? "#f87171" : "#dc2626"};`;
+    return `color:${theme.colors.textStrong};`;
+  }}
 `;
 
 const ScoreColon = styled.span`
@@ -622,14 +683,20 @@ export default function MatchRoomListPage() {
     const logoSrc = resolveLogoSrc(team);
     const clubId = toStr(team?.clubId || team?.id);
     const rank = rankMap[clubId];
+    const isTop = rank >= 1 && rank <= 3;
 
     return (
       <TeamCol>
-        <ColLogo>
-          <LogoImg src={logoSrc} alt={name} />
-        </ColLogo>
-        <ColName title={name}>{name}</ColName>
-        <RankBadge>{rank ? `랭킹 ${rank}위` : "랭킹 미정"}</RankBadge>
+        <ColLogoBox>
+          {isTop ? <CrownImg src={images.logo} alt={`${rank}위`} /> : null}
+          <ColLogo>
+            <LogoImg src={logoSrc} alt={name} />
+          </ColLogo>
+        </ColLogoBox>
+        <NameRank>
+          <ColName title={name}>{name}</ColName>
+          {rank ? <RankText $top={isTop}>{rank}위</RankText> : null}
+        </NameRank>
       </TeamCol>
     );
   };
@@ -647,7 +714,9 @@ export default function MatchRoomListPage() {
         {needsAttn && <CardAttnDot />}
         <MatchHeader>
           <MatchTitle>
-            {(toStr(myTeam?.name) || "우리팀")} vs {(toStr(oppTeam?.name) || "상대팀")}
+            {room?.scheduledAt && toStr(room?.status) !== "cancelled"
+              ? formatDday(room.scheduledAt)
+              : `${toStr(myTeam?.name) || "우리팀"} vs ${toStr(oppTeam?.name) || "상대팀"}`}
           </MatchTitle>
           {!isPast ? (
             <VsStatusPill>{text || "일정 조율중"}</VsStatusPill>
@@ -671,12 +740,20 @@ export default function MatchRoomListPage() {
   const renderMiniTeam = (team, fallbackName) => {
     const name = toStr(team?.name) || fallbackName;
     const logoSrc = resolveLogoSrc(team);
+    const rank = rankMap[toStr(team?.clubId || team?.id)];
+    const isTop = rank >= 1 && rank <= 3;
     return (
       <MiniTeam>
-        <MiniLogo>
-          <MiniLogoImg src={logoSrc} alt={name} />
-        </MiniLogo>
-        <MiniName title={name}>{name}</MiniName>
+        <MiniLogoBox>
+          {isTop ? <CrownImg $sm src={images.logo} alt={`${rank}위`} /> : null}
+          <MiniLogo>
+            <MiniLogoImg src={logoSrc} alt={name} />
+          </MiniLogo>
+        </MiniLogoBox>
+        <NameRank>
+          <MiniName title={name}>{name}</MiniName>
+          {rank ? <RankText $top={isTop}>{rank}위</RankText> : null}
+        </NameRank>
       </MiniTeam>
     );
   };
@@ -740,11 +817,11 @@ export default function MatchRoomListPage() {
         <TeamsMini>
           {renderMiniTeam(myTeam, "우리팀")}
           <ScoreMid>
-            <ScoreNum $win={hasScore && leftScore > rightScore}>
+            <ScoreNum $tone={outcome === "win" ? "win" : outcome === "lose" ? "lose" : "neutral"}>
               {hasScore ? leftScore : "-"}
             </ScoreNum>
             <ScoreColon>:</ScoreColon>
-            <ScoreNum $win={hasScore && rightScore > leftScore}>
+            <ScoreNum $tone="neutral">
               {hasScore ? rightScore : "-"}
             </ScoreNum>
           </ScoreMid>

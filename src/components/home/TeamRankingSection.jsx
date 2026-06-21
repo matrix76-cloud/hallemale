@@ -8,7 +8,7 @@
 import React from "react";
 import styled, { css, keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { images } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 
 const SectionWrap = styled.section`
@@ -131,19 +131,15 @@ const RankCell = styled.div`
 
 
 const RankBadge = styled.div`
-  position: relative;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(255, 255, 255, 0.10)" : "rgba(17, 24, 39, 0.06)"};
-  color: ${({ theme }) => theme.colors.textStrong};
+  /* 1~3위: 보라색(상세보기와 동일), 그 외: 기본 글씨색 */
+  color: ${({ $top, theme }) =>
+    $top ? theme.colors.primary : theme.colors.textStrong};
 `;
 
 
@@ -194,13 +190,15 @@ const RankBadge = styled.div`
 
 const CrownImg = styled.img`
   position: absolute;
-  top: -12px;
+  top: -16px;
   left: 50%;
   transform: translateX(-50%);
   width: 28px;
   height: 28px;
   object-fit: contain;
+  z-index: 2;
   pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
 `;
 
 const TeamCell = styled.div`
@@ -209,10 +207,18 @@ const TeamCell = styled.div`
   gap: 8px;
 `;
 
+/* 1~3위: 프로필(로고) 위에 겹쳐 배치되는 로고 (상세보기와 동일) */
+const LogoBox = styled.div`
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+`;
+
 const LogoWrap = styled.div`
   width: 34px;
   height: 34px;
-  border-radius: 999px;
+  border-radius: 10px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
@@ -271,10 +277,7 @@ function getRankVariant(rank) {
 }
 
 function rankLabel(rank) {
-  if (rank === 1) return "1등";
-  if (rank === 2) return "2등";
-  if (rank === 3) return "3등";
-  return String(rank || "");
+  return `${rank || ""}위`;
 }
 
 export default function TeamRankingSection({ rows = [] }) {
@@ -321,10 +324,10 @@ export default function TeamRankingSection({ rows = [] }) {
           const delay = (rows.length - idx - 1) * 0.7;
 
           const teamId = t.clubId || t.id;
-          const logoSrc =
+          const logoSrc = teamLogoSrc(
             (t.logoUrl && String(t.logoUrl).trim()) ||
-            (t.logoKey && images[t.logoKey]) ||
-            images.logo;
+            (t.logoKey && images[t.logoKey])
+          );
 
           const rank = t.rank || idx + 1;
           const variant = getRankVariant(rank);
@@ -339,16 +342,18 @@ export default function TeamRankingSection({ rows = [] }) {
               onClick={() => handleTeamClick(teamId)}
             >
               <RankCell>
-                <RankBadge $variant={variant}>
-                  {showCrown ? <CrownImg src={images.logo} alt="crown" /> : null}
+                <RankBadge $top={isTop}>
                   {rankLabel(rank)}
                 </RankBadge>
               </RankCell>
 
               <TeamCell>
-                <LogoWrap>
-                  <LogoImg src={logoSrc} alt={t.name} />
-                </LogoWrap>
+                <LogoBox>
+                  {showCrown ? <CrownImg src={images.logo} alt={`${rank}위`} /> : null}
+                  <LogoWrap>
+                    <LogoImg src={logoSrc} alt={t.name} />
+                  </LogoWrap>
+                </LogoBox>
                 <TeamName title={t.name}>{t.name}</TeamName>
               </TeamCell>
 

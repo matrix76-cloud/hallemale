@@ -1,7 +1,7 @@
 /* eslint-disable */
 import React from "react";
 import styled from "styled-components";
-import { images } from "../../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../../utils/imageAssets";
 import { WinChip, DrawChip, LoseChip } from "../../../components/common/ResultChip";
 
 import FilterSearchBar from "../../../components/common/FilterSearchBar";
@@ -74,7 +74,7 @@ const LogoArea = styled.div`
 const LogoOuter = styled.div`
   width: 68px;
   height: 68px;
-  border-radius: 999px;
+  border-radius: 18px;
   overflow: hidden;
   flex-shrink: 0;
   background: ${({ theme }) =>
@@ -250,7 +250,7 @@ export default function TeamOpponentListSection({
                   <LogoArea>
                     <LogoOuter>
                       <LogoImg
-                        src={team.logoUrl || images[team.logoKey] || images.logo}
+                        src={teamLogoSrc(team.logoUrl || images[team.logoKey])}
                         alt={team.name}
                       />
                     </LogoOuter>

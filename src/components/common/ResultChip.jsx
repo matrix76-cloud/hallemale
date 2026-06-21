@@ -4,6 +4,13 @@ import React from "react";
 import styled from "styled-components";
 
 const CHIP_SIZES = {
+  xs: {
+    fontSize: 9,
+    height: 16,
+    minWidth: 18,
+    padding: "1px 4px",
+    radius: 3,
+  },
   sm: {
     fontSize: 10,
     height: 20,

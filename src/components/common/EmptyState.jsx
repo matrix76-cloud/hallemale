@@ -18,14 +18,11 @@ const Wrap = styled.div`
 const IconCircle = styled.div`
   width: 56px;
   height: 56px;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 40px;
   line-height: 1;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f1f3f5"};
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 

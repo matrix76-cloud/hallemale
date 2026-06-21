@@ -11,7 +11,7 @@ import styled, { useTheme } from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { FiChevronRight } from "react-icons/fi";
 
-import { images } from "../../utils/imageAssets";
+import TeamAvatarPlaceholder from "../../components/common/TeamAvatarPlaceholder";
 import { useAuth } from "../../hooks/useAuth";
 import { createClub } from "../../services/teamService";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
@@ -228,7 +228,7 @@ const LogoStepWrap = styled.div`
 const LogoBigPreview = styled.div`
   width: 140px;
   height: 140px;
-  border-radius: 999px;
+  border-radius: 32px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
@@ -244,9 +244,11 @@ const LogoImg = styled.img`
   object-fit: cover;
 `;
 
-const LogoEmpty = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textWeak};
+/* 로고 미등록 시 기본 그룹 placeholder — 컨테이너(원형/사각)에 맞게 채움 */
+const LogoPlaceholderFill = styled(TeamAvatarPlaceholder)`
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0;
 `;
 
 const LogoHelpText = styled.div`
@@ -310,7 +312,7 @@ const SummaryLogoRow = styled.div`
 const SummaryLogoThumb = styled.div`
   width: 40px;
   height: 40px;
-  border-radius: 999px;
+  border-radius: 10px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.bg : "#e5e7eb"};
@@ -512,7 +514,6 @@ export default function TeamCreatePage() {
     }
   };
 
-  const logoDefault = images.teamDefaultLogo || images.logo || "";
 
   return (
     <Page>
@@ -547,10 +548,8 @@ export default function TeamCreatePage() {
               <LogoBigPreview>
                 {logoPreview ? (
                   <LogoImg src={logoPreview} alt="팀 로고 미리보기" />
-                ) : logoDefault ? (
-                  <LogoImg src={logoDefault} alt="기본 팀 로고" />
                 ) : (
-                  <LogoEmpty>로고 이미지 없음</LogoEmpty>
+                  <LogoPlaceholderFill />
                 )}
               </LogoBigPreview>
 
@@ -683,10 +682,8 @@ export default function TeamCreatePage() {
                 <SummaryLogoThumb>
                   {logoPreview ? (
                     <LogoImg src={logoPreview} alt="팀 로고" />
-                  ) : logoDefault ? (
-                    <LogoImg src={logoDefault} alt="기본 팀 로고" />
                   ) : (
-                    <LogoEmpty>로고</LogoEmpty>
+                    <LogoPlaceholderFill />
                   )}
                 </SummaryLogoThumb>
 

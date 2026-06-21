@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { FiX, FiSearch } from "react-icons/fi";
-import { images } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useAuth } from "../../hooks/useAuth";
 import EmptyState from "../common/EmptyState";
 import { listClubsForPicker, createJoinRequestToClub } from "../../services/teamService";
@@ -222,11 +222,11 @@ export default function TeamSelectModal({
                   <TeamLeft>
                     <LogoWrap>
                       <LogoImg
-                        src={c.logoUrl || images.logo}
+                        src={teamLogoSrc(c.logoUrl)}
                         alt={c.name || "team"}
                         onError={(e) => {
                           e.currentTarget.onerror = null;
-                          e.currentTarget.src = images.logo;
+                          e.currentTarget.src = images.teamPlaceholder;
                         }}
                       />
                     </LogoWrap>
@@ -409,7 +409,7 @@ const TeamLeft = styled.div`
 const LogoWrap = styled.div`
   width: 44px;
   height: 44px;
-  border-radius: 999px;
+  border-radius: 14px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};

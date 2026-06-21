@@ -1,8 +1,8 @@
 /* eslint-disable */
 // src/components/home/TeamProfileSection.jsx
 import React from "react";
-import styled from "styled-components";
-import { images } from "../../utils/imageAssets";
+import styled, { css } from "styled-components";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
 
 const SectionWrap = styled.section`
@@ -166,11 +166,8 @@ const BigTop = styled.div`
 const BigIconWrap = styled.div`
   width: 44px;
   height: 44px;
-  border-radius: 8px;
   display: grid;
   place-items: center;
-  background: ${({ theme }) =>
-    theme.colors.primary ? `${theme.colors.primary}18` : "rgba(99, 102, 241, 0.12)"};
   flex: 0 0 auto;
 `;
 
@@ -357,6 +354,72 @@ const AttentionBadge = styled.span`
 
 
 
+/* ✅ 팀 미가입 시: 카드는 보이되 잠금(블러+클릭 차단) + 안내 오버레이 */
+const LockWrap = styled.div`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const DimArea = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  ${({ $locked }) =>
+    $locked &&
+    css`
+      pointer-events: none;
+      user-select: none;
+      filter: blur(1.5px) grayscale(0.15);
+      opacity: 0.6;
+    `}
+`;
+
+const LockOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  text-align: center;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(0, 0, 0, 0.45)" : "rgba(255, 255, 255, 0.55)"};
+`;
+
+const LockIcon = styled.div`
+  font-size: 30px;
+`;
+
+const LockText = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const LockButton = styled.button`
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: none;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
 function toInt(n, fallback = 0) {
   const v = Number(n);
   return Number.isFinite(v) ? v : fallback;
@@ -365,14 +428,20 @@ function toInt(n, fallback = 0) {
 export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, matchRoomAttention }) {
   const navigate = useNavigate();
 
-  if (!team) return null;
+  // ✅ 팀 미가입: 카드는 보여주되 잠금 처리 + 안내 오버레이
+  const locked = !team;
+  const safeTeam = team || {
+    name: "우리 팀",
+    description: "아직 소속된 팀이 없어요. 팀에 가입하거나 팀을 만들어 보세요.",
+    tags: [],
+  };
 
-  const logoSrc =
-    (team.logoUrl && String(team.logoUrl).trim()) ||
-    (team.logoKey && images[team.logoKey]) ||
-    images.logo;
+  const logoSrc = teamLogoSrc(
+    (safeTeam.logoUrl && String(safeTeam.logoUrl).trim()) ||
+    (safeTeam.logoKey && images[safeTeam.logoKey])
+  );
 
-  const memberCount = toInt(team.memberCount, NaN) ?? toInt(team.players?.length, NaN) ?? 0;
+  const memberCount = toInt(safeTeam.memberCount, NaN) ?? toInt(safeTeam.players?.length, NaN) ?? 0;
   const memberCountLabel = `${Number.isFinite(memberCount) ? memberCount : 0}명`;
 
   console.log(matchRoomCounts);
@@ -420,7 +489,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
 
 
   const handleGoMyTeamDetail = () => {
-    const teamId = team.clubId || team.id;
+    const teamId = team?.clubId || team?.id;
     if (!teamId) return;
     navigate(`/team/${teamId}`);
   };
@@ -442,28 +511,44 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
     <SectionWrap>
       <SectionTitle>팀 프로필</SectionTitle>
 
+      <LockWrap>
+        {locked && (
+          <LockOverlay>
+            <LockIcon>🔒</LockIcon>
+            <LockText>
+              팀에 먼저 가입하거나
+              <br />
+              팀을 생성해 주세요
+            </LockText>
+            <LockButton type="button" onClick={() => navigate("/team/create")}>
+              팀 만들기
+            </LockButton>
+          </LockOverlay>
+        )}
+
+        <DimArea $locked={locked} aria-hidden={locked}>
       <ProfileCard onClick={handleGoMyTeamDetail}>
         <TopRow>
           <LogoOuter>
             <LogoBase>
-              <LogoImg src={logoSrc} alt={`${team.name} 로고`} />
+              <LogoImg src={logoSrc} alt={`${safeTeam.name} 로고`} />
             </LogoBase>
           </LogoOuter>
 
           <TeamMeta>
             <TeamNameRow>
-              <TeamName>{team.name}</TeamName>
+              <TeamName>{safeTeam.name}</TeamName>
               <MemberBadge>
                 <MemberIcon>👥</MemberIcon>
                 <span>{memberCountLabel}</span>
               </MemberBadge>
             </TeamNameRow>
 
-            <TeamDesc>{team.description}</TeamDesc>
+            <TeamDesc>{safeTeam.description}</TeamDesc>
 
-            {team.tags && team.tags.length > 0 && (
+            {safeTeam.tags && safeTeam.tags.length > 0 && (
               <TagRow>
-                {team.tags.map((tag) => (
+                {safeTeam.tags.map((tag) => (
                   <Tag key={tag}>{tag}</Tag>
                 ))}
               </TagRow>
@@ -543,6 +628,8 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
           </StatRow>
         </MatchRoomCard>
       </ActionsCol>
+        </DimArea>
+      </LockWrap>
     </SectionWrap>
   );
 }

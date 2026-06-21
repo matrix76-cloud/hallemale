@@ -6,7 +6,7 @@
 
 import React, { useMemo } from "react";
 import styled from "styled-components";
-import { images } from "../../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../../utils/imageAssets";
 import {
   estimateWinProbability,
   recommendationScore,
@@ -192,7 +192,7 @@ export default function AiRecommendedTeamsSection({
             <AiTeamCard key={oppId}>
               <AiLogoBox>
                 <AiLogoImg
-                  src={team.logoUrl || images[team.logoKey] || images.logo}
+                  src={teamLogoSrc(team.logoUrl || images[team.logoKey])}
                   alt={team.name}
                 />
                 <RingDock>

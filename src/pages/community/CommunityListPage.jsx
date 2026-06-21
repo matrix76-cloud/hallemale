@@ -13,8 +13,12 @@ import { useAuth } from "../../hooks/useAuth";
 import FilterSearchBar from "../../components/common/FilterSearchBar";
 import { FiHeart, FiMessageCircle, FiEdit3, FiUsers, FiAward } from "react-icons/fi";
 import EmptyState from "../../components/common/EmptyState";
+import HomeHeroBanner from "../../components/home/HomeHeroBanner";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 커뮤니티 배너는 어드민 등록분만 노출 (기본 fallback 없음)
+const COMMUNITY_BANNER_FALLBACK = [];
 
 const CATEGORIES = [
   { key: "free", label: "자유", Icon: FiMessageCircle },
@@ -41,6 +45,69 @@ const SearchWrap = styled.div`
   padding: 0 12px;
 `;
 
+/* 검색바 아래 게시글 리스트: 페이지보다 살짝 진한 회색 → 흰 카드가 또렷하게 구분됨 */
+const ListContainer = styled.div`
+  margin-top: 10px;
+  min-height: 60vh;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.bg : "#eef0f4"};
+`;
+
+/* 게시글 수 + 정렬 토글 */
+const ListHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 8px;
+`;
+
+const PostCount = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textWeak};
+
+  b {
+    color: ${({ theme }) => theme.colors.textStrong};
+    font-weight: 700;
+  }
+`;
+
+const SortToggle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const SortBtn = styled.button`
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
+  color: ${({ theme, $active }) =>
+    $active ? theme.colors.textStrong : theme.colors.textWeak};
+`;
+
+/* 카드 리스트 */
+const CardList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 16px;
+`;
+
+/* HOT 뱃지 */
+const HotBadge = styled.span`
+  display: inline-block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: ${({ theme }) => theme.colors.danger || "#ef4444"};
+`;
+
 /* =============== 카테고리 탭 =============== */
 
 const TabBar = styled.div`
@@ -53,8 +120,10 @@ const TabBar = styled.div`
 
 const TabButton = styled.button`
   position: relative;
+  flex: 1;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   border-radius: 999px;
   padding: 9px 14px;
@@ -93,14 +162,6 @@ const TabBadge = styled.span`
   height: 7px;
   border-radius: 50%;
   background: ${({ theme }) => theme.colors.danger || "#ef4444"};
-`;
-
-/* =============== 구분 라인 =============== */
-
-const Divider = styled.div`
-  height: 1px;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0, 0, 0, 0.06)"};
 `;
 
 /* =============== 상태 =============== */
@@ -148,8 +209,13 @@ const FloatingWriteButton = styled.button`
 
 const CardBtn = styled.button`
   width: 100%;
-  border: none;
-  background: transparent;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.08)"};
+  border-radius: 12px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
+  box-shadow: ${({ theme }) =>
+    theme.mode === "dark" ? "none" : "0 1px 3px rgba(15, 23, 42, 0.05)"};
   cursor: pointer;
   text-align: left;
   padding: 0;
@@ -160,7 +226,7 @@ const CardBtn = styled.button`
 `;
 
 const PostRow = styled.div`
-  padding: 14px 12px;
+  padding: 14px 16px;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -273,6 +339,7 @@ export default function CommunityListPage() {
   const [errText, setErrText] = useState("");
   const [q, setQ] = useState("");
   const [activeCat, setActiveCat] = useState("free");
+  const [sortMode, setSortMode] = useState("latest"); // "latest" | "popular"
 
   useEffect(() => {
     let alive = true;
@@ -334,6 +401,18 @@ export default function CommunityListPage() {
       });
   }, [posts, q, activeCat]);
 
+  // 정렬: 최신순 | 인기순(좋아요+댓글)
+  const sortedPosts = useMemo(() => {
+    const score = (p) => Number(p.likes || 0) + Number(p.commentsCount || 0);
+    const arr = [...filteredPosts];
+    if (sortMode === "popular") {
+      arr.sort((a, b) => score(b) - score(a));
+    } else {
+      arr.sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0));
+    }
+    return arr;
+  }, [filteredPosts, sortMode]);
+
   const handleClickPost = (postId) => () => {
     navigate(`/communitypost/${postId}`);
   };
@@ -346,11 +425,13 @@ export default function CommunityListPage() {
 
   const renderPost = (post) => {
     const hasImage = !!post.image;
+    const isHot = Number(post.likes || 0) + Number(post.commentsCount || 0) >= 10;
 
     return (
-      <CardBtn onClick={handleClickPost(post.id)}>
+      <CardBtn key={post.id} onClick={handleClickPost(post.id)}>
         <PostRow>
           <PostBody>
+            {isHot && <HotBadge>HOT</HotBadge>}
             <TitleText>{post.title}</TitleText>
             {post.content ? <Snippet>{post.content}</Snippet> : null}
             <MetaRow>
@@ -382,6 +463,12 @@ export default function CommunityListPage() {
 
   return (
     <PageWrap>
+      <HomeHeroBanner
+        placement="community"
+        fallback={COMMUNITY_BANNER_FALLBACK}
+        slideHeight="84px"
+      />
+
       <TabBar>
         {CATEGORIES.map(({ key, label, Icon }) => (
           <TabButton
@@ -402,20 +489,39 @@ export default function CommunityListPage() {
           <FilterSearchBar value={q} onChange={setQ} placeholder="제목/내용/작성자 검색" showFilter={false} />
         </SearchWrap>
 
-        {loading ? (
-          <LoadingBox>불러오는 중…</LoadingBox>
-        ) : errText ? (
-          <ErrorBox>{errText}</ErrorBox>
-        ) : hasPosts ? (
-          filteredPosts.map((post, index) => (
-            <React.Fragment key={post.id}>
-              {renderPost(post)}
-              {index !== filteredPosts.length - 1 && <Divider />}
-            </React.Fragment>
-          ))
-        ) : (
-          <EmptyState text={String(q || "").trim() ? "검색 결과가 없습니다." : "아직 등록된 게시글이 없습니다."} />
-        )}
+        <ListContainer>
+          <ListHeader>
+            <PostCount>
+              게시글 <b>{filteredPosts.length}</b>
+            </PostCount>
+            <SortToggle>
+              <SortBtn
+                type="button"
+                $active={sortMode === "latest"}
+                onClick={() => setSortMode("latest")}
+              >
+                최신순
+              </SortBtn>
+              <SortBtn
+                type="button"
+                $active={sortMode === "popular"}
+                onClick={() => setSortMode("popular")}
+              >
+                인기순
+              </SortBtn>
+            </SortToggle>
+          </ListHeader>
+
+          {loading ? (
+            <LoadingBox>불러오는 중…</LoadingBox>
+          ) : errText ? (
+            <ErrorBox>{errText}</ErrorBox>
+          ) : hasPosts ? (
+            <CardList>{sortedPosts.map((post) => renderPost(post))}</CardList>
+          ) : (
+            <EmptyState text={String(q || "").trim() ? "검색 결과가 없습니다." : "아직 등록된 게시글이 없습니다."} />
+          )}
+        </ListContainer>
       </Inner>
 
       <FloatingWriteButton type="button" onClick={handleClickWrite}>

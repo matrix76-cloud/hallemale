@@ -13,7 +13,9 @@ import TeamStatsSection from "../../components/team/TeamStatsSection";
 import TeamMembersSection from "../../components/team/TeamMembersSection";
 import PlayerCard from "../../components/player/PlayerCard";
 import { getTeamProfile } from "../../services/teamService";
+import { getTeamRankMap } from "../../services/teamRankingService";
 import { images } from "../../utils/imageAssets";
+import TeamAvatarPlaceholder from "../../components/common/TeamAvatarPlaceholder";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 import Spinner from "../../components/common/Spinner";
 
@@ -186,18 +188,15 @@ const ScrollArea = styled.div`
 const HeroWrap = styled.div`
   position: relative;
   width: 100%;
-  height: 220px;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 40%, #312e81 100%);
-  color: #f9fafb;
+  background: ${({ theme }) => theme.colors.bg};
+  color: ${({ theme }) => theme.colors.textStrong};
   overflow: hidden;
 `;
 
 const HeroInner = styled.div`
-  position: absolute;
-  inset: 0;
   display: flex;
   align-items: center;
-  padding: 24px 16px 20px;
+  padding: 20px 16px 10px;
   gap: 12px;
 `;
 
@@ -221,12 +220,32 @@ const HeroLogoRow = styled.div`
   gap: 10px;
 `;
 
+/* 1~3위: 팀 로고 위에 겹쳐 배치되는 로고 */
+const HeroLogoBox = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+
+const HeroCrown = styled.img`
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3));
+`;
+
 const HeroLogoCircle = styled.div`
-  width: 124px;
+  width: 84px;
   height: 84px;
-  border-radius: 999px;
+  border-radius: 20px;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.15);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f4f4ff"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -238,6 +257,13 @@ const HeroLogoImg = styled.img`
   object-fit: cover;
 `;
 
+/* 로고 미등록 시 기본 그룹 placeholder — 컨테이너에 맞게 채움 */
+const HeroLogoPlaceholder = styled(TeamAvatarPlaceholder)`
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0;
+`;
+
 const HeroTitleBlock = styled.div`
   min-width: 0;
 `;
@@ -246,7 +272,7 @@ const HeroTitle = styled.h1`
   margin: 0;
   font-size: 23px;
   font-weight: 700;
-  color: #f9fafb;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -255,7 +281,7 @@ const HeroTitle = styled.h1`
 const HeroMeta = styled.div`
   margin-top: 2px;
   font-size: 13px;
-  color: #d1d5db;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const HeroChipRow = styled.div`
@@ -270,10 +296,10 @@ const HeroChipRow = styled.div`
 
 const HeroChip = styled.span`
   font-size: 12px;
-  padding: 4px 11px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.24);
-  color: #f9fafb;
+  padding: 4px 0;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-weight: 600;
   white-space: nowrap;
 `;
 
@@ -407,32 +433,6 @@ const RecentDots = styled.div`
   gap: 4px;
 `;
 
-const MediaList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-`;
-
-const MediaItem = styled.div`
-  width: 100%;
-  padding: 8px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`;
-
-const MediaCard = styled.div`
-  width: 100%;
-  height: 180px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  position: relative;
-  cursor: pointer;
-`;
-
 const MediaImg = styled.img`
   width: 100%;
   height: 100%;
@@ -457,10 +457,95 @@ const PlayCircle = styled.div`
   font-size: 16px;
 `;
 
-const MediaTitle = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textNormal};
-  line-height: 1.4;
+/* 3열 그리드(최대 3x3) */
+const MediaGrid = styled.div`
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+`;
+
+const MediaCell = styled.div`
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+  cursor: pointer;
+`;
+
+/* 전체보기 — 전체화면 뷰어 (한 장씩 좌우 스와이프) */
+const Viewer = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ViewerTop = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+`;
+
+const ViewerClose = styled.button`
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+`;
+
+const ViewerTrack = styled.div`
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+const ViewerSlide = styled.div`
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  display: grid;
+  place-items: center;
+  position: relative;
+  padding: 0 8px;
+`;
+
+const ViewerImg = styled.img`
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+`;
+
+const ViewerPlay = styled.div`
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
 `;
 
 const LineupListRow = styled.div`
@@ -873,6 +958,7 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState(null);
   const [error, setError] = useState("");
+  const [teamRank, setTeamRank] = useState(null);
 
   const [selectedLineup, setSelectedLineup] = useState(null);
   const [showLineupSelectModal, setShowLineupSelectModal] = useState(false);
@@ -883,6 +969,9 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
 
   const [pastMatches, setPastMatches] = useState([]);
   const [pastMatchesLoading, setPastMatchesLoading] = useState(false);
+
+  // 팀 사진/영상 전체보기 모달
+  const [mediaModalOpen, setMediaModalOpen] = useState(false);
 
   // 팀 신고 모달
   const [reportOpen, setReportOpen] = useState(false);
@@ -994,6 +1083,21 @@ useEffect(() => {
     };
   }, [teamId]);
 
+  // ✅ 팀 전역 랭킹(1~3위 왕관 + 순위 표시용)
+  useEffect(() => {
+    let alive = true;
+    const cid = String(teamId || team?.clubId || team?.id || "").trim();
+    if (!cid) return;
+    getTeamRankMap()
+      .then((map) => {
+        if (alive) setTeamRank(map.get(cid) || null);
+      })
+      .catch((e) => console.warn("[TeamProfile] rank load failed:", e?.message || e));
+    return () => {
+      alive = false;
+    };
+  }, [teamId, team?.clubId, team?.id]);
+
   const isMyTeam = useMemo(() => {
     if (!team || !myUid) return false;
     if (team.ownerUid && String(team.ownerUid) === String(myUid)) return true;
@@ -1009,12 +1113,6 @@ useEffect(() => {
   }, [userDoc?.favoriteTeamIds, teamId]);
 
   const heroIllust = images.teamHeroBasket || images.TeamProfilePage || images.teamActionManage;
-  const logoSrc = team?.logoUrl || images.teamDefaultLogo || images.TeamProfilePage;
-
-  const winRate =
-    team?.stats && typeof team.stats.winRate === "number"
-      ? Math.round(team.stats.winRate * 100)
-      : null;
 
   const tags = Array.isArray(team?.tags) && team.tags.length > 0 ? team.tags : [];
 
@@ -1258,9 +1356,18 @@ useEffect(() => {
                 <HeroTextCol>
                   <HeroTopBlock>
                     <HeroLogoRow>
-                      <HeroLogoCircle>
-                        <HeroLogoImg src={logoSrc} alt={`${team.name} 로고`} />
-                      </HeroLogoCircle>
+                      <HeroLogoBox>
+                        {teamRank && teamRank <= 3 ? (
+                          <HeroCrown src={images.logo} alt={`${teamRank}위`} />
+                        ) : null}
+                        <HeroLogoCircle>
+                          {team.logoUrl && team.logoUrl !== images.logo ? (
+                            <HeroLogoImg src={team.logoUrl} alt={`${team.name} 로고`} />
+                          ) : (
+                            <HeroLogoPlaceholder />
+                          )}
+                        </HeroLogoCircle>
+                      </HeroLogoBox>
                       <HeroTitleBlock>
                         <HeroTitle>{team.name}</HeroTitle>
                         {team.region && <HeroMeta>{team.region} · 생활체육 농구팀</HeroMeta>}
@@ -1268,7 +1375,7 @@ useEffect(() => {
                     </HeroLogoRow>
 
                     <HeroChipRow>
-                      {winRate !== null && <HeroChip>승률 {winRate}%</HeroChip>}
+                      {teamRank ? <HeroChip>랭킹 {teamRank}위</HeroChip> : null}
                       {tags.map((tag) => (
                         <HeroChip key={tag}>#{tag}</HeroChip>
                       ))}
@@ -1334,6 +1441,30 @@ useEffect(() => {
                       })}
                     </RecentDots>
                   </RecentResultsRow>
+                )}
+              </Section>
+
+              <Section>
+                <SectionHeaderRow>
+                  <SectionHeaderLeft>
+                    <SectionIconCircle>
+                      <SectionIconImg src={images.teamStatsIcon} alt="경기 기록" />
+                    </SectionIconCircle>
+                    <SectionTitleText>경기 기록</SectionTitleText>
+                  </SectionHeaderLeft>
+                </SectionHeaderRow>
+
+                {pastMatchesLoading ? (
+                  <StateWrap>
+                    <Spinner size="lg" />
+                  </StateWrap>
+                ) : (
+                  <TeamMatchHistorySection
+                    teamClubId={String(team?.clubId || team?.id || "").trim()}
+                    teamName={team?.name}
+                    matches={pastMatches}
+                    onClickMatch={(id) => nav(`/match-roomdetail/${id}`)}
+                  />
                 )}
               </Section>
 
@@ -1404,59 +1535,36 @@ useEffect(() => {
                       </SectionIconCircle>
                       <SectionTitleText>팀 사진/영상</SectionTitleText>
                     </SectionHeaderLeft>
+                    <SectionMeta
+                      style={{ cursor: "pointer" }}
+                      onClick={() => setMediaModalOpen(true)}
+                    >
+                      전체보기
+                    </SectionMeta>
                   </SectionHeaderRow>
 
-                  <MediaList>
-                    {mediaList.map((m) => (
-                      <MediaItem key={m.id || m.url || m.youtubeUrl}>
-                        <MediaCard onClick={() => onMediaClick(m)}>
-                          {m.thumbnailUrl ? (
-                            <MediaImg src={m.thumbnailUrl} alt={m.title || "media"} />
-                          ) : (
-                            <MediaImg
-                              src={images.teamMediaFallback || images.logo}
-                              alt={m.title || "media"}
-                            />
-                          )}
-
-                          {m.type === "video" && (
-                            <MediaPlay>
-                              <PlayCircle>▶</PlayCircle>
-                            </MediaPlay>
-                          )}
-                        </MediaCard>
-                        {m.title && <MediaTitle>{m.title}</MediaTitle>}
-                      </MediaItem>
+                  <MediaGrid>
+                    {mediaList.slice(0, 9).map((m) => (
+                      <MediaCell
+                        key={m.id || m.url || m.youtubeUrl}
+                        onClick={() => onMediaClick(m)}
+                      >
+                        <MediaImg
+                          src={m.thumbnailUrl || images.teamMediaFallback || images.logo}
+                          alt={m.title || "media"}
+                        />
+                        {m.type === "video" && (
+                          <MediaPlay>
+                            <PlayCircle>▶</PlayCircle>
+                          </MediaPlay>
+                        )}
+                      </MediaCell>
                     ))}
-                  </MediaList>
+                  </MediaGrid>
                 </Section>
 
                 
               )}
-
-              <Section>
-                <SectionHeaderRow>
-                  <SectionHeaderLeft>
-                    <SectionIconCircle>
-                      <SectionIconImg src={images.teamStatsIcon} alt="경기 기록" />
-                    </SectionIconCircle>
-                    <SectionTitleText>경기 기록</SectionTitleText>
-                  </SectionHeaderLeft>
-                </SectionHeaderRow>
-
-                {pastMatchesLoading ? (
-                  <StateWrap>
-                    <Spinner size="lg" />
-                  </StateWrap>
-                ) : (
-                  <TeamMatchHistorySection
-                    teamClubId={String(team?.clubId || team?.id || "").trim()}
-                    teamName={team?.name}
-                    matches={pastMatches}
-                    onClickMatch={(id) => nav(`/match-roomdetail/${id}`)}
-                  />
-                )}
-              </Section>
 
               {!isMyTeam && (
                 <ReportLinkRow>
@@ -1646,6 +1754,32 @@ useEffect(() => {
             </ReportActions>
           </ReportModal>
         </ReportOverlayWrap>
+      )}
+
+      {mediaModalOpen && (
+        <Viewer>
+          <ViewerTop>
+            <span>팀 사진/영상</span>
+            <ViewerClose type="button" onClick={() => setMediaModalOpen(false)}>
+              ×
+            </ViewerClose>
+          </ViewerTop>
+          <ViewerTrack>
+            {mediaList.map((m) => (
+              <ViewerSlide key={m.id || m.url || m.youtubeUrl}>
+                <ViewerImg
+                  src={m.thumbnailUrl || images.teamMediaFallback || images.logo}
+                  alt={m.title || "media"}
+                />
+                {m.type === "video" && (
+                  <ViewerPlay onClick={() => onMediaClick(m)}>
+                    <PlayCircle>▶</PlayCircle>
+                  </ViewerPlay>
+                )}
+              </ViewerSlide>
+            ))}
+          </ViewerTrack>
+        </Viewer>
       )}
     </Page>
   );

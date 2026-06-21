@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
-import { images, playerAvatars } from "../../utils/imageAssets";
+import { images, playerAvatars, teamLogoSrc } from "../../utils/imageAssets";
 import {
   loadMatchRoomDetail,
   proposeMatchSchedule,
@@ -23,12 +23,14 @@ import { useAuth } from "../../hooks/useAuth";
 import { useUIContext } from "../../context/UIContext";
 import VenuePickerSheet from "../../components/common/VenuePickerSheet";
 import EmptyState from "../../components/common/EmptyState";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import MatchRoomChat from "../../components/matchRoom/MatchRoomChat";
 import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCelebration";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
+import { getTeamRankMap } from "../../services/teamRankingService";
 import { mrp } from "../../components/matchRoom/matchRoomPalette";
 
 /* 기획안 색 토큰 (할래말래_직접입력.html :root) — 폴백/참조용 */
@@ -612,13 +614,15 @@ const TicketBadge = styled.span`
   gap: 5px;
   font-size: 11px;
   font-weight: 700;
-  color: #16a34a;
+  color: ${({ $tone }) =>
+    $tone === "red" ? "#dc2626" : $tone === "slate" ? "#475569" : "#16a34a"};
   &::before {
     content: "";
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #16a34a;
+    background: ${({ $tone }) =>
+      $tone === "red" ? "#dc2626" : $tone === "slate" ? "#475569" : "#16a34a"};
   }
 `;
 const TicketBody = styled.div`
@@ -637,18 +641,31 @@ const TicketRow = styled.div`
   font-size: 13px;
   color: ${({ theme }) => mrp(theme.mode).t1};
 `;
-const TicketRowK = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: 56px;
+/* 일시·구장 행: 아이콘 칩 + (라벨/값) */
+const RowIconChip = styled.div`
   flex-shrink: 0;
-  color: ${({ theme }) => mrp(theme.mode).t3};
-  font-weight: 600;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
 `;
-const TicketRowV = styled.span`
+const RowKV = styled.div`
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+const RowK = styled.span`
+  font-size: 11px;
   font-weight: 600;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+`;
+const RowV = styled.span`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t1};
   word-break: keep-all;
 `;
 const DirBtn = styled.button`
@@ -662,7 +679,7 @@ const DirBtn = styled.button`
   background: transparent;
   font-size: 12px;
   font-weight: 700;
-  color: ${({ theme }) => mrp(theme.mode).puL};
+  color: ${({ theme }) => mrp(theme.mode).t2};
   cursor: pointer;
 `;
 const LineupMiniBtn = styled.button`
@@ -676,7 +693,7 @@ const LineupMiniBtn = styled.button`
   background: ${({ theme, $on }) => ($on ? mrp(theme.mode).puBg : "transparent")};
   font-size: 11.5px;
   font-weight: 700;
-  color: ${({ theme }) => mrp(theme.mode).puL};
+  color: ${({ theme }) => mrp(theme.mode).t2};
   cursor: pointer;
 `;
 
@@ -695,35 +712,73 @@ const ShareBtn = styled.button`
   box-shadow: 0 12px 24px -12px rgba(108, 92, 231, 0.7);
 `;
 
-/* ───── 경기 확정 상단 웅장 배너 ───── */
+/* ───── 경기 확정 / 종료 상단 웅장 배너 ───── */
 const ConfBanner = styled.div`
   width: 100%;
   max-width: 360px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 10px;
-  padding: 24px 18px;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 22px 22px;
   border-radius: 20px;
-  text-align: center;
+  text-align: left;
   color: #fff;
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 60%, #15803d 100%);
-  box-shadow: 0 18px 38px -16px rgba(22, 163, 74, 0.7);
+  position: relative;
+  overflow: hidden;
+  background: ${({ $tone }) =>
+    $tone === "red"
+      ? "linear-gradient(135deg, #f87171 0%, #ef4444 55%, #dc2626 100%)"
+      : $tone === "slate"
+      ? "linear-gradient(135deg, #64748b 0%, #475569 60%, #334155 100%)"
+      : "linear-gradient(135deg, #22c55e 0%, #16a34a 60%, #15803d 100%)"};
+  box-shadow: ${({ $tone }) =>
+    $tone === "red"
+      ? "0 18px 38px -16px rgba(220, 38, 38, 0.6)"
+      : $tone === "slate"
+      ? "0 18px 38px -16px rgba(51, 65, 85, 0.6)"
+      : "0 18px 38px -16px rgba(22, 163, 74, 0.7)"};
+
+  /* 우측 상단 장식 원 */
+  &::before {
+    content: "";
+    position: absolute;
+    top: -34px;
+    right: -24px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  &::after {
+    content: "";
+    position: absolute;
+    bottom: -40px;
+    right: 40px;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+  }
 `;
 const ConfBannerCheck = styled.div`
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  font-weight: 900;
+  flex-shrink: 0;
+  font-size: 40px;
   line-height: 1;
+  position: relative;
+  z-index: 1;
+`;
+const ConfBannerText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
 `;
 const ConfBannerTitle = styled.div`
-  font-size: 27px;
+  font-size: 23px;
   font-weight: 900;
   letter-spacing: -0.02em;
 `;
@@ -1173,7 +1228,7 @@ const VsCard = styled.div`
 
 const VsRow = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   position: relative;
 `;
@@ -1200,16 +1255,35 @@ const Crest = styled.div`
   font-size: 22px;
   font-weight: 900;
   overflow: hidden;
-  border: 0.5px solid ${({ theme }) => mrp(theme.mode).line2};
+  border: 2.5px solid ${({ theme }) => mrp(theme.mode).line2};
   background: ${({ theme, $home }) =>
-    $home ? mrp(theme.mode).crestHomeBg : mrp(theme.mode).crestBg};
-  color: ${({ theme, $home }) => ($home ? "#fff" : mrp(theme.mode).t2)};
+    $home ? "#ffffff" : mrp(theme.mode).crestBg};
+  color: ${({ theme }) => mrp(theme.mode).t2};
 `;
 
 const CrestImg = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
+`;
+
+/* 1~3위: 팀 로고(Crest) 위에 겹쳐 배치되는 로고 */
+const CrestWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+
+const CrestCrown = styled.img`
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
 `;
 
 const VsNm = styled.div`
@@ -1229,16 +1303,42 @@ const VsMeta = styled.div`
   margin-top: 2px;
 `;
 
+/* 팀명 + 랭킹 묶음 */
+const VsNmWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+`;
+
+/* 팀명 옆/아래 랭킹 표시 — 등수 상관없이 회색으로 통일 */
+const RankTag = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  letter-spacing: -0.01em;
+`;
+
 const VsMid = styled.div`
   flex-shrink: 0;
   text-align: center;
-  padding-bottom: 22px;
+  margin-top: 13px;
 `;
 
 const VsX = styled.div`
-  font-size: 24px;
-  font-weight: 900;
-  color: ${({ theme }) => mrp(theme.mode).puL};
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1f2433;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   line-height: 1;
 `;
 
@@ -2066,6 +2166,7 @@ export default function MatchRoomDetailPage() {
 
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [rankMap, setRankMap] = useState(null); // clubId → 전체 랭킹 등수
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
@@ -2151,6 +2252,22 @@ export default function MatchRoomDetailPage() {
       cancelled = true;
     };
   }, [roomId]);
+
+  // 팀 전체 랭킹 등수 (티켓에 "랭킹 N위" 표시용)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const map = await getTeamRankMap();
+        if (!cancelled) setRankMap(map);
+      } catch (e) {
+        console.error("[MatchRoomDetailPage] getTeamRankMap failed", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!room) return;
@@ -2425,6 +2542,11 @@ export default function MatchRoomDetailPage() {
   const myTeamView = isActor ? room.myTeam : room.oppTeam;
   const oppTeamView = isActor ? room.oppTeam : room.myTeam;
 
+  // 팀 전체 랭킹 등수 (없으면 미표시)
+  const oppClubId = isActor ? targetClubId : actorClubId;
+  const myRank = rankMap?.get(myClubId) || null;
+  const oppRank = rankMap?.get(oppClubId) || null;
+
   const actorScoreSaved = room.myScore;
   const targetScoreSaved = room.oppScore;
 
@@ -2507,6 +2629,35 @@ export default function MatchRoomDetailPage() {
     ? scheduledAtMs + resultDurMin * 60 * 1000
     : NaN;
   const canOpenResultInput = !resultState && Number.isFinite(resultOpenAtMs) && Date.now() >= resultOpenAtMs;
+
+  // 종료(지난 경기) 판정: 결과 확정(finished)됐거나, 확정 경기인데 경기 종료시각이 지난 경우
+  const isEnded = Number.isFinite(resultOpenAtMs) && Date.now() >= resultOpenAtMs;
+  const isPast = isFinished || (isConfirmed && isEnded);
+
+  // 결과 확정된 완료 경기의 승/패/무 판정 (내 팀 관점)
+  const myScoreNum = Number(isActor ? actorScoreSaved : targetScoreSaved);
+  const oppScoreNum = Number(isActor ? targetScoreSaved : actorScoreSaved);
+  const hasFinalScore =
+    (resultState === "confirmed" || isFinished) &&
+    Number.isFinite(myScoreNum) &&
+    Number.isFinite(oppScoreNum);
+  const outcome = !hasFinalScore
+    ? null
+    : myScoreNum > oppScoreNum
+    ? "win"
+    : myScoreNum < oppScoreNum
+    ? "lose"
+    : "draw";
+
+  // 상단 배너(종료 경기): 승/패/무 → 경기 종료 폴백
+  const pastBanner =
+    outcome === "win"
+      ? { icon: "🏆", title: "경기 승리", sub: "멋진 승리예요 · 수고하셨습니다", tone: "green" }
+      : outcome === "lose"
+      ? { icon: "😞", title: "경기 패배", sub: "아쉬운 경기였어요 · 다음을 기약해요", tone: "red" }
+      : outcome === "draw"
+      ? { icon: "🤝", title: "경기 무승부", sub: "치열한 경기였어요 · 수고하셨습니다", tone: "slate" }
+      : { icon: "🏁", title: "경기 종료", sub: "경기가 종료됐어요 · 수고하셨습니다", tone: "slate" };
 
   const resultOpenAtLabel = Number.isFinite(resultOpenAtMs)
     ? formatKoreanDateTime(new Date(resultOpenAtMs).toISOString())
@@ -2766,7 +2917,7 @@ export default function MatchRoomDetailPage() {
   };
 
   const renderPlayerRow = (p, fallbackText) => {
-    const avatar = playerAvatars?.[p.userId] || p.photoUrl || images.logo;
+    const avatar = playerAvatars?.[p.userId] || p.photoUrl || "";
     const posKo = POSITION_LABEL[p.mainPosition] || "포지션";
 
     const height = p.heightCm ? `${p.heightCm}cm` : null;
@@ -2776,7 +2927,11 @@ export default function MatchRoomDetailPage() {
     return (
       <PlayerRow key={p.userId}>
         <PlayerLeft onClick={() => goPlayerDetail(p)}>
-          <PlayerAvatar src={avatar} alt={p.nickname} />
+          {avatar ? (
+            <PlayerAvatar src={avatar} alt={p.nickname} />
+          ) : (
+            <AvatarPlaceholder size={34} />
+          )}
           <PlayerText>
             <PlayerTopRow>
               <PositionChip label={formatPositionKo(posKo)} size="sm" showAbbr onlyAbbr={false} />
@@ -3192,14 +3347,18 @@ export default function MatchRoomDetailPage() {
                       role="button"
                       onClick={() => goTeamDetail(myTeamView)}
                     >
-                      <Crest $home>
-                        {myTeamView?.logoUrl ? (
-                          <CrestImg src={myTeamView.logoUrl} alt={myTeamView?.name} />
-                        ) : (
-                          toStr(myTeamView?.name)[0] || "R"
-                        )}
-                      </Crest>
-                      <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
+                      <CrestWrap>
+                        {myRank && myRank <= 3 ? (
+                          <CrestCrown src={images.logo} alt={`${myRank}위`} />
+                        ) : null}
+                        <Crest $home>
+                          <CrestImg src={teamLogoSrc(myTeamView?.logoUrl)} alt={myTeamView?.name} />
+                        </Crest>
+                      </CrestWrap>
+                      <VsNmWrap>
+                        <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
+                        {myRank ? <RankTag>랭킹 {myRank}위</RankTag> : null}
+                      </VsNmWrap>
                     </VsTeam>
 
                     <VsMid>
@@ -3210,14 +3369,18 @@ export default function MatchRoomDetailPage() {
                       role="button"
                       onClick={() => goTeamDetail(oppTeamView)}
                     >
-                      <Crest>
-                        {oppTeamView?.logoUrl ? (
-                          <CrestImg src={oppTeamView.logoUrl} alt={oppTeamView?.name} />
-                        ) : (
-                          oppName[0] || "F"
-                        )}
-                      </Crest>
-                      <VsNm>{oppName}</VsNm>
+                      <CrestWrap>
+                        {oppRank && oppRank <= 3 ? (
+                          <CrestCrown src={images.logo} alt={`${oppRank}위`} />
+                        ) : null}
+                        <Crest>
+                          <CrestImg src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppTeamView?.name} />
+                        </Crest>
+                      </CrestWrap>
+                      <VsNmWrap>
+                        <VsNm>{oppName}</VsNm>
+                        {oppRank ? <RankTag>랭킹 {oppRank}위</RankTag> : null}
+                      </VsNmWrap>
                     </VsTeam>
                   </VsRow>
 
@@ -3269,29 +3432,45 @@ export default function MatchRoomDetailPage() {
           </ConfWrap>
         ) : !isVenue && (status === "confirmed" || status === "finished") ? (
           <ConfWrap>
-            {isConfirmed && (
-              <ConfBanner>
-                <ConfBannerCheck>✓</ConfBannerCheck>
-                <ConfBannerTitle>경기 확정!</ConfBannerTitle>
-                <ConfBannerSub>상대 팀과 일정이 확정됐어요. 경기장에서 만나요!</ConfBannerSub>
+            {isPast ? (
+              <ConfBanner $tone={pastBanner.tone}>
+                <ConfBannerCheck>{pastBanner.icon}</ConfBannerCheck>
+                <ConfBannerText>
+                  <ConfBannerTitle>{pastBanner.title}</ConfBannerTitle>
+                  <ConfBannerSub>{pastBanner.sub}</ConfBannerSub>
+                </ConfBannerText>
               </ConfBanner>
-            )}
+            ) : isConfirmed ? (
+              <ConfBanner $tone="green">
+                <ConfBannerCheck>✓</ConfBannerCheck>
+                <ConfBannerText>
+                  <ConfBannerTitle>경기 확정!</ConfBannerTitle>
+                  <ConfBannerSub>상대 팀과 일정이 확정됐어요. 경기장에서 만나요!</ConfBannerSub>
+                </ConfBannerText>
+              </ConfBanner>
+            ) : null}
             <Ticket>
               <TicketHead>
                 <TicketBrand>MATCH TICKET</TicketBrand>
-                <TicketBadge>확정됨</TicketBadge>
+                <TicketBadge $tone={isPast ? pastBanner.tone : "green"}>
+                  {isPast ? pastBanner.title : "확정됨"}
+                </TicketBadge>
               </TicketHead>
               <TicketBody>
                 <VsRow>
                   <VsTeam role="button" onClick={() => goTeamDetail(myTeamView)}>
-                    <Crest $home>
-                      {myTeamView?.logoUrl ? (
-                        <CrestImg src={myTeamView.logoUrl} alt={myTeamView?.name} />
-                      ) : (
-                        toStr(myTeamView?.name)[0] || "R"
-                      )}
-                    </Crest>
-                    <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
+                    <CrestWrap>
+                      {myRank && myRank <= 3 ? (
+                        <CrestCrown src={images.logo} alt={`${myRank}위`} />
+                      ) : null}
+                      <Crest $home>
+                        <CrestImg src={teamLogoSrc(myTeamView?.logoUrl)} alt={myTeamView?.name} />
+                      </Crest>
+                    </CrestWrap>
+                    <VsNmWrap>
+                      <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
+                      {myRank ? <RankTag>랭킹 {myRank}위</RankTag> : null}
+                    </VsNmWrap>
                     <LineupMiniBtn
                       type="button"
                       $on={myLineupOpen}
@@ -3309,14 +3488,18 @@ export default function MatchRoomDetailPage() {
                   </VsMid>
 
                   <VsTeam role="button" onClick={() => goTeamDetail(oppTeamView)}>
-                    <Crest>
-                      {oppTeamView?.logoUrl ? (
-                        <CrestImg src={oppTeamView.logoUrl} alt={oppTeamView?.name} />
-                      ) : (
-                        oppName[0] || "F"
-                      )}
-                    </Crest>
-                    <VsNm>{oppName}</VsNm>
+                    <CrestWrap>
+                      {oppRank && oppRank <= 3 ? (
+                        <CrestCrown src={images.logo} alt={`${oppRank}위`} />
+                      ) : null}
+                      <Crest>
+                        <CrestImg src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppTeamView?.name} />
+                      </Crest>
+                    </CrestWrap>
+                    <VsNmWrap>
+                      <VsNm>{oppName}</VsNm>
+                      {oppRank ? <RankTag>랭킹 {oppRank}위</RankTag> : null}
+                    </VsNmWrap>
                     <LineupMiniBtn
                       type="button"
                       $on={oppLineupOpen}
@@ -3362,18 +3545,30 @@ export default function MatchRoomDetailPage() {
 
                 <TicketRows>
                   <TicketRow>
-                    <TicketRowK>📅 일시</TicketRowK>
-                    <TicketRowV>{confDateLabel}</TicketRowV>
+                    <RowIconChip>📅</RowIconChip>
+                    <RowKV>
+                      <RowK>일시</RowK>
+                      <RowV>{confDateLabel}</RowV>
+                    </RowKV>
                   </TicketRow>
                   <TicketRow>
-                    <TicketRowK>📍 구장</TicketRowK>
-                    <TicketRowV>{toStr(fieldAddress) || "직접 입력 구장"}</TicketRowV>
+                    <RowIconChip>📍</RowIconChip>
+                    <RowKV>
+                      <RowK>구장</RowK>
+                      <RowV>{toStr(fieldAddress) || "직접 입력 구장"}</RowV>
+                    </RowKV>
                     {fieldLatLng?.lat && fieldLatLng?.lng ? (
                       <DirBtn type="button" onClick={openDirections}>
                         길찾기
                       </DirBtn>
                     ) : null}
                   </TicketRow>
+
+                  {fieldLatLng?.lat && fieldLatLng?.lng ? (
+                    <FieldMapWrap>
+                      <VenueMiniMap latLng={fieldLatLng} height={140} />
+                    </FieldMapWrap>
+                  ) : null}
                 </TicketRows>
               </TicketBody>
             </Ticket>
@@ -3390,7 +3585,7 @@ export default function MatchRoomDetailPage() {
             {/* 경기 결과 입력/제출/인정 — 확정 화면에서 바로 (별도 채팅 없음) */}
             {resultSection}
 
-            {isConfirmed && (
+            {isConfirmed && !isEnded && (
               <ConfCancelBtn type="button" onClick={handleCancelConfirmedMatch}>
                 경기 취소하기
               </ConfCancelBtn>

@@ -161,3 +161,44 @@ export async function listAllTeamsForRanking({ debugLog = false } = {}) {
 
   return { rows };
 }
+
+// ✅ 랭킹 정렬 키: 점수(승 +5/무 +2/패 +1) desc → 승률 desc → 승수 desc → 경기수 desc → 이름 asc
+// (TeamRankingFullPage 정렬 기준과 동일)
+function getRankPerfKey(t) {
+  const wins = safeNum(t?.stats?.wins ?? t?.wins, 0);
+  const losses = safeNum(t?.stats?.losses ?? t?.losses, 0);
+  const draws = safeNum(t?.stats?.draws ?? t?.draws, 0);
+  const total = wins + losses + draws;
+  const points = wins * 5 + draws * 2 + losses * 1;
+  const rawWinRate = typeof t?.stats?.winRate === "number" ? t.stats.winRate : null;
+  const winRatePct =
+    rawWinRate != null ? Math.round(rawWinRate * 100) : total > 0 ? Math.round((wins / total) * 100) : 0;
+  return { points, winRatePct, wins, total, name: toStr(t?.name).toLowerCase() };
+}
+
+/**
+ * ✅ 전체 팀 랭킹을 계산해 clubId → 등수(1부터) Map 으로 반환
+ * - TeamRankingFullPage 와 동일한 전역 정렬 기준(필터 없음)
+ */
+export async function getTeamRankMap({ debugLog = false } = {}) {
+  const { rows } = await listAllTeamsForRanking({ debugLog });
+
+  const sorted = [...rows].sort((a, b) => {
+    const ka = getRankPerfKey(a);
+    const kb = getRankPerfKey(b);
+    if (kb.points !== ka.points) return kb.points - ka.points;
+    if (kb.winRatePct !== ka.winRatePct) return kb.winRatePct - ka.winRatePct;
+    if (kb.wins !== ka.wins) return kb.wins - ka.wins;
+    if (kb.total !== ka.total) return kb.total - ka.total;
+    if (ka.name === kb.name) return 0;
+    return ka.name > kb.name ? 1 : -1;
+  });
+
+  const map = new Map();
+  sorted.forEach((t, idx) => {
+    const id = toStr(t?.clubId || t?.id);
+    if (id) map.set(id, idx + 1);
+  });
+
+  return map;
+}

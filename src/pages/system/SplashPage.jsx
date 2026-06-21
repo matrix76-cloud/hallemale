@@ -8,34 +8,59 @@ import { useClub } from "../../hooks/useClub";
 import { useHomeData } from "../../hooks/useHomeData";
 import { useMatchingData } from "../../hooks/useMatchingData";
 
-import splashImg from "../../assets/images/splash_player.png";
+import logoImg from "../../assets/images/logo.png";
 import { runSchemaDumpFront } from "../../services/schemaDumpService";
 
-// 실사 사진이 천천히 확대되는 Ken Burns 줌 + 페이드인
-const kenBurns = keyframes`
-  0%   { opacity: 0; transform: scale(1); }
-  18%  { opacity: 1; }
-  100% { opacity: 1; transform: scale(1.1); }
+// 로고/텍스트가 아래에서 살짝 떠오르며 페이드인
+const fadeUp = keyframes`
+  0%   { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
 `;
 
 const Wrap = styled.div`
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: #000;
+  background: #ffffff;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
 `;
 
-const SplashImage = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transform-origin: 50% 42%;
-  will-change: transform, opacity;
-  animation: ${kenBurns} 1000ms ease-out both;
+const LogoCard = styled.div`
+  width: 96px;
+  height: 96px;
+  border-radius: 26px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: ${fadeUp} 700ms ease-out both;
+`;
+
+const LogoImage = styled.img`
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+`;
+
+const BrandName = styled.h1`
+  margin: 22px 0 0;
+  font-size: 30px;
+  font-weight: 800;
+  color: #41522f;
+  letter-spacing: -0.5px;
+  animation: ${fadeUp} 700ms ease-out 120ms both;
+`;
+
+const Tagline = styled.p`
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #7b8c5f;
+  animation: ${fadeUp} 700ms ease-out 220ms both;
 `;
 
 export default function SplashPage() {
@@ -116,7 +141,11 @@ export default function SplashPage() {
 
   return (
     <Wrap>
-      <SplashImage src={splashImg} alt="할래말래 스플래시" />
+      <LogoCard>
+        <LogoImage src={logoImg} alt="할래말래 로고" />
+      </LogoCard>
+      <BrandName>할래말래</BrandName>
+      <Tagline>이번주, 경기 한판 할래말래</Tagline>
     </Wrap>
   );
 }

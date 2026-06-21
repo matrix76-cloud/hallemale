@@ -435,14 +435,11 @@ const PickCard = styled.div`
 const Pk = styled.div`
   width: 36px;
   height: 36px;
-  border-radius: 10px;
   flex-shrink: 0;
-  background: ${({ theme }) =>
-    `linear-gradient(145deg, ${P(theme).pu}, ${P(theme).puD})`};
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 22px;
 `;
 
 const PInfo = styled.div`

@@ -4,8 +4,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import Spinner from "../../components/common/Spinner";
-import { images } from "../../utils/imageAssets";
+import { teamLogoSrc } from "../../utils/imageAssets";
 import { listFinishedMatchesPage } from "../../services/matchRoomService";
+import { getTeamRankMap } from "../../services/teamRankingService";
 import { useClub } from "../../hooks/useClub";
 import EmptyState from "../../components/common/EmptyState";
 
@@ -107,7 +108,19 @@ const MiniLogoImg = styled.img`
   display: block;
 `;
 
+/* 팀명(중앙 고정) + 랭킹(그 옆) 한 줄 배치 — 이름이 가운데 칸에 와서 위치가 밀리지 않음 */
+const NameRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto) 1fr;
+  align-items: baseline;
+  width: 100%;
+  column-gap: 4px;
+`;
+
 const MiniName = styled.span`
+  grid-column: 2;
+  justify-self: center;
+  min-width: 0;
   max-width: 100%;
   font-size: 11.5px;
   font-weight: 700;
@@ -115,6 +128,17 @@ const MiniName = styled.span`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+`;
+
+/* 랭킹 — 배경 없이 회색 텍스트만 */
+const RankTag = styled.span`
+  grid-column: 3;
+  justify-self: start;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ScoreMid = styled.div`
@@ -127,8 +151,13 @@ const ScoreMid = styled.div`
 const ScoreNum = styled.span`
   font-size: 21px;
   font-weight: 800;
-  color: ${({ $win, theme }) =>
-    $win ? (theme.mode === "dark" ? "#6ee0ab" : "#1e9e70") : theme.colors.textWeak};
+  ${({ $tone, theme }) => {
+    const dark = theme.mode === "dark";
+    // 내 팀 점수: 승=초록, 패=빨강. 무승부/상대 점수=기본 글씨색
+    if ($tone === "win") return `color:${dark ? "#6ee0ab" : "#1e9e70"};`;
+    if ($tone === "lose") return `color:${dark ? "#f87171" : "#dc2626"};`;
+    return `color:${theme.colors.textStrong};`;
+  }}
 `;
 
 const ScoreColon = styled.span`
@@ -188,6 +217,7 @@ export default function FinishedMatchesPage() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [rankMap, setRankMap] = useState(null);
 
   const load = async ({ reset = false } = {}) => {
     if (busy) return;
@@ -229,6 +259,21 @@ export default function FinishedMatchesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myClubId]);
 
+  // ✅ 팀 랭킹(전역 등수) 로드 — 팀 이름 옆 "N위" 표시용
+  useEffect(() => {
+    let alive = true;
+    getTeamRankMap({ debugLog: false })
+      .then((map) => {
+        if (alive) setRankMap(map);
+      })
+      .catch((e) => {
+        console.warn("[FinishedMatchesPage] getTeamRankMap failed:", e?.message || e);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const viewRows = useMemo(() => {
     return (rows || []).map((r) => {
       // 내 팀이 왼쪽에 오도록 정렬(완료된 경기 카드와 동일 관점) + 승/패 판정
@@ -238,10 +283,15 @@ export default function FinishedMatchesPage() {
       const myScoreRaw = iAmActor ? r?.actorScore : r?.targetScore;
       const oppScoreRaw = iAmActor ? r?.targetScore : r?.actorScore;
 
-      const myLogo = toStr(myTeam?.logoUrl) || images.logo;
-      const oppLogo = toStr(oppTeam?.logoUrl) || images.logo;
+      const myLogo = teamLogoSrc(toStr(myTeam?.logoUrl));
+      const oppLogo = teamLogoSrc(toStr(oppTeam?.logoUrl));
       const myName = toStr(myTeam?.name) || "우리팀";
       const oppName = toStr(oppTeam?.name) || "상대팀";
+
+      const myClubIdRow = toStr(myTeam?.clubId) || (iAmActor ? toStr(r?.actorClubId) : toStr(r?.targetClubId));
+      const oppClubIdRow = toStr(oppTeam?.clubId) || (iAmActor ? toStr(r?.targetClubId) : toStr(r?.actorClubId));
+      const myRank = rankMap?.get(myClubIdRow) || null;
+      const oppRank = rankMap?.get(oppClubIdRow) || null;
 
       const when = r?.scheduledAt ? formatKoreanDateTime(r.scheduledAt) : "";
 
@@ -262,6 +312,8 @@ export default function FinishedMatchesPage() {
         oppLogo,
         myName,
         oppName,
+        myRank,
+        oppRank,
         when,
         myScore: hasScore ? myNum : "-",
         oppScore: hasScore ? oppNum : "-",
@@ -269,7 +321,7 @@ export default function FinishedMatchesPage() {
         outcome,
       };
     });
-  }, [rows, myClubId]);
+  }, [rows, myClubId, rankMap]);
 
   const openDetail = (id) => {
     if (!id) return;
@@ -312,20 +364,30 @@ export default function FinishedMatchesPage() {
                 <MiniLogo>
                   <MiniLogoImg src={r.myLogo} alt={r.myName} />
                 </MiniLogo>
-                <MiniName title={r.myName}>{r.myName}</MiniName>
+                <NameRow>
+                  <MiniName title={r.myName}>{r.myName}</MiniName>
+                  {r.myRank ? <RankTag>{r.myRank}위</RankTag> : null}
+                </NameRow>
               </MiniTeam>
 
               <ScoreMid>
-                <ScoreNum $win={r.hasScore && r.myScore > r.oppScore}>{r.myScore}</ScoreNum>
+                <ScoreNum
+                  $tone={r.outcome === "win" ? "win" : r.outcome === "lose" ? "lose" : "neutral"}
+                >
+                  {r.myScore}
+                </ScoreNum>
                 <ScoreColon>:</ScoreColon>
-                <ScoreNum $win={r.hasScore && r.oppScore > r.myScore}>{r.oppScore}</ScoreNum>
+                <ScoreNum $tone="neutral">{r.oppScore}</ScoreNum>
               </ScoreMid>
 
               <MiniTeam>
                 <MiniLogo>
                   <MiniLogoImg src={r.oppLogo} alt={r.oppName} />
                 </MiniLogo>
-                <MiniName title={r.oppName}>{r.oppName}</MiniName>
+                <NameRow>
+                  <MiniName title={r.oppName}>{r.oppName}</MiniName>
+                  {r.oppRank ? <RankTag>{r.oppRank}위</RankTag> : null}
+                </NameRow>
               </MiniTeam>
             </TeamsMini>
           </CompletedCard>

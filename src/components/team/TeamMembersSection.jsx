@@ -9,6 +9,7 @@ import styled from "styled-components";
 import { images, playerAvatars } from "../../utils/imageAssets";
 import PositionChip from "../common/PositionChip";
 import EmptyState from "../common/EmptyState";
+import AvatarPlaceholder from "../common/AvatarPlaceholder";
 
 const Wrap = styled.div`
   display: flex;
@@ -130,8 +131,7 @@ export default function TeamMembersSection({ members = [], onPlayerClick }) {
             playerAvatars[uid] ||
             safeString(m?.avatarUrl) ||
             safeString(m?.photoUrl) ||
-            images.profileDefault ||
-            images.logo;
+            "";
 
           const posLabel = positionLabel(m?.mainPosition);
 
@@ -142,7 +142,11 @@ export default function TeamMembersSection({ members = [], onPlayerClick }) {
               onClick={() => onPlayerClick && onPlayerClick(m)}
               title={name}
             >
-              <Avatar src={avatarSrc} alt={name} />
+              {avatarSrc ? (
+                <Avatar src={avatarSrc} alt={name} />
+              ) : (
+                <AvatarPlaceholder size={44} />
+              )}
 
               <Meta>
                 <NameRow>

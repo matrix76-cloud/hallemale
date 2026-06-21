@@ -103,7 +103,8 @@ export async function getPlayerProfile(playerId) {
   const skillLabel = SKILL_LEVEL_LABEL_MAP[u.skillLevel] || null;
 
   // 4) 아바타/팀로고
-  const avatarUrl = u.avatarUrl || images.playerDefaultAvatar || images.teamDefaultLogo || images.logo;
+  // 아바타: 미등록이면 빈 값으로 내려 화면에서 사람 아이콘(AvatarPlaceholder) 표시
+  const avatarUrl = u.avatarUrl || "";
   const teamLogoUrl = club?.logoUrl || images.teamDefaultLogo || images.logo;
 
   // 5) PlayerProfilePage에서 쓰기 편하게 "player" 형태로 반환

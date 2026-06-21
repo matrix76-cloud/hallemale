@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { images } from "../../utils/imageAssets";
+import { teamLogoSrc } from "../../utils/imageAssets";
 import { useClub } from "../../hooks/useClub";
 import { loadMatchRoomListPageData } from "../../services/matchRoomService";
 import Spinner from "../../components/common/Spinner";
@@ -85,9 +85,9 @@ export default function MyPersonalMatchesPage() {
         return {
           id: r.id,
           myTeamName: r?.myTeam?.name || "내 팀",
-          myLogo: r?.myTeam?.logoUrl || images.logo,
+          myLogo: teamLogoSrc(r?.myTeam?.logoUrl),
           oppTeamName: r?.oppTeam?.name || "상대 팀",
-          oppLogo: r?.oppTeam?.logoUrl || images.logo,
+          oppLogo: teamLogoSrc(r?.oppTeam?.logoUrl),
           date,
           time,
           place: r.fieldAddress || "-",
@@ -230,7 +230,7 @@ const TeamSide = styled.div`
 const TeamLogoWrap = styled.div`
   width: 30px;
   height: 30px;
-  border-radius: 999px;
+  border-radius: 10px;
   overflow: hidden;
   background: ${({ theme }) => theme.colors.border};
   flex-shrink: 0;

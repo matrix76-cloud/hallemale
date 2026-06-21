@@ -5,6 +5,7 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 
 import { images, playerAvatars } from "../../utils/imageAssets";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { useClubContext } from "../../context/ClubContext";
 import PositionChip from "../../components/common/PositionChip";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
@@ -1051,7 +1052,7 @@ export default function MatchingPage() {
 
                     return (
                       <MemberChip key={uid}>
-                        <Avatar>{photoUrl ? <img src={photoUrl} alt="" /> : null}</Avatar>
+                        <Avatar>{photoUrl ? <img src={photoUrl} alt="" /> : <AvatarPlaceholder size={26} />}</Avatar>
                         <div>
                           <MemberName>{nickname}</MemberName>
                           <MemberPos>{POSITION_LABEL[pos] || ""}</MemberPos>
@@ -1114,7 +1115,7 @@ export default function MatchingPage() {
                     onClick={() => handleToggleMember(uid)}
                   >
                     <CheckDot data-on={selected} />
-                    <Avatar>{photoUrl ? <img src={photoUrl} alt="" /> : null}</Avatar>
+                    <Avatar>{photoUrl ? <img src={photoUrl} alt="" /> : <AvatarPlaceholder size={26} />}</Avatar>
                     <MemberRowMeta>
                       <MemberRowName>{nickname}</MemberRowName>
                       <MemberRowSub>{POSITION_LABEL[pos] || ""}</MemberRowSub>

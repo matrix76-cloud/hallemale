@@ -4,11 +4,13 @@
 // ✅ 점수 규칙: 승 +5, 무 +2, 패 +1
 // ✅ 팀장 뱃지 위치: "아바타 이미지 밑" (p.isTeamCaptain === true)
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import styled, { keyframes, css } from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { images } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
+import { getTeamRankMap } from "../../services/teamRankingService";
 import PositionChip from "../common/PositionChip";
+import AvatarPlaceholder from "../common/AvatarPlaceholder";
 
 const SectionWrap = styled.section`
   margin-top: 16px;
@@ -226,10 +228,30 @@ const TeamPill = styled.div`
   cursor: pointer;
 `;
 
+/* 소속팀 1~3위: 클럽 로고 위에 겹쳐 배치되는 왕관 */
+const TeamLogoBox = styled.span`
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+`;
+
+const TeamCrown = styled.img`
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.25));
+`;
+
 const TeamLogoWrap = styled.div`
   width: 30px;
   height: 30px;
-  border-radius: 999px;
+  border-radius: 10px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
@@ -276,6 +298,20 @@ function calcPoints(p) {
 
 export default function PlayerRankingSection({ rows = [] }) {
   const nav = useNavigate();
+  const [teamRankMap, setTeamRankMap] = useState(null);
+
+  // ✅ 팀 전역 랭킹 — 소속팀(클럽) 1~3위면 로고 위에 왕관 표시용
+  useEffect(() => {
+    let alive = true;
+    getTeamRankMap()
+      .then((map) => {
+        if (alive) setTeamRankMap(map);
+      })
+      .catch((e) => console.warn("[PlayerRankingSection] getTeamRankMap failed:", e?.message || e));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const topRows = useMemo(() => {
     const base = Array.isArray(rows) ? rows : [];
@@ -329,13 +365,10 @@ export default function PlayerRankingSection({ rows = [] }) {
           const rank = p.rank || index + 1;
           const showCrown = rank <= 3;
 
-          const avatarSrc =
-            (p.avatarUrl && String(p.avatarUrl).trim()) ||
-            images.profileDefault ||
-            images.logo;
+          const avatarSrc = p.avatarUrl && String(p.avatarUrl).trim();
 
-          const clubLogoSrc =
-            (p.clubLogoUrl && String(p.clubLogoUrl).trim()) || images.logo;
+          const clubLogoSrc = teamLogoSrc(p.clubLogoUrl && String(p.clubLogoUrl).trim());
+          const clubRank = teamRankMap?.get(String(p.clubId || "").trim());
 
           const clubName = p.clubName || "소속 없음";
 
@@ -362,10 +395,14 @@ export default function PlayerRankingSection({ rows = [] }) {
                 onClick={() => handlePlayerClick(p.userId)}
               >
                 <AvatarStack>
-                  <AvatarCircle
-                    src={avatarSrc}
-                    alt={p.name || p.nickname || "player"}
-                  />
+                  {avatarSrc ? (
+                    <AvatarCircle
+                      src={avatarSrc}
+                      alt={p.name || p.nickname || "player"}
+                    />
+                  ) : (
+                    <AvatarPlaceholder size={40} />
+                  )}
                   {p.isTeamCaptain === true ? <CaptainPill>팀장</CaptainPill> : null}
                 </AvatarStack>
 
@@ -386,9 +423,14 @@ export default function PlayerRankingSection({ rows = [] }) {
                     handleTeamClick(p.clubId);
                   }}
                 >
-                  <TeamLogoWrap>
-                    <TeamLogoImg src={clubLogoSrc} alt={clubName} />
-                  </TeamLogoWrap>
+                  <TeamLogoBox>
+                    {clubRank && clubRank <= 3 ? (
+                      <TeamCrown src={images.logo} alt={`${clubRank}위`} />
+                    ) : null}
+                    <TeamLogoWrap>
+                      <TeamLogoImg src={clubLogoSrc} alt={clubName} />
+                    </TeamLogoWrap>
+                  </TeamLogoBox>
                   <TeamName>{clubName}</TeamName>
                 </TeamPill>
               </PlayerCard>

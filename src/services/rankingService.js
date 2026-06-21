@@ -171,6 +171,54 @@ export async function listPlayerRankingPage({
 }
 
 /**
+ * ✅ 전체 선수 랭킹을 계산해 userId → 등수(1부터) Map 으로 반환
+ * - PlayerRankingFullPage 와 동일한 정렬 기준(점수→승률→승수→경기수→이름)
+ * - 프로필 상세 등에서 단일 선수의 전역 순위 조회용
+ */
+export async function getPlayerRankMap({ debugLog = false } = {}) {
+  const usersCol = collection(db, "users");
+  const snap = await getDocs(usersCol);
+
+  const enriched = [];
+  snap.forEach((d) => {
+    const u = normalizeUserRow(d);
+    const wins = toNum(u.wins, 0);
+    const losses = toNum(u.losses, 0);
+    const draws = toNum(u.draws, 0);
+    enriched.push({
+      userId: u.userId,
+      name: u.nickname || "사용자",
+      wins,
+      _points: calcPoints({ wins, losses, draws }),
+      _winRate: calcWinRatePercent({ wins, losses, draws }),
+      _total: wins + losses + draws,
+    });
+  });
+
+  const sorted = enriched.sort((a, b) => {
+    if (b._points !== a._points) return b._points - a._points;
+    if (b._winRate !== a._winRate) return b._winRate - a._winRate;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    if (b._total !== a._total) return b._total - a._total;
+    const na = String(a.name || "").toLowerCase();
+    const nb = String(b.name || "").toLowerCase();
+    if (na === nb) return 0;
+    return na > nb ? 1 : -1;
+  });
+
+  const map = new Map();
+  sorted.forEach((u, idx) => {
+    if (u.userId) map.set(u.userId, idx + 1);
+  });
+
+  if (debugLog) {
+    console.log("[rankingService] getPlayerRankMap size:", map.size);
+  }
+
+  return map;
+}
+
+/**
  * ✅ 홈 전용: "근사 Top5" (rankingScore 저장 없이)
  * - 후보를 wins 내림차순으로 candidateSize만 뽑고
  * - 점수(승*5 + 무*2 + 패*1) 계산해서 Top N 반환

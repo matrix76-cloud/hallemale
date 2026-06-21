@@ -11,7 +11,8 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import Spinner from "../../components/common/Spinner";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
-import { images } from "../../utils/imageAssets";
+import { teamLogoSrc } from "../../utils/imageAssets";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { useClubContext } from "../../context/ClubContext";
 import { getTeamProfile } from "../../services/teamService";
 import { estimateWinProbability } from "../../utils/matchAnalysis";
@@ -772,7 +773,7 @@ export default function MatchAnalysisPage() {
         pos: myPos,
         recent: myRecent,
         members: myMembers,
-        logoUrl: String(myTeam.logoUrl || "").trim() || images.logo,
+        logoUrl: teamLogoSrc(String(myTeam.logoUrl || "").trim()),
         lineups,
       },
       opp: {
@@ -786,7 +787,7 @@ export default function MatchAnalysisPage() {
         recent: oppRecent,
         members: oppMembers,
         media: oppMedia,
-        logoUrl: String(oppTeam.logoUrl || "").trim() || images.logo,
+        logoUrl: teamLogoSrc(String(oppTeam.logoUrl || "").trim()),
       },
     };
   }, [myTeam, oppTeam]);
@@ -1047,8 +1048,7 @@ export default function MatchAnalysisPage() {
                 const avatar =
                   String(p?.avatarUrl || "").trim() ||
                   String(p?.photoUrl || "").trim() ||
-                  images.profileDefault ||
-                  images.logo;
+                  "";
 
                 const pos = String(p?.mainPosition || "").trim();
                 const posKo = POSITION_LABEL[pos] || "포지션";
@@ -1062,7 +1062,11 @@ export default function MatchAnalysisPage() {
 
                 return (
                   <PlayerRow key={p.userId || p.id}>
-                    <Avatar src={avatar} alt={p.nickname || p.name || "player"} />
+                    {avatar ? (
+                      <Avatar src={avatar} alt={p.nickname || p.name || "player"} />
+                    ) : (
+                      <AvatarPlaceholder size={44} />
+                    )}
                     <PlayerCol>
                       <PlayerName>{p.nickname || p.name || "선수"}</PlayerName>
                       <PlayerMeta>{meta}</PlayerMeta>
@@ -1078,8 +1082,7 @@ export default function MatchAnalysisPage() {
                 const avatar =
                   String(p?.avatarUrl || "").trim() ||
                   String(p?.photoUrl || "").trim() ||
-                  images.profileDefault ||
-                  images.logo;
+                  "";
 
                 const pos = String(p?.mainPosition || "").trim();
                 const posKo = POSITION_LABEL[pos] || "포지션";
@@ -1093,7 +1096,11 @@ export default function MatchAnalysisPage() {
 
                 return (
                   <PlayerRow key={p.userId || p.id}>
-                    <Avatar src={avatar} alt={p.nickname || p.name || "player"} />
+                    {avatar ? (
+                      <Avatar src={avatar} alt={p.nickname || p.name || "player"} />
+                    ) : (
+                      <AvatarPlaceholder size={44} />
+                    )}
                     <PlayerCol>
                       <PlayerName>{p.nickname || p.name || "선수"}</PlayerName>
                       <PlayerMeta>{meta}</PlayerMeta>

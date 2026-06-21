@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useLocation } from "react-router-dom";
-import { images } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
 import Spinner from "../../components/common/Spinner";
 import InfoDialog from "../../components/common/InfoDialog";
 
@@ -931,7 +931,7 @@ export default function MatchingManagePage() {
               const opp =  resolveOtherTeamSnapshot(row);
               const oppName = toStr(opp?.name) || "상대 팀";
               const oppRegion = toStr(opp?.region);
-              const logoSrc = toStr(opp?.logoUrl) || images.teamDefaultLogo || images.logo;
+              const logoSrc = teamLogoSrc(toStr(opp?.logoUrl));
 
               const ts = row.timestamp ? formatDateTime(row.timestamp) : "";
               const badgeMeta = getMatchBadgeMeta(row);

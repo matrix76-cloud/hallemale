@@ -6,21 +6,23 @@ import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 import { FiStar, FiMapPin } from "react-icons/fi";
-import { TbBallBasketball } from "react-icons/tb";
 
 import { images } from "../../utils/imageAssets";
 import { getPlayerProfile } from "../../services/playerService";
+import { getPlayerRankMap } from "../../services/rankingService";
 
 import { useAuth } from "../../hooks/useAuth";
 import { setFavoritePlayer } from "../../services/favoriteService";
-import { getOrCreateDmRoom } from "../../services/chatService";
 import { createUserReport } from "../../services/userReportService";
 import BlockedOverlay from "../../components/common/BlockedOverlay";
 import PlayerActivitySection from "../../components/player/PlayerActivitySection";
-import PlayerAbilitySection from "../../components/player/PlayerAbilitySection";
 import PlayerHealthSection from "../../components/player/PlayerHealthSection";
 import PlayerMonthlyStatsSection from "../../components/player/PlayerMonthlyStatsSection";
 import EmptyState from "../../components/common/EmptyState";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
+import TeamStatsSection from "../../components/team/TeamStatsSection";
+import TeamMatchHistorySection from "../../components/team/TeamMatchHistorySection";
+import { loadPlayerFinishedMatches } from "../../services/matchRoomService";
 
 /* =============== 헬퍼: 포지션/실력 라벨 =============== */
 
@@ -136,6 +138,25 @@ const HeroTopBlock = styled.div`
   align-items: center;
 `;
 
+/* 1~3위: 프로필 아바타 위에 겹쳐 배치되는 로고 */
+const AvatarBox = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+
+const AvatarCrown = styled.img`
+  position: absolute;
+  top: -23px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3));
+`;
+
 const AvatarCircle = styled.div`
   width: 62px;
   height: 62px;
@@ -151,6 +172,13 @@ const AvatarImg = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
+`;
+
+/* 프로필 없을 때: 사람 실루엣 placeholder (라운드 사각) */
+const SquareAvatarPlaceholder = styled(AvatarPlaceholder)`
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 8px;
 `;
 
 const HeroTitleBlock = styled.div`
@@ -351,6 +379,7 @@ const MetaValue = styled.span`
   font-weight: 500;
 `;
 
+
 const TeamInfoRow = styled.div`
   font-size: 13px;
   color: ${({ theme }) => theme.colors.textNormal};
@@ -443,55 +472,6 @@ const PlaceholderText = styled.div`
 `;
 
 /* 하단 CTA */
-
-const BottomBar = styled.div`
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 10px 16px 16px;
-  background: ${({ theme }) =>
-    theme.mode === "dark"
-      ? theme.colors.card
-      : "linear-gradient(to top, #ffffff, rgba(255, 255, 255, 0.92))"};
-  box-shadow: ${({ theme }) => theme.shadows.card};
-  z-index: 10;
-`;
-
-const CTAButton = styled.button`
-  width: 100%;
-  border: 1px solid
-    ${({ theme }) =>
-      theme.mode === "dark"
-        ? "rgba(94, 234, 212, 0.35)"
-        : "rgba(15, 118, 110, 0.35)"};
-  border-radius: 999px;
-  height: 44px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  cursor: pointer;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
-  color: ${({ theme }) => (theme.mode === "dark" ? "#5eead4" : "#0f766e")};
-
-  &:active {
-    transform: translateY(1px);
-  }
-
-  &:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-`;
-
-const BottomRow = styled.div`
-  display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  gap: 8px;
-`;
 
 const StateWrap = styled.div`
   padding: 32px 16px;
@@ -632,11 +612,15 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
 
   const [loading, setLoading] = useState(true);
   const [player, setPlayer] = useState(null);
+  const [playerRank, setPlayerRank] = useState(null);
+
+  // 라인업에 참가한 종료 경기 (전적/경기 기록 카드용)
+  const [playerMatches, setPlayerMatches] = useState([]);
+  const [playerMatchesLoading, setPlayerMatchesLoading] = useState(false);
 
   const [fav, setFav] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
 
-  const [chatBusy, setChatBusy] = useState(false);
 
   // 신고 모달
   const [reportOpen, setReportOpen] = useState(false);
@@ -672,6 +656,48 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
     const ids = Array.isArray(userDoc?.favoritePlayerIds) ? userDoc.favoritePlayerIds : [];
     setFav(ids.includes(String(playerId)));
   }, [userDoc?.favoritePlayerIds, playerId]);
+
+  // 라인업 참가 경기 로드
+  useEffect(() => {
+    const clubId = String(player?.clubId || "").trim();
+    const uid = String(player?.uid || player?.userId || playerId || "").trim();
+    if (!clubId || !uid) {
+      setPlayerMatches([]);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        setPlayerMatchesLoading(true);
+        const { rooms } = await loadPlayerFinishedMatches({ clubId, uid });
+        if (!alive) return;
+        setPlayerMatches(Array.isArray(rooms) ? rooms : []);
+      } catch (e) {
+        console.warn("[PlayerProfilePage] load player matches failed:", e?.message || e);
+        if (alive) setPlayerMatches([]);
+      } finally {
+        if (alive) setPlayerMatchesLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [player?.clubId, player?.uid, playerId]);
+
+  // ✅ 선수 전역 랭킹(1~3위 왕관 + 순위 표시용)
+  useEffect(() => {
+    let alive = true;
+    const pid = String(playerId || "").trim();
+    if (!pid) return;
+    getPlayerRankMap()
+      .then((map) => {
+        if (alive) setPlayerRank(map.get(pid) || null);
+      })
+      .catch((e) => console.warn("[PlayerProfilePage] rank load failed:", e?.message || e));
+    return () => {
+      alive = false;
+    };
+  }, [playerId]);
 
   const isSelf = useMemo(() => {
     if (!myUid || !playerId) return false;
@@ -748,43 +774,6 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
     }
   };
 
-  const onMatchWithPlayer = async () => {
-    if (!playerId) return;
-
-    if (!myUid) {
-      alert("로그인이 필요합니다.");
-      return;
-    }
-
-    if (isSelf) return;
-
-    if (chatBusy) return;
-
-    const otherUid = String(player?.uid || player?.userId || playerId || "").trim();
-    if (!otherUid) {
-      alert("상대 정보를 확인할 수 없습니다.");
-      return;
-    }
-
-    try {
-      setChatBusy(true);
-
-      const chatId = await getOrCreateDmRoom({
-        myUid: String(myUid),
-        otherUid,
-        createdFrom: "playerProfile",
-        createdFromRefId: String(playerId || ""),
-      });
-
-      nav(`/chats/${chatId}`);
-    } catch (e) {
-      console.warn("[PlayerProfilePage] open chat failed:", e?.message || e);
-      alert("채팅을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.");
-    } finally {
-      setChatBusy(false);
-    }
-  };
-
   if (loading) {
     return (
       <Page>
@@ -832,10 +821,40 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
   const skillLabel =
     (player.skillLevel && SKILL_LABEL[player.skillLevel]) || "실력 정보 없음";
 
-  const avatarSrc =
-    player.photoUrl || player.avatarUrl || images.playerDefaultAvatar || images.logo;
+  const avatarSrc = player.photoUrl || player.avatarUrl || "";
 
-  const teamLogoSrc = player.clubLogoUrl || images.logo;
+  // 라인업 참가 경기 기준 전적 (TeamStatsSection stats 형태로 가공)
+  // early return 이후 위치라 hook(useMemo) 대신 일반 계산
+  const playerStats = (() => {
+    let wins = 0;
+    let losses = 0;
+    let draws = 0;
+    const recentResults = []; // 최신순(rooms가 이미 최신순)
+    (playerMatches || []).forEach((m) => {
+      if (m?.myScore == null || m?.oppScore == null) return;
+      if (m.myScore > m.oppScore) {
+        wins += 1;
+        recentResults.push("W");
+      } else if (m.myScore < m.oppScore) {
+        losses += 1;
+        recentResults.push("L");
+      } else {
+        draws += 1;
+        recentResults.push("D");
+      }
+    });
+    const totalMatches = wins + losses + draws;
+    return {
+      totalMatches,
+      wins,
+      losses,
+      draws,
+      winRate: totalMatches > 0 ? wins / totalMatches : 0,
+      recentResults: recentResults.slice(0, 5),
+    };
+  })();
+
+  const teamLogoSrc = player.clubLogoUrl && player.clubLogoUrl !== images.logo ? player.clubLogoUrl : images.teamPlaceholder;
 
   const mediaList = Array.isArray(player.media) ? player.media : [];
   const playerSessions = Array.isArray(player.sessions) ? player.sessions : [];
@@ -860,9 +879,18 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
           <HeroInner>
             <HeroLeftCol>
               <HeroTopBlock>
-                <AvatarCircle>
-                  <AvatarImg src={avatarSrc} alt={`${player.nickname} 프로필`} />
-                </AvatarCircle>
+                <AvatarBox>
+                  {playerRank && playerRank <= 3 ? (
+                    <AvatarCrown src={images.logo} alt={`${playerRank}위`} />
+                  ) : null}
+                  <AvatarCircle>
+                    {avatarSrc ? (
+                      <AvatarImg src={avatarSrc} alt={`${player.nickname} 프로필`} />
+                    ) : (
+                      <SquareAvatarPlaceholder />
+                    )}
+                  </AvatarCircle>
+                </AvatarBox>
 
                 <HeroTitleBlock>
                   <HeroNameRow>
@@ -880,6 +908,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
               </HeroTopBlock>
 
               <HeroChipRow>
+                {playerRank ? <HeroChip>랭킹 {playerRank}위</HeroChip> : null}
                 <HeroChip>{positionLabel}</HeroChip>
                 <SkillChip $skill={player.skillLevel}>{skillLabel}</SkillChip>
                 {player.region && (
@@ -973,7 +1002,43 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             </Section>
           ) : null}
 
-          <PlayerAbilitySection sessions={playerSessions} userProfile={player} />
+          {/* 전적 카드 (팀 프로필과 동일 — 참가 경기 기준) */}
+          <Section>
+            <SectionHeaderRow>
+              <SectionHeaderLeft>
+                <SectionIconCircle>
+                  <SectionIconImg src={images.teamStatsIcon || images.logo} alt="전적" />
+                </SectionIconCircle>
+                <SectionTitleText>전적</SectionTitleText>
+              </SectionHeaderLeft>
+            </SectionHeaderRow>
+
+            <TeamStatsSection stats={playerStats} />
+          </Section>
+
+          {/* 경기 기록 카드 (팀 프로필과 동일 — 라인업 참가 경기만) */}
+          <Section>
+            <SectionHeaderRow>
+              <SectionHeaderLeft>
+                <SectionIconCircle>
+                  <SectionIconImg src={images.teamStatsIcon || images.logo} alt="경기 기록" />
+                </SectionIconCircle>
+                <SectionTitleText>경기 기록</SectionTitleText>
+              </SectionHeaderLeft>
+            </SectionHeaderRow>
+
+            {playerMatchesLoading ? (
+              <StateWrap>불러오는 중...</StateWrap>
+            ) : (
+              <TeamMatchHistorySection
+                teamClubId={String(player.clubId || "").trim()}
+                teamName={player.clubName}
+                matches={playerMatches}
+                onClickMatch={(id) => nav(`/match-roomdetail/${id}`)}
+              />
+            )}
+          </Section>
+
           {/* 🔁 App Store 심사(Guideline 2.5.1) 대응: iOS HealthKit 제거에 따라 건강 UI 숨김.
               나중에 HealthKit 복구 시 아래 두 섹션 주석 해제 + RN react-native.config.js / Info.plist 복구. */}
           {/* <PlayerHealthSection sessions={playerSessions} userProfile={player} /> */}
@@ -1022,17 +1087,6 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
           )}
         </ContentWrap>
       </ScrollArea>
-
-      {!embed && (
-        <BottomBar>
-          <BottomRow>
-            <CTAButton onClick={onMatchWithPlayer} disabled={chatBusy}>
-              <TbBallBasketball size={18} />
-              이 선수와 채팅
-            </CTAButton>
-          </BottomRow>
-        </BottomBar>
-      )}
 
       {reportOpen && (
         <ReportOverlay

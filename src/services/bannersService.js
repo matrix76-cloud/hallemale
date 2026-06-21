@@ -42,6 +42,7 @@ function rowFromSnap(d) {
     imageUrl: safeStr(data.imageUrl),
     storagePath: safeStr(data.storagePath),
     linkUrl: safeStr(data.linkUrl),
+    placement: data.placement === "community" ? "community" : "home", // 레거시(없음)=home
     side: data.side === "right" ? "right" : "left",
     textAlign: data.textAlign === "right" ? "right" : "left",
     order: typeof data.order === "number" ? data.order : 0,
@@ -69,6 +70,7 @@ export async function createBanner({
   imageUrl,
   storagePath,
   linkUrl = "",
+  placement = "home",
   side = "left",
   textAlign = "left",
   order = 0,
@@ -82,6 +84,7 @@ export async function createBanner({
     imageUrl: safeStr(imageUrl),
     storagePath: safeStr(storagePath),
     linkUrl: safeStr(linkUrl),
+    placement: placement === "community" ? "community" : "home",
     side: side === "right" ? "right" : "left",
     textAlign: textAlign === "right" ? "right" : "left",
     order: Number(order) || 0,
@@ -103,6 +106,8 @@ export async function updateBanner(id, patch) {
   if (patch.imageUrl !== undefined) update.imageUrl = safeStr(patch.imageUrl);
   if (patch.storagePath !== undefined) update.storagePath = safeStr(patch.storagePath);
   if (patch.linkUrl !== undefined) update.linkUrl = safeStr(patch.linkUrl);
+  if (patch.placement !== undefined)
+    update.placement = patch.placement === "community" ? "community" : "home";
   if (patch.side !== undefined) update.side = patch.side === "right" ? "right" : "left";
   if (patch.textAlign !== undefined) update.textAlign = patch.textAlign === "right" ? "right" : "left";
   if (patch.order !== undefined) update.order = Number(patch.order) || 0;
@@ -148,32 +153,34 @@ export async function incrementBannerClick(id) {
   }
 }
 
-// 어드민용 — 모든 배너
-export async function listAllBanners() {
+// 어드민용 — 모든 배너 (placement 지정 시 해당 위치만)
+export async function listAllBanners(placement) {
   const snap = await getDocs(query(collection(db, "banners")));
   const rows = [];
   snap.forEach((d) => rows.push(rowFromSnap(d)));
-  rows.sort((a, b) => {
+  const filtered = placement ? rows.filter((r) => r.placement === placement) : rows;
+  filtered.sort((a, b) => {
     if (a.order !== b.order) return a.order - b.order;
     const ta = a.createdAt ? a.createdAt.getTime() : 0;
     const tb = b.createdAt ? b.createdAt.getTime() : 0;
     return ta - tb;
   });
-  return rows;
+  return filtered;
 }
 
-// 사용자 측 — 활성 배너만
-export async function listActiveBanners() {
+// 사용자 측 — 활성 배너만 (placement 기본 home)
+export async function listActiveBanners(placement = "home") {
   const snap = await getDocs(
     query(collection(db, "banners"), where("active", "==", true))
   );
   const rows = [];
   snap.forEach((d) => rows.push(rowFromSnap(d)));
-  rows.sort((a, b) => {
+  const filtered = rows.filter((r) => r.placement === placement);
+  filtered.sort((a, b) => {
     if (a.order !== b.order) return a.order - b.order;
     const ta = a.createdAt ? a.createdAt.getTime() : 0;
     const tb = b.createdAt ? b.createdAt.getTime() : 0;
     return ta - tb;
   });
-  return rows;
+  return filtered;
 }

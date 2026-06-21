@@ -17,6 +17,16 @@ import { createPostReport } from "../../services/postReportService";
 import { blockAuthorAndHidePost } from "../../services/userBlockService";
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
+import { images } from "../../utils/imageAssets";
+
+/* 실제 프로필 사진만 사용 (기본 앱 로고/defaultAvatar는 '사진 없음'으로 처리) */
+const realAvatar = (url) => {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  if (u === images.logo || u === images.defaultAvatar) return "";
+  return u;
+};
 
 /* =============== 상대시간 헬퍼 =============== */
 
@@ -93,6 +103,12 @@ const AvatarImg = styled.div`
   background-image: ${({ src }) => (src ? `url(${src})` : "none")};
   background-size: cover;
   background-position: center;
+`;
+
+/* 프로필 사진 없을 때: 사람 실루엣 아이콘 */
+const AvatarFallback = styled(AvatarPlaceholder)`
+  width: 100% !important;
+  height: 100% !important;
 `;
 
 const AuthorInfo = styled.div`
@@ -858,7 +874,11 @@ export default function CommunityDetailPage() {
   const renderComment = (cmt, replyCount) => (
     <CommentItem>
       <CommentAvatar>
-        <AvatarImg src={cmt.authorAvatar} />
+        {realAvatar(cmt.authorAvatar) ? (
+          <AvatarImg src={realAvatar(cmt.authorAvatar)} />
+        ) : (
+          <AvatarFallback />
+        )}
       </CommentAvatar>
 
       <CommentBubble>
@@ -894,7 +914,11 @@ export default function CommunityDetailPage() {
         <PostCard>
           <AuthorRow>
             <Avatar>
-              <AvatarImg src={post.authorAvatar} />
+              {realAvatar(post.authorAvatar) ? (
+                <AvatarImg src={realAvatar(post.authorAvatar)} />
+              ) : (
+                <AvatarFallback />
+              )}
             </Avatar>
 
             <AuthorInfo>

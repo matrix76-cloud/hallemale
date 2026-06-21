@@ -2,6 +2,7 @@
 // src/components/player/PlayerCard.jsx
 import React from "react";
 import styled from "styled-components";
+import AvatarPlaceholder from "../common/AvatarPlaceholder";
 
 const Card = styled.button`
   border: none;
@@ -103,7 +104,11 @@ export default function PlayerCard({ player, onClick }) {
   return (
     <Card type="button" onClick={onClick}>
       <AvatarWrap>
-        {avatarUrl && <AvatarImg src={avatarUrl} alt={name} />}
+        {avatarUrl ? (
+          <AvatarImg src={avatarUrl} alt={name} />
+        ) : (
+          <AvatarPlaceholder size={72} />
+        )}
       </AvatarWrap>
       <Name>{name}</Name>
       <RoleText>{roleText}</RoleText>

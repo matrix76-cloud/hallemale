@@ -5,6 +5,7 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { images } from "../../utils/imageAssets";
 import EmptyState from "../common/EmptyState";
+import AvatarPlaceholder from "../common/AvatarPlaceholder";
 
 const SectionWrap = styled.section`
   margin-top: 10px;
@@ -151,13 +152,16 @@ export default function FavoritePlayersSection({ items = [] }) {
             const avatarSrc =
               (p.avatarUrl && String(p.avatarUrl).trim()) ||
               (p.photoUrl && String(p.photoUrl).trim()) ||
-              images.profileDefault ||
-              images.logo;
+              "";
 
             return (
               <Card key={playerId} onClick={() => handleViewPlayer(playerId)}>
                 <AvatarArea>
-                  <PlayerAvatar src={avatarSrc} alt={name} />
+                  {avatarSrc ? (
+                    <PlayerAvatar src={avatarSrc} alt={name} />
+                  ) : (
+                    <AvatarPlaceholder size={60} />
+                  )}
                 </AvatarArea>
                 <CardBody>
                   <PlayerName>{name}</PlayerName>

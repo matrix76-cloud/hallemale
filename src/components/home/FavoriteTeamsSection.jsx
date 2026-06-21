@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { images } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
 import EmptyState from "../common/EmptyState";
 
 const SectionWrap = styled.section`
@@ -84,7 +84,7 @@ const LogoArea = styled.div`
 const TeamLogo = styled.img`
   width: 64px;
   height: 64px;
-  border-radius: 999px;
+  border-radius: 18px;
   object-fit: cover;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
@@ -149,10 +149,10 @@ export default function FavoriteTeamsSection({ items = [] }) {
         <SlideRow ref={slideRef}>
           {limitedItems.map((t) => {
             const teamId = t.clubId || t.id;
-            const logoSrc =
+            const logoSrc = teamLogoSrc(
               (t.logoUrl && String(t.logoUrl).trim()) ||
-              (t.logoKey && images[t.logoKey]) ||
-              images.logo;
+              (t.logoKey && images[t.logoKey])
+            );
 
             return (
               <Card key={teamId} onClick={() => handleViewTeam(teamId)}>

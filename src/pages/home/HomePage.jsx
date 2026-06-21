@@ -6,6 +6,7 @@ import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
 
 import HomeHeroBanner from "../../components/home/HomeHeroBanner";
+import HomeUpcomingMatch from "../../components/home/HomeUpcomingMatch";
 import TeamProfileSection from "../../components/home/TeamProfileSection";
 import WinningTeamsSection from "../../components/home/WinningTeamsSection";
 import WinningTickerBar from "../../components/home/WinningTickerBar";
@@ -188,6 +189,7 @@ export default function HomePage() {
         </HeroRow>
 
         <Inner>
+          <HomeUpcomingMatch clubId={myClubId} />
           <TeamProfileSection
             team={myTeam}
             rank={myTeamRank || 1}

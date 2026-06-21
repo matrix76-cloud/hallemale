@@ -426,13 +426,14 @@ export default function AdminBannersPage() {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [placement, setPlacement] = useState("home"); // "home" | "community"
 
   const isEditing = !!form.id;
 
   const load = async () => {
     setLoading(true);
     try {
-      const rows = await listAllBanners();
+      const rows = await listAllBanners(placement);
       setList(rows);
     } catch (e) {
       console.error("[AdminBannersPage] load failed", e);
@@ -444,7 +445,14 @@ export default function AdminBannersPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [placement]);
+
+  const handleSwitchPlacement = (next) => {
+    if (next === placement) return;
+    setForm(makeEmptyForm());
+    setFormOpen(false);
+    setPlacement(next);
+  };
 
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
@@ -506,7 +514,7 @@ export default function AdminBannersPage() {
       if (isEditing) {
         await updateBanner(form.id, form);
       } else {
-        await createBanner(form);
+        await createBanner({ ...form, placement });
       }
       setForm(makeEmptyForm());
       setFormOpen(false);
@@ -550,14 +558,34 @@ export default function AdminBannersPage() {
     }
   };
 
+  const isCommunity = placement === "community";
+
   return (
     <Page>
+      <Tabs>
+        <Tab
+          type="button"
+          $active={placement === "home"}
+          onClick={() => handleSwitchPlacement("home")}
+        >
+          홈 배너
+        </Tab>
+        <Tab
+          type="button"
+          $active={placement === "community"}
+          onClick={() => handleSwitchPlacement("community")}
+        >
+          커뮤니티 배너
+        </Tab>
+      </Tabs>
+
       <HeaderRow>
         <div>
-          <Title>홈 배너</Title>
+          <Title>{isCommunity ? "커뮤니티 배너" : "홈 배너"}</Title>
           <Sub style={{ marginTop: 4 }}>
-            홈 상단 슬라이드 배너를 등록·수정·삭제합니다. 비활성 배너는 사용자에게 노출되지
-            않습니다.
+            {isCommunity
+              ? "커뮤니티 상단 슬라이드 배너를 등록·수정·삭제합니다. 비활성 배너는 사용자에게 노출되지 않습니다."
+              : "홈 상단 슬라이드 배너를 등록·수정·삭제합니다. 비활성 배너는 사용자에게 노출되지 않습니다."}
           </Sub>
         </div>
         <PrimaryHeaderBtn type="button" onClick={handleOpenCreate}>
@@ -566,6 +594,7 @@ export default function AdminBannersPage() {
       </HeaderRow>
 
       <BannersSection
+        placement={placement}
         form={form}
         updateForm={updateForm}
         fileRef={fileRef}
@@ -588,6 +617,7 @@ export default function AdminBannersPage() {
 }
 
 function BannersSection({
+  placement,
   form,
   updateForm,
   fileRef,
@@ -608,10 +638,22 @@ function BannersSection({
   return (
     <>
       <SpecBox>
-        📐 권장 이미지 규격: <strong>1200 × 600 px (가로:세로 = 2:1)</strong>{" "}
-        / PNG·JPG / 5MB 이하<br />
-        업로드 시 자동으로 1080px로 압축됩니다. 배너에는 <strong>이미지만</strong> 노출되며,
-        클릭 시 등록한 이동 URL로 연결됩니다.
+        {placement === "community" ? (
+          <>
+            📐 권장 이미지 규격: <strong>1200 × 260 px (가로:세로 ≈ 4.6:1)</strong>{" "}
+            / PNG·JPG / 5MB 이하<br />
+            커뮤니티 배너는 게시글보다 약간 낮은 <strong>높이 84px</strong>의 가로형 띠
+            배너로 노출됩니다. 업로드 시 자동 압축되며, 배너에는 <strong>이미지만</strong>{" "}
+            노출되고 클릭 시 등록한 이동 URL로 연결됩니다.
+          </>
+        ) : (
+          <>
+            📐 권장 이미지 규격: <strong>1200 × 600 px (가로:세로 = 2:1)</strong>{" "}
+            / PNG·JPG / 5MB 이하<br />
+            업로드 시 자동으로 1080px로 압축됩니다. 배너에는 <strong>이미지만</strong>{" "}
+            노출되며, 클릭 시 등록한 이동 URL로 연결됩니다.
+          </>
+        )}
       </SpecBox>
 
       {/* 등록/수정 폼 (모달) */}

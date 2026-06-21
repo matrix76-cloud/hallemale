@@ -376,6 +376,89 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
   return { rooms, myTeam };
 }
 
+/**
+ * ✅ 특정 선수(uid)가 "라인업에 실제로 참가한" 종료(finished) 경기만 반환
+ * - clubId(선수의 소속 팀)의 finished 경기 중, 내 팀 라인업 memberIds에 uid가 포함된 것만 필터
+ * - rooms는 선수 팀 관점으로 myTeam/oppTeam/myScore/oppScore 정렬 → TeamMatchHistorySection 그대로 사용 가능
+ */
+export async function loadPlayerFinishedMatches({ clubId, uid } = {}) {
+  const myClubId = toStr(clubId);
+  const myUid = toStr(uid);
+  if (!myClubId || !myUid) return { rooms: [] };
+
+  const col = collection(db, "match_requests");
+  const qActor = query(col, where("actorClubId", "==", myClubId), limit(200));
+  const qTarget = query(col, where("targetClubId", "==", myClubId), limit(200));
+  const [snapA, snapB] = await Promise.all([getDocs(qActor), getDocs(qTarget)]);
+
+  const rowsA = (snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
+  const rowsB = (snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
+  const merged = uniqById([...(rowsA || []), ...(rowsB || [])]);
+
+  const finished = merged.filter((r) => toStr(r?.status) === "finished");
+
+  // 라인업 참가 필터: 내 팀(actor/target) 라인업 스냅샷 memberIds에 uid 포함
+  const participated = finished.filter((mr) => {
+    const iAmActor = toStr(mr?.actorClubId) === myClubId;
+    const snap = iAmActor ? mr?.fromLineupSnapshot : mr?.toLineupSnapshot;
+    const ids = Array.isArray(snap?.memberIds) ? snap.memberIds.map((x) => toStr(x)) : [];
+    return ids.includes(myUid);
+  });
+
+  // 정렬: 최신 경기 먼저
+  const sorted = [...participated].sort((a, b) => {
+    const ta = tsMs(a?.scheduledAt) || tsMs(a?.confirmedAt) || tsMs(a?.updatedAt) || tsMs(a?.createdAt);
+    const tb = tsMs(b?.scheduledAt) || tsMs(b?.confirmedAt) || tsMs(b?.updatedAt) || tsMs(b?.createdAt);
+    return tb - ta;
+  });
+
+  // 팀 요약(이름/로고)
+  const teamIdSet = new Set();
+  sorted.forEach((mr) => {
+    const a = toStr(mr?.actorClubId);
+    const t = toStr(mr?.targetClubId);
+    if (a) teamIdSet.add(a);
+    if (t) teamIdSet.add(t);
+  });
+  const teamMap = {};
+  await runBatches(Array.from(teamIdSet), 24, async (cid) => {
+    const team = await safeGetClubTeamSummary(cid);
+    if (team) teamMap[cid] = team;
+    return null;
+  });
+
+  const rooms = sorted.map((mr) => {
+    const iAmActor = toStr(mr?.actorClubId) === myClubId;
+    const myId = iAmActor ? toStr(mr?.actorClubId) : toStr(mr?.targetClubId);
+    const oppId = iAmActor ? toStr(mr?.targetClubId) : toStr(mr?.actorClubId);
+
+    const myFallbackSnap = iAmActor ? mr?.fromTeamSnapshot : mr?.toTeamSnapshot;
+    const oppFallbackSnap = iAmActor ? mr?.toTeamSnapshot : mr?.fromTeamSnapshot;
+
+    const myTeam = teamMap[myId] || buildFallbackTeamFromSnapshot(myFallbackSnap, myId);
+    const oppTeam = teamMap[oppId] || buildFallbackTeamFromSnapshot(oppFallbackSnap, oppId);
+
+    // 문서 myScore=actorScore, oppScore=targetScore → 선수 팀 관점으로 정렬
+    const actorScore = mr?.myScore ?? null;
+    const targetScore = mr?.oppScore ?? null;
+    const myScore = iAmActor ? actorScore : targetScore;
+    const oppScore = iAmActor ? targetScore : actorScore;
+
+    return {
+      id: toStr(mr?.id),
+      myTeam,
+      oppTeam,
+      status: normalizeRoomStatus(mr?.status),
+      scheduledAt: mr?.scheduledAt || null,
+      myScore,
+      oppScore,
+      iAmActor,
+    };
+  });
+
+  return { rooms };
+}
+
 /* ========================= detail adapter ========================= */
 
 function normalizeTeamSnapshot(snap) {

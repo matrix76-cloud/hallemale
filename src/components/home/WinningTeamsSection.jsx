@@ -2,7 +2,7 @@
 // src/components/home/WinningTeamsSection.jsx
 import React, { useEffect, useMemo, useRef } from "react";
 import styled from "styled-components";
-import { images } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
 
 const SectionWrap = styled.section`
@@ -166,7 +166,7 @@ export default function WinningTeamsSection({ items = [] }) {
       <SlideRow ref={slideRef}>
         {limitedItems.map((t) => {
           const teamId = t.clubId || t.id;
-          const imgSrc = (t.logoUrl && String(t.logoUrl).trim()) || (t.logoKey && images[t.logoKey]) || images.logo;
+          const imgSrc = teamLogoSrc((t.logoUrl && String(t.logoUrl).trim()) || (t.logoKey && images[t.logoKey]));
 
           return (
             <Card key={teamId} onClick={() => navigate(`/team/${teamId}`)}>
