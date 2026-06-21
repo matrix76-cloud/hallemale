@@ -20,12 +20,21 @@ const SectionTitle = styled.h2`
 
 /* ============ 위: 팀 프로필 카드 ============ */
 
+/* 팀프로필 + 매칭하기 가로 한 줄 */
+const ProfileRow = styled.div`
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+`;
+
 const ProfileCard = styled.div`
+  flex: 1.7;
+  min-width: 0;
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "transparent"};
   border-radius: 8px;
-  padding: 16px 18px 18px;
+  padding: 16px 16px 18px;
   box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
   flex-direction: column;
@@ -137,18 +146,21 @@ const ActionsCol = styled.div`
 
 /* 매칭하기 카드(이미 적용된 버전과 맞춰둠) */
 const BigActionCard = styled.button`
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.06)"};
   border-radius: 8px;
   background: ${({ theme }) => theme.colors.card};
   box-shadow: ${({ theme }) => theme.shadows.card};
-  padding: 14px 14px 14px;
+  padding: 14px 12px;
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  text-align: left;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: center;
 
   &:active {
     transform: translateY(1px);
@@ -527,6 +539,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
         )}
 
         <DimArea $locked={locked} aria-hidden={locked}>
+      <ProfileRow>
       <ProfileCard onClick={handleGoMyTeamDetail}>
         <TopRow>
           <LogoOuter>
@@ -557,22 +570,21 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
         </TopRow>
       </ProfileCard>
 
-      <ActionsCol>
         <BigActionCard type="button" onClick={handleGoMatching}>
-          <BigTop>
-            <BigIconWrap>
-              <BigIcon>🏀</BigIcon>
-            </BigIconWrap>
+          <BigIconWrap>
+            <BigIcon>🏀</BigIcon>
+          </BigIconWrap>
 
-            <BigBody>
-              <BigTitle>매칭하기</BigTitle>
-              <BigSub>다른 팀에게 연습경기 대결을 신청해요</BigSub>
-            </BigBody>
-          </BigTop>
+          <BigBody>
+            <BigTitle>매칭하기</BigTitle>
+            <BigSub>다른 팀에게 연습경기 대결을 신청해요</BigSub>
+          </BigBody>
 
           <GoPill>GO</GoPill>
         </BigActionCard>
+      </ProfileRow>
 
+      <ActionsCol>
         <MatchRoomCard>
           <MatchRoomHeader>
             <MatchRoomTitle>
