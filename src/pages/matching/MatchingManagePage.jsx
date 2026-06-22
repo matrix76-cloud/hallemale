@@ -981,23 +981,17 @@ export default function MatchingManagePage() {
                     <Divider />
 
                     <LineupTextRow>
-                      <LineupText
-                        title={`${toStr(latest?.fromLineupSnapshot?.name)} → ${toStr(
-                          latest?.toLineupSnapshot?.name
-                        )}`}
-                      >
-                        {toStr(latest?.fromLineupSnapshot?.name) || "보내는 라인업"}{" "}
-                        <Arrow>→</Arrow>{" "}
-                        {toStr(latest?.toLineupSnapshot?.name) || "받는 라인업"}
+                      <LineupText>
+                        {(() => {
+                          const sz = toStr(latest?.matchSizeKey);
+                          const szLabel = ["3v3", "4v4", "5v5"].includes(sz)
+                            ? sz.replace("v", " vs ")
+                            : "";
+                          return szLabel
+                            ? `${szLabel} 매칭 · 라인업은 매칭룸에서 확정해요`
+                            : "라인업은 매칭룸에서 확정해요";
+                        })()}
                       </LineupText>
-
-                      <LineupInfoIconBtn
-                        type="button"
-                        onClick={() => openLineupModal(row)}
-                        aria-label="라인업 정보 보기"
-                      >
-                        <FiInfo size={16} />
-                      </LineupInfoIconBtn>
                     </LineupTextRow>
 
                     {actions.length > 0 && (

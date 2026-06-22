@@ -28,6 +28,7 @@ import MatchRoomChat from "../../components/matchRoom/MatchRoomChat";
 import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCelebration";
+import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
 import { getTeamRankMap } from "../../services/teamRankingService";
@@ -71,6 +72,17 @@ const formatKoreanDateTime = (iso) => {
 };
 
 const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
+
+// 별점(1~5) → ★/☆ 문자열
+const starString = (n) => "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n));
+
+// 평점 작성 시각 → "M.D" (Firestore Timestamp / ISO 모두 대응)
+const formatShortDate = (v) => {
+  if (!v) return "";
+  const d = typeof v?.toDate === "function" ? v.toDate() : new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getMonth() + 1}.${d.getDate()}`;
+};
 
 /* ==================== 스타일 ==================== */
 
@@ -1888,8 +1900,303 @@ const PhotoAdd = styled.button`
   background: ${({ theme }) => theme.colors.card};
   flex: 0 0 auto;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 11px;
+`;
+
+/* ====== 결과 입력 리디자인(3카드) ====== */
+const RATING_LABELS = ["", "별로예요", "그저 그래요", "괜찮아요", "좋아요", "최고예요"];
+
+const SubLabel = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const ScoreCardRow = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+`;
+
+const ScoreTeamCol = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+`;
+
+const ScoreLogoChip = styled.div`
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
   display: grid;
   place-items: center;
+`;
+
+/* 1~3위: 로고 위에 겹쳐지는 앱 로고 왕관 */
+const ScoreLogoWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+
+const ScoreCrown = styled.img`
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
+`;
+
+const ScoreLogoImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const ScoreColName = styled.div`
+  font-size: 14px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+`;
+
+const ScoreColSub = styled.div`
+  font-size: 11px;
+  color: ${({ $me, theme }) =>
+    $me ? theme.colors.primary : theme.colors.textWeak};
+  text-align: center;
+`;
+
+const ScoreInputBig = styled.input`
+  width: 100%;
+  margin-top: 2px;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  padding: 12px 8px;
+  font-size: 26px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const ScoreColon = styled.div`
+  padding-bottom: 14px;
+  font-size: 20px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+/* 완료 경기: 확정 점수 읽기 전용 박스(승=초록·패=빨강) */
+const ScoreReadBox = styled.div`
+  width: 100%;
+  margin-top: 2px;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  padding: 12px 8px;
+  font-size: 26px;
+  font-weight: 700;
+  text-align: center;
+  color: ${({ theme, $outcome }) =>
+    $outcome === "win"
+      ? "#16a34a"
+      : $outcome === "lose"
+      ? "#dc2626"
+      : theme.colors.textStrong};
+`;
+
+const RatingSubtitle = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  line-height: 1.5;
+`;
+
+const StarsRow = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 0 2px;
+`;
+
+const StarBtn = styled.button`
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 30px;
+  line-height: 1;
+  padding: 0;
+  color: ${({ $on, theme }) =>
+    $on
+      ? theme.colors.primary
+      : theme.mode === "dark"
+      ? "rgba(255,255,255,0.25)"
+      : "#d1d5db"};
+`;
+
+const RatingValueLabel = styled.div`
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.primary};
+  min-height: 17px;
+`;
+
+/* 결과 제출 버튼 — 화면 하단 고정(스크롤해도 위치 유지) */
+const ResultSubmitBar = styled.div`
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 11px 16px calc(17px + env(safe-area-inset-bottom));
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? theme.colors.card
+      : "linear-gradient(to top, #ffffff, rgba(249, 250, 251, 0.96))"};
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  z-index: 20;
+`;
+
+const ResultBarSpacer = styled.div`
+  height: 84px;
+`;
+
+/* ───── 지난 경기: 상대 팀 선수 평점 카드 ───── */
+const ReviewHeadRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+`;
+const ReviewHeadLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+`;
+const ReviewTeamLogo = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+const ReviewTitle = styled.div`
+  font-size: 15px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+const ReviewAvg = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+`;
+const ReviewAvgStars = styled.span`
+  letter-spacing: 1px;
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+const ReviewAvgNum = styled.span`
+  font-size: 14px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+const ReviewList = styled.div`
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+`;
+const ReviewItem = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+
+  & + & {
+    border-top: 1px solid ${({ theme }) => theme.colors.divider};
+  }
+`;
+const ReviewAvatar = styled.img`
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+`;
+const ReviewBody = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+const ReviewNameRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+const ReviewName = styled.span`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+const ReviewStars = styled.span`
+  letter-spacing: 1px;
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+const ReviewText = styled.div`
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textNormal};
+  word-break: break-word;
+`;
+const ReviewDate = styled.div`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+const ReviewEmpty = styled.div`
+  padding: 18px 4px;
+  text-align: center;
+  font-size: 12.5px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
@@ -1905,7 +2212,12 @@ const ScoreHero = styled.div`
 
 const ScoreHeroNum = styled.div`
   font-size: 34px;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${({ theme, $outcome }) =>
+    $outcome === "win"
+      ? "#16a34a"
+      : $outcome === "lose"
+      ? "#dc2626"
+      : theme.colors.textStrong};
   letter-spacing: -0.02em;
 `;
 
@@ -2206,9 +2518,13 @@ export default function MatchRoomDetailPage() {
 
   const [myScoreInput, setMyScoreInput] = useState("");
   const [oppScoreInput, setOppScoreInput] = useState("");
+  const [oppRating, setOppRating] = useState(0); // 상대 팀 별점(1~5)
   const [resultComment, setResultComment] = useState("");
   const [resultFiles, setResultFiles] = useState([]);
   const [resultBusy, setResultBusy] = useState(false);
+
+  // 조율 단계 라인업 확정 시트
+  const [lineupSheetOpen, setLineupSheetOpen] = useState(false);
 
   const fileRef = useRef(null);
 
@@ -2224,6 +2540,10 @@ export default function MatchRoomDetailPage() {
     const res = await loadMatchRoomDetail(roomId);
     setRoom(res?.room || null);
   };
+
+  // 결과 자동 확정: 상대가 경기 종료일 기준 3일 내 미승인 시 입력값으로 자동 확정
+  const AUTO_CONFIRM_DAYS = 3;
+  const autoConfirmRanRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -2252,6 +2572,36 @@ export default function MatchRoomDetailPage() {
       cancelled = true;
     };
   }, [roomId]);
+
+  // 결과 자동 확정: waiting_accept 상태에서 경기 종료일 + 3일이 지나면 제출값으로 확정
+  useEffect(() => {
+    if (!room) return;
+    if (toStr(room.resultState) !== "waiting_accept") return;
+
+    const schMs = room.scheduledAt ? new Date(room.scheduledAt).getTime() : NaN;
+    if (!Number.isFinite(schMs)) return;
+    const durMin = Number(room.durationMin) || 120;
+    const autoMs = schMs + durMin * 60 * 1000 + AUTO_CONFIRM_DAYS * 24 * 60 * 60 * 1000;
+    if (Date.now() < autoMs) return;
+    if (autoConfirmRanRef.current) return;
+    autoConfirmRanRef.current = true;
+
+    const submittedBy = toStr(room?.result?.submittedByClubId);
+    const actorId = toStr(room.actorClubId);
+    const targetId = toStr(room.targetClubId);
+    // 확정 주체는 미승인(상대) 팀으로 기록
+    const confirmer = (submittedBy === actorId ? targetId : actorId) || submittedBy;
+
+    (async () => {
+      try {
+        await acceptMatchResult({ matchRequestId: room.id, confirmedByClubId: confirmer });
+        await refresh();
+      } catch (e) {
+        console.warn("[MatchRoomDetailPage] auto-confirm failed", e?.message || e);
+        autoConfirmRanRef.current = false; // 실패 시 재시도 허용
+      }
+    })();
+  }, [room]);
 
   // 팀 전체 랭킹 등수 (티켓에 "랭킹 N위" 표시용)
   useEffect(() => {
@@ -2334,6 +2684,8 @@ export default function MatchRoomDetailPage() {
       try {
         const actorId = toStr(room.actorClubId);
         const targetId = toStr(room.targetClubId);
+        // 로그인 팀이 이 경기 참가자일 때만 채팅 확보 (다른 팀 경기 조회 시 부수효과 방지)
+        if (myClubId !== actorId && myClubId !== targetId) return;
         const oppClubId = myClubId === actorId ? targetId : actorId;
         if (!oppClubId) return;
         const oppClub = await getClubById(oppClubId);
@@ -2537,18 +2889,34 @@ export default function MatchRoomDetailPage() {
   const actorClubId = toStr(room.actorClubId);
   const targetClubId = toStr(room.targetClubId);
 
-  const isActor = !!myClubId && !!actorClubId && myClubId === actorClubId;
+  // 표시 관점: 팀 프로필에서 들어온 경우 그 팀(viewClubId) 기준으로 표시, 아니면 로그인 팀 기준
+  const viewClubId = toStr(location.state?.viewClubId);
+  const isParticipantClub = (cid) => !!cid && (cid === actorClubId || cid === targetClubId);
+  const perspectiveClubId = isParticipantClub(viewClubId) ? viewClubId : myClubId;
+  // 편집(결과 입력·평점·사진/코멘트) 가능: 내 팀 관점일 때만. 다른 팀 관점이면 읽기전용
+  const isViewerMyTeam = !!myClubId && perspectiveClubId === myClubId;
+
+  const isActor = !!perspectiveClubId && !!actorClubId && perspectiveClubId === actorClubId;
 
   const myTeamView = isActor ? room.myTeam : room.oppTeam;
   const oppTeamView = isActor ? room.oppTeam : room.myTeam;
 
-  // 팀 전체 랭킹 등수 (없으면 미표시)
+  // 팀 전체 랭킹 등수 (없으면 미표시) — 표시 관점 기준
   const oppClubId = isActor ? targetClubId : actorClubId;
-  const myRank = rankMap?.get(myClubId) || null;
+  const myRank = rankMap?.get(perspectiveClubId) || null;
   const oppRank = rankMap?.get(oppClubId) || null;
 
   const actorScoreSaved = room.myScore;
   const targetScoreSaved = room.oppScore;
+
+  // ── 조율 단계 라인업 확정 (편집은 로그인 팀 기준) ──
+  const myIsActorClub = !!myClubId && myClubId === actorClubId;
+  const myLineupSnap = myIsActorClub ? room.myLineup : room.oppLineup; // 내 클럽 라인업
+  const oppLineupSnap = myIsActorClub ? room.oppLineup : room.myLineup;
+  const myLineupConfirmed = !!myLineupSnap?.confirmed;
+  const oppLineupConfirmed = !!oppLineupSnap?.confirmed;
+  const bothLineupsConfirmed = myLineupConfirmed && oppLineupConfirmed;
+  const matchSizeKey = toStr(room.matchSizeKey) || toStr(myLineupSnap?.matchSizeKey) || toStr(oppLineupSnap?.matchSizeKey);
 
   const myStats = myTeamView?.stats || {};
   const oppStats = oppTeamView?.stats || {};
@@ -2564,6 +2932,10 @@ export default function MatchRoomDetailPage() {
     ? (isActor ? room.oppLineup.players : room.myLineup.players).slice(0, 10)
     : [];
 
+  // 후보(벤치) 선수 — 표시 관점 기준
+  const mySubPlayers = (isActor ? room.myLineup?.subPlayers : room.oppLineup?.subPlayers) || [];
+  const oppSubPlayers = (isActor ? room.oppLineup?.subPlayers : room.myLineup?.subPlayers) || [];
+
   const isAdjusting = status === "accepted" || status === "proposed";
   // accepted 상태에서 아직 직접 입력을 고르기 전이면 "구장 정하기 방식 선택" 게이트 노출
   const showVenueGate = status === "accepted" && venueMode !== "direct";
@@ -2578,14 +2950,18 @@ export default function MatchRoomDetailPage() {
 
   // 진행단계 스텝퍼 (직접 입력 흐름: 조율 → 구장 → 합의 → 확정)
   // 결제 단계 제거 (현장 정산만 있어 앱 결제 없음)
-  const STEP_LABELS = ["조율", "구장", "확정"];
+  // 단계: 조율(수락) → 라인업(양 팀 확정) → 구장(일정 제안) → 확정
+  const STEP_LABELS = ["조율", "라인업", "구장", "확정"];
   const stepStates = (() => {
-    if (status === "accepted") return ["done", "cur", "todo"];
-    if (status === "proposed") return ["done", "done", "cur"];
-    if (status === "confirmed") return ["done", "done", "done"];
-    if (status === "finished") return ["done", "done", "done"];
-    if (status === "cancelled") return ["done", "todo", "todo"];
-    return ["cur", "todo", "todo"];
+    if (status === "accepted")
+      return bothLineupsConfirmed
+        ? ["done", "done", "cur", "todo"]
+        : ["done", "cur", "todo", "todo"];
+    if (status === "proposed") return ["done", "done", "done", "cur"];
+    if (status === "confirmed") return ["done", "done", "done", "done"];
+    if (status === "finished") return ["done", "done", "done", "done"];
+    if (status === "cancelled") return ["done", "todo", "todo", "todo"];
+    return ["cur", "todo", "todo", "todo"];
   })();
 
   const oppName = toStr(oppTeamView?.name) || "상대팀";
@@ -2661,6 +3037,14 @@ export default function MatchRoomDetailPage() {
 
   const resultOpenAtLabel = Number.isFinite(resultOpenAtMs)
     ? formatKoreanDateTime(new Date(resultOpenAtMs).toISOString())
+    : "";
+
+  // 결과 자동 확정 기한(경기 종료일 + 3일) 라벨
+  const autoConfirmAtMs = Number.isFinite(resultOpenAtMs)
+    ? resultOpenAtMs + AUTO_CONFIRM_DAYS * 24 * 60 * 60 * 1000
+    : NaN;
+  const autoConfirmAtLabel = Number.isFinite(autoConfirmAtMs)
+    ? formatKoreanDateTime(new Date(autoConfirmAtMs).toISOString())
     : "";
 
   const openAddComment = () => {
@@ -2822,7 +3206,7 @@ export default function MatchRoomDetailPage() {
     if (!list.length) return;
 
     setResultFiles((prev) => {
-      const next = [...(prev || []), ...list].slice(0, 6);
+      const next = [...(prev || []), ...list].slice(0, 1);
       return next;
     });
   };
@@ -2861,11 +3245,13 @@ export default function MatchRoomDetailPage() {
         targetScore,
         comment: resultComment,
         files: resultFiles,
+        opponentRating: oppRating,
         submittedByClubId: myClubId,
         authorDisplayName,
       });
 
       setResultFiles([]);
+      setOppRating(0);
       await refresh();
       window.alert("결과를 제출했습니다. 상대팀 승인을 기다립니다.");
     } catch (e) {
@@ -3107,13 +3493,42 @@ export default function MatchRoomDetailPage() {
   // ───── 채팅 메시지 위에 고정되는 액션 바 (accepted / proposed 공통) ─────
   let chatTopBar = null;
   if (status === "accepted") {
-    chatTopBar = (
-      <TopActionBar>
-        <TopActionBtn type="button" onClick={() => setMapPickerOpen(true)}>
-          구장·일정 제안하기
-        </TopActionBtn>
-      </TopActionBar>
-    );
+    const iAmParticipant = myClubId === actorClubId || myClubId === targetClubId;
+    if (!iAmParticipant) {
+      chatTopBar = (
+        <ActStack>
+          <ActNote>양 팀이 라인업을 확정하면 구장·일정을 정합니다.</ActNote>
+        </ActStack>
+      );
+    } else if (!bothLineupsConfirmed) {
+      chatTopBar = (
+        <ActStack>
+          <ActNote>
+            라인업 확정 — 우리 {myLineupConfirmed ? "✅" : "⬜"} · 상대{" "}
+            {oppLineupConfirmed ? "✅" : "⏳ 대기중"} · 양 팀 확정 후 구장·일정을 제안할 수 있어요.
+          </ActNote>
+          <ActRow>
+            <ActPrimary type="button" onClick={() => setLineupSheetOpen(true)}>
+              {myLineupConfirmed ? "우리 라인업 수정" : "우리 라인업 확정하기"}
+            </ActPrimary>
+          </ActRow>
+        </ActStack>
+      );
+    } else {
+      chatTopBar = (
+        <ActStack>
+          <ActNote>✅ 양 팀 라인업 확정 완료 · 이제 구장·일정을 정해요</ActNote>
+          <ActRow>
+            <ActGhost type="button" onClick={() => setLineupSheetOpen(true)}>
+              라인업 수정
+            </ActGhost>
+            <ActPrimary type="button" onClick={() => setMapPickerOpen(true)}>
+              구장·일정 제안하기
+            </ActPrimary>
+          </ActRow>
+        </ActStack>
+      );
+    }
   } else if (status === "proposed") {
     chatTopBar = iAmProposer ? (
       <ActStack>
@@ -3152,8 +3567,264 @@ export default function MatchRoomDetailPage() {
     );
   }
 
+  // 경기 결과 입력 폼: 최종 스코어 / 상대 팀 평가 / 사진·후기 (3카드)
+  // 다른 팀 관점(읽기전용)에서는 입력 폼 미노출
+  const canInputResult = !resultState && canOpenResultInput && isViewerMyTeam;
+
+  const resultInputCards = (
+    <>
+      {/* 최종 스코어 카드 */}
+      <SectionCard>
+        <SectionTitleRow>
+          <SectionTitleLeft>
+            <span>최종 스코어</span>
+            <SubLabel>직접 입력</SubLabel>
+          </SectionTitleLeft>
+          <SectionTitleActions />
+        </SectionTitleRow>
+
+        <ScoreCardRow>
+          <ScoreTeamCol>
+            <ScoreLogoWrap>
+              {myRank && myRank <= 3 ? <ScoreCrown src={images.logo} alt={`${myRank}위`} /> : null}
+              <ScoreLogoChip>
+                <ScoreLogoImg src={teamLogoSrc(myTeamView?.logoUrl)} alt={myTeamView?.name} />
+              </ScoreLogoChip>
+            </ScoreLogoWrap>
+            <ScoreColName>{myTeamView?.name || "우리팀"}</ScoreColName>
+            <ScoreColSub $me>우리팀{myRank ? ` · 랭킹 ${myRank}위` : ""}</ScoreColSub>
+            <ScoreInputBig
+              inputMode="numeric"
+              pattern="\\d*"
+              value={myScoreInput}
+              onChange={(e) => setMyScoreInput(e.target.value.replace(/[^\d]/g, ""))}
+            />
+          </ScoreTeamCol>
+
+          <ScoreColon>:</ScoreColon>
+
+          <ScoreTeamCol>
+            <ScoreLogoWrap>
+              {oppRank && oppRank <= 3 ? <ScoreCrown src={images.logo} alt={`${oppRank}위`} /> : null}
+              <ScoreLogoChip>
+                <ScoreLogoImg src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppTeamView?.name} />
+              </ScoreLogoChip>
+            </ScoreLogoWrap>
+            <ScoreColName>{oppTeamView?.name || "상대팀"}</ScoreColName>
+            <ScoreColSub>{oppRank ? `랭킹 ${oppRank}위` : "랭킹 정보 없음"}</ScoreColSub>
+            <ScoreInputBig
+              inputMode="numeric"
+              pattern="\\d*"
+              value={oppScoreInput}
+              onChange={(e) => setOppScoreInput(e.target.value.replace(/[^\d]/g, ""))}
+            />
+          </ScoreTeamCol>
+        </ScoreCardRow>
+      </SectionCard>
+
+      {/* 상대 팀 평가 카드 */}
+      <SectionCard>
+        <SectionTitleRow>
+          <SectionTitleLeft>
+            <span>상대 팀은 어땠나요?</span>
+          </SectionTitleLeft>
+          <SectionTitleActions />
+        </SectionTitleRow>
+        <RatingSubtitle>매너·실력을 별점으로 평가하면 상대 팀 평판에 반영돼요.</RatingSubtitle>
+        <StarsRow>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <StarBtn
+              key={n}
+              type="button"
+              $on={n <= oppRating}
+              onClick={() => setOppRating(n === oppRating ? 0 : n)}
+              aria-label={`${n}점`}
+            >
+              {n <= oppRating ? "★" : "☆"}
+            </StarBtn>
+          ))}
+        </StarsRow>
+        <RatingValueLabel>{RATING_LABELS[oppRating] || ""}</RatingValueLabel>
+      </SectionCard>
+
+      {/* 사진 · 한줄 후기 카드 */}
+      <SectionCard>
+        <SectionTitleRow>
+          <SectionTitleLeft>
+            <span>사진 · 한줄 후기</span>
+            <SubLabel>선택</SubLabel>
+          </SectionTitleLeft>
+          <SectionTitleActions />
+        </SectionTitleRow>
+
+        <PhotoRow>
+          {resultFiles.map((f, idx) => {
+            const src = URL.createObjectURL(f);
+            return (
+              <PhotoThumb key={`${f.name}-${idx}`}>
+                <PhotoImg src={src} alt="picked" />
+                <PhotoRemove type="button" onClick={() => removePickedFile(idx)}>
+                  ×
+                </PhotoRemove>
+              </PhotoThumb>
+            );
+          })}
+          {resultFiles.length < 1 && (
+            <PhotoAdd type="button" onClick={() => fileRef.current?.click()}>
+              <span style={{ fontSize: 18 }}>📷</span>
+              <span>{resultFiles.length}/1</span>
+            </PhotoAdd>
+          )}
+        </PhotoRow>
+
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFilesChanged} />
+
+        <TextArea
+          value={resultComment}
+          onChange={(e) => setResultComment(e.target.value)}
+          placeholder="코멘트 (예: 매너 좋았습니다. 다음에 또 경기해요!)"
+        />
+      </SectionCard>
+
+      <ResultSubmitBar>
+        <PrimaryButton
+          type="button"
+          onClick={handleSubmitResult}
+          disabled={resultBusy || !toStr(myScoreInput) || !toStr(oppScoreInput)}
+        >
+          {resultBusy ? "처리중..." : "결과 제출"}
+        </PrimaryButton>
+      </ResultSubmitBar>
+    </>
+  );
+
+  // 완료/확정 경기: 결과 표시 카드 (입력 카드와 동일 디자인, 점수는 읽기 전용)
+  const isResultView = resultState === "confirmed" || isFinished;
+
+  const resultConfirmedCards = (
+    <>
+      {/* 최종 스코어 카드 */}
+      <SectionCard>
+        <SectionTitleRow>
+          <SectionTitleLeft>
+            <span>최종 스코어</span>
+          </SectionTitleLeft>
+          <SectionTitleActions />
+        </SectionTitleRow>
+
+        <ScoreCardRow>
+          <ScoreTeamCol>
+            <ScoreLogoWrap>
+              {myRank && myRank <= 3 ? <ScoreCrown src={images.logo} alt={`${myRank}위`} /> : null}
+              <ScoreLogoChip>
+                <ScoreLogoImg src={teamLogoSrc(myTeamView?.logoUrl)} alt={myTeamView?.name} />
+              </ScoreLogoChip>
+            </ScoreLogoWrap>
+            <ScoreColName>{myTeamView?.name || "우리팀"}</ScoreColName>
+            <ScoreColSub $me>우리팀{myRank ? ` · 랭킹 ${myRank}위` : ""}</ScoreColSub>
+            <ScoreReadBox $outcome={outcome}>
+              {Number.isFinite(myScoreNum) ? myScoreNum : "-"}
+            </ScoreReadBox>
+          </ScoreTeamCol>
+
+          <ScoreColon>:</ScoreColon>
+
+          <ScoreTeamCol>
+            <ScoreLogoWrap>
+              {oppRank && oppRank <= 3 ? <ScoreCrown src={images.logo} alt={`${oppRank}위`} /> : null}
+              <ScoreLogoChip>
+                <ScoreLogoImg src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppTeamView?.name} />
+              </ScoreLogoChip>
+            </ScoreLogoWrap>
+            <ScoreColName>{oppTeamView?.name || "상대팀"}</ScoreColName>
+            <ScoreColSub>{oppRank ? `랭킹 ${oppRank}위` : "랭킹 정보 없음"}</ScoreColSub>
+            <ScoreReadBox $outcome={outcome}>
+              {Number.isFinite(oppScoreNum) ? oppScoreNum : "-"}
+            </ScoreReadBox>
+          </ScoreTeamCol>
+        </ScoreCardRow>
+
+        <ScoreHeroHint>경기 결과가 확정되었습니다.</ScoreHeroHint>
+      </SectionCard>
+    </>
+  );
+
+  // 승인 대기중: 제출된 최종 스코어 카드 + 인정/이의 (확정 화면과 동일 디자인, 확정 전이라 점수 색상 없음)
+  const resultWaitingCards = (
+    <SectionCard>
+      <SectionTitleRow>
+        <SectionTitleLeft>
+          <span>최종 스코어</span>
+        </SectionTitleLeft>
+        <SectionTitleActions />
+      </SectionTitleRow>
+
+      <ScoreCardRow>
+        <ScoreTeamCol>
+          <ScoreLogoWrap>
+            {myRank && myRank <= 3 ? <ScoreCrown src={images.logo} alt={`${myRank}위`} /> : null}
+            <ScoreLogoChip>
+              <ScoreLogoImg src={teamLogoSrc(myTeamView?.logoUrl)} alt={myTeamView?.name} />
+            </ScoreLogoChip>
+          </ScoreLogoWrap>
+          <ScoreColName>{myTeamView?.name || "우리팀"}</ScoreColName>
+          <ScoreColSub $me>우리팀{myRank ? ` · 랭킹 ${myRank}위` : ""}</ScoreColSub>
+          <ScoreReadBox>{Number.isFinite(myScoreNum) ? myScoreNum : "-"}</ScoreReadBox>
+        </ScoreTeamCol>
+
+        <ScoreColon>:</ScoreColon>
+
+        <ScoreTeamCol>
+          <ScoreLogoWrap>
+            {oppRank && oppRank <= 3 ? <ScoreCrown src={images.logo} alt={`${oppRank}위`} /> : null}
+            <ScoreLogoChip>
+              <ScoreLogoImg src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppTeamView?.name} />
+            </ScoreLogoChip>
+          </ScoreLogoWrap>
+          <ScoreColName>{oppTeamView?.name || "상대팀"}</ScoreColName>
+          <ScoreColSub>{oppRank ? `랭킹 ${oppRank}위` : "랭킹 정보 없음"}</ScoreColSub>
+          <ScoreReadBox>{Number.isFinite(oppScoreNum) ? oppScoreNum : "-"}</ScoreReadBox>
+        </ScoreTeamCol>
+      </ScoreCardRow>
+
+      {!iSubmittedResult ? (
+        <>
+          <ScoreHeroHint>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ScoreHeroHint>
+          <ResultActionsRow>
+            <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
+              {resultBusy ? "처리중..." : "결과 인정"}
+            </ResultButton>
+            <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
+              이의 제기
+            </ResultButton>
+          </ResultActionsRow>
+          {autoConfirmAtLabel ? (
+            <ResultStatusText>
+              ⏳ {autoConfirmAtLabel}까지 승인하지 않으면 상대팀이 입력한 결과로 자동 확정됩니다.
+            </ResultStatusText>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <ScoreHeroHint>상대팀 승인을 기다리는 중입니다.</ScoreHeroHint>
+          {autoConfirmAtLabel ? (
+            <ResultStatusText>
+              ⏳ 상대팀이 {autoConfirmAtLabel}까지 승인하지 않으면 입력한 결과로 자동 확정됩니다.
+            </ResultStatusText>
+          ) : null}
+        </>
+      )}
+    </SectionCard>
+  );
+
   // 경기 결과 입력/제출/인정 섹션 (확정 화면·결과 화면에서 공용)
-  const resultSection = (
+  const resultSection = canInputResult ? (
+    resultInputCards
+  ) : isResultView ? (
+    resultConfirmedCards
+  ) : resultState === "waiting_accept" ? (
+    resultWaitingCards
+  ) : (
     <SectionCard>
       <SectionTitleRow>
         <SectionTitleLeft>
@@ -3175,150 +3846,78 @@ export default function MatchRoomDetailPage() {
         </ResultInfoBox>
       )}
 
-      {!resultState && canOpenResultInput && (
-        <>
-          <ResultScoreRow>
-            <ScoreBlock>
-              <ScoreTeamLabel>{myTeamView?.name || "우리팀"}</ScoreTeamLabel>
-              <ScoreInput
-                inputMode="numeric"
-                pattern="\\d*"
-                value={myScoreInput}
-                onChange={(e) => setMyScoreInput(e.target.value.replace(/[^\d]/g, ""))}
-              />
-            </ScoreBlock>
-            <ScoreSeparator>:</ScoreSeparator>
-            <ScoreBlock>
-              <ScoreTeamLabel>{oppTeamView?.name || "상대팀"}</ScoreTeamLabel>
-              <ScoreInput
-                inputMode="numeric"
-                pattern="\\d*"
-                value={oppScoreInput}
-                onChange={(e) => setOppScoreInput(e.target.value.replace(/[^\d]/g, ""))}
-              />
-            </ScoreBlock>
-          </ResultScoreRow>
-
-          <ResultStatusText>사진(선택)과 코멘트를 남길 수 있어요.</ResultStatusText>
-
-          <PhotoRow>
-            {resultFiles.map((f, idx) => {
-              const src = URL.createObjectURL(f);
-              return (
-                <PhotoThumb key={`${f.name}-${idx}`}>
-                  <PhotoImg src={src} alt="picked" />
-                  <PhotoRemove type="button" onClick={() => removePickedFile(idx)}>
-                    ×
-                  </PhotoRemove>
-                </PhotoThumb>
-              );
-            })}
-            {resultFiles.length < 6 && (
-              <PhotoAdd type="button" onClick={() => fileRef.current?.click()}>
-                ＋
-              </PhotoAdd>
-            )}
-          </PhotoRow>
-
-          <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onFilesChanged} />
-
-          <TextArea
-            value={resultComment}
-            onChange={(e) => setResultComment(e.target.value)}
-            placeholder="코멘트 (예: 매너 좋았습니다. 다음에 또 경기해요!)"
-          />
-
-          <ActionsWrap>
-            <PrimaryButton
-              type="button"
-              onClick={handleSubmitResult}
-              disabled={resultBusy || !toStr(myScoreInput) || !toStr(oppScoreInput)}
-            >
-              {resultBusy ? "처리중..." : "결과 제출"}
-            </PrimaryButton>
-          </ActionsWrap>
-        </>
-      )}
-
-      {resultState === "waiting_accept" && (
-        <>
-          <ScoreHero>
-            <ScoreHeroNum>{String(actorScoreSaved ?? "-")}</ScoreHeroNum>
-            <ScoreHeroSep>:</ScoreHeroSep>
-            <ScoreHeroNum>{String(targetScoreSaved ?? "-")}</ScoreHeroNum>
-          </ScoreHero>
-          <ScoreHeroHint>상대팀 승인을 기다리는 중입니다.</ScoreHeroHint>
-
-          {savedComment ? (
-            <CommentStack>
-              {commentBlocks.map((b) => (
-                <CommentItem key={b.key}>
-                  <CommentHeader>{b.header}</CommentHeader>
-                  <CommentBody>{b.body}</CommentBody>
-                </CommentItem>
-              ))}
-            </CommentStack>
-          ) : null}
-
-          {savedPhotoUrls.length > 0 ? (
-            <FullPhotoList>
-              {savedPhotoUrls.map((url, idx) => (
-                <FullPhotoItem key={`${url}-${idx}`}>
-                  <FullPhotoImg src={url} alt="result" />
-                </FullPhotoItem>
-              ))}
-            </FullPhotoList>
-          ) : null}
-
-          {!iSubmittedResult ? (
-            <>
-              <ResultStatusText>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ResultStatusText>
-              <ResultActionsRow>
-                <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
-                  {resultBusy ? "처리중..." : "결과 인정"}
-                </ResultButton>
-                <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
-                  이의 제기
-                </ResultButton>
-              </ResultActionsRow>
-            </>
-          ) : (
-            <ResultStatusText>상대팀 승인을 기다리는 중입니다.</ResultStatusText>
-          )}
-        </>
-      )}
-
-      {(resultState === "confirmed" || isFinished) && (
-        <>
-          <ScoreHero>
-            <ScoreHeroNum>{String(actorScoreSaved ?? "-")}</ScoreHeroNum>
-            <ScoreHeroSep>:</ScoreHeroSep>
-            <ScoreHeroNum>{String(targetScoreSaved ?? "-")}</ScoreHeroNum>
-          </ScoreHero>
-          <ScoreHeroHint>경기 결과가 확정되었습니다.</ScoreHeroHint>
-          {savedComment ? (
-            <CommentStack>
-              {commentBlocks.map((b) => (
-                <CommentItem key={b.key}>
-                  <CommentHeader>{b.header}</CommentHeader>
-                  <CommentBody>{b.body}</CommentBody>
-                </CommentItem>
-              ))}
-            </CommentStack>
-          ) : null}
-          {savedPhotoUrls.length > 0 ? (
-            <FullPhotoList>
-              {savedPhotoUrls.map((url, idx) => (
-                <FullPhotoItem key={`${url}-${idx}`}>
-                  <FullPhotoImg src={url} alt="result" />
-                </FullPhotoItem>
-              ))}
-            </FullPhotoList>
-          ) : null}
-        </>
-      )}
-
       {resultState === "disputed" && <ResultStatusText>이의 제기 상태입니다. 관리자 검토 후 처리됩니다.</ResultStatusText>}
+    </SectionCard>
+  );
+
+  // 평점 데이터 (상대 팀에 남긴 별점) — loadMatchRoomDetail이 동봉
+  const allReviews = Array.isArray(room.reviews) ? room.reviews : [];
+
+  // 상대 팀 선수들이 "우리 팀(표시 관점)"에 남긴 평점 (targetClubId == 표시 관점 팀)
+  const oppPlayerById = {};
+  oppPlayers.forEach((p) => {
+    oppPlayerById[toStr(p.userId)] = p;
+  });
+  const oppReviews = allReviews
+    .filter((r) => toStr(r.targetClubId) === perspectiveClubId)
+    .map((r) => {
+      const p = oppPlayerById[toStr(r.raterUid)];
+      return {
+        key: r.id,
+        name: toStr(r.raterName) || toStr(p?.nickname) || "상대 선수",
+        avatar: playerAvatars?.[r.raterUid] || toStr(p?.photoUrl) || "",
+        stars: Math.max(1, Math.min(5, Number(r.stars) || 0)),
+        text: toStr(r.comment),
+        date: formatShortDate(r.createdAt),
+      };
+    });
+  const oppRatingAvg = oppReviews.length
+    ? Math.round(
+        (oppReviews.reduce((sum, r) => sum + r.stars, 0) / oppReviews.length) * 10
+      ) / 10
+    : 0;
+
+  // 지난(완료) 경기: 상대 팀 선수들이 우리 팀에 남긴 평점 (표시)
+  const oppReviewSection = (
+    <SectionCard>
+      <ReviewHeadRow>
+        <ReviewHeadLeft>
+          <ReviewTeamLogo>
+            <img src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppName} />
+          </ReviewTeamLogo>
+          <ReviewTitle>{oppName} 선수 평점</ReviewTitle>
+        </ReviewHeadLeft>
+        {oppReviews.length > 0 && (
+          <ReviewAvg>
+            <ReviewAvgStars>{starString(Math.round(oppRatingAvg))}</ReviewAvgStars>
+            <ReviewAvgNum>{oppRatingAvg.toFixed(1)}</ReviewAvgNum>
+          </ReviewAvg>
+        )}
+      </ReviewHeadRow>
+      <RatingSubtitle>상대 팀 선수들이 우리 팀에 남겼어요</RatingSubtitle>
+      {oppReviews.length > 0 ? (
+        <ReviewList>
+          {oppReviews.map((r) => (
+            <ReviewItem key={r.key}>
+              {r.avatar ? (
+                <ReviewAvatar src={r.avatar} alt={r.name} />
+              ) : (
+                <AvatarPlaceholder size={36} />
+              )}
+              <ReviewBody>
+                <ReviewNameRow>
+                  <ReviewName>{r.name}</ReviewName>
+                  <ReviewStars>{starString(r.stars)}</ReviewStars>
+                </ReviewNameRow>
+                {r.text ? <ReviewText>{r.text}</ReviewText> : null}
+                {r.date ? <ReviewDate>{r.date}</ReviewDate> : null}
+              </ReviewBody>
+            </ReviewItem>
+          ))}
+        </ReviewList>
+      ) : (
+        <ReviewEmpty>아직 상대 팀이 남긴 평점이 없어요.</ReviewEmpty>
+      )}
     </SectionCard>
   );
 
@@ -3326,7 +3925,7 @@ export default function MatchRoomDetailPage() {
     <>
       <PageWrap
         $dark={!isVenue}
-        $confirmed={!isVenue && (status === "confirmed" || status === "cancelled")}
+        $confirmed={!isVenue && (status === "confirmed" || status === "cancelled" || status === "finished")}
       >
         <DarkHeader>
           {isVenue || status === "confirmed" || status === "cancelled" || status === "finished" ? null : (
@@ -3449,6 +4048,13 @@ export default function MatchRoomDetailPage() {
                 </ConfBannerText>
               </ConfBanner>
             ) : null}
+
+            {/* 지난(완료) 경기: 경기 결과 카드를 결과 배너 바로 아래에 배치 */}
+            {isPast && resultSection}
+
+            {/* 결과 확정된 완료 경기: 상대 팀 선수들이 우리 팀에 남긴 평점 (보기 전용) */}
+            {isResultView && oppReviewSection}
+
             <Ticket>
               <TicketHead>
                 <TicketBrand>MATCH TICKET</TicketBrand>
@@ -3525,6 +4131,12 @@ export default function MatchRoomDetailPage() {
                         <LineupTitle>등록된 선수가 없어요.</LineupTitle>
                       )}
                     </LineupList>
+                    {mySubPlayers.length > 0 && (
+                      <>
+                        <LineupTitle style={{ marginTop: 8 }}>후보 {mySubPlayers.length}명</LineupTitle>
+                        <LineupList>{mySubPlayers.map((p) => renderPlayerRow(p, myRecord))}</LineupList>
+                      </>
+                    )}
                   </LineupBox>
                 )}
 
@@ -3540,6 +4152,12 @@ export default function MatchRoomDetailPage() {
                         <LineupTitle>등록된 선수가 없어요.</LineupTitle>
                       )}
                     </LineupList>
+                    {oppSubPlayers.length > 0 && (
+                      <>
+                        <LineupTitle style={{ marginTop: 8 }}>후보 {oppSubPlayers.length}명</LineupTitle>
+                        <LineupList>{oppSubPlayers.map((p) => renderPlayerRow(p, oppRecord))}</LineupList>
+                      </>
+                    )}
                   </LineupBox>
                 )}
 
@@ -3583,13 +4201,16 @@ export default function MatchRoomDetailPage() {
             </VenueNote>
 
             {/* 경기 결과 입력/제출/인정 — 확정 화면에서 바로 (별도 채팅 없음) */}
-            {resultSection}
+            {!isPast && resultSection}
 
             {isConfirmed && !isEnded && (
               <ConfCancelBtn type="button" onClick={handleCancelConfirmedMatch}>
                 경기 취소하기
               </ConfCancelBtn>
             )}
+
+            {/* 결과 입력 시 하단 고정 버튼에 콘텐츠가 가리지 않도록 여백 */}
+            {canInputResult && <ResultBarSpacer />}
           </ConfWrap>
         ) : !isVenue ? (
           <>
@@ -3636,6 +4257,12 @@ export default function MatchRoomDetailPage() {
                     <LineupTitle>우리팀 선수 명단</LineupTitle>
                   </LineupTitleRow>
                   <LineupList>{myPlayers.length > 0 ? myPlayers.map((p) => renderPlayerRow(p, myRecord)) : null}</LineupList>
+                  {mySubPlayers.length > 0 && (
+                    <>
+                      <LineupTitle style={{ marginTop: 8 }}>후보 {mySubPlayers.length}명</LineupTitle>
+                      <LineupList>{mySubPlayers.map((p) => renderPlayerRow(p, myRecord))}</LineupList>
+                    </>
+                  )}
                 </LineupBox>
               )}
             </TeamBlock>
@@ -3670,6 +4297,12 @@ export default function MatchRoomDetailPage() {
                     <LineupTitle>상대팀 선수 명단</LineupTitle>
                   </LineupTitleRow>
                   <LineupList>{oppPlayers.length > 0 ? oppPlayers.map((p) => renderPlayerRow(p, oppRecord)) : null}</LineupList>
+                  {oppSubPlayers.length > 0 && (
+                    <>
+                      <LineupTitle style={{ marginTop: 8 }}>후보 {oppSubPlayers.length}명</LineupTitle>
+                      <LineupList>{oppSubPlayers.map((p) => renderPlayerRow(p, oppRecord))}</LineupList>
+                    </>
+                  )}
                 </LineupBox>
               )}
             </TeamBlock>
@@ -3994,14 +4627,14 @@ export default function MatchRoomDetailPage() {
                           </PhotoThumb>
                         );
                       })}
-                      {resultFiles.length < 6 && (
+                      {resultFiles.length < 1 && (
                         <PhotoAdd type="button" onClick={() => fileRef.current?.click()}>
                           ＋
                         </PhotoAdd>
                       )}
                     </PhotoRow>
 
-                    <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onFilesChanged} />
+                    <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFilesChanged} />
 
                     <TextArea
                       value={resultComment}
@@ -4322,6 +4955,17 @@ export default function MatchRoomDetailPage() {
         open={venuePickerOpen}
         onClose={() => setVenuePickerOpen(false)}
         onPick={handlePickVenue}
+      />
+
+      <MatchLineupConfirmSheet
+        open={lineupSheetOpen}
+        onClose={() => setLineupSheetOpen(false)}
+        matchRequestId={room.id}
+        clubId={myClubId}
+        matchSizeKey={matchSizeKey}
+        initialStarterIds={myLineupSnap?.memberIds || []}
+        initialSubIds={myLineupSnap?.subMemberIds || []}
+        onConfirmed={refresh}
       />
 
       <MapLocationPicker

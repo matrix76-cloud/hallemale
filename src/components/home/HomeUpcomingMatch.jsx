@@ -38,6 +38,12 @@ const SectionWrap = styled.section`
   gap: 10px;
 `;
 
+const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
 const SectionTitle = styled.h2`
   margin: 0;
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
@@ -87,15 +93,6 @@ const TopRow = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding: 12px 14px 4px;
-`;
-
-const TopLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const Dday = styled.span`
@@ -293,9 +290,6 @@ export default function HomeUpcomingMatch({ clubId }) {
         tabIndex={0}
       >
         <TopRow>
-          <TopLeft>
-            <Dday>{formatDday(match.scheduledAt)}</Dday>
-          </TopLeft>
           <TopTime>{formatDateTime(match.scheduledAt)}</TopTime>
         </TopRow>
 
@@ -344,7 +338,10 @@ export default function HomeUpcomingMatch({ clubId }) {
 
   return (
     <SectionWrap>
-      <SectionTitle>다가오는 경기{multi ? ` ${matches.length}` : ""}</SectionTitle>
+      <TitleRow>
+        <SectionTitle>다가오는 경기{multi ? ` ${matches.length}` : ""}</SectionTitle>
+        <Dday>{formatDday(matches[0]?.scheduledAt)}</Dday>
+      </TitleRow>
 
       <SlideRow $multi={multi}>
         {matches.map((m) => (

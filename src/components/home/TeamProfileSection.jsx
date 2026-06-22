@@ -110,19 +110,6 @@ const MemberIcon = styled.span`
   font-size: 12px;
 `;
 
-const TagRow = styled.div`
-  margin-top: 2px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-`;
-
-const Tag = styled.span`
-  font-size: 11px;
-  background: none;
-  color: ${({ theme }) => theme.colors.textWeak};
-`;
-
 /* ============ 아래: 홈 액션 ============ */
 
 const ActionsCol = styled.div`
@@ -234,7 +221,7 @@ const FolderIcon = styled.div`
 
 const MatchRoomLinkText = styled.div`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.primary || "#2563eb"};
+  color: ${({ theme }) => theme.colors.textWeak || "#9ca3af"};
   cursor: pointer;
   white-space: nowrap;
 `;
@@ -521,14 +508,6 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
               <MemberIcon>👥</MemberIcon>
               <span>{memberCountLabel}</span>
             </MemberBadge>
-
-            {safeTeam.tags && safeTeam.tags.length > 0 && (
-              <TagRow>
-                {safeTeam.tags.map((tag) => (
-                  <Tag key={tag}>{tag}</Tag>
-                ))}
-              </TagRow>
-            )}
           </TeamMeta>
         </TopRow>
       </ProfileCard>

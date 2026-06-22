@@ -84,12 +84,7 @@ export const NOTIFICATION_DEFINITIONS = Object.freeze({
       "actorClubId",
       "targetClubId",
       "fromTeamSnapshot.name",
-      "fromLineupSnapshot.id",
-      "fromLineupSnapshot.name",
-      "fromLineupSnapshot.matchSizeKey",
-      "toLineupSnapshot.id",
-      "toLineupSnapshot.name",
-      "toLineupSnapshot.matchSizeKey",
+      "matchSizeKey",
     ],
   },
 
@@ -106,9 +101,6 @@ export const NOTIFICATION_DEFINITIONS = Object.freeze({
       "actorClubId",
       "targetClubId",
       "toTeamSnapshot.name",
-      "toLineupSnapshot.id",
-      "toLineupSnapshot.name",
-      "toLineupSnapshot.matchSizeKey",
     ],
   },
 
@@ -244,20 +236,20 @@ export function buildMatchTitleBody(key, payload) {
 
   const fromTeamName = toStr(p?.fromTeamSnapshot?.name);
   const toTeamName = toStr(p?.toTeamSnapshot?.name);
-  const fromLineupName = toStr(p?.fromLineupSnapshot?.name);
-  const toLineupName = toStr(p?.toLineupSnapshot?.name);
+  const sizeKey = toStr(p?.matchSizeKey);
+  const sizeLabel = ["3v3", "4v4", "5v5"].includes(sizeKey) ? sizeKey.replace("v", " vs ") : "";
 
   if (k === "MATCH_REQUEST") {
     return {
       title: "매칭 신청 도착",
-      body: `${fromTeamName || "상대 팀"}이(가) '${fromLineupName || "라인업"}'으로 '${toLineupName || "라인업"}'에 신청했어요`,
+      body: `${fromTeamName || "상대 팀"}이(가) ${sizeLabel || "매칭"}을 신청했어요`,
     };
   }
 
   if (k === "MATCH_ACCEPTED") {
     return {
       title: "매칭 수락",
-      body: `${toTeamName || "상대 팀"}이(가) 라인업 '${toLineupName || "라인업"}'으로 수락했어요`,
+      body: `${toTeamName || "상대 팀"}이(가) 매칭을 수락했어요. 라인업을 확정해 주세요.`,
     };
   }
 

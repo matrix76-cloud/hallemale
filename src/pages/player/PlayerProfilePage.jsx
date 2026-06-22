@@ -1034,7 +1034,11 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                 teamClubId={String(player.clubId || "").trim()}
                 teamName={player.clubName}
                 matches={playerMatches}
-                onClickMatch={(id) => nav(`/match-roomdetail/${id}`)}
+                onClickMatch={(id) =>
+                  nav(`/match-roomdetail/${id}`, {
+                    state: { viewClubId: String(player.clubId || "").trim() },
+                  })
+                }
               />
             )}
           </Section>

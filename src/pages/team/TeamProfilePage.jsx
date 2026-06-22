@@ -433,6 +433,29 @@ const RecentDots = styled.div`
   gap: 4px;
 `;
 
+const RepValue = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const RepStars = styled.span`
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+const RepNum = styled.span`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const RepCount = styled.span`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
 const MediaImg = styled.img`
   width: 100%;
   height: 100%;
@@ -950,10 +973,8 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const [myTeam, setMyTeam] = useState(null);
   const [myTeamError, setMyTeamError] = useState("");
 
-  // ✅ 매칭 신청: 내 라인업 + 상대 라인업 (2-step)
-  const [matchStep, setMatchStep] = useState("my"); // "my" | "opponent"
-  const [selectedMyLineupIdForRequest, setSelectedMyLineupIdForRequest] = useState(null);
-  const [selectedOpponentLineupIdForRequest, setSelectedOpponentLineupIdForRequest] = useState(null);
+  // ✅ 매칭 신청: 사이즈만 선택 (라인업은 수락 후 룸에서 각 팀이 확정)
+  const [selectedMatchSize, setSelectedMatchSize] = useState(""); // "3v3" | "4v4" | "5v5"
 
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState(null);
@@ -1124,6 +1145,12 @@ useEffect(() => {
 
   const recentResults = buildRecentResults(team?.stats);
 
+  // 상대 팀들이 매긴 별점 평판 (경기 결과 확정 시 집계됨)
+  const repCount = Number(team?.reputation?.count) || 0;
+  const repAvg = repCount > 0 ? Number(team?.reputation?.avg) || 0 : 0;
+  const repRounded = Math.round(repAvg);
+  const repStars = "★".repeat(repRounded) + "☆".repeat(Math.max(0, 5 - repRounded));
+
   const activityLabel = resolveActivityLabel(team?.activity);
 
   const mediaList = Array.isArray(team?.media) && team.media.length > 0 ? team.media : SAMPLE_TEAM_MEDIA;
@@ -1196,31 +1223,9 @@ useEffect(() => {
         return;
       }
 
-      const myLineupsRaw = Array.isArray(myData?.lineups) ? myData.lineups : [];
-      const myLineups = myLineupsRaw.length > 0 ? myLineupsRaw : buildDefaultLineups(myData);
-
-      if (!myLineups || myLineups.length === 0) {
-        alert("내 팀 라인업이 없습니다. 라인업을 먼저 만들어 주세요.");
-        return;
-      }
-
-      const opponentLineupsRaw = Array.isArray(team?.lineups) ? team.lineups : [];
-      const opponentLineups = opponentLineupsRaw.length > 0 ? opponentLineupsRaw : buildDefaultLineups(team);
-
-      if (!opponentLineups || opponentLineups.length === 0) {
-        alert("상대 팀 라인업이 없습니다.");
-        return;
-      }
-
+      // 라인업은 수락 후 룸에서 확정 → 요청 시엔 사이즈만 고름
       setMyTeam(myData);
-
-      const firstMyId = myLineups[0].id || myLineups[0].name;
-      const firstOpId = opponentLineups[0].id || opponentLineups[0].name;
-
-      setSelectedMyLineupIdForRequest(firstMyId);
-      setSelectedOpponentLineupIdForRequest(firstOpId);
-
-      setMatchStep("my");
+      setSelectedMatchSize("");
       setShowLineupSelectModal(true);
     } catch (e) {
       console.warn("[TeamProfile] load myTeam failed:", e?.message || e);
@@ -1265,41 +1270,31 @@ useEffect(() => {
       return;
     }
 
-    const myLineupsRaw = Array.isArray(myTeam?.lineups) ? myTeam.lineups : [];
-    const myLineups = myLineupsRaw.length > 0 ? myLineupsRaw : buildDefaultLineups(myTeam);
-
-    const opponentLineupsRaw = Array.isArray(team?.lineups) ? team.lineups : [];
-    const opponentLineups = opponentLineupsRaw.length > 0 ? opponentLineupsRaw : buildDefaultLineups(team);
-
-    const actorLineup =
-      myLineups.find((lu) => (lu.id || lu.name) === selectedMyLineupIdForRequest) || myLineups[0];
-
-    const targetLineup =
-      opponentLineups.find((lu) => (lu.id || lu.name) === selectedOpponentLineupIdForRequest) || opponentLineups[0];
+    if (!selectedMatchSize) {
+      alert("매치 사이즈(3 vs 3 / 4 vs 4 / 5 vs 5)를 선택해 주세요.");
+      return;
+    }
 
     try {
       const matchId = await createMatchRequest({
         actorClubId: String(myClubId),
         actorTeam: myTeam,
-        actorLineup,
-        actorMembers: Array.isArray(myTeam?.members) ? myTeam.members : [],
 
         targetClubId: opponentClubId,
         targetTeam: team,
-        targetLineup,
-        targetMembers: Array.isArray(team?.members) ? team.members : [],
+
+        matchSizeKey: selectedMatchSize,
       });
 
       console.log("[TeamProfile] match request created:", matchId);
 
       setShowLineupSelectModal(false);
-      setMatchStep("my");
+      setSelectedMatchSize("");
       nav("/matchingmanage", { state: { initialTab: "sent" } });
     } catch (e) {
       console.warn("[TeamProfile] create match request failed:", e?.message || e);
       alert(e?.message || "매칭 신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       setShowLineupSelectModal(false);
-      setMatchStep("my");
     }
   };
 
@@ -1442,6 +1437,17 @@ useEffect(() => {
                     </RecentDots>
                   </RecentResultsRow>
                 )}
+
+                {repCount > 0 && (
+                  <RecentResultsRow>
+                    <RecentResultsLabel>팀 평판</RecentResultsLabel>
+                    <RepValue>
+                      <RepStars>{repStars}</RepStars>
+                      <RepNum>{repAvg.toFixed(1)}</RepNum>
+                      <RepCount>({repCount})</RepCount>
+                    </RepValue>
+                  </RecentResultsRow>
+                )}
               </Section>
 
               <Section>
@@ -1463,7 +1469,11 @@ useEffect(() => {
                     teamClubId={String(team?.clubId || team?.id || "").trim()}
                     teamName={team?.name}
                     matches={pastMatches}
-                    onClickMatch={(id) => nav(`/match-roomdetail/${id}`)}
+                    onClickMatch={(id) =>
+                      nav(`/match-roomdetail/${id}`, {
+                        state: { viewClubId: String(team?.clubId || team?.id || "").trim() },
+                      })
+                    }
                   />
                 )}
               </Section>
@@ -1620,97 +1630,53 @@ useEffect(() => {
             <Overlay onClick={() => setShowLineupSelectModal(false)}>
               <SelectCard onClick={(e) => e.stopPropagation()}>
                 <LineupModalHeader>
-                  <LineupModalTitle>
-                    {matchStep === "my" ? "내 라인업을 선택해 주세요" : "상대 라인업을 선택해 주세요"}
-                  </LineupModalTitle>
+                  <LineupModalTitle>매치 사이즈를 선택해 주세요</LineupModalTitle>
                   <LineupModalClose onClick={() => setShowLineupSelectModal(false)}>×</LineupModalClose>
                 </LineupModalHeader>
 
                 <SelectBody>
                   <LineupModalMeta>
-                    {matchStep === "my"
-                      ? (myTeam?.name ? `${myTeam.name} 라인업` : "내 팀 라인업")
-                      : (team?.name ? `${team.name} 라인업` : "상대 팀 라인업")}
+                    {team?.name ? `${team.name}에 매칭 신청` : "매칭 신청"} · 라인업은 수락 후 매칭룸에서
+                    각 팀이 확정해요
                   </LineupModalMeta>
 
                   <SelectList>
-                    {(() => {
-                      const srcTeam = matchStep === "my" ? myTeam : team;
-
-                      const raw = Array.isArray(srcTeam?.lineups) ? srcTeam.lineups : [];
-                      const list = raw.length > 0 ? raw : buildDefaultLineups(srcTeam);
-
-                      return list.map((lu) => {
-                        const members = resolveLineupMembers(lu, srcTeam?.members || []);
-                        const sizeLabel =
-                          lu.matchSizeLabel || MATCH_SIZE_LABEL[lu.matchSizeKey] || `${members.length}명`;
-                        const captainName = getLineupCaptainName(lu, srcTeam?.members || []);
-                        const idKey = lu.id || lu.name;
-
-                        const selected =
-                          matchStep === "my"
-                            ? idKey === selectedMyLineupIdForRequest
-                            : idKey === selectedOpponentLineupIdForRequest;
-
-                        return (
-                          <SelectItem
-                            key={idKey}
-                            type="button"
-                            $selected={selected}
-                            onClick={() => {
-                              if (matchStep === "my") setSelectedMyLineupIdForRequest(idKey);
-                              else setSelectedOpponentLineupIdForRequest(idKey);
-                            }}
-                          >
-                            <SelectTexts>
-                              <SelectName>{lu.name}</SelectName>
-                              <SelectMeta>
-                                {members.length}명 · {sizeLabel}
-                                {captainName && ` · 팀장 ${captainName}`}
-                              </SelectMeta>
-                            </SelectTexts>
-                            <SelectRadio $selected={selected}>{selected ? "✓" : ""}</SelectRadio>
-                          </SelectItem>
-                        );
-                      });
-                    })()}
+                    {[
+                      { key: "3v3", label: "3 vs 3", desc: "한 팀당 3명" },
+                      { key: "4v4", label: "4 vs 4", desc: "한 팀당 4명" },
+                      { key: "5v5", label: "5 vs 5", desc: "한 팀당 5명" },
+                    ].map((opt) => {
+                      const selected = selectedMatchSize === opt.key;
+                      return (
+                        <SelectItem
+                          key={opt.key}
+                          type="button"
+                          $selected={selected}
+                          onClick={() => setSelectedMatchSize(opt.key)}
+                        >
+                          <SelectTexts>
+                            <SelectName>{opt.label}</SelectName>
+                            <SelectMeta>{opt.desc}</SelectMeta>
+                          </SelectTexts>
+                          <SelectRadio $selected={selected}>{selected ? "✓" : ""}</SelectRadio>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectList>
                 </SelectBody>
 
                 <SelectActions>
-                  {matchStep === "opponent" ? (
-                    <SelectButton
-                      type="button"
-                      onClick={() => setMatchStep("my")}
-                    >
-                      이전
-                    </SelectButton>
-                  ) : (
-                    <SelectButton
-                      type="button"
-                      onClick={() => setShowLineupSelectModal(false)}
-                    >
-                      취소
-                    </SelectButton>
-                  )}
-
-                  {matchStep === "my" ? (
-                    <SelectButton
-                      type="button"
-                      $primary
-                      onClick={() => setMatchStep("opponent")}
-                    >
-                      다음
-                    </SelectButton>
-                  ) : (
-                    <SelectButton
-                      type="button"
-                      $primary
-                      onClick={handleSubmitMatchRequest}
-                    >
-                      매칭 신청
-                    </SelectButton>
-                  )}
+                  <SelectButton type="button" onClick={() => setShowLineupSelectModal(false)}>
+                    취소
+                  </SelectButton>
+                  <SelectButton
+                    type="button"
+                    $primary
+                    disabled={!selectedMatchSize}
+                    onClick={handleSubmitMatchRequest}
+                  >
+                    매칭 신청
+                  </SelectButton>
                 </SelectActions>
               </SelectCard>
             </Overlay>

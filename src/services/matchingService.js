@@ -12,6 +12,24 @@ import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notification
 
 const toStr = (v) => String(v || "").trim();
 
+const MATCH_SIZE_KEYS = ["3v3", "4v4", "5v5"];
+const matchSizeLabel = (k) => {
+  const v = toStr(k);
+  return MATCH_SIZE_KEYS.includes(v) ? v.replace("v", " vs ") : "";
+};
+// 빈 라인업 스냅샷(수락 후 룸에서 각 팀이 확정 → 주전 memberIds + 후보 subMemberIds 채움)
+const emptyLineupSnapshot = (matchSizeKey = "") => ({
+  id: "",
+  name: "",
+  matchSizeKey: toStr(matchSizeKey),
+  memberIds: [],
+  memberCount: 0,
+  previewMembers: [],
+  subMemberIds: [],
+  subPreviewMembers: [],
+  confirmed: false,
+});
+
 function pickTeamSnapshot(team) {
   const t = team || {};
   return {
@@ -97,42 +115,39 @@ async function createNoti({ key, payload, title, body, pushEnabled }) {
 }
 
 /**
- * 매칭 신청 생성 (내 라인업 + 상대 라인업 선택)
- * ✅ actorMembers/targetMembers는 더 이상 스냅샷 생성에 쓰지 않음(추정체인 방지)
+ * 매칭 신청 생성 (사이즈만 선택: 3v3 / 4v4 / 5v5)
+ * ✅ 라인업은 수락 후 매칭룸(조율)에서 각 팀이 직접 확정 → 생성 시엔 빈 스냅샷 + 사이즈만 저장
  */
 export async function createMatchRequest({
   actorClubId,
   actorTeam,
-  actorLineup,
 
   targetClubId,
   targetTeam,
-  targetLineup,
+
+  matchSizeKey,
 } = {}) {
   const _actorClubId = toStr(actorClubId);
   const _targetClubId = toStr(targetClubId);
+  const _matchSizeKey = toStr(matchSizeKey);
 
   if (!_actorClubId) throw new Error("createMatchRequest: actorClubId is required");
   if (!_targetClubId) throw new Error("createMatchRequest: targetClubId is required");
   if (_actorClubId === _targetClubId) throw new Error("createMatchRequest: same club is not allowed");
+  if (!MATCH_SIZE_KEYS.includes(_matchSizeKey)) throw new Error("매치 사이즈(3v3/4v4/5v5)를 선택해 주세요.");
 
   const fromTeamSnapshot = pickTeamSnapshot(actorTeam);
   const toTeamSnapshot = pickTeamSnapshot(targetTeam);
 
-  const fromLineupSnapshot = buildLineupSnapshot({ lineup: actorLineup });
-  const toLineupSnapshot = buildLineupSnapshot({ lineup: targetLineup });
-
-  if (!toStr(fromLineupSnapshot?.id) || !toStr(fromLineupSnapshot?.name)) {
-    throw new Error("createMatchRequest: actorLineup is required");
-  }
-  if (!toStr(toLineupSnapshot?.id) || !toStr(toLineupSnapshot?.name)) {
-    throw new Error("createMatchRequest: targetLineup is required");
-  }
+  // 라인업은 룸에서 확정 → 빈 스냅샷(사이즈만)
+  const fromLineupSnapshot = emptyLineupSnapshot(_matchSizeKey);
+  const toLineupSnapshot = emptyLineupSnapshot(_matchSizeKey);
 
   const matchRef = await addDoc(collection(db, "match_requests"), {
     actorClubId: _actorClubId,
     targetClubId: _targetClubId,
     status: "pending",
+    matchSizeKey: _matchSizeKey,
     fromTeamSnapshot,
     toTeamSnapshot,
     fromLineupSnapshot,
@@ -151,6 +166,7 @@ export async function createMatchRequest({
       targetClubId: _targetClubId,
       clubId: _targetClubId,
       direction: "received",
+      matchSizeKey: _matchSizeKey,
       fromTeamSnapshot,
       toTeamSnapshot,
       fromLineupSnapshot,
@@ -176,6 +192,7 @@ export async function createMatchRequest({
       targetClubId: _targetClubId,
       clubId: _actorClubId,
       direction: "sent",
+      matchSizeKey: _matchSizeKey,
       fromTeamSnapshot,
       toTeamSnapshot,
       fromLineupSnapshot,
@@ -183,7 +200,7 @@ export async function createMatchRequest({
     };
 
     const title = "매칭 신청 완료";
-    const body = `${toStr(toTeamSnapshot?.name) || "상대 팀"}의 '${toStr(toLineupSnapshot?.name) || "라인업"}'에 신청했어요`;
+    const body = `${toStr(toTeamSnapshot?.name) || "상대 팀"}에 ${matchSizeLabel(_matchSizeKey) || "매칭"}을 신청했어요`;
 
     await createNoti({
       key: "MATCH_REQUEST",

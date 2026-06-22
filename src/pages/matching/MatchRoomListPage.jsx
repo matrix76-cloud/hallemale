@@ -648,9 +648,20 @@ export default function MatchRoomListPage() {
     [rooms]
   );
 
-  // 지난 경기 → 결과 입력 필요(아직 finished 아님) / 완료(finished) 분리
+  // 지난 경기 → 결과 입력 필요 / 상대 승인 대기중 / 완료(finished) 3분류
+  // - 승인 대기중: 결과를 제출했고 상대 팀 승인을 기다리는 상태(resultState === "waiting_accept")
+  const approvalPendingRooms = useMemo(
+    () =>
+      pastRooms.filter(
+        (r) => toStr(r?.status) !== "finished" && toStr(r?.resultState) === "waiting_accept"
+      ),
+    [pastRooms]
+  );
   const resultPendingRooms = useMemo(
-    () => pastRooms.filter((r) => toStr(r?.status) !== "finished"),
+    () =>
+      pastRooms.filter(
+        (r) => toStr(r?.status) !== "finished" && toStr(r?.resultState) !== "waiting_accept"
+      ),
     [pastRooms]
   );
   const completedRooms = useMemo(
@@ -758,7 +769,7 @@ export default function MatchRoomListPage() {
     );
   };
 
-  // 결과 입력이 필요한 지난 경기 카드
+  // 결과 입력이 필요한 / 상대 승인 대기중인 지난 경기 카드
   const renderPendingCard = (room) => {
     const { myTeam, oppTeam } = room || {};
     const dateLabel = room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "";
@@ -766,7 +777,7 @@ export default function MatchRoomListPage() {
     return (
       <PendingCard key={room.id}>
         <CardTopRow>
-          <EndedBadge>⏱ 경기 종료</EndedBadge>
+          <EndedBadge>{waiting ? "🕓 상대 승인 대기중" : "⏱ 경기 종료"}</EndedBadge>
           {dateLabel ? <CardDate>{dateLabel}</CardDate> : <span />}
         </CardTopRow>
         <TeamsMini>
@@ -786,10 +797,9 @@ export default function MatchRoomListPage() {
     const { myTeam, oppTeam } = room || {};
     const dateLabel = room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "";
 
-    // myTeam=뷰어, oppTeam=상대. 점수는 문서 기준(actor/target)이라 iAmActor로 좌/우 정렬
-    const iAmActor = room?.iAmActor !== false;
-    const leftScore = iAmActor ? room?.myScore : room?.oppScore;
-    const rightScore = iAmActor ? room?.oppScore : room?.myScore;
+    // myTeam=뷰어, oppTeam=상대. 점수는 서비스에서 이미 조회 팀 관점(myScore=우리팀)으로 정렬됨
+    const leftScore = room?.myScore;
+    const rightScore = room?.oppScore;
     const hasScore = leftScore != null && rightScore != null;
     const outcome = !hasScore
       ? null
@@ -915,6 +925,17 @@ export default function MatchRoomListPage() {
                           <SectionCountBadge>{resultPendingRooms.length}</SectionCountBadge>
                         </SectionHead>
                         {resultPendingRooms.map((room) => renderPendingCard(room))}
+                      </>
+                    )}
+
+                    {approvalPendingRooms.length > 0 && (
+                      <>
+                        <SectionHead>
+                          <SectionEmoji>🕓</SectionEmoji>
+                          <SectionLabel>승인 대기중</SectionLabel>
+                          <SectionCount>{approvalPendingRooms.length}</SectionCount>
+                        </SectionHead>
+                        {approvalPendingRooms.map((room) => renderPendingCard(room))}
                       </>
                     )}
 

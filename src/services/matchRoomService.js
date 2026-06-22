@@ -16,6 +16,7 @@ import {
   where,
   doc,
   getDoc,
+  setDoc,
   updateDoc,
   serverTimestamp,
   runTransaction,
@@ -26,6 +27,8 @@ import {
 } from "firebase/firestore";
 import { uploadCompressedImageMedia } from "./mediaService";
 import { getUserProfileByUid } from "./userService";
+import { listClubMembers } from "./clubManageService";
+import { fetchLineupRosterProfiles } from "./lineupRosterService";
 
 /* ========================= util ========================= */
 
@@ -251,6 +254,117 @@ export function buildLineupSnapshotSSOT({
   };
 }
 
+/* ========================= 룸 라인업 확정 (조율 단계) ========================= */
+
+// 매칭룸 라인업 선택용 로스터(우리 팀 전체 멤버 + 프로필) 로드
+export async function loadClubRosterForLineup(clubId) {
+  const cid = toStr(clubId);
+  if (!cid) return [];
+
+  const members = await listClubMembers({ clubId: cid, limitCount: 100 });
+  const uids = uniqStr((members || []).map((m) => toStr(m?.uid)));
+  if (!uids.length) return [];
+
+  const profiles = await fetchLineupRosterProfiles(uids);
+  return profiles
+    .map((p) => ({
+      userId: toStr(p?.userId),
+      nickname: toStr(p?.nickname) || "선수",
+      photoUrl: toStr(p?.photoUrl),
+      mainPosition: toStr(p?.mainPosition),
+      heightCm: p?.heightCm != null ? p.heightCm : null,
+      weightKg: p?.weightKg != null ? p.weightKg : null,
+    }))
+    .filter((p) => p.userId);
+}
+
+// 한 팀(clubId)의 라인업 확정 — 주전(starterIds, =사이즈) + 후보(subIds, 선택)
+// roster: loadClubRosterForLineup 결과(미리보기 빌드용)
+export async function confirmMatchLineup({
+  matchRequestId,
+  clubId,
+  starterIds = [],
+  subIds = [],
+  roster = [],
+} = {}) {
+  const id = toStr(matchRequestId);
+  const cid = toStr(clubId);
+  if (!id) throw new Error("confirmMatchLineup: matchRequestId is required");
+  if (!cid) throw new Error("confirmMatchLineup: clubId is required");
+
+  const ref = doc(db, "match_requests", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("매칭 정보를 찾을 수 없습니다.");
+
+  const mr = snap.data() || {};
+  const actorClubId = toStr(mr.actorClubId);
+  const targetClubId = toStr(mr.targetClubId);
+  if (cid !== actorClubId && cid !== targetClubId) {
+    throw new Error("이 경기의 참가 팀이 아닙니다.");
+  }
+
+  const isActorTeam = cid === actorClubId;
+  const sizeKey =
+    toStr(mr.matchSizeKey) ||
+    toStr(mr?.fromLineupSnapshot?.matchSizeKey) ||
+    toStr(mr?.toLineupSnapshot?.matchSizeKey);
+  const size = parseMatchSizeKeyToLimit(sizeKey) || 0;
+
+  const starters = uniqStr(starterIds);
+  if (size && starters.length !== size) {
+    throw new Error(`주전 ${size}명을 선택해 주세요.`);
+  }
+  if (!starters.length) throw new Error("주전 선수를 선택해 주세요.");
+
+  const subs = uniqStr(subIds).filter((x) => !starters.includes(x));
+
+  // 미리보기 빌드용 usersById ({ uid: { nickname, avatarUrl, mainPosition } })
+  const usersById = {};
+  (Array.isArray(roster) ? roster : []).forEach((p) => {
+    const uid = toStr(p?.userId);
+    if (!uid) return;
+    usersById[uid] = {
+      nickname: toStr(p?.nickname),
+      avatarUrl: toStr(p?.photoUrl || p?.avatarUrl),
+      mainPosition: toStr(p?.mainPosition),
+      heightCm: p?.heightCm != null ? p.heightCm : null,
+      weightKg: p?.weightKg != null ? p.weightKg : null,
+    };
+  });
+
+  const teamSnap = isActorTeam ? mr.fromTeamSnapshot : mr.toTeamSnapshot;
+  const teamName = toStr(teamSnap?.name);
+
+  const base = buildLineupSnapshotSSOT({
+    memberIds: starters,
+    matchSizeKey: sizeKey,
+    usersById,
+    id: `lineup_${cid}`,
+    name: teamName ? `${teamName} 라인업` : "라인업",
+  });
+
+  const lineupSnapshot = {
+    ...base,
+    subMemberIds: subs,
+    subPreviewMembers: pickPreviewMembersFromUsers(usersById, subs, subs.length),
+    confirmed: true,
+    confirmedAt: serverTimestamp(),
+  };
+
+  const field = isActorTeam ? "fromLineupSnapshot" : "toLineupSnapshot";
+  const seenUid = toStr(auth.currentUser?.uid);
+  const patch = {
+    [field]: lineupSnapshot,
+    updatedAt: serverTimestamp(),
+    lastActivityAt: serverTimestamp(),
+  };
+  if (seenUid) patch[`lastSeenBy.${seenUid}`] = serverTimestamp();
+
+  await updateDoc(ref, patch);
+
+  return { ok: true };
+}
+
 /* ========================= list loader ========================= */
 
 export async function loadMatchRoomListPageData(myTeamId = null) {
@@ -357,9 +471,10 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
       fieldLng:
         mr?.field?.lng != null && Number.isFinite(Number(mr.field.lng)) ? Number(mr.field.lng) : null,
 
-      // ✅ myScore=actorScore, oppScore=targetScore (문서 기준). 뷰어 기준 정렬은 iAmActor로.
-      myScore: mr?.myScore ?? null,
-      oppScore: mr?.oppScore ?? null,
+      // ✅ 문서 myScore=actorScore, oppScore=targetScore → 조회 팀(myClubId) 관점으로 정렬
+      //    (loadPlayerFinishedMatches와 동일 규약: myScore=우리팀 점수, oppScore=상대 점수)
+      myScore: iAmActor ? (mr?.myScore ?? null) : (mr?.oppScore ?? null),
+      oppScore: iAmActor ? (mr?.oppScore ?? null) : (mr?.myScore ?? null),
       resultState: mr?.resultState ?? null,
       result: mr?.result || null,
       iAmActor,
@@ -477,16 +592,19 @@ function normalizeTeamSnapshot(snap) {
 
 function normalizeLineupSnapshot(snap) {
   const s = snap || {};
-  const preview = Array.isArray(s.previewMembers) ? s.previewMembers : [];
-  const players = preview.map((m, idx) => {
-    const userId = toStr(m?.userId || m?.uid || m?.id) || `unknown-${idx}`;
-    const nickname = toStr(m?.nickname || m?.name) || "선수";
-    const mainPosition = toStr(m?.mainPosition || m?.position || m?.pos) || "";
-    const heightCm = m?.heightCm != null ? safeNum(m.heightCm, null) : null;
-    const weightKg = m?.weightKg != null ? safeNum(m.weightKg, null) : null;
-    const photoUrl = toStr(m?.photoUrl || m?.avatarUrl || m?.profileUrl);
-    return { userId, nickname, mainPosition, heightCm, weightKg, photoUrl };
-  });
+  const mapPreview = (arr) =>
+    (Array.isArray(arr) ? arr : []).map((m, idx) => {
+      const userId = toStr(m?.userId || m?.uid || m?.id) || `unknown-${idx}`;
+      const nickname = toStr(m?.nickname || m?.name) || "선수";
+      const mainPosition = toStr(m?.mainPosition || m?.position || m?.pos) || "";
+      const heightCm = m?.heightCm != null ? safeNum(m.heightCm, null) : null;
+      const weightKg = m?.weightKg != null ? safeNum(m.weightKg, null) : null;
+      const photoUrl = toStr(m?.photoUrl || m?.avatarUrl || m?.profileUrl);
+      return { userId, nickname, mainPosition, heightCm, weightKg, photoUrl };
+    });
+
+  const players = mapPreview(s.previewMembers);
+  const subPlayers = mapPreview(s.subPreviewMembers);
 
   return {
     id: toStr(s.id),
@@ -494,6 +612,10 @@ function normalizeLineupSnapshot(snap) {
     memberCount: safeNum(s.memberCount, players.length),
     memberIds: Array.isArray(s.memberIds) ? s.memberIds.map((x) => toStr(x)).filter(Boolean) : [],
     players,
+    // ✅ 룸에서 확정된 라인업 여부 + 후보(벤치)
+    confirmed: s.confirmed === true,
+    subMemberIds: Array.isArray(s.subMemberIds) ? s.subMemberIds.map((x) => toStr(x)).filter(Boolean) : [],
+    subPlayers,
   };
 }
 
@@ -511,6 +633,11 @@ export function adaptMatchRequestToRoom(docId, data) {
 
     actorClubId: toStr(d.actorClubId),
     targetClubId: toStr(d.targetClubId),
+
+    matchSizeKey:
+      toStr(d.matchSizeKey) ||
+      toStr(d?.fromLineupSnapshot?.matchSizeKey) ||
+      toStr(d?.toLineupSnapshot?.matchSizeKey),
 
     scheduledAt: d.scheduledAt || null,
     durationMin: Number.isFinite(Number(d.durationMin)) ? Number(d.durationMin) : null,
@@ -596,6 +723,14 @@ export async function loadMatchRoomDetail(matchRequestId) {
   ]);
   room.myLineup = myLineup;
   room.oppLineup = oppLineup;
+
+  // 선수 평점(상대 팀에 남긴 별점) 동봉
+  try {
+    room.reviews = await listMatchReviews({ matchRequestId: id });
+  } catch (e) {
+    console.warn("[matchRoomService] listMatchReviews failed:", e?.message || e);
+    room.reviews = [];
+  }
 
   return { room };
 }
@@ -793,6 +928,7 @@ export async function submitMatchResultWithMedia({
   targetScore,
   comment = "",
   files = [],
+  opponentRating = 0, // ✅ 상대 팀 별점(1~5, 선택)
   submittedByClubId,
 
   // ✅ 추가: 작성자 메타(선택)
@@ -861,6 +997,7 @@ export async function submitMatchResultWithMedia({
 
       comment: cleanComment,
       photoUrls: uploadedUrls,
+      opponentRating: safeNum(opponentRating, 0),
       submittedAt: serverTimestamp(),
     },
 
@@ -1067,6 +1204,25 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
       };
     });
 
+    // ✅ 상대 팀 평판(별점) 집계: 결과 제출 팀이 매긴 별점을 그 상대 팀 평판에 누적
+    const ratingVal = safeNum(mr?.result?.opponentRating, 0);
+    const ratedByClubId = toStr(mr?.result?.submittedByClubId);
+    const ratedClubId =
+      ratingVal >= 1 && ratedByClubId
+        ? ratedByClubId === actorClubId
+          ? targetClubId
+          : actorClubId
+        : "";
+
+    const buildRep = (club) => {
+      const rep = club.reputation || {};
+      const sum = safeNum(rep.sum, 0) + ratingVal;
+      const count = safeNum(rep.count, 0) + 1;
+      return { sum, count, avg: count > 0 ? sum / count : 0, updatedAt: serverTimestamp() };
+    };
+    const aRep = ratedClubId && ratedClubId === actorClubId ? buildRep(aClub) : null;
+    const tRep = ratedClubId && ratedClubId === targetClubId ? buildRep(tClub) : null;
+
     // =========================
     // 2) WRITES (여기부터는 tx.get 절대 금지)
     // =========================
@@ -1085,6 +1241,7 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
           recentResults: nextARecent,
           updatedAt: serverTimestamp(),
         },
+        ...(aRep ? { reputation: aRep } : {}),
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -1103,6 +1260,7 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
           recentResults: nextTRecent,
           updatedAt: serverTimestamp(),
         },
+        ...(tRep ? { reputation: tRep } : {}),
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -1308,6 +1466,81 @@ export async function appendMatchResultPhotos({
   });
 
   return { ok: true, photoUrls: uploadedUrls };
+}
+
+/* ========================= player reviews (선수 평점) ========================= */
+// ✅ 선수별 상대 팀 평점
+// - 저장: match_requests/{id}/reviews/{raterUid} (1인 1리뷰, upsert)
+// - raterClubId(평가한 사람의 팀) → targetClubId(평가 대상 = 상대 팀)
+// - 상대 팀 상세 화면에서 targetClubId == 내 팀인 리뷰를 모아 "우리 팀에 남긴 평점"으로 노출
+
+// 한 경기에 대해 한 선수가 상대 팀에 남기는 평점 등록/수정
+export async function submitMatchReview({
+  matchRequestId,
+  raterUid,
+  raterName = "",
+  raterClubId,
+  targetClubId,
+  stars,
+  comment = "",
+} = {}) {
+  const id = toStr(matchRequestId);
+  const uid = toStr(raterUid);
+  const rClub = toStr(raterClubId);
+  const tClub = toStr(targetClubId);
+  const s = Math.max(0, Math.min(5, Math.round(safeNum(stars, 0))));
+
+  if (!id) throw new Error("submitMatchReview: matchRequestId is required");
+  if (!uid) throw new Error("submitMatchReview: raterUid is required");
+  if (!rClub || !tClub) throw new Error("submitMatchReview: club ids are required");
+  if (s < 1) throw new Error("별점을 선택해 주세요.");
+
+  const ref = doc(db, "match_requests", id, "reviews", uid);
+  const prev = await getDoc(ref);
+
+  await setDoc(
+    ref,
+    {
+      raterUid: uid,
+      raterName: toStr(raterName),
+      raterClubId: rClub,
+      targetClubId: tClub,
+      stars: s,
+      comment: String(comment || "").trim(),
+      ...(prev.exists() ? {} : { createdAt: serverTimestamp() }),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return { ok: true };
+}
+
+// 한 경기의 모든 선수 평점 조회 (최신순)
+export async function listMatchReviews({ matchRequestId } = {}) {
+  const id = toStr(matchRequestId);
+  if (!id) return [];
+
+  const col = collection(db, "match_requests", id, "reviews");
+  const snap = await getDocs(col);
+
+  const out = snap.docs.map((d) => {
+    const x = d.data() || {};
+    return {
+      id: d.id,
+      raterUid: toStr(x.raterUid || d.id),
+      raterName: toStr(x.raterName),
+      raterClubId: toStr(x.raterClubId),
+      targetClubId: toStr(x.targetClubId),
+      stars: safeNum(x.stars, 0),
+      comment: toStr(x.comment),
+      createdAt: x.createdAt || null,
+      updatedAt: x.updatedAt || null,
+    };
+  });
+
+  out.sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
+  return out;
 }
 
 /* ========================= finished feed helpers ========================= */
