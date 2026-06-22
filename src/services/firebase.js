@@ -12,9 +12,12 @@ let analytics = null;
 
 const firebaseConfig = {
   apiKey: "AIzaSyDuU-SYy0dNSNiRzcdpO6wqDi7LG-uXSEU",
-  // ✅ 서빙 도메인과 일치시켜 모바일 redirect 로그인 시 쿠키/ITP 차단 문제 해결.
-  //    hallaemallae.com 은 Firebase Hosting(halle-bf789)에 연결되어 /__/auth/ 핸들러를 제공함.
-  authDomain: "hallaemallae.com",
+  // ✅ Firebase 기본 도메인 사용.
+  //    구글이 자동 생성한 OAuth 클라이언트에 https://halle-bf789.firebaseapp.com/__/auth/handler 가
+  //    항상 등록돼 있으므로 모든 환경(로컬/안드/iOS/운영)에서 구글 로그인 시 redirect_uri_mismatch(400) 가 발생하지 않음.
+  //    (과거 커스텀 도메인 hallaemallae.com 을 쓰면 OAuth 클라이언트에 해당 handler 를 수동 등록해야 했고,
+  //     누락 시 구글 로그인이 400 으로 막혔다. → Firebase 기본 도메인으로 통일.)
+  authDomain: "halle-bf789.firebaseapp.com",
   projectId: "halle-bf789",
   storageBucket: "halle-bf789.firebasestorage.app",
   messagingSenderId: "939913723928",
