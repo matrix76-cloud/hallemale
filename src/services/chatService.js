@@ -205,6 +205,20 @@ export async function listMyChatRooms({ myUid, limitCount = 50 } = {}) {
 }
 
 
+// 채팅방 문서(메타) 실시간 구독 — lastReadAtBy(읽음 표시)·locked 등 변화 감지용
+export function listenChatRoom({ chatId, onChange } = {}) {
+  if (!chatId) throw new Error("listenChatRoom: chatId is required");
+  if (typeof onChange !== "function")
+    throw new Error("listenChatRoom: onChange is required");
+
+  const refDoc = doc(db, "chatRooms", chatId);
+  return onSnapshot(
+    refDoc,
+    (snap) => onChange(snap.exists() ? { id: snap.id, ...snap.data() } : null),
+    () => onChange(null)
+  );
+}
+
 export function listenChatMessages({
   chatId,
   onChange,

@@ -161,19 +161,12 @@ const BigTitle = styled.div`
   letter-spacing: -0.2px;
 `;
 
-const GoPill = styled.div`
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ theme }) => theme.colors.primary || "#2563eb"};
-  color: #ffffff;
+const BigSubtitle = styled.div`
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  flex: 0 0 auto;
+  line-height: 1.35;
+  color: ${({ theme }) => theme.colors.textWeak || "#9ca3af"};
+  font-weight: 500;
+  letter-spacing: -0.2px;
 `;
 
 /* ✅ 매칭룸 카드(문구/숫자 멋내기) */
@@ -390,7 +383,7 @@ function toInt(n, fallback = 0) {
   return Number.isFinite(v) ? v : fallback;
 }
 
-export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, matchRoomAttention }) {
+export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, matchRoomAttention, matchRoomUnread }) {
   const navigate = useNavigate();
 
   // ✅ 팀 미가입: 카드는 보여주되 잠금 처리 + 안내 오버레이
@@ -446,8 +439,10 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
     const cancelled = safeCount(matchRoomCounts?.cancelled, 0);
 
     // 반응 필요(미확인) 배지 수
-    const attnOngoing = safeCount(matchRoomAttention?.ongoing, 0);
-    const attnConfirmed = safeCount(matchRoomAttention?.confirmed, 0);
+    // - 조율중/확정: 안 읽은 메시지 수(목록 카드 빨간 배지와 동일 기준). 없으면 '반응 필요 방 수'로 fallback
+    // - 지난/취소: 기존처럼 반응 필요한 방 수(결과 입력 등 상태 기반)
+    const attnOngoing = safeCount(matchRoomUnread?.ongoing ?? matchRoomAttention?.ongoing, 0);
+    const attnConfirmed = safeCount(matchRoomUnread?.confirmed ?? matchRoomAttention?.confirmed, 0);
     const attnPast = safeCount(matchRoomAttention?.past, 0);
     const attnCancelled = safeCount(matchRoomAttention?.cancelled, 0);
 
@@ -518,7 +513,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
             <BigTitle>매칭하기</BigTitle>
           </TitleRow>
 
-          <GoPill>GO</GoPill>
+          <BigSubtitle>원하는 팀과 경기 잡기</BigSubtitle>
         </BigActionCard>
       </ProfileRow>
 

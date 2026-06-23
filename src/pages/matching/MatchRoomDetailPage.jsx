@@ -10,6 +10,7 @@ import {
   loadMatchRoomDetail,
   proposeMatchSchedule,
   confirmProposedSchedule,
+  cancelProposedSchedule,
   cancelMatchRequest,
   submitMatchResultWithMedia,
   acceptMatchResult,
@@ -33,6 +34,7 @@ import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCele
 import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
+import { getUserDoc } from "../../services/userService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import { createTeamReport } from "../../services/teamReportService";
 import { mrp } from "../../components/matchRoom/matchRoomPalette";
@@ -453,27 +455,27 @@ const PropCard = styled.div`
 `;
 const PropMapWrap = styled.div`
   position: relative;
-  padding: 8px 8px 0;
+  padding: 6px 6px 0;
 `;
 const PropBadge = styled.div`
   position: absolute;
-  top: 14px;
-  left: 14px;
+  top: 11px;
+  left: 11px;
   z-index: 2;
   background: ${({ $confirmed }) =>
     $confirmed ? "#16a34a" : "rgba(0, 0, 0, 0.62)"};
   color: #fff;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 4px 9px;
+  padding: 3px 8px;
   border-radius: 999px;
   backdrop-filter: blur(4px);
 `;
 const PropBody = styled.div`
-  padding: 10px 13px 13px;
+  padding: 8px 12px 10px;
 `;
 const PropName = styled.div`
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   color: ${({ theme }) => (theme.mode === "dark" ? "#fff" : "#111827")};
 `;
@@ -481,8 +483,8 @@ const PropRow = styled.div`
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 4px;
+  font-size: 11.5px;
 `;
 const PropK = styled.span`
   color: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.55)" : "#6b7280")};
@@ -491,9 +493,6 @@ const PropV = styled.span`
   color: ${({ theme }) => (theme.mode === "dark" ? "#e5e7eb" : "#111827")};
   font-weight: 600;
   text-align: right;
-`;
-const PropV2 = styled(PropV)`
-  color: ${({ theme }) => (theme.mode === "dark" ? "#a78bfa" : "#6c5ce7")};
 `;
 
 /* ───── 입력창 위 고정 액션바 ───── */
@@ -1208,6 +1207,11 @@ const DarkHeader = styled.div`
   padding: 8px 12px 0;
 `;
 
+/* 제안 단계: 상단 고정 영역(지도+제안 카드) — 채팅 스크롤에 밀리지 않음 */
+const PinnedTop = styled.div`
+  padding: 2px 0 8px;
+`;
+
 const MatchInfoBar = styled.button`
   width: 100%;
   display: flex;
@@ -1718,36 +1722,46 @@ const VenueHeadSub = styled.div`
 
 /* "어떻게 구장을 정할까요?" 라벨 */
 const AskLabel = styled.div`
-  font-size: 13px;
-  font-weight: 700;
-  color: ${({ theme }) => mrp(theme.mode).t2};
-  margin: 8px 0 2px;
+  font-size: 27px;
+  font-weight: 800;
+  line-height: 1.28;
+  letter-spacing: -0.03em;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+  margin: 20px 0 10px;
 `;
 
-/* 게이트 항목 (카드 스타일 제거 — 평평한 리스트) */
+/* 게이트 항목 (목업 1:1 — 카드 스타일) */
 const OptCard = styled.button`
   width: 100%;
   text-align: left;
-  padding: 14px 2px;
+  padding: 20px 18px;
+  margin-bottom: 14px;
   display: flex;
-  gap: 12px;
+  gap: 15px;
   align-items: center;
   transition: 0.15s;
-  background: none;
-  border: none;
-  border-bottom: 0.5px solid ${({ theme }) => mrp(theme.mode).line};
+  border-radius: 18px;
+  background: ${({ theme, $primary }) =>
+    $primary ? mrp(theme.mode).puBg : mrp(theme.mode).surface};
+  border: 1.5px solid
+    ${({ theme, $primary }) =>
+      $primary ? mrp(theme.mode).pu : mrp(theme.mode).line};
+  box-shadow: 0 6px 18px -12px rgba(0, 0, 0, 0.3);
   cursor: ${({ disabled }) => (disabled ? "not-allowed" : "pointer")};
   opacity: ${({ disabled }) => (disabled ? 0.55 : 1)};
+  &:active {
+    transform: ${({ disabled }) => (disabled ? "none" : "translateY(1px)")};
+  }
 `;
 const Oic = styled.div`
-  width: 40px;
-  height: 40px;
-  border-radius: 11px;
+  width: 56px;
+  height: 56px;
+  border-radius: 15px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 26px;
   background: ${({ theme, $primary }) =>
     $primary
       ? `linear-gradient(145deg, ${mrp(theme.mode).pu}, ${mrp(theme.mode).puD})`
@@ -1758,25 +1772,25 @@ const Ob = styled.div`
   min-width: 0;
 `;
 const OptT = styled.div`
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   color: ${({ theme }) => mrp(theme.mode).t1};
 `;
 const OptD = styled.div`
-  font-size: 10px;
+  font-size: 13.5px;
   color: ${({ theme }) => mrp(theme.mode).t3};
-  margin-top: 2px;
+  margin-top: 4px;
 `;
 const Chips = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
+  gap: 5px;
+  margin-top: 10px;
 `;
 const Pill = styled.span`
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 2px 7px;
+  padding: 4px 10px;
   border-radius: 20px;
   white-space: nowrap;
   ${({ theme, $tone }) => {
@@ -1786,30 +1800,92 @@ const Pill = styled.span`
       g: [c.grBg, c.grL],
       y: [c.yeBg, c.yeL],
       b: [c.blBg, c.blL],
+      n: [c.surface2, c.t2],
     };
     const [bg, fg] = map[$tone] || map.p;
     return `background:${bg};color:${fg};`;
   }}
 `;
-const Arr = styled.span`
-  font-size: 15px;
-  color: ${({ theme }) => mrp(theme.mode).t3};
-  flex-shrink: 0;
-`;
+/* 앱내 안내 문구 — 카드/배경 없이 회색 텍스트만 (게이트 문구와 동일 톤) */
 const NoticeInfo = styled.div`
   display: flex;
-  gap: 8px;
-  font-size: 10px;
-  line-height: 1.5;
-  padding: 10px 12px;
-  border-radius: 11px;
-  margin-top: 4px;
-  background: ${({ theme }) => mrp(theme.mode).blBg};
-  color: ${({ theme }) => mrp(theme.mode).blL};
-  border: 0.5px solid ${({ theme }) => mrp(theme.mode).blBorder};
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.55;
+  margin-top: 10px;
+  color: ${({ theme }) => mrp(theme.mode).t3};
 
   b {
     font-weight: 700;
+    color: ${({ theme }) => mrp(theme.mode).t2};
+  }
+`;
+
+/* 게이트 부제 */
+const GateSub = styled.div`
+  font-size: 14px;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  margin: 0 0 18px;
+`;
+
+/* 카드 우측 선택 표시 (라디오/체크) */
+const SelDot = styled.span`
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+  border: 2px solid
+    ${({ theme, $on }) => ($on ? mrp(theme.mode).pu : mrp(theme.mode).line2)};
+  background: ${({ theme, $on }) => ($on ? mrp(theme.mode).pu : "transparent")};
+`;
+
+/* 게이트 안내 문구 — 카드 배경 없이 회색 텍스트 */
+const GateNote = styled.div`
+  display: flex;
+  gap: 7px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-top: 12px;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+
+  b {
+    font-weight: 700;
+    color: ${({ theme }) => mrp(theme.mode).t2};
+  }
+`;
+
+/* 게이트 하단 고정 바 (화면 맨 아래) */
+const GateBottomBar = styled.div`
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  background: ${({ theme }) => mrp(theme.mode).bg2};
+`;
+
+/* 하단 "이 방식으로 정하기" 버튼 */
+const GateProceedBtn = styled.button`
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  background: ${({ theme }) =>
+    theme.mode === "dark"
+      ? "linear-gradient(135deg,#7c6cff,#6c5ce7)"
+      : "#6c5ce7"};
+  box-shadow: 0 12px 24px -12px rgba(108, 92, 231, 0.7);
+  &:active {
+    transform: translateY(1px);
   }
 `;
 
@@ -1964,17 +2040,6 @@ const PrimaryButton = styled.button`
   color: #ffffff;
   font-size: 15px;
   cursor: ${({ disabled }) => (disabled ? "default" : "pointer")};
-`;
-
-const SecondaryButton = styled.button`
-  width: 100%;
-  padding: 10px 0;
-  border-radius: 999px;
-  border: none;
-  background: transparent;
-  color: ${({ theme }) => theme.colors.textWeak};
-  font-size: 13px;
-  cursor: pointer;
 `;
 
 const MutedButton = styled.button`
@@ -2625,13 +2690,6 @@ function formatPositionKo(pos) {
   return toStr(pos);
 }
 
-function pickNowHHMM() {
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
 // ✅ comment 문자열을 "기존/추가" 블록으로 분리 렌더
 // - 과거 데이터에 남아있는 "· <clubId/uid>" 같은 토큰은 화면에서 제거/치환
 function parseCommentBlocks(raw, { actorClubId = "", targetClubId = "", actorTeamName = "", targetTeamName = "" } = {}) {
@@ -2739,6 +2797,8 @@ export default function MatchRoomDetailPage() {
   const isVenue = location.pathname.endsWith("/venue");
   // 상대 팀장과의 DM 채팅방 id (getOrCreateDmRoom으로 확보)
   const [chatId, setChatId] = useState("");
+  // 상대 팀장(채팅 상대) — 프로필 사진·이름·uid (채팅 헤더/읽음표시용)
+  const [oppLeader, setOppLeader] = useState({ uid: "", name: "", avatarUrl: "" });
 
   const [myScoreInput, setMyScoreInput] = useState("");
   const [oppScoreInput, setOppScoreInput] = useState("");
@@ -2862,7 +2922,8 @@ export default function MatchRoomDetailPage() {
     const initialTime = room.scheduledAt ? new Date(room.scheduledAt).toTimeString().slice(0, 5) : "";
 
     setSelectedDate(initialDate);
-    setSelectedTime(initialTime || pickNowHHMM());
+    // 처음(예약 일정 없음)이면 시간도 미선택 상태로 둔다 (현재 시각 자동 선택 X)
+    setSelectedTime(initialTime);
 
     const today = new Date();
     const y = initialDate ? Number(initialDate.slice(0, 4)) : today.getFullYear();
@@ -2905,20 +2966,36 @@ export default function MatchRoomDetailPage() {
       const oppN = toStr(oppT?.name) || "상대팀";
       setHeaderSubtitle(`${myN} vs ${oppN}`);
     } else if (room) {
-      // 매칭룸(채팅) 화면: 헤더에 팀명(headerConfig) 아래 "매칭공간" 부제
-      setHeaderSubtitle("매칭공간");
+      // 매칭룸(채팅) 화면: 헤더에 팀명(headerConfig) 아래 "매칭공간 · 팀장이름" 부제
+      setHeaderSubtitle(
+        oppLeader.name ? `매칭공간 · ${oppLeader.name}` : "매칭공간"
+      );
     } else {
       setHeaderSubtitle("");
     }
     return () => setHeaderSubtitle && setHeaderSubtitle("");
-  }, [isVenue, room, myClubId, setHeaderSubtitle]);
+  }, [isVenue, room, myClubId, setHeaderSubtitle, oppLeader.name]);
 
   // ✅ 매칭룸 상단 헤더: 상대 팀 로고 + 팀명 + 햄버거(메뉴)
   // (구장 정하기 페이지는 기본 헤더 유지)
   useEffect(() => {
     if (!setHeaderConfig) return;
-    if (isVenue || !room) {
+    if (!room) {
       setHeaderConfig(null);
+      return;
+    }
+    // 구장 정하기 페이지: 단계별 뒤로가기
+    //  - 날짜/시간 폼(venueMode==="direct") → 구장 위치 선택(맵 픽커) 다시 열기
+    //  - 직접입력 선택 게이트(그 외) → 채팅방으로
+    if (isVenue) {
+      setHeaderConfig({
+        onBack: () => {
+          // 날짜/시간 폼 → 구장 위치 선택 다시 열기
+          if (venueMode === "direct") setMapPickerOpen(true);
+          // 게이트 → 히스토리 pop(채팅방으로). push 하면 채팅방 뒤로가기가 게이트로 되돌아가는 버그.
+          else goBackOrHome(navigate);
+        },
+      });
       return;
     }
     const actorId = toStr(room.actorClubId);
@@ -2966,6 +3043,25 @@ export default function MatchRoomDetailPage() {
             >
               🚩 상대 팀 신고하기
             </RoomMenuBtn>
+            {(toStr(room?.status) === "accepted" ||
+              toStr(room?.status) === "proposed") && (
+              <RoomMenuBtn
+                type="button"
+                $danger
+                onClick={async () => {
+                  hideBottomSheet && hideBottomSheet();
+                  if (
+                    !window.confirm(
+                      "정말 이 매칭을 취소할까요?\n취소하면 되돌릴 수 없어요."
+                    )
+                  )
+                    return;
+                  await handleCancelMatch();
+                }}
+              >
+                ✖ 매칭 취소
+              </RoomMenuBtn>
+            )}
             <RoomMenuBtn
               type="button"
               $muted
@@ -2979,7 +3075,7 @@ export default function MatchRoomDetailPage() {
     });
 
     return () => setHeaderConfig && setHeaderConfig(null);
-  }, [isVenue, room, myClubId, setHeaderConfig, showBottomSheet, hideBottomSheet, navigate]);
+  }, [isVenue, room, myClubId, setHeaderConfig, showBottomSheet, hideBottomSheet, navigate, venueMode, roomId]);
 
   // 상대 팀장과의 DM 채팅방 확보 (매칭룸 채팅 탭에서 사용)
   useEffect(() => {
@@ -2996,6 +3092,15 @@ export default function MatchRoomDetailPage() {
         const oppClub = await getClubById(oppClubId);
         const oppOwnerUid = toStr(oppClub?.ownerUid);
         if (!oppOwnerUid || oppOwnerUid === myUid) return;
+        // 상대 팀장 프로필(사진·이름) 조회 → 채팅 헤더/읽음표시에 사용
+        const leaderDoc = await getUserDoc(oppOwnerUid).catch(() => null);
+        if (alive) {
+          setOppLeader({
+            uid: oppOwnerUid,
+            name: toStr(leaderDoc?.nickname),
+            avatarUrl: toStr(leaderDoc?.avatarUrl),
+          });
+        }
         // 매칭룸마다 독립 채팅 (chatId = match_{roomId})
         const cid = await getOrCreateMatchRoomChat({
           matchRoomId: toStr(roomId),
@@ -3116,6 +3221,7 @@ export default function MatchRoomDetailPage() {
       setFieldLatLng({ lat: Number(lat), lng: Number(lng) });
     }
     setVenueImageUrl(""); // 지도로 직접 잡은 위치는 제휴구장 이미지 해제
+    setVenueMode("direct"); // 위치 확정 → 날짜/시간 선택 폼으로 이동
     setMapPickerOpen(false);
     // 위치 확정 → 구장 정하기 폼(선택된 구장 + 날짜)으로 이동
     if (!isVenue) navigate(`/match-roomdetail/${roomId}/venue`);
@@ -3258,34 +3364,34 @@ export default function MatchRoomDetailPage() {
 
   // 진행단계 스텝퍼 (직접 입력 흐름)
   // 결제 단계 제거 (현장 정산만 있어 앱 결제 없음)
-  // 단계: 라인업(양 팀 확정) → 구장(장소) → 일정(상대 수락) → 준비완료
-  const STEP_LABELS = ["라인업", "구장", "일정", "준비완료"];
+  // 단계: 라인업(양 팀 확정) → 구장·일정(제안) → 확정(상대 수락)
+  //  - 구장·일정은 제안 시 함께 설정되므로 한 단계로 합침
+  const STEP_LABELS = ["라인업", "구장·일정", "확정"];
   const stepStates = (() => {
     if (status === "accepted")
       return bothLineupsConfirmed
-        ? ["done", "cur", "todo", "todo"]
-        : ["cur", "todo", "todo", "todo"];
-    if (status === "proposed") return ["done", "done", "cur", "todo"];
-    if (status === "confirmed") return ["done", "done", "done", "done"];
-    if (status === "finished") return ["done", "done", "done", "done"];
-    if (status === "cancelled") return ["todo", "todo", "todo", "todo"];
-    return ["cur", "todo", "todo", "todo"];
+        ? ["done", "cur", "todo"]
+        : ["cur", "todo", "todo"];
+    if (status === "proposed") return ["done", "done", "cur"];
+    if (status === "confirmed") return ["done", "done", "done"];
+    if (status === "finished") return ["done", "done", "done"];
+    if (status === "cancelled") return ["todo", "todo", "todo"];
+    return ["cur", "todo", "todo"];
   })();
 
-  // 진행 단계 요약 배지 ("1/4 · 라인업 확정 중")
+  // 진행 단계 요약 배지 ("1/3 · 라인업 확정 중")
   const stepSummary = (() => {
     if (status === "finished") return "경기 종료";
     if (status === "cancelled") return "취소된 매칭";
-    if (status === "confirmed") return "4/4 · 준비완료";
+    if (status === "confirmed") return "3/3 · 확정 완료";
     const labelNote = {
       라인업: "라인업 확정 중",
-      구장: "구장 정하는 중",
-      일정: "일정 확정 중",
+      "구장·일정": "구장·일정 정하는 중",
     };
     const curIdx = stepStates.findIndex((s) => s === "cur");
     if (curIdx >= 0) {
       const lb = STEP_LABELS[curIdx];
-      return `${curIdx + 1}/4 · ${labelNote[lb] || `${lb} 단계`}`;
+      return `${curIdx + 1}/3 · ${labelNote[lb] || `${lb} 단계`}`;
     }
     return "";
   })();
@@ -3293,7 +3399,7 @@ export default function MatchRoomDetailPage() {
   const oppName = toStr(oppTeamView?.name) || "상대팀";
   const chatSystemNotice =
     status === "accepted"
-      ? `${oppName}와 매칭이 성사됐어요 · 일정을 조율해 보세요`
+      ? `${oppName}와 매칭이 성사됐어요 · 일정을 조율해 보세요 🏀`
       : status === "proposed"
       ? "구장·일정이 제안됐어요 · 채팅으로 조율하세요"
       : status === "confirmed"
@@ -3489,6 +3595,10 @@ export default function MatchRoomDetailPage() {
       });
       await refresh();
       setEditMode(false);
+      setVenueMode("none");
+      // 제안 완료 → 구장정하기 페이지(제안 대기 화면) 대신 채팅 화면으로 이동.
+      // (history pop: venue 항목을 빼서 채팅 뒤로가기가 venue로 되돌아가지 않게)
+      if (isVenue) goBackOrHome(navigate);
     } catch (e) {
       window.alert(e?.message || "일정 제안에 실패했습니다.");
     }
@@ -3512,6 +3622,23 @@ export default function MatchRoomDetailPage() {
       goBackOrHome(navigate);
     } catch (e) {
       window.alert(e?.message || "매칭 취소에 실패했습니다.");
+    }
+  };
+
+  // 보낸 제안만 취소 (매칭은 유지) → proposed → accepted(조율중) 복귀, 재제안 가능
+  const handleCancelProposal = async () => {
+    if (
+      !window.confirm(
+        "보낸 구장·일정 제안을 취소할까요?\n매칭은 유지되며 다시 제안할 수 있어요."
+      )
+    )
+      return;
+    try {
+      await cancelProposedSchedule({ matchRequestId: room.id, cancelledByClubId: myClubId });
+      await refresh();
+      showToast && showToast({ message: "보낸 제안을 취소했어요. 다시 제안할 수 있어요." });
+    } catch (e) {
+      window.alert(e?.message || "제안 취소에 실패했습니다.");
     }
   };
 
@@ -3777,7 +3904,7 @@ export default function MatchRoomDetailPage() {
       <PropCard>
         <PropMapWrap>
           <PropBadge>🗺️ 지도 위치</PropBadge>
-          <VenueMiniMap latLng={fieldLatLng} height={118} />
+          <VenueMiniMap latLng={fieldLatLng} height={84} />
         </PropMapWrap>
         <PropBody>
           <PropName>{toStr(fieldAddress) || "선택한 구장 위치"}</PropName>
@@ -3791,17 +3918,13 @@ export default function MatchRoomDetailPage() {
               <PropV>{venueDurLabel}</PropV>
             </PropRow>
           )}
-          <PropRow>
-            <PropK>정산</PropK>
-            <PropV2>현장 정산 · 앱 결제 없음</PropV2>
-          </PropRow>
         </PropBody>
       </PropCard>
     ) : status === "confirmed" ? (
       <PropCard $confirmed>
         <PropMapWrap>
           <PropBadge $confirmed>✅ 경기 확정</PropBadge>
-          <VenueMiniMap latLng={fieldLatLng} height={118} />
+          <VenueMiniMap latLng={fieldLatLng} height={84} />
         </PropMapWrap>
         <PropBody>
           <PropName>{toStr(fieldAddress) || "확정된 구장"}</PropName>
@@ -3815,13 +3938,23 @@ export default function MatchRoomDetailPage() {
               <PropV>{venueDurLabel}</PropV>
             </PropRow>
           )}
-          <PropRow>
-            <PropK>정산</PropK>
-            <PropV2>현장 정산 · 앱 결제 없음</PropV2>
-          </PropRow>
         </PropBody>
       </PropCard>
     ) : null;
+
+  // 진행 단계 스텝퍼 (재사용) — 제안 단계에선 접어두고 펼칠 때만 노출
+  const stepperEl = (
+    <Stepper>
+      {STEP_LABELS.map((lb, i) => (
+        <Step key={lb}>
+          <StepDot $state={stepStates[i]}>
+            {stepStates[i] === "done" ? "✓" : i + 1}
+          </StepDot>
+          <StepLb $on={stepStates[i] !== "todo"}>{lb}</StepLb>
+        </Step>
+      ))}
+    </Stepper>
+  );
 
   // ───── 조율 단계: 상대 팀에 라인업 확정 요청 알림 ─────
   const handleSendLineupReminder = async () => {
@@ -3890,10 +4023,6 @@ export default function MatchRoomDetailPage() {
     } else if (!bothLineupsConfirmed) {
       chatTopBar = (
         <ActStack>
-          <ActNote>
-            라인업 확정 — 우리 {myLineupConfirmed ? "✅" : "⬜"} · 상대{" "}
-            {oppLineupConfirmed ? "✅" : "⏳ 대기중"} · 양 팀 확정 후 구장·일정을 제안할 수 있어요.
-          </ActNote>
           <ActRow>
             <ActPrimary style={{ flex: 1 }} type="button" onClick={() => setLineupSheetOpen(true)}>
               {myLineupConfirmed ? "우리 라인업 수정" : "우리 라인업 확정하기"}
@@ -3917,7 +4046,14 @@ export default function MatchRoomDetailPage() {
             </ActGhost>
           </ActRow>
           <ActRow>
-            <ActPrimary type="button" onClick={() => setMapPickerOpen(true)}>
+            <ActPrimary
+              type="button"
+              onClick={() => {
+                // 제휴 구장 / 직접 입력 선택 화면(venue 게이트)부터 보여준다
+                setVenueMode("none");
+                navigate(`/match-roomdetail/${roomId}/venue`);
+              }}
+            >
               구장·일정 제안하기
             </ActPrimary>
           </ActRow>
@@ -3931,11 +4067,17 @@ export default function MatchRoomDetailPage() {
         <ActRow>
           <ActGhost
             type="button"
-            onClick={() => navigate(`/match-roomdetail/${roomId}/venue`)}
+            onClick={() => {
+              // 구장 위치 선택(맵 픽커)이 아니라 날짜/시간 입력 화면을 바로 띄운다.
+              // (이 화면의 "변경" 버튼으로 구장 위치도 바꿀 수 있음)
+              setEditMode(true);
+              setVenueMode("none");
+              navigate(`/match-roomdetail/${roomId}/venue`);
+            }}
           >
             제안 수정
           </ActGhost>
-          <ActGhost type="button" onClick={handleCancelMatch}>
+          <ActGhost type="button" onClick={handleCancelProposal}>
             제안 취소
           </ActGhost>
         </ActRow>
@@ -3946,6 +4088,7 @@ export default function MatchRoomDetailPage() {
           type="button"
           onClick={() => {
             setEditMode(true);
+            setVenueMode("none");
             navigate(`/match-roomdetail/${roomId}/venue`, { state: { counter: true } });
           }}
         >
@@ -4322,9 +4465,8 @@ export default function MatchRoomDetailPage() {
         $dark={!isVenue}
         $confirmed={!isVenue && (status === "confirmed" || status === "cancelled" || status === "finished")}
       >
-        <DarkHeader>
-          {isVenue || status === "confirmed" || status === "cancelled" || status === "finished" ? null : (
-            <>
+        {!(isVenue || status === "confirmed" || status === "cancelled" || status === "finished") && (
+          <DarkHeader>
               <MatchInfoBar
                 type="button"
                 onClick={() => setMatchInfoOpen((o) => !o)}
@@ -4337,17 +4479,8 @@ export default function MatchRoomDetailPage() {
                 <MatchInfoToggle>{matchInfoOpen ? "▴" : "›"}</MatchInfoToggle>
               </MatchInfoBar>
 
-              {/* 스텝퍼는 항상 노출 (라인업 → 구장 → 일정 → 준비완료) */}
-              <Stepper>
-                {STEP_LABELS.map((lb, i) => (
-                  <Step key={lb}>
-                    <StepDot $state={stepStates[i]}>
-                      {stepStates[i] === "done" ? "✓" : i + 1}
-                    </StepDot>
-                    <StepLb $on={stepStates[i] !== "todo"}>{lb}</StepLb>
-                  </Step>
-                ))}
-              </Stepper>
+              {/* 펼치면 스텝퍼 노출 (제안 단계엔 평소 접혀 있음) — 제안 카드 위에 배치 */}
+              {matchInfoOpen && stepperEl}
 
               {/* 펼치면 팀 매치업(VS) 상세 */}
               {matchInfoOpen && (
@@ -4396,9 +4529,13 @@ export default function MatchRoomDetailPage() {
                 </VsCard>
               )}
 
-            </>
-          )}
-        </DarkHeader>
+              {/* 라인업 조율(제안 카드 없음) 단계: 접혀 있어도 스텝퍼 노출 */}
+              {!matchInfoOpen && !chatPinnedCard && stepperEl}
+
+              {/* 제안/확정 단계: 지도+제안 카드 상단 고정 (펼친 스텝퍼/매치업 아래) */}
+              {chatPinnedCard && <PinnedTop>{chatPinnedCard}</PinnedTop>}
+          </DarkHeader>
+        )}
 
         {!isVenue && status === "cancelled" ? (
           <ConfWrap>
@@ -4619,8 +4756,11 @@ export default function MatchRoomDetailPage() {
               chatId={chatId}
               myUid={myUid}
               opponentName={oppName}
+              opponentLeaderName={oppLeader.name}
+              opponentAvatarUrl={oppLeader.avatarUrl}
+              otherUid={oppLeader.uid}
               systemNotice={chatSystemNotice}
-              pinnedCard={chatPinnedCard}
+              noticeIcon={status === "accepted" ? "🤝" : ""}
             />
           </>
         ) : (
@@ -4713,50 +4853,55 @@ export default function MatchRoomDetailPage() {
             <>
               {showVenueGate && (
                 <>
-                  <AskLabel>어떻게 구장을 정할까요?</AskLabel>
+                  <AskLabel>
+                    어떻게 구장을<br />정할까요?
+                  </AskLabel>
+                  <GateSub>경기를 진행할 구장 방식을 선택해요.</GateSub>
 
-                  {/* 제휴구장 예약 — 준비중(결제/예약 백엔드 미구현) */}
+                  {/* 제휴구장 예약 — 준비중(막아둠). 선택 불가 */}
                   <OptCard type="button" disabled>
                     <Oic>🏟️</Oic>
                     <Ob>
                       <OptT>제휴구장 예약</OptT>
                       <OptD>앱에서 결제 · 자동 확정</OptD>
                       <Chips>
-                        <Pill $tone="p">준비중</Pill>
-                        <Pill $tone="g">에스크로 안전결제</Pill>
+                        <Pill $tone="n">준비중</Pill>
+                        <Pill $tone="n">에스크로 안전결제</Pill>
                       </Chips>
                     </Ob>
-                    <Arr>›</Arr>
+                    <SelDot $on={false} />
                   </OptCard>
 
-                  <OptCard
-                    type="button"
-                    $primary
-                    onClick={() => {
-                      setVenueMode("direct");
-                      // 직접 입력 = 지도부터 바로 (시안: 위치 선택 → 일정)
-                      setMapPickerOpen(true);
-                    }}
-                  >
-                    <Oic $primary><FiMapPin size={20} color="#fff" /></Oic>
+                  {/* 직접 입력 — 현재 유일하게 선택 가능 (항상 선택됨) */}
+                  <OptCard type="button" $primary aria-pressed="true">
+                    <Oic $primary><FiMapPin size={26} color="#fff" /></Oic>
                     <Ob>
                       <OptT>직접 입력</OptT>
                       <OptD>현장 정산 · 결제 없음</OptD>
                       <Chips>
-                        <Pill $tone="y">팀끼리 직접 합의</Pill>
-                        <Pill $tone="b">이 흐름 →</Pill>
+                        <Pill $tone="n">팀끼리 직접 합의</Pill>
                       </Chips>
                     </Ob>
-                    <Arr>›</Arr>
+                    <SelDot $on>✓</SelDot>
                   </OptCard>
 
-                  <NoticeInfo>
+                  <GateNote>
                     <span>ⓘ</span>
                     <div>
-                      직접 입력은 앱 결제 없이 <b>현장에서 정산</b>해요. 수락하면 바로
-                      경기가 확정됩니다.
+                      할래말래는 구장을 <b>대신 예약하지 않아요.</b> 직접 입력은
+                      매칭(상대·일정)만 도와드리며, <b>구장 예약은 각 팀이 따로</b> 진행해야
+                      합니다.
                     </div>
-                  </NoticeInfo>
+                  </GateNote>
+
+                  <GateNote>
+                    <span>ⓘ</span>
+                    <div>
+                      <b>제휴구장 예약</b>은 향후 인앱에서 구장 예약·결제와 자동 확정까지
+                      지원하도록 <b>준비 중</b>이에요. 정식 오픈 전까지는 직접 입력으로
+                      이용해 주세요.
+                    </div>
+                  </GateNote>
                 </>
               )}
 
@@ -5244,9 +5389,6 @@ export default function MatchRoomDetailPage() {
               <PrimaryButton type="button" onClick={handlePropose} disabled={!selectedDate || !selectedTime || !toStr(fieldAddress) || !fieldLatLng || !venueConfirmChecked}>
                 매칭 일정·장소 제안
               </PrimaryButton>
-              <SecondaryButton type="button" onClick={handleCancelMatch}>
-                매칭 취소
-              </SecondaryButton>
             </ActionsWrap>
           </>
         )}
@@ -5266,9 +5408,6 @@ export default function MatchRoomDetailPage() {
                       제안 수정하기
                     </MutedButton>
                   )}
-                  <SecondaryButton type="button" onClick={handleCancelMatch}>
-                    매칭 취소
-                  </SecondaryButton>
                 </ActionsWrap>
               </>
             ) : (
@@ -5286,23 +5425,43 @@ export default function MatchRoomDetailPage() {
                       다른 일정·구장 제안하기
                     </PrimaryButton>
                   )}
-                  <SecondaryButton type="button" onClick={handleCancelMatch}>
-                    매칭 취소
-                  </SecondaryButton>
                 </ActionsWrap>
               </>
             )}
           </>
         )}
 
-        <VenueChatDock>
-          <MatchRoomChat
-            chatId={chatId}
-            myUid={myUid}
-            opponentName={oppName}
-            systemNotice=""
-          />
-        </VenueChatDock>
+        {/* 구장 정하는 방식(제휴/직접) 선택 게이트에서는 채팅을 숨겨 깔끔한 단독 화면으로 */}
+        {!showVenueGate &&
+          !(status === "accepted" && venueMode === "direct") &&
+          status !== "proposed" && (
+          <VenueChatDock>
+            <MatchRoomChat
+              chatId={chatId}
+              myUid={myUid}
+              opponentName={oppName}
+              opponentLeaderName={oppLeader.name}
+              opponentAvatarUrl={oppLeader.avatarUrl}
+              otherUid={oppLeader.uid}
+              systemNotice=""
+            />
+          </VenueChatDock>
+        )}
+
+        {/* 구장 방식 선택(게이트) — 하단 고정 "이 방식으로 정하기" 버튼 */}
+        {isAdjusting && showVenueGate && (
+          <GateBottomBar>
+            <GateProceedBtn
+              type="button"
+              onClick={() => {
+                // 직접 입력 = 구장 위치 선택(맵 픽커)부터. 확정해야 날짜/시간 폼으로 이동.
+                setMapPickerOpen(true);
+              }}
+            >
+              이 방식으로 정하기
+            </GateProceedBtn>
+          </GateBottomBar>
+        )}
           </>
         )}
       </PageWrap>
@@ -5396,10 +5555,8 @@ export default function MatchRoomDetailPage() {
         initialAddress={toStr(fieldAddress)}
         onClose={() => {
           setMapPickerOpen(false);
-          // 구장을 안 잡고 닫으면 빈 폼 대신 채팅으로 되돌림 ("무조건 구장부터" 강제)
-          if (isVenue && !fieldLatLng) {
-            navigate(`/match-roomdetail/${roomId}`);
-          }
+          // 구장 위치 선택 뒤로가기 → 직전 화면(직접입력 선택 게이트)으로
+          if (isVenue) setVenueMode("none");
         }}
         onConfirm={handleMapPickerConfirm}
       />

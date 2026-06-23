@@ -368,11 +368,30 @@ export async function confirmMatchLineup({
   try {
     await sendSystemMessage({
       chatId: `match_${id}`,
-      text: teamName ? `${teamName} 팀이 라인업을 확정했어요.` : "라인업이 확정됐어요.",
+      text: teamName ? `${teamName} 팀이 라인업을 확정했어요 ✅` : "라인업이 확정됐어요 ✅",
       meta: { type: "lineup_confirmed", clubId: cid },
     });
   } catch (e) {
     console.warn("[confirmMatchLineup] system message failed:", e?.message || e);
+  }
+
+  // ✅ 라인업 확정 알림 → 상대 팀장
+  try {
+    const oppForLineup = await getOpponentClubId(id, cid);
+    if (oppForLineup) {
+      await notifyMatchRoomEvent({
+        matchId: id,
+        recipientClubId: oppForLineup,
+        subType: "matchLineupConfirmed",
+        type: "match_lineup_confirmed",
+        title: "상대팀 라인업 확정",
+        body: teamName
+          ? `${teamName} 팀이 라인업을 확정했어요.`
+          : "상대팀이 라인업을 확정했어요.",
+      });
+    }
+  } catch (e) {
+    console.warn("[confirmMatchLineup] notify failed:", e?.message || e);
   }
 
   return { ok: true };
@@ -495,6 +514,12 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
       // 미확인 배지용
       lastActivityAt: mr?.lastActivityAt || null,
       lastSeenBy: mr?.lastSeenBy || {},
+
+      // 매칭 성사/조율 진행 표시용
+      createdAt: mr?.createdAt || null,
+      acceptedAt: mr?.acceptedAt || null,
+      myLineupConfirmed: !!(iAmActor ? mr?.fromLineupSnapshot?.confirmed : mr?.toLineupSnapshot?.confirmed),
+      oppLineupConfirmed: !!(iAmActor ? mr?.toLineupSnapshot?.confirmed : mr?.fromLineupSnapshot?.confirmed),
 
       myRecent,
       oppRecent,
@@ -941,6 +966,42 @@ export async function proposeMatchSchedule({
     });
   }
 
+  return true;
+}
+
+/**
+ * 보낸 구장·일정 제안만 취소 (매칭 자체는 유지).
+ * - status: proposed → accepted(조율중)로 복귀, 제안 데이터(일정/구장) 비움.
+ * - 라인업 확정 등 다른 상태는 그대로 → 바로 다시 제안 가능.
+ */
+export async function cancelProposedSchedule({ matchRequestId, cancelledByClubId } = {}) {
+  const id = toStr(matchRequestId);
+  const canceller = toStr(cancelledByClubId);
+  if (!id) throw new Error("cancelProposedSchedule: matchRequestId is required");
+
+  const ref = doc(db, "match_requests", id);
+  await updateDoc(ref, {
+    status: "accepted",
+    scheduledAt: null,
+    field: null,
+    proposedByClubId: "",
+    proposedAt: null,
+    updatedAt: serverTimestamp(),
+    ...activityPatch(),
+  });
+
+  // 상대 팀에 제안 철회 알림
+  const opp = canceller ? await getOpponentClubId(id, canceller) : "";
+  if (opp) {
+    await notifyMatchRoomEvent({
+      matchId: id,
+      recipientClubId: opp,
+      subType: "matchProposalCancelled",
+      type: "match_proposal_cancelled",
+      title: "구장·일정 제안 취소",
+      body: "상대팀이 보냈던 구장·일정 제안을 취소했어요.",
+    });
+  }
   return true;
 }
 
@@ -1621,6 +1682,57 @@ export async function listMatchReviews({ matchRequestId } = {}) {
 
   out.sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
   return out;
+}
+
+// ✅ 한 팀이 상대 팀들로부터 받은 모든 평점/후기 수집 — 팀 프로필 "팀 리뷰"용
+// - 이 팀(clubId)이 참가한 경기들의 reviews 서브컬렉션에서 targetClubId == clubId 인 것만 모음
+// - 평균 별점 + 최신순 목록 반환 (각 항목에 평가자 이름/상대 팀 이름 포함)
+export async function listTeamReviews({ clubId, max = 50 } = {}) {
+  const cid = toStr(clubId);
+  if (!cid) return { reviews: [], avg: 0, count: 0 };
+
+  const col = collection(db, "match_requests");
+  const qActor = query(col, where("actorClubId", "==", cid), limit(200));
+  const qTarget = query(col, where("targetClubId", "==", cid), limit(200));
+  const [snapA, snapB] = await Promise.all([getDocs(qActor), getDocs(qTarget)]);
+
+  const matchDocs = uniqById([
+    ...snapA.docs.map((d) => ({ id: d.id, ...d.data() })),
+    ...snapB.docs.map((d) => ({ id: d.id, ...d.data() })),
+  ]);
+
+  const reviewLists = await runBatches(matchDocs, 8, async (mr) => {
+    const mid = toStr(mr.id);
+    if (!mid) return [];
+    const iAmActor = toStr(mr.actorClubId) === cid;
+    const oppTeamName = toStr(iAmActor ? mr?.toTeamSnapshot?.name : mr?.fromTeamSnapshot?.name);
+    try {
+      const rsnap = await getDocs(collection(db, "match_requests", mid, "reviews"));
+      return rsnap.docs
+        .map((d) => ({ docId: d.id, ...(d.data() || {}) }))
+        .filter((r) => toStr(r.targetClubId) === cid)
+        .map((r) => ({
+          id: `${mid}_${r.docId}`,
+          raterName: toStr(r.raterName) || "상대 선수",
+          oppTeamName,
+          stars: Math.max(1, Math.min(5, safeNum(r.stars, 0))),
+          comment: toStr(r.comment),
+          createdAt: r.createdAt || null,
+        }));
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const reviews = reviewLists.flat();
+  reviews.sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
+
+  const count = reviews.length;
+  const avg = count
+    ? Math.round((reviews.reduce((s, r) => s + r.stars, 0) / count) * 10) / 10
+    : 0;
+
+  return { reviews: reviews.slice(0, max), avg, count };
 }
 
 /* ========================= finished feed helpers ========================= */

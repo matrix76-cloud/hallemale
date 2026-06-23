@@ -22,6 +22,10 @@ exports.sendTestPush = sendTestPush;
 const { matchStartReminderTick } = require("./jobs/matchStartReminder");
 exports.matchStartReminderTick = matchStartReminderTick;
 
+// ✅ 경기 종료 + 결과 입력 알림 스케줄러 (5분마다)
+const { matchEndReminderTick } = require("./jobs/matchEndReminder");
+exports.matchEndReminderTick = matchEndReminderTick;
+
 // ✅ 카카오 소셜 로그인 (accessToken → Firebase Custom Token)
 const { kakaoCustomToken } = require("./auth/kakaoCustomToken");
 exports.kakaoCustomToken = kakaoCustomToken;

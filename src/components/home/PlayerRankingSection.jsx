@@ -65,25 +65,17 @@ const RankCell = styled.div`
   gap: 2px;
 `;
 
-const RankNumber = styled.span`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-
 const RankBadge = styled.div`
   position: relative;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(255, 255, 255, 0.10)" : "rgba(17, 24, 39, 0.06)"};
-  color: ${({ theme }) => theme.colors.textStrong};
+  /* 1~3위: 보라색(팀 랭킹과 동일), 그 외: 기본 글씨색 — 원형 배경 없음 */
+  color: ${({ $top, theme }) =>
+    $top ? theme.colors.primary : theme.colors.textStrong};
 `;
 
 const CrownImg = styled.img`
@@ -283,10 +275,7 @@ function positionLabel(pos) {
 }
 
 function rankLabel(rank) {
-  if (rank === 1) return "1등";
-  if (rank === 2) return "2등";
-  if (rank === 3) return "3등";
-  return String(rank || "");
+  return `${rank || ""}위`;
 }
 
 function calcPoints(p) {
@@ -379,14 +368,10 @@ export default function PlayerRankingSection({ rows = [] }) {
           return (
             <RowWrap key={`${p.userId || index}-${rank}`}>
               <RankCell>
-                {showCrown ? (
-                  <RankBadge>
-                    <CrownImg src={images.logo} alt="crown" />
-                    {rankLabel(rank)}
-                  </RankBadge>
-                ) : (
-                  <RankNumber>{rank}</RankNumber>
-                )}
+                <RankBadge $top={showCrown}>
+                  {showCrown ? <CrownImg src={images.logo} alt={`${rank}위`} /> : null}
+                  {rankLabel(rank)}
+                </RankBadge>
                 {isNew && <NewBadge>NEW</NewBadge>}
               </RankCell>
 

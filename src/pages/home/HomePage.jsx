@@ -21,6 +21,7 @@ import Spinner from "../../components/common/Spinner";
 import { useHomeData } from "../../hooks/useHomeData";
 import { useClub } from "../../hooks/useClub";
 import useMatchRoomCounts from "../../hooks/useMatchRoomCounts";
+import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 
 const Wrap = styled.div`
   min-height: 100vh;
@@ -129,6 +130,9 @@ export default function HomePage() {
     uid,
   });
 
+  // ✅ 매칭룸 카드 배지: 안 읽은 메시지 수(실시간, 목록 카드의 빨간 배지와 동일 기준)
+  const { counts: matchRoomUnread } = useMatchRoomUnread({ clubId: myClubId, uid });
+
   const footerLinks = useMemo(
     () => [
       { label: "이용약관", onClick: () => navigate("/terms") },
@@ -195,6 +199,7 @@ export default function HomePage() {
             rank={myTeamRank || 1}
             matchRoomCounts={matchRoomCounts}
             matchRoomAttention={matchRoomAttention}
+            matchRoomUnread={matchRoomUnread}
           />
           <TickerRow>
             <WinningTickerBar items={winningTeamsHighlight} />

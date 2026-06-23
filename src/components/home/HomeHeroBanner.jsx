@@ -78,6 +78,14 @@ const SlideImg = styled.img`
   display: block;
 `;
 
+// 로딩 중 자리 차지용(옛 fallback 배너가 깜빡이지 않게) — 빈 영역만 유지
+const LoadingSlide = styled.div`
+  width: 100%;
+  ${({ $height }) => ($height ? `height: ${$height};` : `aspect-ratio: 2 / 1;`)}
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.04)" : "#eceef2"};
+`;
+
 const TextLayer = styled.div`
   position: absolute;
   top: ${({ $offsetY }) => `${36 + ($offsetY || 0)}px`};
@@ -188,13 +196,17 @@ export default function HomeHeroBanner({ placement = "home", fallback = BANNERS,
     };
   }, [placement]);
 
-  // 어드민에 등록된 배너가 있으면 그걸 사용, 없으면 fallback
+  const isLoading = remoteBanners === null; // 어드민 배너 fetch 진행중
+
+  // 어드민에 등록된 배너가 있으면 그걸 사용, 없으면 fallback.
+  // 단, 로딩중에는 fallback을 쓰지 않음 → 옛 배너가 깜빡였다 사라지는 현상 방지
   const banners = useMemo(() => {
+    if (isLoading) return [];
     if (Array.isArray(remoteBanners) && remoteBanners.length > 0) {
       return remoteBanners.map(normalizeRemoteBanner);
     }
     return fallback;
-  }, [remoteBanners, fallback]);
+  }, [isLoading, remoteBanners, fallback]);
 
   const total = banners.length;
 
@@ -273,6 +285,15 @@ export default function HomeHeroBanner({ placement = "home", fallback = BANNERS,
   const handleTouchEnd = (e) => onSwipeEnd(e.changedTouches[0].clientX);
   const handleMouseDown = (e) => onSwipeStart(e.clientX);
   const handleMouseUp = (e) => onSwipeEnd(e.clientX);
+
+  // 로딩 중에는 옛 fallback 대신 빈 자리만 유지(레이아웃 흔들림/깜빡임 방지)
+  if (isLoading) {
+    return (
+      <Wrap>
+        <LoadingSlide $height={slideHeight} />
+      </Wrap>
+    );
+  }
 
   if (total === 0) return null;
 

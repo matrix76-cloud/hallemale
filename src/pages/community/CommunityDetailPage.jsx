@@ -813,19 +813,50 @@ export default function CommunityDetailPage() {
       return;
     }
     if (submittingComment) return;
+
+    // 낙관적 추가: 서버 응답을 기다리지 않고 즉시 화면에 댓글 표시 (등록 후 전체 재조회 제거)
+    const tempId = `temp-${Date.now()}`;
+    const parentId = replyTo?.id || null;
+    const prevReplyTo = replyTo;
+    const optimistic = {
+      id: tempId,
+      postId,
+      parentId,
+      authorId: myUid,
+      authorName: userDoc?.nickname || userDoc?.name || "나",
+      authorAvatar: userDoc?.avatarUrl || "",
+      content: text,
+      createdAt: "",
+      createdAtMs: Date.now(),
+      likes: 0,
+      likedByMe: false,
+      isMine: true,
+      canEdit: true,
+      canDelete: true,
+    };
+
+    setComments((prev) => [...prev, optimistic]);
+    setCommentText("");
+    setReplyTo(null);
     setSubmittingComment(true);
+
     try {
-      await addCommunityComment({
+      const { commentId } = await addCommunityComment({
         postId,
         authorUid: myUid,
         content: text,
-        parentId: replyTo?.id || null,
+        parentId,
       });
-      setCommentText("");
-      setReplyTo(null);
-      await reload();
+      // 임시 id → 실제 id 교체
+      setComments((prev) =>
+        prev.map((c) => (c.id === tempId ? { ...c, id: commentId } : c))
+      );
     } catch (e) {
       console.error("[CommunityDetailPage] comment failed:", e?.message || e);
+      // 롤백: 낙관적 댓글 제거 + 입력값/답글대상 복원
+      setComments((prev) => prev.filter((c) => c.id !== tempId));
+      setCommentText(text);
+      setReplyTo(prevReplyTo);
       alert("댓글 등록에 실패했습니다.");
     } finally {
       setSubmittingComment(false);

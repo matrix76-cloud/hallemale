@@ -1,97 +1,38 @@
 /* eslint-disable */
 // src/pages/auth/LoginPage.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { signInWithSocial } from "../../services/authService";
 import { images } from "../../utils/imageAssets";
-import { isInWebView } from "../../bridge/webviewBridge";
 
 import { useAuth } from "../../hooks/useAuth";
-import { useClub } from "../../hooks/useClub";
-import { useHomeData } from "../../hooks/useHomeData";
-import { useMatchingData } from "../../hooks/useMatchingData";
 
 export default function LoginPage() {
   const navigate = useNavigate();
 
-  const { firebaseUser, userDoc, isLoggedIn, loading: authLoading } = useAuth();
-  const { club, loading: clubLoading } = useClub();
-  const { preloadHomeData } = useHomeData();
-  const { preloadMatchingHomeData } = useMatchingData();
-
-  const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
-  const activeTeamId = String(club?.id || "").trim();
-
-  // 카카오 로그인은 RN WebView(앱) 안에서만 동작
-  const inApp = isInWebView();
+  const { isLoggedIn, loading: authLoading } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [postLoginPreload, setPostLoginPreload] = useState(false);
-  const [preloading, setPreloading] = useState(false);
+  const busy = isSubmitting;
 
-  const preloadOnceRef = useRef(false);
-
-  // 이미 로그인 상태면 홈으로 이동 (소셜 로그인 후 WebView 리로드 대응)
+  // 이미 로그인된 상태면(소셜 redirect 복귀 포함) 바로 홈으로 이동.
+  // 데이터 프리로드는 홈/매칭 페이지가 각자 스켈레톤과 함께 알아서 로드하므로
+  // 여기서 기다리지 않는다.
   useEffect(() => {
     if (authLoading) return;
-    if (isLoggedIn && !postLoginPreload) {
-      navigate("/home", { replace: true });
-    }
-  }, [authLoading, isLoggedIn, postLoginPreload, navigate]);
-
-  const canRunPreload = useMemo(() => {
-    if (!postLoginPreload) return false;
-    if (authLoading || clubLoading) return false;
-    if (!isLoggedIn) return false;
-    if (!uid) return false;
-    return true;
-  }, [postLoginPreload, authLoading, clubLoading, isLoggedIn, uid]);
-
-  useEffect(() => {
-    if (!canRunPreload) return;
-    if (preloadOnceRef.current) return;
-
-    preloadOnceRef.current = true;
-
-    (async () => {
-      const startedAt = Date.now();
-      const MIN_MS = 700;
-
-      setPreloading(true);
-      try {
-        const tasks = [];
-        tasks.push(preloadHomeData(uid));
-        if (activeTeamId) tasks.push(preloadMatchingHomeData(activeTeamId));
-        await Promise.all(tasks);
-      } catch (e) {
-        console.error("[LoginPage] preload failed:", e);
-      } finally {
-        const elapsed = Date.now() - startedAt;
-        const wait = Math.max(0, MIN_MS - elapsed);
-
-        setTimeout(() => {
-          setPreloading(false);
-          setPostLoginPreload(false);
-          navigate("/home", { replace: true });
-        }, wait);
-      }
-    })();
-  }, [canRunPreload, preloadHomeData, preloadMatchingHomeData, uid, activeTeamId, navigate]);
-
-  const busy = isSubmitting || preloading || postLoginPreload;
+    if (isLoggedIn) navigate("/home", { replace: true });
+  }, [authLoading, isLoggedIn, navigate]);
 
   // 구글 소셜 로그인
   const handleGoogle = async () => {
     if (busy) return;
 
     setIsSubmitting(true);
-    setPostLoginPreload(true);
     try {
       const res = await signInWithSocial({ provider: "google", keepLogin: true });
 
       if (!res || res.success !== true) {
-        setPostLoginPreload(false);
         const code = res?.error_code || "";
         if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
           // 사용자가 팝업을 닫음 — 조용히 무시
@@ -101,11 +42,9 @@ export default function LoginPage() {
         return;
       }
 
-      // redirect 폴백이면 페이지가 이동되므로 아래는 팝업 성공 케이스
-      preloadOnceRef.current = false;
-      setPreloading(true);
+      // 팝업 성공 시 즉시 홈으로 (redirect 폴백이면 이미 페이지가 이동됨)
+      navigate("/home", { replace: true });
     } catch (err) {
-      setPostLoginPreload(false);
       window.alert("구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSubmitting(false);
@@ -116,12 +55,10 @@ export default function LoginPage() {
     if (busy) return;
 
     setIsSubmitting(true);
-    setPostLoginPreload(true);
     try {
       const res = await signInWithSocial({ provider: "kakao", keepLogin: true });
 
       if (!res || res.success !== true) {
-        setPostLoginPreload(false);
         const code = res?.error_code || "";
         if (code === "web_unsupported" || code === "not_in_app") {
           window.alert("카카오 로그인은 앱에서만 이용할 수 있어요.");
@@ -133,11 +70,9 @@ export default function LoginPage() {
         return;
       }
 
-      // 성공 → preload effect가 /home으로 이동시킴
-      preloadOnceRef.current = false;
-      setPreloading(true);
+      // 성공 시 즉시 홈으로 이동
+      navigate("/home", { replace: true });
     } catch (err) {
-      setPostLoginPreload(false);
       window.alert("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSubmitting(false);
@@ -150,7 +85,7 @@ export default function LoginPage() {
         <Overlay>
           <OverlayInner>
             <MiniSpinner />
-            <OverlayText>{preloading ? "데이터 불러오는 중…" : "로그인 중…"}</OverlayText>
+            <OverlayText>로그인 중…</OverlayText>
           </OverlayInner>
         </Overlay>
       )}

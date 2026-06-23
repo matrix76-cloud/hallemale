@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiStar, FiMapPin } from "react-icons/fi";
+import { FiStar, FiMapPin, FiUser, FiShield, FiBarChart2, FiClock, FiImage } from "react-icons/fi";
 
 import { images } from "../../utils/imageAssets";
 import { getPlayerProfile } from "../../services/playerService";
@@ -324,18 +324,13 @@ const SectionIconCircle = styled.div`
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? "rgba(14,165,233,0.18)" : "#e0f2fe"};
   display: flex;
   align-items: center;
   justify-content: center;
-`;
-
-const SectionIconImg = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#38bdf8" : "#0284c7")};
+  font-size: 16px;
 `;
 
 const SectionTitleText = styled.h2`
@@ -939,10 +934,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <SectionIconImg
-                    src={images.playerProfileIcon || images.teamMembersIcon || images.logo}
-                    alt="선수 프로필"
-                  />
+                  <FiUser />
                 </SectionIconCircle>
                 <SectionTitleText>선수 프로필</SectionTitleText>
               </SectionHeaderLeft>
@@ -979,7 +971,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
               <SectionHeaderRow>
                 <SectionHeaderLeft>
                   <SectionIconCircle>
-                    <SectionIconImg src={images.teamIntroIcon || images.logo} alt="소속 팀" />
+                    <FiShield />
                   </SectionIconCircle>
                   <SectionTitleText>소속 팀</SectionTitleText>
                 </SectionHeaderLeft>
@@ -1010,7 +1002,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <SectionIconImg src={images.teamStatsIcon || images.logo} alt="전적" />
+                  <FiBarChart2 />
                 </SectionIconCircle>
                 <SectionTitleText>전적</SectionTitleText>
               </SectionHeaderLeft>
@@ -1024,7 +1016,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <SectionIconImg src={images.teamStatsIcon || images.logo} alt="경기 기록" />
+                  <FiClock />
                 </SectionIconCircle>
                 <SectionTitleText>경기 기록</SectionTitleText>
               </SectionHeaderLeft>
@@ -1056,10 +1048,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <SectionIconImg
-                    src={images.teamMediaIcon || images.teamHighlightIcon || images.logo}
-                    alt="경기 사진/영상"
-                  />
+                  <FiImage />
                 </SectionIconCircle>
                 <SectionTitleText>경기 사진 / 영상</SectionTitleText>
               </SectionHeaderLeft>

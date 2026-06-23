@@ -453,14 +453,14 @@ const MyLoc = styled.button`
 `;
 
 const PickCard = styled.div`
-  background: ${({ theme }) =>
-    `linear-gradient(135deg, ${P(theme).puBg}, ${P(theme).surface})`};
-  border: 0.5px solid ${({ theme }) => P(theme).puD};
+  background: ${({ theme }) => P(theme).surface};
+  border: 1px solid ${({ theme }) => P(theme).line};
   border-radius: 13px;
   padding: 12px 13px;
   display: flex;
   gap: 10px;
   align-items: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
 `;
 
 const Pk = styled.div`
@@ -497,18 +497,16 @@ const Pd = styled.div`
   white-space: nowrap;
 `;
 
+/* 앱내 안내 문구 — 카드/배경 없이 회색 텍스트만 */
 const Notice = styled.div`
   display: flex;
-  gap: 8px;
-  font-size: 10px;
-  line-height: 1.5;
-  padding: 10px 12px;
-  border-radius: 11px;
-  background: ${({ theme }) => P(theme).blBg};
-  color: ${({ theme }) => P(theme).blL};
-  border: 0.5px solid ${({ theme }) => P(theme).blBorder};
+  gap: 7px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: ${({ theme }) => P(theme).t3};
   b {
     font-weight: 700;
+    color: ${({ theme }) => P(theme).t2};
   }
 `;
 

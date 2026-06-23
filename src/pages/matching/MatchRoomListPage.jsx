@@ -3,9 +3,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
+import { FiMessageSquare } from "react-icons/fi";
 import { images } from "../../utils/imageAssets";
 import Spinner from "../../components/common/Spinner";
 import { loadMatchRoomListPageData } from "../../services/matchRoomService";
+import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import { listAllTeamsForRanking } from "../../services/teamRankingService";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
@@ -49,6 +51,51 @@ const formatDday = (iso) => {
   const diffDays = Math.round((startOfDay(target) - startOfDay(new Date())) / 86400000);
   if (diffDays === 0) return "D-DAY";
   return diffDays > 0 ? `D-${diffDays}` : `D+${Math.abs(diffDays)}`;
+};
+
+const toDateAny = (v) => {
+  if (!v) return null;
+  if (typeof v?.toDate === "function") {
+    try {
+      return v.toDate();
+    } catch (e) {
+      return null;
+    }
+  }
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// 매칭 성사 시각: 오늘=오전/오후 h:mm, 어제="어제", 올해=M.D, 그 외=YYYY.M.D
+const formatMatchedTime = (v) => {
+  const d = toDateAny(v);
+  if (!d) return "";
+  const now = new Date();
+  const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) {
+    let h = d.getHours();
+    const ampm = h < 12 ? "오전" : "오후";
+    h %= 12;
+    if (h === 0) h = 12;
+    return `${ampm} ${h}:${d.getMinutes().toString().padStart(2, "0")}`;
+  }
+  if (diffDays === 1) return "어제";
+  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}.${d.getDate()}`;
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+};
+
+// 조율 진행 단계 (라인업 확정 → 구장·일정 제안 → 수락/확정)
+const buildAdjustSteps = (room) => {
+  const lineupDone = !!room?.myLineupConfirmed && !!room?.oppLineupConfirmed;
+  // 구장·일정은 제안 시 함께 설정됨(proposeMatchSchedule) → proposed/confirmed면 완료
+  const proposeDone = !!toStr(room?.fieldAddress) && !!room?.scheduledAt;
+  const confirmDone = toStr(room?.status) === "confirmed";
+  return [
+    { label: "라인업", done: lineupDone },
+    { label: "구장·일정", done: proposeDone },
+    { label: "확정", done: confirmDone },
+  ];
 };
 
 const getVsStatus = (room) => {
@@ -221,6 +268,113 @@ const VsStatusPill = styled.div`
   color: ${({ theme }) => theme.colors.textStrong};
   font-size: 12px;
   white-space: nowrap;
+`;
+
+/* 조율중 카드 좌상단 상태 배지 (제안 필요 = 보라, 확정 대기 = 회색) */
+const StatusPill = styled.span`
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  ${({ $tone, theme }) =>
+    $tone === "accepted"
+      ? `background:${theme.colors.primary}; color:#fff;`
+      : `background:${theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "#eef0f3"}; color:${theme.colors.textNormal};`}
+`;
+
+/* 조율중 카드 우상단 매칭 성사 시각 */
+const HeaderTime = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  white-space: nowrap;
+`;
+
+/* 조율 진행 단계 행 */
+const ProgressRow = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 4px 14px 12px;
+`;
+
+const StepItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+`;
+
+const StepDot = styled.span`
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  ${({ $active, theme }) =>
+    $active
+      ? `background:${theme.colors.primary}; color:#fff;`
+      : `background:${theme.mode === "dark" ? "rgba(255,255,255,0.12)" : "#e5e7eb"}; color:${theme.colors.textWeak};`}
+`;
+
+const StepLabel = styled.span`
+  font-size: 11px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.textStrong : theme.colors.textWeak};
+  white-space: nowrap;
+`;
+
+const StepLine = styled.span`
+  flex: 1;
+  min-width: 8px;
+  height: 2px;
+  margin: 0 5px;
+  border-radius: 2px;
+  background: ${({ $done, theme }) =>
+    $done ? theme.colors.primary : theme.mode === "dark" ? "rgba(255,255,255,0.12)" : "#e5e7eb"};
+`;
+
+/* 마지막 메시지 + 안 읽은 수 행 */
+const MessageRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const MsgIcon = styled(FiMessageSquare)`
+  flex-shrink: 0;
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const MsgText = styled.span`
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: ${({ theme }) => theme.colors.textNormal};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const UnreadBadge = styled.span`
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ff5a5a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const LogoImg = styled.img`
@@ -535,6 +689,8 @@ export default function MatchRoomListPage() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [rankMap, setRankMap] = useState({});
+  // 카드 마지막 메시지 + 안 읽은 메시지 수 (실시간)
+  const { byRoom: chatMeta } = useMatchRoomUnread({ clubId: myClubId, uid: myUid });
 
   const tab = useMemo(() => {
     const sp = new URLSearchParams(location.search || "");
@@ -715,10 +871,58 @@ export default function MatchRoomListPage() {
 
   const renderRoomCard = (room) => {
     const { myTeam, oppTeam } = room || {};
-    const { text } = getVsStatus(room);
+    const status = getVsStatus(room);
+    const { text } = status;
     // 지난 경기(경기 종료 or finished) = 상태칩 숨김
     const isPast = isEnded(room) || toStr(room?.status) === "finished";
+    // 조율중(제안 필요/확정 대기) 카드 = 새 구성(상태 배지 + 성사 시각 + 진행 단계 + 마지막 메시지)
+    const isAdjusting = room?.status === "accepted" || room?.status === "proposed";
     const needsAttn = roomNeedsAttention(room, { myUid, myClubId });
+
+    if (isAdjusting) {
+      const steps = buildAdjustSteps(room);
+      const currentIdx = steps.findIndex((s) => !s.done); // 첫 미완료 단계 = 현재 진행중
+      const meta = chatMeta[room.id] || {};
+      const lastMsg = toStr(meta.lastMessageText);
+      const unread = Number(meta.unread) || 0;
+
+      return (
+        <RoomCard key={room.id} onClick={() => handleClickRoom(room.id)} role="button" tabIndex={0}>
+          <MatchHeader>
+            <StatusPill $tone={status.tone}>{text || "조율중"}</StatusPill>
+            <HeaderTime>{formatMatchedTime(room?.acceptedAt || room?.createdAt)}</HeaderTime>
+          </MatchHeader>
+
+          <TeamsRow>
+            {renderTeamCol({ team: myTeam, fallbackName: "우리팀" })}
+            <VsSep>VS</VsSep>
+            {renderTeamCol({ team: oppTeam, fallbackName: "상대팀" })}
+          </TeamsRow>
+
+          <ProgressRow>
+            {steps.map((s, i) => {
+              const isCurrent = i === currentIdx;
+              const active = s.done || isCurrent;
+              return (
+                <React.Fragment key={s.label}>
+                  {i > 0 && <StepLine $done={steps[i - 1].done} />}
+                  <StepItem>
+                    <StepDot $active={active}>{s.done ? "✓" : i + 1}</StepDot>
+                    <StepLabel $active={active}>{s.label}</StepLabel>
+                  </StepItem>
+                </React.Fragment>
+              );
+            })}
+          </ProgressRow>
+
+          <MessageRow>
+            <MsgIcon />
+            <MsgText>{lastMsg || "아직 메시지가 없어요"}</MsgText>
+            {unread > 0 && <UnreadBadge>{unread > 99 ? "99+" : unread}</UnreadBadge>}
+          </MessageRow>
+        </RoomCard>
+      );
+    }
 
     return (
       <RoomCard key={room.id} onClick={() => handleClickRoom(room.id)} role="button" tabIndex={0}>

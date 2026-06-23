@@ -8,11 +8,13 @@ import styled from "styled-components";
 
 import {
   enterChat,
+  listenChatRoom,
   listenChatMessages,
   sendTextMessage,
   sendImagesMessage,
 } from "../../services/chatService";
 import { mrp } from "./matchRoomPalette";
+import AvatarPlaceholder from "../common/AvatarPlaceholder";
 
 const Wrap = styled.div`
   flex: 1;
@@ -47,28 +49,95 @@ const SysMsg = styled.div`
   border-radius: 30px;
 `;
 
+/* 매칭 성사 시 안내 문구 위에 크게 보이는 이모지 (예: 🤝) */
+const NoticeIcon = styled.div`
+  align-self: center;
+  font-size: 54px;
+  line-height: 1;
+  margin: 6px 0 2px;
+  text-align: center;
+`;
+
 const DateDivider = styled(SysMsg)``;
 
+/* 한 줄(아바타 + 말풍선) */
+const Line = styled.div`
+  max-width: 88%;
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  align-self: ${({ $me }) => ($me ? "flex-end" : "flex-start")};
+`;
+
+/* 상대 팀장 프로필 사진 (없으면 이니셜) */
+const Avatar = styled.div`
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: flex-start;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${({ theme }) => mrp(theme.mode).surface2};
+  color: ${({ theme }) => mrp(theme.mode).puL};
+  font-size: 13px;
+  font-weight: 700;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
 const Bubble = styled.div`
-  max-width: 82%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  align-self: ${({ $me }) => ($me ? "flex-end" : "flex-start")};
   align-items: ${({ $me }) => ($me ? "flex-end" : "flex-start")};
 `;
 
+/* 말풍선 + 시각(또는 읽음/시각)을 한 줄에: 말풍선 안쪽 하단 모서리에 시각 */
+const BubbleInner = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+`;
+
+/* 내 메시지: 읽음 + 시각을 말풍선 왼쪽에 세로로 */
+const MetaCol = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+`;
+
+const Read = styled.div`
+  font-size: 10.5px;
+  font-weight: 600;
+  color: ${({ theme, $read }) =>
+    $read ? mrp(theme.mode).puL : mrp(theme.mode).t3};
+  padding: 0 2px;
+`;
+
+/* 상대: 팀명 · 팀장명 */
 const Who = styled.div`
   font-size: 11.5px;
-  color: ${({ theme }) => mrp(theme.mode).t3};
+  font-weight: 600;
+  color: ${({ theme }) => mrp(theme.mode).t2};
   padding: 0 4px;
 `;
 
 const Msg = styled.div`
-  font-size: 15.5px;
-  line-height: 1.55;
-  padding: 11px 15px;
-  border-radius: 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  padding: 9px 13px;
+  border-radius: 15px;
   white-space: pre-line;
   word-break: break-word;
   ${({ theme, $me }) => {
@@ -182,9 +251,16 @@ const toDate = (v) => {
       : new Date(v);
   return Number.isNaN(d?.getTime?.()) ? null : d;
 };
+const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 const fmtDate = (v) => {
   const d = toDate(v);
-  return d ? `${d.getMonth() + 1}월 ${d.getDate()}일` : "";
+  return d
+    ? `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]})`
+    : "";
+};
+const toMs = (v) => {
+  const d = toDate(v);
+  return d ? d.getTime() : 0;
 };
 const fmtTime = (v) => {
   const d = toDate(v);
@@ -204,7 +280,11 @@ export default function MatchRoomChat({
   chatId,
   myUid,
   opponentName = "상대팀",
+  opponentLeaderName = "",
+  opponentAvatarUrl = "",
+  otherUid = "",
   systemNotice = "",
+  noticeIcon = "",
   pinnedCard = null,
   aboveInput = null,
 }) {
@@ -212,6 +292,7 @@ export default function MatchRoomChat({
   const scrollRef = useRef(null);
 
   const [messages, setMessages] = useState([]);
+  const [room, setRoom] = useState(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -229,10 +310,37 @@ export default function MatchRoomChat({
     };
   }, [chatId]);
 
+  // 방 메타 구독 — 상대 lastReadAtBy 로 "읽음" 표시 계산
+  useEffect(() => {
+    if (!chatId) return;
+    const unsub = listenChatRoom({ chatId, onChange: (r) => setRoom(r) });
+    return () => {
+      try {
+        unsub && unsub();
+      } catch (e) {}
+    };
+  }, [chatId]);
+
   useEffect(() => {
     if (!chatId || !myUid) return;
     enterChat({ chatId, myUid }).catch(() => {});
   }, [chatId, myUid]);
+
+  // 상대가 보낸 새 메시지가 도착하면 내 읽음시각 갱신 → 상대 화면에 "읽음" 반영
+  useEffect(() => {
+    if (!chatId || !myUid || !messages.length) return;
+    const last = messages[messages.length - 1];
+    if (last?.fromUid && last.fromUid !== myUid && last.fromUid !== "system") {
+      enterChat({ chatId, myUid }).catch(() => {});
+    }
+  }, [chatId, myUid, messages]);
+
+  // 상대가 마지막으로 읽은 시각(ms) — 내 메시지가 이 시각 이하이면 "읽음"
+  const oppReadMs = useMemo(() => {
+    const by = room?.lastReadAtBy || {};
+    const v = otherUid ? by[otherUid] : null;
+    return toMs(v);
+  }, [room, otherUid]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -313,6 +421,7 @@ export default function MatchRoomChat({
   return (
     <Wrap>
       <ChatScroll ref={scrollRef}>
+        {!!systemNotice && !!noticeIcon && <NoticeIcon>{noticeIcon}</NoticeIcon>}
         {!!systemNotice && <SysMsg>{systemNotice}</SysMsg>}
         {pinnedCard}
         {rows.length === 0 && <SysMsg>대화를 시작해 보세요.</SysMsg>}
@@ -327,21 +436,49 @@ export default function MatchRoomChat({
           }
           const me = row.fromUid && row.fromUid === myUid;
           const imgs = Array.isArray(row.images) ? row.images.slice(0, 4) : [];
+          const tm = fmtTime(row.createdAt);
+          const isRead = me && oppReadMs > 0 && toMs(row.createdAt) <= oppReadMs;
+          const whoLabel = [opponentName, opponentLeaderName]
+            .map((s) => String(s || "").trim())
+            .filter(Boolean)
+            .join(" · ");
+          const bubble = (
+            <Msg $me={me}>
+              {!!row.text && <div>{row.text}</div>}
+              {imgs.length > 0 && (
+                <ImgGrid $cols={imgs.length === 1 ? 1 : 2}>
+                  {imgs.map((img, i) => (
+                    <Img key={`${row.id}-img-${i}`} src={img.url} alt="img" />
+                  ))}
+                </ImgGrid>
+              )}
+            </Msg>
+          );
           return (
-            <Bubble key={row.id} $me={me}>
-              {!me && <Who>{opponentName}</Who>}
-              <Msg $me={me}>
-                {!!row.text && <div>{row.text}</div>}
-                {imgs.length > 0 && (
-                  <ImgGrid $cols={imgs.length === 1 ? 1 : 2}>
-                    {imgs.map((img, i) => (
-                      <Img key={`${row.id}-img-${i}`} src={img.url} alt="img" />
-                    ))}
-                  </ImgGrid>
-                )}
-              </Msg>
-              <Tm>{fmtTime(row.createdAt)}</Tm>
-            </Bubble>
+            <Line key={row.id} $me={me}>
+              {!me && (
+                <Avatar>
+                  {opponentAvatarUrl ? (
+                    <img src={opponentAvatarUrl} alt={whoLabel || opponentName} />
+                  ) : (
+                    <AvatarPlaceholder size={34} />
+                  )}
+                </Avatar>
+              )}
+              <Bubble $me={me}>
+                {!me && <Who>{whoLabel || opponentName}</Who>}
+                <BubbleInner $me={me}>
+                  {me && (
+                    <MetaCol>
+                      <Read $read={isRead}>{isRead ? "읽음" : "안읽음"}</Read>
+                      <Tm>{tm}</Tm>
+                    </MetaCol>
+                  )}
+                  {bubble}
+                  {!me && <Tm>{tm}</Tm>}
+                </BubbleInner>
+              </Bubble>
+            </Line>
           );
         })}
       </ChatScroll>

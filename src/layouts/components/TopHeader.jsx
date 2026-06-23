@@ -142,6 +142,7 @@ export default function TopHeader({
 
   const handleDefaultBack = () => {
     if (onBack) onBack();
+    else if (headerConfig?.onBack) headerConfig.onBack();
     else goBackOrHome(navigate);
   };
 

@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiStar } from "react-icons/fi";
+import { FiStar, FiInfo, FiBarChart2, FiClock, FiUsers, FiImage } from "react-icons/fi";
 import { TbBallBasketball } from "react-icons/tb";
 
 import TeamStatsSection from "../../components/team/TeamStatsSection";
@@ -26,7 +26,7 @@ import { useClub } from "../../hooks/useClub";
 import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
 import TeamMatchHistorySection from "../../components/team/TeamMatchHistorySection";
-import { loadMatchRoomListPageData } from "../../services/matchRoomService";
+import { loadMatchRoomListPageData, listTeamReviews } from "../../services/matchRoomService";
 import { createTeamReport } from "../../services/teamReportService";
 import BlockedOverlay from "../../components/common/BlockedOverlay";
 
@@ -75,6 +75,27 @@ const formatUpdateDate = (value) => {
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
   return `${yy}.${mm}.${dd} 업데이트`;
+};
+
+// 리뷰 날짜 "YY.MM.DD" (Firestore Timestamp / ISO / number 대응)
+const formatReviewDate = (value) => {
+  if (!value) return "";
+  let date;
+  if (value.toDate && typeof value.toDate === "function") date = value.toDate();
+  else if (typeof value === "number") date = new Date(value);
+  else if (typeof value === "string") date = new Date(value);
+  else if (value instanceof Date) date = value;
+  if (!date || isNaN(date.getTime())) return "";
+  const yy = String(date.getFullYear()).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}.${mm}.${dd}`;
+};
+
+// 별점(1~5) → 채운별/빈별 문자열
+const starsString = (n) => {
+  const v = Math.max(0, Math.min(5, Math.round(Number(n) || 0)));
+  return "★".repeat(v) + "☆".repeat(5 - v);
 };
 
 /**
@@ -320,16 +341,13 @@ const SectionIconCircle = styled.div`
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-`;
-
-const SectionIconImg = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 17px;
 `;
 
 const SectionTitleText = styled.h2`
@@ -340,6 +358,94 @@ const SectionTitleText = styled.h2`
 
 const SectionMeta = styled.span`
   font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+/* ───── 팀 리뷰(상대 팀이 남긴 평점·후기) ───── */
+const ReviewSummary = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+`;
+
+const ReviewSummaryStars = styled.span`
+  font-size: 16px;
+  color: #f5a623;
+  letter-spacing: 1px;
+`;
+
+const ReviewSummaryNum = styled.span`
+  font-size: 16px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const ReviewSummaryCount = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const ReviewList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+`;
+
+const ReviewItem = styled.div`
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.03)" : "#fafafa"};
+`;
+
+const ReviewItemTop = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`;
+
+const ReviewItemName = styled.span`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const ReviewItemStars = styled.span`
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #f5a623;
+  letter-spacing: 1px;
+`;
+
+const ReviewItemText = styled.p`
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: ${({ theme }) => theme.colors.textNormal};
+  white-space: pre-line;
+`;
+
+const ReviewItemMeta = styled.div`
+  margin-top: 7px;
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const ReviewEmpty = styled.div`
+  margin-top: 10px;
+  padding: 18px 0;
+  text-align: center;
+  font-size: 13px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
@@ -893,6 +999,8 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
 
   // ✅ 매칭 신청: 사이즈만 선택 (라인업은 수락 후 룸에서 각 팀이 확정)
   const [selectedMatchSize, setSelectedMatchSize] = useState(""); // "3v3" | "4v4" | "5v5"
+  const [showMatchConfirm, setShowMatchConfirm] = useState(false); // 사이즈 선택 후 최종 확인창
+  const [submittingMatch, setSubmittingMatch] = useState(false); // 신청 진행중(중복 제출 방지)
 
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState(null);
@@ -907,6 +1015,10 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
 
   const [pastMatches, setPastMatches] = useState([]);
   const [pastMatchesLoading, setPastMatchesLoading] = useState(false);
+
+  // 팀 리뷰(상대 팀이 남긴 평점·후기)
+  const [teamReviews, setTeamReviews] = useState({ reviews: [], avg: 0, count: 0 });
+  const [teamReviewsLoading, setTeamReviewsLoading] = useState(false);
 
   // 팀 사진/영상 전체보기 모달
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
@@ -991,6 +1103,30 @@ useEffect(() => {
     cancelled = true;
   };
 }, [team?.clubId, team?.id]);
+
+  // 팀 리뷰(상대 팀이 남긴 평점·후기) 로드
+  useEffect(() => {
+    let cancelled = false;
+    const clubId = String(team?.clubId || team?.id || "").trim();
+    if (!clubId) return;
+
+    (async () => {
+      try {
+        setTeamReviewsLoading(true);
+        const data = await listTeamReviews({ clubId });
+        if (!cancelled) setTeamReviews(data || { reviews: [], avg: 0, count: 0 });
+      } catch (e) {
+        console.warn("[TeamProfile] load team reviews failed:", e?.message || e);
+        if (!cancelled) setTeamReviews({ reviews: [], avg: 0, count: 0 });
+      } finally {
+        if (!cancelled) setTeamReviewsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [team?.clubId, team?.id]);
 
 
   useEffect(() => {
@@ -1197,6 +1333,8 @@ useEffect(() => {
       return;
     }
 
+    if (submittingMatch) return;
+    setSubmittingMatch(true);
     try {
       const matchId = await createMatchRequest({
         actorClubId: String(myClubId),
@@ -1210,13 +1348,17 @@ useEffect(() => {
 
       console.log("[TeamProfile] match request created:", matchId);
 
+      setShowMatchConfirm(false);
       setShowLineupSelectModal(false);
       setSelectedMatchSize("");
       nav("/matchingmanage", { state: { initialTab: "sent" } });
     } catch (e) {
       console.warn("[TeamProfile] create match request failed:", e?.message || e);
       alert(e?.message || "매칭 신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      setShowMatchConfirm(false);
       setShowLineupSelectModal(false);
+    } finally {
+      setSubmittingMatch(false);
     }
   };
 
@@ -1318,7 +1460,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <SectionIconImg src={images.teamIntroIcon} alt="팀 소개" />
+                      <FiInfo />
                     </SectionIconCircle>
                     <SectionTitleText>팀 소개</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1338,7 +1480,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <SectionIconImg src={images.teamStatsIcon} alt="팀 전적" />
+                      <FiBarChart2 />
                     </SectionIconCircle>
                     <SectionTitleText>팀 전적</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1376,7 +1518,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <SectionIconImg src={images.teamStatsIcon} alt="경기 기록" />
+                      <FiClock />
                     </SectionIconCircle>
                     <SectionTitleText>경기 기록</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1404,7 +1546,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <SectionIconImg src={images.teamMembersIcon} alt="팀 멤버" />
+                      <FiUsers />
                     </SectionIconCircle>
                     <SectionTitleText>팀 멤버</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1419,7 +1561,7 @@ useEffect(() => {
                   <SectionHeaderRow>
                     <SectionHeaderLeft>
                       <SectionIconCircle>
-                        <SectionIconImg src={images.teamMediaIcon} alt="팀 사진/영상" />
+                        <FiImage />
                       </SectionIconCircle>
                       <SectionTitleText>팀 사진/영상</SectionTitleText>
                     </SectionHeaderLeft>
@@ -1451,8 +1593,54 @@ useEffect(() => {
                   </MediaGrid>
                 </Section>
 
-                
+
               )}
+
+              <Section>
+                <SectionHeaderRow>
+                  <SectionHeaderLeft>
+                    <SectionIconCircle>
+                      <FiStar />
+                    </SectionIconCircle>
+                    <SectionTitleText>팀 리뷰</SectionTitleText>
+                  </SectionHeaderLeft>
+                  {teamReviews.count > 0 && (
+                    <ReviewSummary>
+                      <ReviewSummaryStars>{starsString(teamReviews.avg)}</ReviewSummaryStars>
+                      <ReviewSummaryNum>{teamReviews.avg.toFixed(1)}</ReviewSummaryNum>
+                      <ReviewSummaryCount>({teamReviews.count})</ReviewSummaryCount>
+                    </ReviewSummary>
+                  )}
+                </SectionHeaderRow>
+
+                {teamReviewsLoading ? (
+                  <StateWrap>
+                    <Spinner size="lg" />
+                  </StateWrap>
+                ) : teamReviews.reviews.length > 0 ? (
+                  <ReviewList>
+                    {teamReviews.reviews.map((r) => (
+                      <ReviewItem key={r.id}>
+                        <ReviewItemTop>
+                          <ReviewItemName>
+                            {r.raterName}
+                            {r.oppTeamName ? ` · ${r.oppTeamName}` : ""}
+                          </ReviewItemName>
+                          <ReviewItemStars>{starsString(r.stars)}</ReviewItemStars>
+                        </ReviewItemTop>
+                        {r.comment ? <ReviewItemText>{r.comment}</ReviewItemText> : null}
+                        {formatReviewDate(r.createdAt) ? (
+                          <ReviewItemMeta>
+                            <span>{formatReviewDate(r.createdAt)}</span>
+                          </ReviewItemMeta>
+                        ) : null}
+                      </ReviewItem>
+                    ))}
+                  </ReviewList>
+                ) : (
+                  <ReviewEmpty>경기 종료 후 상대 팀이 남긴 평점·후기가 여기에 모여요.</ReviewEmpty>
+                )}
+              </Section>
 
               {!isMyTeam && (
                 <ReportLinkRow>
@@ -1537,9 +1725,48 @@ useEffect(() => {
                     type="button"
                     $primary
                     disabled={!selectedMatchSize}
-                    onClick={handleSubmitMatchRequest}
+                    onClick={() => setShowMatchConfirm(true)}
                   >
                     매칭 신청
+                  </SelectButton>
+                </SelectActions>
+              </SelectCard>
+            </Overlay>
+          )}
+
+          {showMatchConfirm && (
+            <Overlay onClick={() => !submittingMatch && setShowMatchConfirm(false)}>
+              <SelectCard onClick={(e) => e.stopPropagation()}>
+                <LineupModalHeader>
+                  <LineupModalTitle>매칭 신청 확인</LineupModalTitle>
+                  <LineupModalClose onClick={() => !submittingMatch && setShowMatchConfirm(false)}>
+                    ×
+                  </LineupModalClose>
+                </LineupModalHeader>
+
+                <SelectBody>
+                  <LineupModalMeta>
+                    {`${team?.name || "상대 팀"}에 ${selectedMatchSize.replace("v", " vs ")} 경기를 신청할까요?`}
+                    <br />
+                    신청 후 상대 팀이 수락하면 매칭룸에서 라인업·구장·일정을 조율해요.
+                  </LineupModalMeta>
+                </SelectBody>
+
+                <SelectActions>
+                  <SelectButton
+                    type="button"
+                    onClick={() => setShowMatchConfirm(false)}
+                    disabled={submittingMatch}
+                  >
+                    취소
+                  </SelectButton>
+                  <SelectButton
+                    type="button"
+                    $primary
+                    onClick={handleSubmitMatchRequest}
+                    disabled={submittingMatch}
+                  >
+                    {submittingMatch ? "신청 중…" : "매칭 신청"}
                   </SelectButton>
                 </SelectActions>
               </SelectCard>

@@ -89,11 +89,9 @@ export async function loadCommunityList({
     q = query(baseCol, orderBy("createdAt", "desc"), startAfter(cursor), fsLimit(take));
   }
 
-  const snap = await getDocs(q);
-
-  // 내가 신고/차단한 사용자·게시글 (Apple Guideline 1.2 — 즉시 본인 피드에서 숨김)
-  const { blockedUids: myBlockedUids, hiddenPostIds: myHiddenPostIds } =
-    await getMyBlockList(myUid);
+  // 게시글 목록과 내 차단/숨김 목록을 병렬 조회 (서로 의존 없음)
+  const [snap, { blockedUids: myBlockedUids, hiddenPostIds: myHiddenPostIds }] =
+    await Promise.all([getDocs(q), getMyBlockList(myUid)]);
   const blockedSet = new Set(myBlockedUids);
   const hiddenSet = new Set(myHiddenPostIds);
 
@@ -111,10 +109,13 @@ export async function loadCommunityList({
     new Set(raws.map((p) => String(p.authorUid || p.authorId || "").trim()).filter(Boolean))
   );
 
+  // 작성자 메타는 캐시 + 병렬 조회 (순차 await 시 글 수만큼 round-trip 발생)
   const metaByUid = {};
-  for (const uid of uniqAuthorUids) {
-    metaByUid[uid] = await getUserPublicMeta(uid);
-  }
+  await Promise.all(
+    uniqAuthorUids.map(async (uid) => {
+      metaByUid[uid] = await getUserPublicMeta(uid);
+    })
+  );
 
   const posts = raws.map((p) => {
     const authorUid = String(p.authorUid || p.authorId || "").trim();
@@ -158,7 +159,10 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
   if (!postId) return { post: null, comments: [] };
 
   const ref = doc(db, "community_posts", String(postId));
-  const snap = await getDoc(ref);
+
+  // 게시글 문서와 내 차단/숨김 목록을 병렬 조회 (서로 의존 없음)
+  const [snap, { blockedUids: myBlockedUids, hiddenPostIds: myHiddenPostIds }] =
+    await Promise.all([getDoc(ref), getMyBlockList(myUid)]);
 
   if (!snap.exists()) return { post: null, comments: [] };
 
@@ -166,8 +170,6 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
   const authorUid = String(data.authorUid || data.authorId || "").trim();
 
   // 내가 신고/차단한 사용자·게시글이면 상세 진입 차단 (Apple Guideline 1.2)
-  const { blockedUids: myBlockedUids, hiddenPostIds: myHiddenPostIds } =
-    await getMyBlockList(myUid);
   const blockedSet = new Set(myBlockedUids);
   const hiddenSet = new Set(myHiddenPostIds);
   if (hiddenSet.has(String(postId)) || (authorUid && blockedSet.has(authorUid))) {
@@ -225,9 +227,11 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
   );
 
   const cMetaByUid = {};
-  for (const uid of uniqCommentAuthors) {
-    cMetaByUid[uid] = await getUserPublicMeta(uid);
-  }
+  await Promise.all(
+    uniqCommentAuthors.map(async (uid) => {
+      cMetaByUid[uid] = await getUserPublicMeta(uid);
+    })
+  );
 
   const comments = commentRaws.map((c) => {
     const cAuthorUid = String(c.authorUid || c.authorId || "").trim();
@@ -329,15 +333,15 @@ export async function createCommunityPost({
 
   const postId = refDoc.id;
 
-  // 2) 이미지 업로드(있으면)
+  // 2) 이미지 업로드(있으면) — 여러 장을 병렬 업로드 (순차 시 장수만큼 누적 지연)
   if (picked.length > 0) {
-    const urls = [];
-
-    for (const f of picked) {
-      if (!f || !String(f?.type || "").startsWith("image/")) continue;
-      const up = await uploadPostImage({ authorUid: uid, postId, file: f });
-      urls.push(up.url);
-    }
+    const validFiles = picked.filter(
+      (f) => f && String(f?.type || "").startsWith("image/")
+    );
+    const uploaded = await Promise.all(
+      validFiles.map((f) => uploadPostImage({ authorUid: uid, postId, file: f }))
+    );
+    const urls = uploaded.map((up) => up.url);
 
     if (urls.length > 0) {
       await updateDoc(doc(db, "community_posts", postId), {
