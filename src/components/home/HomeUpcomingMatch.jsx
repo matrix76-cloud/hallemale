@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/components/home/HomeUpcomingMatch.jsx
 // 홈 상단: 다가오는(확정·미종료) 경기 카드
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { FiMapPin, FiChevronRight } from "react-icons/fi";
@@ -223,6 +223,26 @@ export default function HomeUpcomingMatch({ clubId }) {
   const nav = useNavigate();
   const [matches, setMatches] = useState([]);
   const [rankMap, setRankMap] = useState(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const rowRef = useRef(null);
+
+  // 스와이프 시 현재(스냅된) 슬라이드 인덱스 추적 → 헤더 D-day가 그 경기를 따라가도록
+  const handleScroll = () => {
+    const el = rowRef.current;
+    if (!el) return;
+    const base = el.getBoundingClientRect().left;
+    const kids = Array.from(el.children);
+    let best = 0;
+    let bestDist = Infinity;
+    kids.forEach((c, i) => {
+      const dist = Math.abs(c.getBoundingClientRect().left - base);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = i;
+      }
+    });
+    setActiveIdx(best);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -254,6 +274,7 @@ export default function HomeUpcomingMatch({ clubId }) {
           .sort((a, b) => a._t - b._t);
 
         setMatches(upcoming);
+        setActiveIdx(0);
         setRankMap(rmap || null);
       } catch (e) {
         console.warn("[HomeUpcomingMatch] load failed:", e?.message || e);
@@ -340,10 +361,10 @@ export default function HomeUpcomingMatch({ clubId }) {
     <SectionWrap>
       <TitleRow>
         <SectionTitle>다가오는 경기{multi ? ` ${matches.length}` : ""}</SectionTitle>
-        <Dday>{formatDday(matches[0]?.scheduledAt)}</Dday>
+        <Dday>{formatDday(matches[Math.min(activeIdx, matches.length - 1)]?.scheduledAt)}</Dday>
       </TitleRow>
 
-      <SlideRow $multi={multi}>
+      <SlideRow $multi={multi} ref={rowRef} onScroll={multi ? handleScroll : undefined}>
         {matches.map((m) => (
           <Slide key={m.id} $multi={multi}>
             {renderCard(m)}

@@ -50,7 +50,7 @@ const SysMsg = styled.div`
 const DateDivider = styled(SysMsg)``;
 
 const Bubble = styled.div`
-  max-width: 78%;
+  max-width: 82%;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -65,10 +65,10 @@ const Who = styled.div`
 `;
 
 const Msg = styled.div`
-  font-size: 14.5px;
-  line-height: 1.5;
-  padding: 9px 13px;
-  border-radius: 14px;
+  font-size: 15.5px;
+  line-height: 1.55;
+  padding: 11px 15px;
+  border-radius: 16px;
   white-space: pre-line;
   word-break: break-word;
   ${({ theme, $me }) => {
@@ -320,6 +320,10 @@ export default function MatchRoomChat({
         {rows.map((row) => {
           if (row.type === "date") {
             return <DateDivider key={row.id}>{row.label}</DateDivider>;
+          }
+          // 시스템 메시지(라인업 확정 등)는 말풍선 대신 가운데 안내로 표시
+          if (row.kind === "system") {
+            return <SysMsg key={row.id}>{row.text}</SysMsg>;
           }
           const me = row.fromUid && row.fromUid === myUid;
           const imgs = Array.isArray(row.images) ? row.images.slice(0, 4) : [];

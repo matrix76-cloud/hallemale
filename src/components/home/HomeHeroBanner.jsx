@@ -224,6 +224,9 @@ export default function HomeHeroBanner({ placement = "home", fallback = BANNERS,
   }, [index, banners, remoteBanners]);
 
   const handleBannerClick = (banner) => {
+    // 스와이프(드래그) 동작이면 링크 클릭으로 처리하지 않음
+    if (dragRef.current.moved) return;
+
     const isRemote = Array.isArray(remoteBanners) && remoteBanners.length > 0;
     if (isRemote && banner?.id) {
       incrementBannerClick(banner.id);
@@ -242,10 +245,44 @@ export default function HomeHeroBanner({ placement = "home", fallback = BANNERS,
   const handleDotClick = (i) => setIndex(i);
   const offset = -(index * 100);
 
+  // ✅ 스와이프(터치/마우스 드래그)로 좌우 이동
+  const dragRef = useRef({ startX: null, moved: false });
+
+  const goPrev = () => setIndex((prev) => (prev - 1 + total) % total);
+  const goNext = () => setIndex((prev) => (prev + 1) % total);
+
+  const onSwipeStart = (x) => {
+    dragRef.current = { startX: x, moved: false };
+  };
+  const onSwipeEnd = (x) => {
+    const { startX } = dragRef.current;
+    if (startX == null || total <= 1) return;
+    const dx = x - startX;
+    const THRESHOLD = 40; // px
+    if (dx <= -THRESHOLD) {
+      goNext();
+      dragRef.current.moved = true;
+    } else if (dx >= THRESHOLD) {
+      goPrev();
+      dragRef.current.moved = true;
+    }
+    dragRef.current.startX = null;
+  };
+
+  const handleTouchStart = (e) => onSwipeStart(e.touches[0].clientX);
+  const handleTouchEnd = (e) => onSwipeEnd(e.changedTouches[0].clientX);
+  const handleMouseDown = (e) => onSwipeStart(e.clientX);
+  const handleMouseUp = (e) => onSwipeEnd(e.clientX);
+
   if (total === 0) return null;
 
   return (
-    <Wrap>
+    <Wrap
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+    >
       <Track style={{ transform: `translateX(${offset}%)` }}>
         {banners.map((banner) => (
           <Slide

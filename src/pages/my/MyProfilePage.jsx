@@ -113,6 +113,7 @@ export default function MyProfilePage() {
     if (key === "posts") nav("/my/posts");
     if (key === "personal-matches") nav("/my/personal-matches");
     if (key === "matched-matches") nav("/my/matched-matches");
+    if (key === "my-reports") nav("/my/reports");
 
     if (key === "team-invites") nav("/my/team-invites");
 
@@ -617,6 +618,13 @@ export default function MyProfilePage() {
               <MenuItemButton onClick={() => handleMainMenuClick("matched-matches")}>
                 <MenuTextWrap>
                   <MenuTitle>매칭된 경기</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
+              <MenuItemButton onClick={() => handleMainMenuClick("my-reports")}>
+                <MenuTextWrap>
+                  <MenuTitle>내가 신고한 내역</MenuTitle>
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>

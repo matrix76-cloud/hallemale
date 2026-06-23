@@ -38,6 +38,12 @@ export const MATCH_INBOX_SECTION = {
   SENT: "sent",
 };
 
+/**
+ * 매칭(신청/수락)에 필요한 최소 팀 인원 (팀장 포함)
+ * - 팀장 포함 3명 미만이면 매칭을 보내거나 받을 수 없음
+ */
+export const MIN_TEAM_MEMBERS = 3;
+
 
 // src/utils/constants.js
 

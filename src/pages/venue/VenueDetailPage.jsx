@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
 import { IoArrowBack } from "react-icons/io5";
+import { FiMapPin } from "react-icons/fi";
 import { getVenueById } from "../../services/venuesService";
 import Spinner from "../../components/common/Spinner";
 
@@ -81,7 +82,9 @@ export default function VenueDetailPage() {
           </Section>
 
           <Section>
-            <SectionTitle>📍 주소</SectionTitle>
+            <SectionTitle style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <FiMapPin size={14} />주소
+            </SectionTitle>
             <Address>
               {venue.address}
               {venue.addressDetail ? ` ${venue.addressDetail}` : ""}

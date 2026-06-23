@@ -77,9 +77,8 @@ const ScrollArea = styled.div`
 const HeroWrap = styled.div`
   position: relative;
   width: 100%;
-  height: 180px;
-  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 40%, #0f172a 100%);
-  color: #ecfeff;
+  background: ${({ theme }) => theme.colors.bg};
+  color: ${({ theme }) => theme.colors.textStrong};
   overflow: hidden;
 `;
 
@@ -105,8 +104,7 @@ const HeroTeamBgImg = styled.img`
 `;
 
 const HeroInner = styled.div`
-  position: absolute;
-  inset: 0;
+  position: relative;
   display: flex;
   align-items: center;
   padding: 24px 16px 10px;
@@ -162,7 +160,8 @@ const AvatarCircle = styled.div`
   height: 62px;
   border-radius: 8px;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.35);
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f4f4ff"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -197,7 +196,7 @@ const HeroName = styled.h1`
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  color: #ecfeff;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,7 +221,7 @@ const CaptainPill = styled.span`
 const HeroMetaRow = styled.div`
   margin-top: 4px;
   font-size: 12px;
-  color: #a5f3fc;
+  color: ${({ theme }) => theme.colors.textWeak};
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -247,8 +246,12 @@ const HeroChip = styled.span`
   font-size: 11px;
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.35);
-  color: #e0f2fe;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f1f5f9"};
+  color: ${({ theme }) => theme.colors.textNormal};
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
 `;
 
@@ -259,8 +262,8 @@ const SkillChip = styled.span`
   white-space: nowrap;
   ${({ $skill }) => {
     const style = SKILL_COLOR[$skill] || {
-      bg: "rgba(15,23,42,0.25)",
-      color: "#e0f2fe",
+      bg: "#f1f5f9",
+      color: "#475569",
     };
     return `
       background: ${style.bg};

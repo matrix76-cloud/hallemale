@@ -9,6 +9,7 @@ import InfoDialog from "../../components/common/InfoDialog";
 
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
+import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 import { listMatchInboxForClub } from "../../services/matchingInboxService";
 import {
   acceptMatchRequest,
@@ -700,8 +701,9 @@ export default function MatchingManagePage() {
     initialTab === "sent" || initialTab === "closed" ? initialTab : "received"
   );
 
-  const { club } = useClub();
+  const { club, members: myMembers } = useClub();
   const myClubId = toStr(club?.clubId || club?.id);
+  const myMemberCount = Array.isArray(myMembers) ? myMembers.length : 0;
 
   const { firebaseUser, userDoc } = useAuth();
   const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
@@ -799,6 +801,11 @@ export default function MatchingManagePage() {
       setBusyKey(key);
 
       if (action.type === "accept") {
+        // ✅ 최소 인원(팀장 포함 3명) 미만이면 수락 불가
+        if (myMemberCount < MIN_TEAM_MEMBERS) {
+          alert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 수락할 수 있어요. (현재 ${myMemberCount}명)`);
+          return;
+        }
         await acceptMatchRequest({ myClubId, latestNoti: latest });
         await reload();
 

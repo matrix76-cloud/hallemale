@@ -29,6 +29,7 @@ import { uploadCompressedImageMedia } from "./mediaService";
 import { getUserProfileByUid } from "./userService";
 import { listClubMembers } from "./clubManageService";
 import { fetchLineupRosterProfiles } from "./lineupRosterService";
+import { sendSystemMessage } from "./chatService";
 
 /* ========================= util ========================= */
 
@@ -362,6 +363,18 @@ export async function confirmMatchLineup({
 
   await updateDoc(ref, patch);
 
+  // ✅ 라인업 확정을 양 팀 채팅에 시스템 메시지로 남김 (상대팀/내가 모두 볼 수 있게)
+  // 채팅 id 규칙: match_{matchRequestId} (getOrCreateMatchRoomChat 참고)
+  try {
+    await sendSystemMessage({
+      chatId: `match_${id}`,
+      text: teamName ? `${teamName} 팀이 라인업을 확정했어요.` : "라인업이 확정됐어요.",
+      meta: { type: "lineup_confirmed", clubId: cid },
+    });
+  } catch (e) {
+    console.warn("[confirmMatchLineup] system message failed:", e?.message || e);
+  }
+
   return { ok: true };
 }
 
@@ -600,7 +613,8 @@ function normalizeLineupSnapshot(snap) {
       const heightCm = m?.heightCm != null ? safeNum(m.heightCm, null) : null;
       const weightKg = m?.weightKg != null ? safeNum(m.weightKg, null) : null;
       const photoUrl = toStr(m?.photoUrl || m?.avatarUrl || m?.profileUrl);
-      return { userId, nickname, mainPosition, heightCm, weightKg, photoUrl };
+      const skillLevel = toStr(m?.skillLevel);
+      return { userId, nickname, mainPosition, heightCm, weightKg, photoUrl, skillLevel };
     });
 
   const players = mapPreview(s.previewMembers);
@@ -724,6 +738,39 @@ export async function loadMatchRoomDetail(matchRequestId) {
   room.myLineup = myLineup;
   room.oppLineup = oppLineup;
 
+  // ✅ 선수 실력(skillLevel) 보강: 라인업 선수들의 users 프로필에서 실력 주입
+  // - 라인업 스냅샷(previewMembers)에는 실력이 없을 수 있어 항상 최신 프로필로 채운다
+  try {
+    const collectIds = (lineup) =>
+      [
+        ...((lineup?.players || []).map((p) => toStr(p?.userId))),
+        ...((lineup?.subPlayers || []).map((p) => toStr(p?.userId))),
+        ...((lineup?.memberIds) || []).map((x) => toStr(x)),
+      ].filter(Boolean);
+
+    const allIds = uniqStr([...collectIds(room.myLineup), ...collectIds(room.oppLineup)]);
+    if (allIds.length) {
+      const profs = await fetchLineupRosterProfiles(allIds);
+      const skillById = {};
+      profs.forEach((pr) => {
+        if (pr?.userId) skillById[pr.userId] = toStr(pr.skillLevel);
+      });
+      const inject = (lineup) => {
+        if (!lineup) return lineup;
+        const mapSkill = (p) => ({ ...p, skillLevel: toStr(p?.skillLevel) || skillById[toStr(p?.userId)] || "" });
+        return {
+          ...lineup,
+          players: (lineup.players || []).map(mapSkill),
+          subPlayers: (lineup.subPlayers || []).map(mapSkill),
+        };
+      };
+      room.myLineup = inject(room.myLineup);
+      room.oppLineup = inject(room.oppLineup);
+    }
+  } catch (e) {
+    console.warn("[matchRoomService] skill enrich failed:", e?.message || e);
+  }
+
   // 선수 평점(상대 팀에 남긴 별점) 동봉
   try {
     room.reviews = await listMatchReviews({ matchRequestId: id });
@@ -784,6 +831,39 @@ async function getOpponentClubId(matchId, actingClubId) {
   } catch (e) {
     return "";
   }
+}
+
+// ✅ 라인업 확정 요청 알림: 아직 라인업을 확정하지 않은 상대 팀(팀장)에게 발송
+// - notifications 문서 생성(푸시 큐) + 매칭룸 채팅에 시스템 메시지
+export async function sendLineupReminder({ matchRequestId, fromClubId } = {}) {
+  const id = toStr(matchRequestId);
+  const from = toStr(fromClubId);
+  if (!id) throw new Error("sendLineupReminder: matchRequestId is required");
+
+  const oppClubId = await getOpponentClubId(id, from);
+  if (!oppClubId) throw new Error("상대 팀을 찾을 수 없습니다.");
+
+  await notifyMatchRoomEvent({
+    matchId: id,
+    recipientClubId: oppClubId,
+    subType: "matchLineupReminder",
+    type: "match_lineup_reminder",
+    title: "라인업 확정 요청",
+    body: "상대팀이 라인업을 기다리고 있어요. 라인업을 확정해 주세요.",
+  });
+
+  // 채팅에도 시스템 메시지로 남겨 양 팀이 확인 가능
+  try {
+    await sendSystemMessage({
+      chatId: `match_${id}`,
+      text: "상대팀에 라인업 확정을 요청했어요.",
+      meta: { type: "lineup_reminder", clubId: from },
+    });
+  } catch (e) {
+    console.warn("[sendLineupReminder] system message failed:", e?.message || e);
+  }
+
+  return { ok: true };
 }
 
 // ── 매칭룸 미확인 배지: 상세 열람 시 "본 시각" 기록(배지 해제) ──

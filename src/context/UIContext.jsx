@@ -14,6 +14,9 @@ export function UIProvider({ children }) {
   const [bottomSheet, setBottomSheet] = useState(null);
   // 상단 헤더 부제 (예: 구장 정하기 페이지의 "리바운드5 vs 패스트브레이")
   const [headerSubtitle, setHeaderSubtitle] = useState("");
+  // 상단 헤더 커스텀(매칭룸: 팀 로고 + 팀명 + 햄버거 메뉴) — null이면 기본 헤더
+  // { title, avatarUrl, onMenu } 형태
+  const [headerConfig, setHeaderConfig] = useState(null);
 
   const showToast = useCallback((opts) => {
     setToast({ message: opts.message, type: opts.type || "info" });
@@ -49,7 +52,9 @@ export function UIProvider({ children }) {
     showBottomSheet,
     hideBottomSheet,
     headerSubtitle,
-    setHeaderSubtitle
+    setHeaderSubtitle,
+    headerConfig,
+    setHeaderConfig
   };
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;

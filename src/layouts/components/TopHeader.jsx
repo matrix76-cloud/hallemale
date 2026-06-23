@@ -5,6 +5,7 @@ import styled from "styled-components";
 import {
   AiOutlineMessage,
   AiOutlineLeft,
+  AiOutlineMenu,
 } from "react-icons/ai";
 import { useNavigate } from "react-router-dom";
 import BrandHeader from "../../components/auth/BrandHeader";
@@ -78,6 +79,15 @@ const LeftArea = styled.div`
   min-width: 0;
 `;
 
+const HeaderAvatar = styled.img`
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: ${({ theme }) => theme.colors.surface || "#e5e7eb"};
+`;
+
 const TitleCol = styled.div`
   display: flex;
   flex-direction: column;
@@ -126,6 +136,7 @@ export default function TopHeader({
   const unreadChatCount = useUnreadChatCount();
   const ui = useUIContext();
   const headerSubtitle = ui?.headerSubtitle || "";
+  const headerConfig = ui?.headerConfig || null;
 
   const isHome = title === "할래말래";
 
@@ -143,6 +154,7 @@ export default function TopHeader({
   };
 
   if (showBack || (rightActions && rightActions.length > 0)) {
+    const displayTitle = headerConfig?.title || title;
     return (
       <Wrap>
         <LeftArea>
@@ -151,8 +163,11 @@ export default function TopHeader({
               <AiOutlineLeft />
             </IconButton>
           )}
+          {headerConfig?.avatarUrl && (
+            <HeaderAvatar src={headerConfig.avatarUrl} alt={displayTitle} />
+          )}
           <TitleCol>
-            <Title>{title}</Title>
+            <Title>{displayTitle}</Title>
             {headerSubtitle && <Subtitle>{headerSubtitle}</Subtitle>}
           </TitleCol>
         </LeftArea>
@@ -162,6 +177,11 @@ export default function TopHeader({
               {act.icon}
             </IconButton>
           ))}
+          {headerConfig?.onMenu && (
+            <IconButton type="button" onClick={headerConfig.onMenu} aria-label="메뉴">
+              <AiOutlineMenu />
+            </IconButton>
+          )}
         </RightArea>
       </Wrap>
     );

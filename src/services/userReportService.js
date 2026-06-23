@@ -56,6 +56,29 @@ export async function createUserReport({
   return { id: ref.id };
 }
 
+// ✅ 내가 신고한 선수(유저) 목록 (내정보 > 내가 신고한 내역)
+export async function listMyUserReports(reporterUid) {
+  const ru = safeStr(reporterUid);
+  if (!ru) return [];
+  const q = query(collection(db, "user_reports"), where("reporterUid", "==", ru));
+  const snap = await getDocs(q);
+  const rows = [];
+  snap.forEach((d) => {
+    const data = d.data() || {};
+    rows.push({
+      id: d.id,
+      type: "player",
+      targetId: safeStr(data.targetUid),
+      targetName: safeStr(data.targetNickname),
+      reason: safeStr(data.reason),
+      status: safeStr(data.status) || "pending",
+      createdAt: toDate(data.createdAt),
+    });
+  });
+  rows.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  return rows;
+}
+
 // 관리자 - 신고 목록 조회
 export async function listUserReports({ statusFilter = "all" } = {}) {
   let q;

@@ -5,6 +5,7 @@ import styled from "styled-components";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
 import { images, playerAvatars, teamLogoSrc } from "../../utils/imageAssets";
+import { FiMapPin, FiCalendar } from "react-icons/fi";
 import {
   loadMatchRoomDetail,
   proposeMatchSchedule,
@@ -16,6 +17,7 @@ import {
   appendMatchResultComment,
   appendMatchResultPhotos,
   markMatchRoomSeen,
+  sendLineupReminder,
 } from "../../services/matchRoomService";
 import PositionChip from "../../components/common/PositionChip";
 import { useClub } from "../../hooks/useClub";
@@ -32,6 +34,7 @@ import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfi
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
 import { getTeamRankMap } from "../../services/teamRankingService";
+import { createTeamReport } from "../../services/teamReportService";
 import { mrp } from "../../components/matchRoom/matchRoomPalette";
 
 /* 기획안 색 토큰 (할래말래_직접입력.html :root) — 폴백/참조용 */
@@ -56,6 +59,12 @@ const HC = {
 /* ==================== 헬퍼 ==================== */
 
 const POSITION_LABEL = { guard: "가드", forward: "포워드", center: "센터" };
+const SKILL_LABEL = {
+  beginner: "입문",
+  amateur: "아마추어",
+  intermediate: "중급",
+  advanced: "상급",
+};
 const toStr = (v) => String(v || "").trim();
 
 const formatKoreanDateTime = (iso) => {
@@ -321,6 +330,21 @@ const PlayerBodyMeta = styled.div`
   font-size: 11px;
   color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
+`;
+
+/* 선수 실력 배지 (입문/아마추어/중급/상급) */
+const SkillBadge = styled.span`
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
 `;
 
 const VsDivider = styled.div`
@@ -1181,7 +1205,7 @@ const GateNotice = styled.div`
 /* ── 매칭룸 셸 (기획안 HTML 1:1, 라이트/다크 자동 전환) ── */
 const DarkHeader = styled.div`
   background: ${({ theme }) => mrp(theme.mode).bg};
-  padding: 14px 12px 0;
+  padding: 8px 12px 0;
 `;
 
 const MatchInfoBar = styled.button`
@@ -1190,12 +1214,19 @@ const MatchInfoBar = styled.button`
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 14px;
-  margin-bottom: 10px;
+  padding: 9px 14px;
+  margin-bottom: 6px;
   border: none;
   border-radius: 12px;
   background: ${({ theme }) => mrp(theme.mode).surface2};
   cursor: pointer;
+`;
+
+const MatchInfoLeft = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 `;
 
 const MatchInfoBarTitle = styled.span`
@@ -1203,13 +1234,205 @@ const MatchInfoBarTitle = styled.span`
   font-weight: 700;
   color: ${({ theme }) => mrp(theme.mode).t2};
   letter-spacing: -0.02em;
+  flex-shrink: 0;
+`;
+
+const StepSummaryBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: ${({ theme }) => mrp(theme.mode).puBg};
+  color: ${({ theme }) => mrp(theme.mode).puL};
 `;
 
 const MatchInfoToggle = styled.span`
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: ${({ theme }) => mrp(theme.mode).puD};
   flex-shrink: 0;
+`;
+
+/* ───── 헤더 햄버거 메뉴 바텀시트 ───── */
+const RoomMenuSheet = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 4px 4px;
+`;
+const RoomMenuTitle = styled.div`
+  font-size: 13px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+  padding: 4px 6px 8px;
+`;
+const RoomMenuBtn = styled.button`
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 14px 8px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  color: ${({ theme, $muted, $danger }) =>
+    $danger
+      ? theme.mode === "dark"
+        ? "#fca5a5"
+        : "#dc2626"
+      : $muted
+      ? theme.colors.textWeak
+      : theme.colors.textStrong};
+  &:active {
+    background: ${({ theme }) => theme.colors.divider};
+  }
+`;
+
+/* ───── 라인업 보기 모달(배너 창) ───── */
+const LineupModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+`;
+const LineupModalCard = styled.div`
+  width: 100%;
+  max-width: 420px;
+  max-height: 82vh;
+  overflow-y: auto;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 16px;
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+`;
+const LineupModalHead = styled.div`
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  z-index: 1;
+`;
+const LineupModalTitle = styled.div`
+  font-size: 16px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+const LineupModalClose = styled.button`
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: ${({ theme }) => theme.colors.textWeak};
+  padding: 0 4px;
+`;
+const LineupModalBody = styled.div`
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+const LineupTeamName = styled.div`
+  font-size: 14px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  margin-bottom: 6px;
+`;
+const WaitBox = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px;
+  border-radius: 12px;
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.surface};
+  text-align: center;
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+const RemindBtn = styled.button`
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  background: ${({ theme }) => theme.colors.primary};
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+`;
+
+/* ───── 상대 팀 신고 모달 ───── */
+const ReportDesc = styled.div`
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-line;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+const ReportTextarea = styled.textarea`
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textStrong};
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
+  }
+`;
+const ReportActions = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+const ReportCancelBtn = styled.button`
+  flex: 1;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.textStrong};
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+`;
+const ReportSubmitBtn = styled.button`
+  flex: 1.4;
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  background: ${({ theme }) => (theme.mode === "dark" ? "#ef4444" : "#dc2626")};
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
 `;
 
 const VsCard = styled.div`
@@ -1357,7 +1580,7 @@ const VsX = styled.div`
 const Stepper = styled.div`
   display: flex;
   align-items: flex-start;
-  padding: 18px 4px 2px;
+  padding: 8px 2px 4px;
 `;
 
 const Step = styled.div`
@@ -2469,7 +2692,7 @@ export default function MatchRoomDetailPage() {
   const { club } = useClub();
   const { firebaseUser, userDoc } = useAuth();
   const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
-  const { setHeaderSubtitle } = useUIContext() || {};
+  const { setHeaderSubtitle, setHeaderConfig, showBottomSheet, hideBottomSheet, showToast } = useUIContext() || {};
 
   const myClubId = toStr(club?.clubId || club?.id);
   const roomId = toStr(params?.roomId || params?.matchId);
@@ -2507,8 +2730,9 @@ export default function MatchRoomDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const initOnceRef = useRef(false);
 
-  // 결제 흐름 제거 → 항상 직접 입력(현장 정산). 방식 선택 게이트 미사용.
-  const [venueMode, setVenueMode] = useState("direct");
+  // 구장 정하기 방식 선택 게이트: "none"(미선택) → 게이트 노출 → "direct"(직접 입력) 선택 시 지도 흐름.
+  // ("제휴구장 예약"은 준비중 — 결제/예약 백엔드 미구현)
+  const [venueMode, setVenueMode] = useState("none");
 
   // 매칭룸 탭은 URL로 분리: /match-roomdetail/:id (채팅) vs /:id/venue (구장 정하기 별도 페이지)
   const location = useLocation();
@@ -2525,6 +2749,16 @@ export default function MatchRoomDetailPage() {
 
   // 조율 단계 라인업 확정 시트
   const [lineupSheetOpen, setLineupSheetOpen] = useState(false);
+
+  // 라인업 보기 모달(배너 창) + 상대 라인업 확정 요청 알림 상태
+  const [lineupViewOpen, setLineupViewOpen] = useState(false);
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderSent, setReminderSent] = useState(false);
+
+  // 상대 팀 신고 모달
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
 
   const fileRef = useRef(null);
 
@@ -2670,11 +2904,82 @@ export default function MatchRoomDetailPage() {
       const myN = toStr(myT?.name) || "내 팀";
       const oppN = toStr(oppT?.name) || "상대팀";
       setHeaderSubtitle(`${myN} vs ${oppN}`);
+    } else if (room) {
+      // 매칭룸(채팅) 화면: 헤더에 팀명(headerConfig) 아래 "매칭공간" 부제
+      setHeaderSubtitle("매칭공간");
     } else {
       setHeaderSubtitle("");
     }
     return () => setHeaderSubtitle && setHeaderSubtitle("");
   }, [isVenue, room, myClubId, setHeaderSubtitle]);
+
+  // ✅ 매칭룸 상단 헤더: 상대 팀 로고 + 팀명 + 햄버거(메뉴)
+  // (구장 정하기 페이지는 기본 헤더 유지)
+  useEffect(() => {
+    if (!setHeaderConfig) return;
+    if (isVenue || !room) {
+      setHeaderConfig(null);
+      return;
+    }
+    const actorId = toStr(room.actorClubId);
+    const iAmActor = !!myClubId && !!actorId && myClubId === actorId;
+    const oppT = iAmActor ? room.oppTeam : room.myTeam;
+    const oppN = toStr(oppT?.name) || "상대팀";
+    const oppId = toStr(oppT?.clubId || oppT?.id);
+
+    setHeaderConfig({
+      title: oppN,
+      avatarUrl: teamLogoSrc(oppT?.logoUrl),
+      onMenu: () => {
+        if (!showBottomSheet) return;
+        showBottomSheet(() => (
+          <RoomMenuSheet>
+            <RoomMenuTitle>{oppN}</RoomMenuTitle>
+            {oppId && (
+              <RoomMenuBtn
+                type="button"
+                onClick={() => {
+                  hideBottomSheet && hideBottomSheet();
+                  navigate(`/team/${oppId}`);
+                }}
+              >
+                상대 팀 프로필 보기
+              </RoomMenuBtn>
+            )}
+            <RoomMenuBtn
+              type="button"
+              onClick={() => {
+                hideBottomSheet && hideBottomSheet();
+                navigate("/match-roomlist");
+              }}
+            >
+              매칭룸 목록으로
+            </RoomMenuBtn>
+            <RoomMenuBtn
+              type="button"
+              $danger
+              onClick={() => {
+                hideBottomSheet && hideBottomSheet();
+                setReportReason("");
+                setReportOpen(true);
+              }}
+            >
+              🚩 상대 팀 신고하기
+            </RoomMenuBtn>
+            <RoomMenuBtn
+              type="button"
+              $muted
+              onClick={() => hideBottomSheet && hideBottomSheet()}
+            >
+              닫기
+            </RoomMenuBtn>
+          </RoomMenuSheet>
+        ));
+      },
+    });
+
+    return () => setHeaderConfig && setHeaderConfig(null);
+  }, [isVenue, room, myClubId, setHeaderConfig, showBottomSheet, hideBottomSheet, navigate]);
 
   // 상대 팀장과의 DM 채팅방 확보 (매칭룸 채팅 탭에서 사용)
   useEffect(() => {
@@ -2705,20 +3010,21 @@ export default function MatchRoomDetailPage() {
     };
   }, [room, myUid, myClubId, roomId]);
 
-  // 구장 정하기 진입 시 "구장부터" 선택하도록 지도 피커를 먼저 한 번 자동 오픈.
-  // (선택 후엔 폼에 [선택된 구장 + 날짜] 표시)
+  // "직접 입력"을 고른 뒤에만 지도 피커를 먼저 한 번 자동 오픈.
+  // (방식 선택 게이트를 먼저 보여주기 위해 venueMode === "direct" 일 때만)
   useEffect(() => {
     if (!isVenue) {
       venueAutoOpenRef.current = false;
       return;
     }
     if (venueAutoOpenRef.current) return;
+    if (venueMode !== "direct") return;
     const st = toStr(room?.status);
     if (st === "accepted" && !fieldLatLng) {
       venueAutoOpenRef.current = true;
       setMapPickerOpen(true);
     }
-  }, [isVenue, room?.status, fieldLatLng]);
+  }, [isVenue, room?.status, fieldLatLng, venueMode]);
 
   useEffect(() => {
     const kakao = window.kakao;
@@ -2783,8 +3089,10 @@ export default function MatchRoomDetailPage() {
       const lat = Number(first.y);
       const lng = Number(first.x);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      setFieldLatLng({ lat, lng });
-      if (!toStr(fieldAddress)) setFieldAddress(region);
+      // ✅ 비동기 콜백이 늦게 도착해 "이미 로드된 실제 구장 좌표/주소"를 지역 기본값으로
+      //    덮어쓰지 않도록 함수형 가드 (덮어쓰면 받는 팀 핀이 엉뚱한 곳을 가리킴)
+      setFieldLatLng((prev) => (prev ? prev : { lat, lng }));
+      setFieldAddress((prev) => (toStr(prev) ? prev : region));
     });
   }, [room?.status, room?.myTeam?.region, room?.myTeam?.regionSido, room?.myTeam?.regionGu, fieldLatLng, fieldAddress]);
 
@@ -2948,20 +3256,38 @@ export default function MatchRoomDetailPage() {
   const isFinished = status === "finished";
   const isCancelled = status === "cancelled";
 
-  // 진행단계 스텝퍼 (직접 입력 흐름: 조율 → 구장 → 합의 → 확정)
+  // 진행단계 스텝퍼 (직접 입력 흐름)
   // 결제 단계 제거 (현장 정산만 있어 앱 결제 없음)
-  // 단계: 조율(수락) → 라인업(양 팀 확정) → 구장(일정 제안) → 확정
-  const STEP_LABELS = ["조율", "라인업", "구장", "확정"];
+  // 단계: 라인업(양 팀 확정) → 구장(장소) → 일정(상대 수락) → 준비완료
+  const STEP_LABELS = ["라인업", "구장", "일정", "준비완료"];
   const stepStates = (() => {
     if (status === "accepted")
       return bothLineupsConfirmed
-        ? ["done", "done", "cur", "todo"]
-        : ["done", "cur", "todo", "todo"];
-    if (status === "proposed") return ["done", "done", "done", "cur"];
+        ? ["done", "cur", "todo", "todo"]
+        : ["cur", "todo", "todo", "todo"];
+    if (status === "proposed") return ["done", "done", "cur", "todo"];
     if (status === "confirmed") return ["done", "done", "done", "done"];
     if (status === "finished") return ["done", "done", "done", "done"];
-    if (status === "cancelled") return ["done", "todo", "todo", "todo"];
+    if (status === "cancelled") return ["todo", "todo", "todo", "todo"];
     return ["cur", "todo", "todo", "todo"];
+  })();
+
+  // 진행 단계 요약 배지 ("1/4 · 라인업 확정 중")
+  const stepSummary = (() => {
+    if (status === "finished") return "경기 종료";
+    if (status === "cancelled") return "취소된 매칭";
+    if (status === "confirmed") return "4/4 · 준비완료";
+    const labelNote = {
+      라인업: "라인업 확정 중",
+      구장: "구장 정하는 중",
+      일정: "일정 확정 중",
+    };
+    const curIdx = stepStates.findIndex((s) => s === "cur");
+    if (curIdx >= 0) {
+      const lb = STEP_LABELS[curIdx];
+      return `${curIdx + 1}/4 · ${labelNote[lb] || `${lb} 단계`}`;
+    }
+    return "";
   })();
 
   const oppName = toStr(oppTeamView?.name) || "상대팀";
@@ -3310,6 +3636,9 @@ export default function MatchRoomDetailPage() {
     const weight = p.weightKg ? `${p.weightKg}kg` : null;
     const bodyText = [height, weight].filter(Boolean).join(" / ");
 
+    // ✅ 실력(개인 프로필) 표시 — 승패 대신
+    const skillLabel = SKILL_LABEL[toStr(p.skillLevel)] || "";
+
     return (
       <PlayerRow key={p.userId}>
         <PlayerLeft onClick={() => goPlayerDetail(p)}>
@@ -3325,7 +3654,11 @@ export default function MatchRoomDetailPage() {
             </PlayerTopRow>
           </PlayerText>
         </PlayerLeft>
-        <PlayerBodyMeta>{bodyText || fallbackText}</PlayerBodyMeta>
+        {skillLabel ? (
+          <SkillBadge>{skillLabel}</SkillBadge>
+        ) : (
+          <PlayerBodyMeta>{bodyText || "실력 미입력"}</PlayerBodyMeta>
+        )}
       </PlayerRow>
     );
   };
@@ -3490,6 +3823,60 @@ export default function MatchRoomDetailPage() {
       </PropCard>
     ) : null;
 
+  // ───── 조율 단계: 상대 팀에 라인업 확정 요청 알림 ─────
+  const handleSendLineupReminder = async () => {
+    if (!room?.id || reminderBusy) return;
+    try {
+      setReminderBusy(true);
+      await sendLineupReminder({ matchRequestId: room.id, fromClubId: myClubId });
+      setReminderSent(true);
+      showToast && showToast({ message: "상대팀에 라인업 확정 요청을 보냈어요." });
+    } catch (e) {
+      showToast && showToast({ message: e?.message || "알림 전송에 실패했어요." });
+    } finally {
+      setReminderBusy(false);
+    }
+  };
+
+  // ───── 상대 팀 신고 제출 ─────
+  const handleSubmitReport = async () => {
+    const reason = toStr(reportReason);
+    if (!reason) {
+      showToast && showToast({ message: "신고 사유를 입력해 주세요." });
+      return;
+    }
+    if (!myUid) {
+      showToast && showToast({ message: "로그인이 필요합니다." });
+      return;
+    }
+    // 상대 팀(관점 무관, 로그인 팀의 상대) 산출
+    const actorId = toStr(room?.actorClubId);
+    const iAmActor = !!myClubId && !!actorId && myClubId === actorId;
+    const oppT = iAmActor ? room?.oppTeam : room?.myTeam;
+    const oppClubId = toStr(oppT?.clubId || oppT?.id);
+    if (!oppClubId) {
+      showToast && showToast({ message: "상대 팀 정보를 찾을 수 없습니다." });
+      return;
+    }
+    setReportBusy(true);
+    try {
+      await createTeamReport({
+        clubId: oppClubId,
+        clubName: toStr(oppT?.name),
+        reporterUid: myUid,
+        reporterNickname: toStr(userDoc?.nickname || userDoc?.name || ""),
+        reason,
+      });
+      setReportOpen(false);
+      setReportReason("");
+      showToast && showToast({ message: "신고가 접수되었습니다. 검토 후 조치합니다." });
+    } catch (e) {
+      showToast && showToast({ message: e?.message || "신고 접수에 실패했습니다." });
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   // ───── 채팅 메시지 위에 고정되는 액션 바 (accepted / proposed 공통) ─────
   let chatTopBar = null;
   if (status === "accepted") {
@@ -3508,9 +3895,12 @@ export default function MatchRoomDetailPage() {
             {oppLineupConfirmed ? "✅" : "⏳ 대기중"} · 양 팀 확정 후 구장·일정을 제안할 수 있어요.
           </ActNote>
           <ActRow>
-            <ActPrimary type="button" onClick={() => setLineupSheetOpen(true)}>
+            <ActPrimary style={{ flex: 1 }} type="button" onClick={() => setLineupSheetOpen(true)}>
               {myLineupConfirmed ? "우리 라인업 수정" : "우리 라인업 확정하기"}
             </ActPrimary>
+            <ActGhost type="button" onClick={() => setLineupViewOpen(true)}>
+              라인업 보기
+            </ActGhost>
           </ActRow>
         </ActStack>
       );
@@ -3522,6 +3912,11 @@ export default function MatchRoomDetailPage() {
             <ActGhost type="button" onClick={() => setLineupSheetOpen(true)}>
               라인업 수정
             </ActGhost>
+            <ActGhost type="button" onClick={() => setLineupViewOpen(true)}>
+              라인업 보기
+            </ActGhost>
+          </ActRow>
+          <ActRow>
             <ActPrimary type="button" onClick={() => setMapPickerOpen(true)}>
               구장·일정 제안하기
             </ActPrimary>
@@ -3935,10 +4330,26 @@ export default function MatchRoomDetailPage() {
                 onClick={() => setMatchInfoOpen((o) => !o)}
                 aria-expanded={matchInfoOpen}
               >
-                <MatchInfoBarTitle>📋 매치 정보 · 진행 단계</MatchInfoBarTitle>
-                <MatchInfoToggle>{matchInfoOpen ? "접기 ▲" : "펼치기 ▼"}</MatchInfoToggle>
+                <MatchInfoLeft>
+                  <MatchInfoBarTitle>진행 단계</MatchInfoBarTitle>
+                  {stepSummary ? <StepSummaryBadge>{stepSummary}</StepSummaryBadge> : null}
+                </MatchInfoLeft>
+                <MatchInfoToggle>{matchInfoOpen ? "▴" : "›"}</MatchInfoToggle>
               </MatchInfoBar>
 
+              {/* 스텝퍼는 항상 노출 (라인업 → 구장 → 일정 → 준비완료) */}
+              <Stepper>
+                {STEP_LABELS.map((lb, i) => (
+                  <Step key={lb}>
+                    <StepDot $state={stepStates[i]}>
+                      {stepStates[i] === "done" ? "✓" : i + 1}
+                    </StepDot>
+                    <StepLb $on={stepStates[i] !== "todo"}>{lb}</StepLb>
+                  </Step>
+                ))}
+              </Stepper>
+
+              {/* 펼치면 팀 매치업(VS) 상세 */}
               {matchInfoOpen && (
                 <VsCard>
                   <VsRow>
@@ -3982,17 +4393,6 @@ export default function MatchRoomDetailPage() {
                       </VsNmWrap>
                     </VsTeam>
                   </VsRow>
-
-                  <Stepper>
-                    {STEP_LABELS.map((lb, i) => (
-                      <Step key={lb}>
-                        <StepDot $state={stepStates[i]}>
-                          {stepStates[i] === "done" ? "✓" : i + 1}
-                        </StepDot>
-                        <StepLb $on={stepStates[i] !== "todo"}>{lb}</StepLb>
-                      </Step>
-                    ))}
-                  </Stepper>
                 </VsCard>
               )}
 
@@ -4163,14 +4563,14 @@ export default function MatchRoomDetailPage() {
 
                 <TicketRows>
                   <TicketRow>
-                    <RowIconChip>📅</RowIconChip>
+                    <RowIconChip><FiCalendar size={17} /></RowIconChip>
                     <RowKV>
                       <RowK>일시</RowK>
                       <RowV>{confDateLabel}</RowV>
                     </RowKV>
                   </TicketRow>
                   <TicketRow>
-                    <RowIconChip>📍</RowIconChip>
+                    <RowIconChip><FiMapPin size={17} /></RowIconChip>
                     <RowKV>
                       <RowK>구장</RowK>
                       <RowV>{toStr(fieldAddress) || "직접 입력 구장"}</RowV>
@@ -4315,6 +4715,20 @@ export default function MatchRoomDetailPage() {
                 <>
                   <AskLabel>어떻게 구장을 정할까요?</AskLabel>
 
+                  {/* 제휴구장 예약 — 준비중(결제/예약 백엔드 미구현) */}
+                  <OptCard type="button" disabled>
+                    <Oic>🏟️</Oic>
+                    <Ob>
+                      <OptT>제휴구장 예약</OptT>
+                      <OptD>앱에서 결제 · 자동 확정</OptD>
+                      <Chips>
+                        <Pill $tone="p">준비중</Pill>
+                        <Pill $tone="g">에스크로 안전결제</Pill>
+                      </Chips>
+                    </Ob>
+                    <Arr>›</Arr>
+                  </OptCard>
+
                   <OptCard
                     type="button"
                     $primary
@@ -4324,7 +4738,7 @@ export default function MatchRoomDetailPage() {
                       setMapPickerOpen(true);
                     }}
                   >
-                    <Oic $primary>📍</Oic>
+                    <Oic $primary><FiMapPin size={20} color="#fff" /></Oic>
                     <Ob>
                       <OptT>직접 입력</OptT>
                       <OptD>현장 정산 · 결제 없음</OptD>
@@ -4393,7 +4807,7 @@ export default function MatchRoomDetailPage() {
                 <SectionCard>
                   <SectionTitleRow>
                     <SectionTitleLeft>
-                      <SectionIcon>📅</SectionIcon>
+                      <SectionIcon><FiCalendar size={18} /></SectionIcon>
                       <span>날짜 선택</span>
                     </SectionTitleLeft>
                     <SectionTitleActions />
@@ -5000,6 +5414,146 @@ export default function MatchRoomDetailPage() {
           .filter(Boolean)
           .join("\n")}
       />
+
+      {/* 라인업 보기 모달 — 우리/상대 라인업을 한 창에서 확인. X 또는 바깥 클릭으로 닫힘 */}
+      {lineupViewOpen && (
+        <LineupModalOverlay onClick={() => setLineupViewOpen(false)}>
+          <LineupModalCard onClick={(e) => e.stopPropagation()}>
+            <LineupModalHead>
+              <LineupModalTitle>라인업</LineupModalTitle>
+              <LineupModalClose type="button" aria-label="닫기" onClick={() => setLineupViewOpen(false)}>
+                ×
+              </LineupModalClose>
+            </LineupModalHead>
+            <LineupModalBody>
+              {/* 우리팀 */}
+              <div>
+                <LineupTeamName>
+                  {toStr(myTeamView?.name) || "우리팀"}
+                  {myLineupConfirmed ? ` · 라인업 ${myPlayers.length}명` : ""}
+                </LineupTeamName>
+                {myLineupConfirmed ? (
+                  <LineupBox>
+                    <LineupList>
+                      {myPlayers.length > 0 ? (
+                        myPlayers.map((p) => renderPlayerRow(p, myRecord))
+                      ) : (
+                        <LineupTitle>선수 정보가 없어요.</LineupTitle>
+                      )}
+                    </LineupList>
+                    {mySubPlayers.length > 0 && (
+                      <>
+                        <LineupTitle style={{ marginTop: 8 }}>후보 {mySubPlayers.length}명</LineupTitle>
+                        <LineupList>{mySubPlayers.map((p) => renderPlayerRow(p, myRecord))}</LineupList>
+                      </>
+                    )}
+                  </LineupBox>
+                ) : (
+                  <WaitBox>
+                    <div>아직 우리 팀 라인업을 확정하지 않았어요.</div>
+                    <RemindBtn
+                      type="button"
+                      onClick={() => {
+                        setLineupViewOpen(false);
+                        setLineupSheetOpen(true);
+                      }}
+                    >
+                      우리 라인업 확정하기
+                    </RemindBtn>
+                  </WaitBox>
+                )}
+              </div>
+
+              {/* 상대팀 */}
+              <div>
+                <LineupTeamName>
+                  {oppName}
+                  {oppLineupConfirmed ? ` · 라인업 ${oppPlayers.length}명` : ""}
+                </LineupTeamName>
+                {oppLineupConfirmed ? (
+                  <LineupBox>
+                    <LineupList>
+                      {oppPlayers.length > 0 ? (
+                        oppPlayers.map((p) => renderPlayerRow(p, oppRecord))
+                      ) : (
+                        <LineupTitle>선수 정보가 없어요.</LineupTitle>
+                      )}
+                    </LineupList>
+                    {oppSubPlayers.length > 0 && (
+                      <>
+                        <LineupTitle style={{ marginTop: 8 }}>후보 {oppSubPlayers.length}명</LineupTitle>
+                        <LineupList>{oppSubPlayers.map((p) => renderPlayerRow(p, oppRecord))}</LineupList>
+                      </>
+                    )}
+                  </LineupBox>
+                ) : (
+                  <WaitBox>
+                    <div>{oppName}이(가) 아직 라인업을 확정하지 않았어요.</div>
+                    <RemindBtn
+                      type="button"
+                      disabled={reminderBusy || reminderSent}
+                      onClick={handleSendLineupReminder}
+                    >
+                      {reminderSent ? "요청을 보냈어요" : reminderBusy ? "보내는 중…" : "알림 보내기"}
+                    </RemindBtn>
+                  </WaitBox>
+                )}
+              </div>
+            </LineupModalBody>
+          </LineupModalCard>
+        </LineupModalOverlay>
+      )}
+
+      {/* 상대 팀 신고 모달 — X 또는 바깥 클릭으로 닫힘 */}
+      {reportOpen && (
+        <LineupModalOverlay
+          onClick={() => {
+            if (!reportBusy) setReportOpen(false);
+          }}
+        >
+          <LineupModalCard onClick={(e) => e.stopPropagation()}>
+            <LineupModalHead>
+              <LineupModalTitle>🚩 상대 팀 신고</LineupModalTitle>
+              <LineupModalClose
+                type="button"
+                aria-label="닫기"
+                onClick={() => {
+                  if (!reportBusy) setReportOpen(false);
+                }}
+              >
+                ×
+              </LineupModalClose>
+            </LineupModalHead>
+            <LineupModalBody>
+              <ReportDesc>
+                {`신고 대상: ${oppName}\n신고 내용은 관리자가 검토 후 조치합니다.\n허위 신고 시 서비스 이용이 제한될 수 있습니다.`}
+              </ReportDesc>
+              <ReportTextarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                placeholder="신고 사유를 입력해 주세요. (예: 비매너, 노쇼, 허위 정보 등)"
+              />
+              <ReportActions>
+                <ReportCancelBtn
+                  type="button"
+                  onClick={() => {
+                    if (!reportBusy) setReportOpen(false);
+                  }}
+                >
+                  취소
+                </ReportCancelBtn>
+                <ReportSubmitBtn
+                  type="button"
+                  disabled={reportBusy || !reportReason.trim()}
+                  onClick={handleSubmitReport}
+                >
+                  {reportBusy ? "전송중…" : "신고하기"}
+                </ReportSubmitBtn>
+              </ReportActions>
+            </LineupModalBody>
+          </LineupModalCard>
+        </LineupModalOverlay>
+      )}
     </>
   );
 }

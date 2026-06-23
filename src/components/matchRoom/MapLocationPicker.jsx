@@ -6,6 +6,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
+import { FiMapPin } from "react-icons/fi";
 import { mrp } from "./matchRoomPalette";
 
 const SEOUL = { lat: 37.5665, lng: 126.978 };
@@ -180,14 +181,40 @@ export default function MapLocationPicker({
 
   const handleConfirm = () => {
     const c = centerRef.current || SEOUL;
-    const address = pickAddr || initialAddress || "";
-    onConfirm &&
-      onConfirm({
-        address,
-        name: pickName,
-        lat: c.lat,
-        lng: c.lng,
+    const kakao = window.kakao;
+
+    const finish = (address, name) => {
+      onConfirm &&
+        onConfirm({
+          address: address || pickAddr || initialAddress || "",
+          name: name || pickName || "",
+          lat: c.lat,
+          lng: c.lng,
+        });
+    };
+
+    // ✅ 확정 시점의 "최종 중심 좌표"로 주소를 다시 역지오코딩.
+    //    (지도 idle→reverseGeocode 가 비동기라, 옮기자마자 확정하면 직전 위치의
+    //     주소(pickAddr/initialAddress)가 저장돼 좌표와 불일치 → 상대팀에 다른 장소가 가는 버그)
+    if (kakao && kakao.maps && kakao.maps.services) {
+      if (!geocoderRef.current) geocoderRef.current = new kakao.maps.services.Geocoder();
+      geocoderRef.current.coord2Address(c.lng, c.lat, (result, status) => {
+        if (status !== kakao.maps.services.Status.OK || !result || !result[0]) {
+          finish(pickAddr, pickName);
+          return;
+        }
+        const first = result[0];
+        const road = first.road_address;
+        const jibun = first.address;
+        const building = road && road.building_name ? road.building_name : "";
+        const addr = (road ? road.address_name : "") || (jibun ? jibun.address_name : "");
+        // 건물명이 있으면 "건물명 (주소)" 로 저장 → 사용자가 고른 장소명과 표시 일치
+        const composed = building ? (addr ? `${building} (${addr})` : building) : addr;
+        finish(composed, building);
       });
+    } else {
+      finish(pickAddr, pickName);
+    }
   };
 
   if (!open) return null;
@@ -215,13 +242,13 @@ export default function MapLocationPicker({
           <MapCanvas ref={mapRef} />
           <MapHint>지도를 움직여 구장 위치를 맞춰요</MapHint>
           <CenterPin>
-            <Mk>📍</Mk>
+            <Mk><FiMapPin size={34} /></Mk>
             <PinShadow />
           </CenterPin>
         </MapArea>
 
         <PickCard>
-          <Pk>📍</Pk>
+          <Pk><FiMapPin size={22} /></Pk>
           <PInfo>
             <Pa>{pickName || "위치를 선택해 주세요"}</Pa>
             <Pd>{pickAddr || "지도를 움직여 위치를 맞춰주세요"}</Pd>
@@ -391,6 +418,10 @@ const CenterPin = styled.div`
 const Mk = styled.div`
   font-size: 34px;
   line-height: 1;
+  color: #6c5ce7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   filter: drop-shadow(0 7px 5px rgba(0, 0, 0, 0.4));
   animation: ${pinFloat} 1.8s ease-in-out infinite;
 `;
@@ -440,6 +471,7 @@ const Pk = styled.div`
   align-items: center;
   justify-content: center;
   font-size: 22px;
+  color: ${({ theme }) => P(theme).puL};
 `;
 
 const PInfo = styled.div`

@@ -5,7 +5,7 @@
 // - myTeam: teamService.getTeamProfile(activeTeamId)로 members까지 조립
 // - opponentTeams: clubs 컬렉션에서 최신순 로드 후 내 팀 제외
 
-import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import { getTeamProfile } from "./teamService";
 import { images } from "../utils/imageAssets";
@@ -38,6 +38,14 @@ function normalizeStats(stats) {
     winRate,
     recentResults,
   };
+}
+
+function toCreatedAtSec(data) {
+  const c = data?.createdAt;
+  if (!c) return 0;
+  if (typeof c.seconds === "number") return c.seconds;
+  if (typeof c.toMillis === "function") return Math.floor(c.toMillis() / 1000);
+  return 0;
 }
 
 function resolveClubLogoUrl(club) {
@@ -81,11 +89,9 @@ function normalizeOpponentClubDoc(docSnap) {
  * 매칭 홈 데이터 로드 (실데이터)
  * @param {object} params
  * @param {string} params.activeTeamId - ClubContext의 activeTeamId (SSOT)
- * @param {number} params.opponentLimit - 상대 팀 후보 로드 개수
  */
 export async function loadMatchingHomeData({
   activeTeamId = "",
-  opponentLimit = 60,
 } = {}) {
   const teamId = String(activeTeamId || "").trim();
 
@@ -104,13 +110,17 @@ export async function loadMatchingHomeData({
     };
   }
 
+  // ⚠️ orderBy("createdAt")로 쿼리하면 createdAt 필드가 없는 팀(스크립트/구버전 생성 등)이
+  //    Firestore에서 조용히 제외되어 매칭 리스트에 안 보인다.
+  //    → 랭킹(listAllTeamsForRanking)과 동일하게 전체를 가져와 클라이언트에서 최신순 정렬한다.
   const col = collection(db, "clubs");
-  const qy = query(col, orderBy("createdAt", "desc"), limit(opponentLimit));
-  const snap = await getDocs(qy);
+  const snap = await getDocs(col);
 
   const opponentTeams = snap.docs
-    .map((d) => normalizeOpponentClubDoc(d))
-    .filter((t) => t && t.clubId && t.clubId !== teamId);
+    .map((d) => ({ club: normalizeOpponentClubDoc(d), createdAtSec: toCreatedAtSec(d.data()) }))
+    .filter((x) => x.club && x.club.clubId && x.club.clubId !== teamId)
+    .sort((a, b) => b.createdAtSec - a.createdAtSec) // 최신순 (createdAt 없으면 0 → 뒤로)
+    .map((x) => x.club);
 
   return {
     myTeam,

@@ -322,6 +322,36 @@ export async function sendTextMessage({ chatId, fromUid, text } = {}) {
   await notifyChatRecipients({ chatId, fromUid, preview: v });
 }
 
+// 시스템 메시지(라인업 확정 등) — 양 팀 모두에게 채팅창 가운데 안내로 표시.
+// fromUid는 "system" 고정 → 어느 쪽에서도 "내 말풍선"이 아니라 시스템 알림으로 렌더됨.
+export async function sendSystemMessage({ chatId, text, meta = {} } = {}) {
+  if (!chatId) throw new Error("sendSystemMessage: chatId is required");
+  const v = String(text || "").trim();
+  if (!v) return;
+
+  await addDoc(collection(db, "chatRooms", chatId, "messages"), {
+    chatId,
+    fromUid: "system",
+    kind: "system",
+    text: v,
+    images: [],
+    meta: meta || {},
+    createdAt: serverTimestamp(),
+  });
+
+  // 채팅 목록 미리보기만 갱신 (매칭 활동 배지는 호출부에서 이미 처리됨).
+  // 방 문서가 아직 없을 수 있으니 실패는 무시.
+  try {
+    await updateDoc(doc(db, "chatRooms", chatId), {
+      lastMessageText: v.slice(0, 140),
+      lastMessageAt: serverTimestamp(),
+      lastMessageFromUid: "system",
+    });
+  } catch (e) {
+    console.warn("[chat] system message meta update failed:", e?.message || e);
+  }
+}
+
 function safeExt(file) {
   const name = String(file?.name || "").toLowerCase();
   const dot = name.lastIndexOf(".");

@@ -7,6 +7,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
+import { FiMapPin } from "react-icons/fi";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { listAllTeamsForRanking } from "../../services/teamRankingService";
 import Spinner from "../../components/common/Spinner";
@@ -165,6 +166,8 @@ const RegionRow = styled.div`
 `;
 
 const PinIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
   line-height: 1;
 `;
@@ -486,7 +489,7 @@ export default function TeamRankingFullPage() {
                     </LineBetween>
 
                     <RegionRow>
-                      <PinIcon>📍</PinIcon>
+                      <PinIcon><FiMapPin size={11} /></PinIcon>
                       {regionText || "지역 미등록"}
                     </RegionRow>
 

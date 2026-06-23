@@ -9,8 +9,12 @@ import { db, auth } from "./firebase";
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
+import { MIN_TEAM_MEMBERS } from "../utils/constants";
 
 const toStr = (v) => String(v || "").trim();
+
+const teamMemberCount = (team) =>
+  Array.isArray(team?.members) ? team.members.length : 0;
 
 const MATCH_SIZE_KEYS = ["3v3", "4v4", "5v5"];
 const matchSizeLabel = (k) => {
@@ -135,6 +139,12 @@ export async function createMatchRequest({
   if (!_targetClubId) throw new Error("createMatchRequest: targetClubId is required");
   if (_actorClubId === _targetClubId) throw new Error("createMatchRequest: same club is not allowed");
   if (!MATCH_SIZE_KEYS.includes(_matchSizeKey)) throw new Error("매치 사이즈(3v3/4v4/5v5)를 선택해 주세요.");
+
+  // ✅ 최소 인원(팀장 포함 3명) 미만이면 매칭 신청 불가
+  if (teamMemberCount(actorTeam) < MIN_TEAM_MEMBERS)
+    throw new Error(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
+  if (teamMemberCount(targetTeam) < MIN_TEAM_MEMBERS)
+    throw new Error(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
 
   const fromTeamSnapshot = pickTeamSnapshot(actorTeam);
   const toTeamSnapshot = pickTeamSnapshot(targetTeam);

@@ -11,7 +11,6 @@ import { TbBallBasketball } from "react-icons/tb";
 
 import TeamStatsSection from "../../components/team/TeamStatsSection";
 import TeamMembersSection from "../../components/team/TeamMembersSection";
-import PlayerCard from "../../components/player/PlayerCard";
 import { getTeamProfile } from "../../services/teamService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import { images } from "../../utils/imageAssets";
@@ -24,6 +23,7 @@ import { setFavoriteTeam } from "../../services/favoriteService";
 import { createMatchRequest } from "../../services/matchingService";
 
 import { useClub } from "../../hooks/useClub";
+import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
 import TeamMatchHistorySection from "../../components/team/TeamMatchHistorySection";
 import { loadMatchRoomListPageData } from "../../services/matchRoomService";
@@ -33,56 +33,6 @@ import BlockedOverlay from "../../components/common/BlockedOverlay";
 /* =============== 상수/헬퍼 =============== */
 
 const SAMPLE_TEAM_MEDIA = [];
-
-const MATCH_SIZE_LABEL = {
-  "3v3": "3 vs 3",
-  "4v4": "4 vs 4",
-  "5v5": "5 vs 5",
-};
-
-const buildDefaultLineups = (team) => {
-  if (!team || !Array.isArray(team.members) || team.members.length === 0) return [];
-  if (team.members.length < 3) return [];
-
-  const members = team.members;
-  const ids = members.map((m) => m.userId || m.id);
-
-  const matchSizeKey =
-    members.length >= 5 ? "5v5" : members.length === 4 ? "4v4" : "3v3";
-
-  return [
-    {
-      id: "default-main",
-      name: `${team.name} 기본 라인업`,
-      memberIds: ids.slice(
-        0,
-        matchSizeKey === "5v5" ? 5 : matchSizeKey === "4v4" ? 4 : 3
-      ),
-      matchSizeKey,
-    },
-  ];
-};
-
-const resolveLineupMembers = (lineup, allMembers) => {
-  const members = Array.isArray(allMembers) ? allMembers : [];
-  if (!lineup) return [];
-  if (Array.isArray(lineup.members) && lineup.members.length > 0) return lineup.members;
-
-  if (Array.isArray(lineup.memberIds) && lineup.memberIds.length > 0) {
-    const idSet = new Set(lineup.memberIds.map((id) => String(id)));
-    return members.filter((m) => idSet.has(String(m.userId || m.id)));
-  }
-  return members;
-};
-
-const getLineupCaptainName = (lineup, allMembers) => {
-  if (!lineup) return "";
-  const members = Array.isArray(allMembers) ? allMembers : [];
-  const captainId = lineup.captainId || lineup.leaderId || lineup.managerId;
-  if (!captainId) return "";
-  const found = members.find((m) => String(m.userId || m.id) === String(captainId));
-  return found ? (found.nickname || found.name || "") : "";
-};
 
 const getMediaHref = (m) => {
   const url = String(m?.url || "").trim();
@@ -571,44 +521,6 @@ const ViewerPlay = styled.div`
   cursor: pointer;
 `;
 
-const LineupListRow = styled.div`
-  margin-top: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-`;
-
-const LineupCard = styled.button`
-  flex: 1 1 calc(50% - 8px);
-  min-width: 0;
-  border-radius: 8px;
-  padding: 10px 12px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  cursor: pointer;
-  text-align: left;
-`;
-
-const LineupName = styled.div`
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-
-const LineupMeta = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textNormal};
-`;
-
-const LineupMetaSmall = styled.div`
-  font-size: 11px;
-  color: ${({ theme }) => theme.colors.textWeak};
-`;
-
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
@@ -664,13 +576,6 @@ const LineupModalBody = styled.div`
 const LineupModalMeta = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textWeak};
-`;
-
-const LineupPlayersGrid = styled.div`
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
 `;
 
 const SelectCard = styled(LineupModalCard)`
@@ -799,6 +704,18 @@ const CTAButton = styled.button`
       : "#f3f4f6"};
   color: ${({ $primary, theme }) =>
     $primary ? "#f9fafa" : theme.colors.textStrong};
+`;
+
+const MatchNotice = styled.div`
+  margin-bottom: 9px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(245,158,11,0.16)" : "#fff7ed"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fbbf24" : "#9a3412")};
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: center;
 `;
 
 const ReportLinkRow = styled.div`
@@ -966,8 +883,9 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const myUid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
 
   // ✅ 우리팀 clubId는 userDoc.myClubId 하나만 SSOT로 사용 (없으면 온보딩/가드)
-  const { club } = useClub();
+  const { club, members: myMembers, loading: myClubLoading } = useClub();
   const myClubId = String(club?.clubId || club?.id || "").trim();
+  const myMemberCount = Array.isArray(myMembers) ? myMembers.length : 0;
 
   const [myTeamLoading, setMyTeamLoading] = useState(false);
   const [myTeam, setMyTeam] = useState(null);
@@ -981,7 +899,6 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const [error, setError] = useState("");
   const [teamRank, setTeamRank] = useState(null);
 
-  const [selectedLineup, setSelectedLineup] = useState(null);
   const [showLineupSelectModal, setShowLineupSelectModal] = useState(false);
 
   const [fav, setFav] = useState(false);
@@ -1140,6 +1057,11 @@ useEffect(() => {
   const membersCount =
     Array.isArray(team?.members) && team.members.length > 0 ? `${team.members.length}명` : "";
 
+  // ✅ 매칭 최소 인원(팀장 포함 3명) 가드
+  const targetMemberCount = Array.isArray(team?.members) ? team.members.length : 0;
+  const targetTeamTooFew = !!team && targetMemberCount < MIN_TEAM_MEMBERS;
+  const myTeamTooFew = !myClubLoading && !!myClubId && myMemberCount < MIN_TEAM_MEMBERS;
+
   const introUpdated = formatUpdateDate(team?.updatedAt || team?.createdAt);
   const statsUpdated = formatUpdateDate(team?.stats?.updatedAt || team?.updatedAt || team?.createdAt);
 
@@ -1154,15 +1076,6 @@ useEffect(() => {
   const activityLabel = resolveActivityLabel(team?.activity);
 
   const mediaList = Array.isArray(team?.media) && team.media.length > 0 ? team.media : SAMPLE_TEAM_MEDIA;
-
-  const lineupsRaw = Array.isArray(team?.lineups) ? team.lineups : [];
-  const lineups = lineupsRaw.length > 0 ? lineupsRaw : buildDefaultLineups(team);
-
-  const selectedLineupMembers =
-    selectedLineup && team ? resolveLineupMembers(selectedLineup, team.members || []) : [];
-
-  const selectedLineupCaptainName =
-    selectedLineup && team ? getLineupCaptainName(selectedLineup, team.members || []) : "";
 
   const onFavoriteTeam = async () => {
     if (!myUid) {
@@ -1212,6 +1125,12 @@ useEffect(() => {
       return;
     }
 
+    // ✅ 상대 팀 최소 인원 체크 (팀장 포함 3명)
+    if (targetMemberCount < MIN_TEAM_MEMBERS) {
+      alert(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
+      return;
+    }
+
     try {
       setMyTeamError("");
       setMyTeamLoading(true);
@@ -1220,6 +1139,12 @@ useEffect(() => {
       if (!myData) {
         setMyTeamError("내 팀 정보를 불러올 수 없습니다.");
         alert("내 팀 정보를 불러올 수 없습니다.");
+        return;
+      }
+
+      // ✅ 내 팀 최소 인원 체크 (팀장 포함 3명)
+      if ((Array.isArray(myData.members) ? myData.members.length : 0) < MIN_TEAM_MEMBERS) {
+        alert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
         return;
       }
 
@@ -1250,9 +1175,6 @@ useEffect(() => {
     const ok = openExternal(href);
     if (!ok) alert("링크를 열 수 없습니다. 잠시 후 다시 시도해 주세요.");
   };
-
-  const handleOpenLineup = (lu) => setSelectedLineup(lu);
-  const handleCloseLineup = () => setSelectedLineup(null);
 
   const handleSubmitMatchRequest = async () => {
     if (!team) return;
@@ -1478,50 +1400,6 @@ useEffect(() => {
                 )}
               </Section>
 
-              {lineups.length > 0 && (
-                <Section>
-                  <SectionHeaderRow>
-                    <SectionHeaderLeft>
-                      <SectionIconCircle>
-                        <SectionIconImg
-                          src={images.teamLineupIcon || images.teamMembersIcon}
-                          alt="라인업"
-                        />
-                      </SectionIconCircle>
-                      <SectionTitleText>라인업</SectionTitleText>
-                    </SectionHeaderLeft>
-                    <SectionMeta>{lineups.length}개</SectionMeta>
-                  </SectionHeaderRow>
-
-                  <LineupListRow>
-                    {lineups.map((lu) => {
-                      const members = resolveLineupMembers(lu, team.members || []);
-                      const sizeLabel =
-                        lu.matchSizeLabel ||
-                        MATCH_SIZE_LABEL[lu.matchSizeKey] ||
-                        `${members.length}명`;
-                      const captainName = getLineupCaptainName(lu, team.members || []);
-
-                      return (
-                        <LineupCard
-                          key={lu.id || lu.name}
-                          type="button"
-                          onClick={() => handleOpenLineup(lu)}
-                        >
-                          <LineupName>{lu.name}</LineupName>
-                          <LineupMeta>
-                            {members.length}명 · {sizeLabel}
-                          </LineupMeta>
-                          {captainName && (
-                            <LineupMetaSmall>라인업 팀장: {captainName}</LineupMetaSmall>
-                          )}
-                        </LineupCard>
-                      );
-                    })}
-                  </LineupListRow>
-                </Section>
-              )}
-
               <Section>
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
@@ -1589,41 +1467,27 @@ useEffect(() => {
 
           {!isMyTeam && !embed && (
             <BottomBar>
+              {targetTeamTooFew ? (
+                <MatchNotice>
+                  상대 팀이 아직 팀원 {MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.
+                </MatchNotice>
+              ) : myTeamTooFew ? (
+                <MatchNotice>
+                  우리 팀원이 {MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요. (현재 {myMemberCount}명)
+                </MatchNotice>
+              ) : null}
               <BottomRow>
-                <CTAButton type="button" $primary onClick={onMatchRequestClick} disabled={myTeamLoading}>
+                <CTAButton
+                  type="button"
+                  $primary
+                  onClick={onMatchRequestClick}
+                  disabled={myTeamLoading || targetTeamTooFew || myTeamTooFew}
+                >
                   <TbBallBasketball size={18} />
                   {myTeamLoading ? "불러오는 중..." : "매칭 신청"}
                 </CTAButton>
               </BottomRow>
             </BottomBar>
-          )}
-
-          {selectedLineup && (
-            <Overlay onClick={handleCloseLineup}>
-              <LineupModalCard onClick={(e) => e.stopPropagation()}>
-                <LineupModalHeader>
-                  <LineupModalTitle>{selectedLineup.name || "라인업"}</LineupModalTitle>
-                  <LineupModalClose onClick={handleCloseLineup}>×</LineupModalClose>
-                </LineupModalHeader>
-
-                <LineupModalBody>
-                  <LineupModalMeta>
-                    {team.name}
-                    {selectedLineupCaptainName && ` · 라인업 팀장: ${selectedLineupCaptainName}`}
-                  </LineupModalMeta>
-
-                  <LineupPlayersGrid>
-                    {selectedLineupMembers.map((player) => (
-                      <PlayerCard
-                        key={player.userId || player.id}
-                        player={player}
-                        onClick={() => onPlayerClick(player)}
-                      />
-                    ))}
-                  </LineupPlayersGrid>
-                </LineupModalBody>
-              </LineupModalCard>
-            </Overlay>
           )}
 
           {showLineupSelectModal && (
