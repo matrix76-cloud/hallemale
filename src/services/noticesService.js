@@ -145,3 +145,26 @@ export async function updateNotice(id, partial = {}) {
 export async function deleteNotice(id) {
   await deleteDoc(doc(db, COL, String(id)));
 }
+
+/* ============== Admin: 공지 전체 푸시 발송 ============== */
+// notifications 컬렉션에 queued 문서를 만들면 sendPushTick 크론이 FCM으로 발송한다.
+// targetIds: [] = 전체 브로드캐스트(토큰 보유 + 알림설정 ON 사용자).
+// 이 문서는 인앱 알림창 쿼리(array-contains uid)에 잡히지 않으므로 공지와 중복 노출되지 않는다.
+export async function queueNoticeBroadcastPush({ noticeId, title, content } = {}) {
+  const t = toStr(title);
+  const c = toStr(content);
+  if (!t) throw new Error("제목이 필요합니다.");
+
+  await addDoc(collection(db, "notifications"), {
+    kind: "notice",
+    type: "admin_notice",
+    title: t,
+    body: c,
+    targetIds: [],
+    prefsCategory: "notice",
+    deepLink: noticeId ? `/notificationsdetail/${noticeId}` : "/notifications",
+    push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}

@@ -1,9 +1,10 @@
 /* eslint-disable */
 // src/components/home/FavoriteTeamsSection.jsx
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
+import { getTeamRankMap } from "../../services/teamRankingService";
 import EmptyState from "../common/EmptyState";
 
 const SectionWrap = styled.section`
@@ -75,10 +76,32 @@ const Card = styled.div`
 
 const LogoArea = styled.div`
   width: 100%;
-  padding: 12px 0 4px;
+  /* 상단 패딩 확보: 1~3위 왕관이 카드(overflow:hidden) 밖으로 잘리지 않도록 */
+  padding: 28px 0 4px;
   display: flex;
   align-items: center;
   justify-content: center;
+`;
+
+/* 로고 + 왕관 오버레이용 래퍼 */
+const LogoBox = styled.div`
+  position: relative;
+  width: 64px;
+  height: 64px;
+`;
+
+/* 1~3위: 팀 로고 위에 살짝 겹쳐 배치(로고 PNG 하단 여백 보정) */
+const CrownImg = styled.img`
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
 `;
 
 const TeamLogo = styled.img`
@@ -111,8 +134,22 @@ const TeamName = styled.div`
 export default function FavoriteTeamsSection({ items = [] }) {
   const navigate = useNavigate();
   const slideRef = useRef(null);
+  const [teamRankMap, setTeamRankMap] = useState(null);
 
   const limitedItems = useMemo(() => (items || []).slice(0, 9), [items]);
+
+  // ✅ 팀 전역 랭킹 — 1~3위면 로고 위에 왕관 표시용
+  useEffect(() => {
+    let alive = true;
+    getTeamRankMap()
+      .then((map) => {
+        if (alive) setTeamRankMap(map);
+      })
+      .catch((e) => console.warn("[FavoriteTeamsSection] getTeamRankMap failed:", e?.message || e));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleViewTeam = (teamId) => {
     navigate(`/team/${teamId}`);
@@ -154,10 +191,16 @@ export default function FavoriteTeamsSection({ items = [] }) {
               (t.logoKey && images[t.logoKey])
             );
 
+            const rank = teamRankMap?.get(String(teamId || "").trim());
+            const showCrown = rank && rank <= 3;
+
             return (
               <Card key={teamId} onClick={() => handleViewTeam(teamId)}>
                 <LogoArea>
-                  <TeamLogo src={logoSrc} alt={t.name} />
+                  <LogoBox>
+                    {showCrown ? <CrownImg src={images.logo} alt={`${rank}위`} /> : null}
+                    <TeamLogo src={logoSrc} alt={t.name} />
+                  </LogoBox>
                 </LogoArea>
                 <CardBody>
                   <TeamName>{t.name}</TeamName>

@@ -188,13 +188,14 @@ const RankBadge = styled.div`
 //     `}
 // `;
 
+/* 1~3위: 로고 위에 살짝 겹쳐 배치(앱 전체 공통 기준) */
 const CrownImg = styled.img`
   position: absolute;
-  top: -16px;
+  top: -13px;
   left: 50%;
   transform: translateX(-50%);
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;

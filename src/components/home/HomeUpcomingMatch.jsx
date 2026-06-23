@@ -130,13 +130,14 @@ const LogoSlot = styled.div`
   flex-shrink: 0;
 `;
 
+/* LogoSlot 40px → 기준 비율 그대로 */
 const CrownImg = styled.img`
   position: absolute;
-  top: -13px;
+  top: -15px;
   left: 50%;
   transform: translateX(-50%);
-  width: 23px;
-  height: 23px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;

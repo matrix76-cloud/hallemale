@@ -16,6 +16,12 @@ const toStr = (v) => String(v || "").trim();
 const teamMemberCount = (team) =>
   Array.isArray(team?.members) ? team.members.length : 0;
 
+// 팀 멤버 uid 목록 (알림 targetIds용 — 앱내 알림창 쿼리 + 푸시 발송 대상)
+const teamMemberUids = (team) =>
+  Array.isArray(team?.members)
+    ? team.members.map((m) => toStr(m?.uid || m?.userId || m?.id)).filter(Boolean)
+    : [];
+
 const MATCH_SIZE_KEYS = ["3v3", "4v4", "5v5"];
 const matchSizeLabel = (k) => {
   const v = toStr(k);
@@ -181,6 +187,7 @@ export async function createMatchRequest({
       toTeamSnapshot,
       fromLineupSnapshot,
       toLineupSnapshot,
+      targetIds: teamMemberUids(targetTeam),
     };
 
     const { title, body } = buildMatchTitleBody("MATCH_REQUEST", payload);
@@ -207,6 +214,7 @@ export async function createMatchRequest({
       toTeamSnapshot,
       fromLineupSnapshot,
       toLineupSnapshot,
+      targetIds: teamMemberUids(actorTeam),
     };
 
     const title = "매칭 신청 완료";

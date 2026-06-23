@@ -12,6 +12,7 @@ import BrandHeader from "../../components/auth/BrandHeader";
 import { PiBellLight } from "react-icons/pi";
 
 import useUnreadChatCount from "../../hooks/useUnreadChatCount";
+import useUnreadNotiCount from "../../hooks/useUnreadNotiCount";
 import { goBackOrHome } from "../../utils/navigation";
 import { useUIContext } from "../../context/UIContext";
 
@@ -60,7 +61,7 @@ const Badge = styled.span`
   height: 18px;
   padding: 0 4px;
   border-radius: 999px;
-  background: #2563eb;
+  background: #ef4444;
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
@@ -134,6 +135,7 @@ export default function TopHeader({
 }) {
   const navigate = useNavigate();
   const unreadChatCount = useUnreadChatCount();
+  const unreadNotiCount = useUnreadNotiCount();
   const ui = useUIContext();
   const headerSubtitle = ui?.headerSubtitle || "";
   const headerConfig = ui?.headerConfig || null;
@@ -193,8 +195,11 @@ export default function TopHeader({
       <TabHeaderWrap>
         <BrandHeader />
         <RightIcons>
-          <IconButton type="button" onClick={handleBellClick}>
+          <IconButton type="button" onClick={handleBellClick} aria-label="알림">
             <PiBellLight />
+            {unreadNotiCount > 0 && (
+              <Badge>{unreadNotiCount > 99 ? "99+" : unreadNotiCount}</Badge>
+            )}
           </IconButton>
         </RightIcons>
       </TabHeaderWrap>
@@ -206,8 +211,11 @@ export default function TopHeader({
       <LeftSpacer />
       <CenterTitle>{title}</CenterTitle>
       <RightIcons>
-        <IconButton type="button" onClick={handleBellClick}>
+        <IconButton type="button" onClick={handleBellClick} aria-label="알림">
           <PiBellLight />
+          {unreadNotiCount > 0 && (
+            <Badge>{unreadNotiCount > 99 ? "99+" : unreadNotiCount}</Badge>
+          )}
         </IconButton>
       </RightIcons>
     </TabHeaderWrap>

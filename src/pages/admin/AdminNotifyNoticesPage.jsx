@@ -9,6 +9,7 @@ import {
   createNotice,
   updateNotice,
   deleteNotice,
+  queueNoticeBroadcastPush,
 } from "../../services/noticesService";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -287,6 +288,7 @@ export default function AdminNotifyNoticesPage() {
   const [content, setContent] = useState("");
   const [pinned, setPinned] = useState(false);
   const [published, setPublished] = useState(true);
+  const [pushOnCreate, setPushOnCreate] = useState(false);
 
   const formMode = editingId ? "수정" : "작성";
 
@@ -315,6 +317,7 @@ export default function AdminNotifyNoticesPage() {
     setContent("");
     setPinned(false);
     setPublished(true);
+    setPushOnCreate(false);
   };
 
   const onEdit = (n) => {
@@ -344,13 +347,29 @@ export default function AdminNotifyNoticesPage() {
       if (editingId) {
         await updateNotice(editingId, { title: t, content: c, pinned, published });
       } else {
-        await createNotice({
+        const newId = await createNotice({
           title: t,
           content: c,
           pinned,
           published,
           createdBy: myUid,
         });
+
+        // 푸시 발송 옵션 (발행된 공지만 전체 푸시)
+        if (pushOnCreate && published) {
+          const ok = window.confirm(
+            "전체 사용자에게 앱 푸시 알림을 발송합니다. 계속할까요?"
+          );
+          if (ok) {
+            try {
+              await queueNoticeBroadcastPush({ noticeId: newId, title: t, content: c });
+            } catch (e) {
+              window.alert(
+                "공지는 저장됐지만 푸시 발송 등록에 실패했습니다.\n" + (e?.message || "")
+              );
+            }
+          }
+        }
       }
       resetForm();
       await load();
@@ -457,6 +476,17 @@ export default function AdminNotifyNoticesPage() {
               />
               발행(사용자에게 노출)
             </ToggleRow>
+            {!editingId ? (
+              <ToggleRow>
+                <input
+                  type="checkbox"
+                  checked={pushOnCreate}
+                  disabled={!published}
+                  onChange={(e) => setPushOnCreate(e.target.checked)}
+                />
+                푸시 발송(전체 사용자 앱 알림)
+              </ToggleRow>
+            ) : null}
           </TogglesRow>
           <Actions>
             {editingId ? (

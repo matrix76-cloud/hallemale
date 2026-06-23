@@ -1514,11 +1514,11 @@ const CrestWrap = styled.div`
 
 const CrestCrown = styled.img`
   position: absolute;
-  top: -15px;
+  top: -24px;
   left: 50%;
   transform: translateX(-50%);
-  width: 28px;
-  height: 28px;
+  width: 38px;
+  height: 38px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;
@@ -2241,11 +2241,11 @@ const ScoreLogoWrap = styled.div`
 
 const ScoreCrown = styled.img`
   position: absolute;
-  top: -11px;
+  top: -17px;
   left: 50%;
   transform: translateX(-50%);
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;

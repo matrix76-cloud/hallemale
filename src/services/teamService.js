@@ -544,6 +544,7 @@ export async function createJoinRequestToClub({
       clubName: clubName || "",
       joinRequestId: requestId,
       ownerUid: ownerUid || "",
+      deepLink: `/team/${clubId}/join-requests/${requestId}`, // 팀장 → 참여요청 상세
     },
 
     push: {

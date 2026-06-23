@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/services/notificationService.js
 // ✅ notifications(전역) 조회/읽음 처리 서비스
-// ✅ system(kind==="system")만 목업 유지, 그 외는 실데이터
+// ✅ 전부 실데이터 (목업 없음)
 // ✅ 대상: GLOBAL + USER(uid)
 // ✅ 인덱스 요구를 피하기 위해 Firestore orderBy는 쓰지 않고, JS에서 정렬
 // ✅ 디버깅 로그 포함
@@ -18,8 +18,6 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-
-import { NOTIFICATIONS as NOTIFICATIONS_MOCK } from "../mock/notificationsMock";
 
 function toDateSafe(v) {
   if (!v) return null;
@@ -44,12 +42,6 @@ function uniqById(list) {
     map[n.id] = n;
   }
   return Object.values(map);
-}
-
-export function getSystemMockNotifications() {
-  const all = Array.isArray(NOTIFICATIONS_MOCK) ? NOTIFICATIONS_MOCK : [];
-  const rows = all.filter((n) => n && n.kind === "system");
-  return sortByCreatedAtDesc(rows);
 }
 
 function debugRowShape(n) {
@@ -108,7 +100,11 @@ export async function listNotificationsForUser({ uid, clubId = "", limitCount = 
   // ✅ clubId 필터는 JS에서만(인덱스 피하려고)
   const merged = listU
     .filter((n) => String(n.kind || "").trim() !== "system")
-    .filter((n) => (clubId ? String(n.clubId || "") === String(clubId) : true));
+    // 개인(user) 알림(clubId 없음)은 항상 표시, 팀 알림만 활성팀으로 필터
+    .filter((n) => {
+      const nClub = String(n.clubId || "");
+      return !clubId || !nClub || nClub === String(clubId);
+    });
 
   const sorted = sortByCreatedAtDesc(merged);
 
@@ -147,7 +143,11 @@ export function subscribeNotificationsForUser(
       }));
       const merged = listU
         .filter((n) => String(n.kind || "").trim() !== "system")
-        .filter((n) => (clubId ? String(n.clubId || "") === String(clubId) : true));
+    // 개인(user) 알림(clubId 없음)은 항상 표시, 팀 알림만 활성팀으로 필터
+    .filter((n) => {
+      const nClub = String(n.clubId || "");
+      return !clubId || !nClub || nClub === String(clubId);
+    });
       onChange && onChange(sortByCreatedAtDesc(merged));
     },
     (err) => {
@@ -157,24 +157,14 @@ export function subscribeNotificationsForUser(
   );
 }
 
-export function computeReadForUi({ items, uid, localSystemReadMap }) {
+export function computeReadForUi({ items, uid }) {
   console.groupCollapsed("[noti] computeReadForUi");
   console.log("uid =", uid);
   console.log("items(fs) =", (items || []).length);
 
-  const systemMocks = getSystemMockNotifications().map((n) => ({
-    ...n,
-    _from: "mock",
-    read: (localSystemReadMap && localSystemReadMap[n.id]) ?? !!n.read,
-  }));
-
-  console.log("systemMocks =", systemMocks.length);
-
-  const merged = sortByCreatedAtDesc([...(items || []), ...systemMocks]);
+  const merged = sortByCreatedAtDesc([...(items || [])]);
 
   const withRead = merged.map((n) => {
-    if (n._from === "mock") return n;
-
     const readBy = n?.readBy || null;
     const isRead =
       !!(uid && readBy && typeof readBy === "object" && readBy[uid]);

@@ -1,6 +1,6 @@
 /* eslint-disable */
 // src/pages/settings/NotificationsPage.jsx
-// ✅ system만 목업 / 나머지는 실데이터 (서비스에서 처리)
+// ✅ 전부 실데이터 (목업 없음)
 
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
@@ -12,10 +12,20 @@ import { useClub } from "../../hooks/useClub";
 import {
   subscribeNotificationsForUser,
   computeReadForUi,
-  getSystemMockNotifications,
   markNotificationRead,
 } from "../../services/notificationService";
+import { subscribePublishedNotices } from "../../services/noticesService";
 import EmptyState from "../../components/common/EmptyState";
+
+// 관리자 공지(notices)는 서버 readBy가 없어 읽음 표시를 로컬에 보관
+const NOTICE_READ_KEY = "noti_read_notices";
+function loadNoticeRead() {
+  try {
+    return JSON.parse(localStorage.getItem(NOTICE_READ_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
@@ -161,6 +171,60 @@ function formatTimeAny(v) {
   return `${month}.${date} ${hour}:${min}`;
 }
 
+// 알림 → 이동할 화면(deepLink) 해석
+// - 1) 명시적 deepLink(top-level 우선, 없으면 meta) + 라우트 불일치 보정
+// - 2) deepLink 없으면 종류(kind)·식별자 기반 폴백 (깨진 상세 페이지 방지)
+function resolveNotiRoute(n) {
+  const raw = String(n?.deepLink || n?.meta?.deepLink || "").trim();
+  if (raw) {
+    const s = raw.startsWith("/") ? raw : `/${raw}`;
+    if (s === "/chat") return "/chats";
+    if (s.startsWith("/chat/")) {
+      const cid = s.slice("/chat/".length);
+      // 매칭룸 채팅(match_{roomId})은 매칭룸 상세페이지로 연결
+      if (cid.startsWith("match_")) return `/match-roomdetail/${cid.slice("match_".length)}`;
+      return `/chats/${cid}`;
+    }
+    if (s.startsWith("/matchroom/")) return `/match-roomdetail/${s.slice("/matchroom/".length)}`;
+    if (s.startsWith("/community/")) return `/communitypost/${s.slice("/community/".length)}`;
+    // 팀 초대/참여요청 → 내정보 요청 화면
+    if (s.startsWith("/clubs/")) {
+      const rest = s.slice("/clubs/".length); // "{clubId}/manage" 또는 "{clubId}"
+      const clubId = rest.split("/")[0];
+      if (rest.endsWith("/manage")) return "/my/team-invites";        // 받은 초대
+      return clubId ? `/team/${clubId}/join-requests` : "/my/team-invites"; // 참여요청
+    }
+    return s;
+  }
+
+  // deepLink 없음 → 종류별 폴백
+  const kind = String(n?.kind || "").trim();
+  const sub = String(n?.subType || n?.type || "").toUpperCase();
+  const clubId = String(n?.clubId || n?.meta?.clubId || "").trim();
+  const matchId = String(
+    n?.matchId || n?.meta?.matchId || (n?.linkType === "match" ? n?.linkTargetId : "") || ""
+  ).trim();
+  const chatId = String(
+    n?.meta?.chatId || (n?.linkType === "chat" ? n?.linkTargetId : "") || ""
+  ).trim();
+  const reqId = String(n?.meta?.joinRequestId || "").trim();
+
+  if (kind === "chat") {
+    if (chatId.startsWith("match_")) return `/match-roomdetail/${chatId.slice("match_".length)}`;
+    return chatId ? `/chats/${chatId}` : "/chats";
+  }
+  if (kind === "match") return matchId ? `/match-roomdetail/${matchId}` : "/matchingmanage";
+  if (kind === "team") {
+    if (sub.includes("JOIN_REQUEST") && sub.includes("CREATED") && clubId)
+      return reqId ? `/team/${clubId}/join-requests/${reqId}` : `/team/${clubId}/join-requests`;
+    if (sub.includes("INVITE") && !sub.includes("ACCEPTED") && !sub.includes("REJECTED"))
+      return "/my/team-invites";
+    return "/my";
+  }
+  if (kind === "notice") return "/notifications";
+  return "";
+}
+
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { userDoc } = useAuth();
@@ -169,17 +233,12 @@ export default function NotificationsPage() {
   const uid = userDoc?.uid || userDoc?.id || "";
   const myClubId = club?.clubId || club?.id || userDoc?.clubId || userDoc?.activeTeamId || "";
 
-  // ✅ system 목업용 local read
-  const systemMocks = useMemo(() => getSystemMockNotifications(), []);
-  const [localSystemRead, setLocalSystemRead] = useState(() =>
-    systemMocks.reduce((acc, n) => {
-      acc[n.id] = !!n.read;
-      return acc;
-    }, {})
-  );
-
   const [loading, setLoading] = useState(false);
   const [realItems, setRealItems] = useState([]);
+
+  // 관리자 공지(notices, published=true)
+  const [notices, setNotices] = useState([]);
+  const [noticeRead, setNoticeRead] = useState(loadNoticeRead);
 
   useEffect(() => {
     if (!uid) return;
@@ -199,35 +258,70 @@ export default function NotificationsPage() {
     };
   }, [uid, myClubId]);
 
+  // 관리자가 올린 공지를 알림창에도 노출
+  useEffect(() => {
+    const unsub = subscribePublishedNotices(
+      (rows) => setNotices(rows || []),
+      { limitCount: 100 }
+    );
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+  }, []);
+
   const itemsWithRead = useMemo(() => {
-    return computeReadForUi({
-      items: realItems,
-      uid,
-      localSystemReadMap: localSystemRead,
+    const real = computeReadForUi({ items: realItems, uid });
+
+    const noticeItems = (notices || []).map((n) => ({
+      id: n.id,
+      kind: "notice",
+      title: n.title,
+      body: n.content,
+      createdAt: n.createdAt,
+      important: !!n.pinned,
+      _from: "notice",
+      read: !!noticeRead[n.id],
+    }));
+
+    return [...real, ...noticeItems].sort((a, b) => {
+      const ta = toDateSafe(a.createdAt)?.getTime() || 0;
+      const tb = toDateSafe(b.createdAt)?.getTime() || 0;
+      return tb - ta;
     });
-  }, [realItems, uid, localSystemRead]);
+  }, [realItems, uid, notices, noticeRead]);
 
   const unreadList = itemsWithRead.filter((n) => !n.read);
   const readList = itemsWithRead.filter((n) => n.read);
 
   const handleClickItem = async (n) => {
-    // 읽음 처리
-    if (n._from === "mock") {
-      setLocalSystemRead((prev) => ({ ...prev, [n.id]: true }));
-    } else {
-      try {
-        await markNotificationRead({ notificationId: n.id, uid });
-        setRealItems((prev) =>
-          prev.map((x) =>
-            x.id === n.id
-              ? { ...x, readBy: { ...(x.readBy || {}), [uid]: new Date().toISOString() } }
-              : x
-          )
-        );
-      } catch (e) {}
+    // 관리자 공지: 로컬 읽음 처리 후 상세로 이동
+    if (n._from === "notice") {
+      setNoticeRead((prev) => {
+        const next = { ...prev, [n.id]: true };
+        try {
+          localStorage.setItem(NOTICE_READ_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      navigate(`/notificationsdetail/${n.id}`);
+      return;
     }
 
-    navigate(`/notificationsdetail/${n.id}`);
+    // 읽음 처리
+    try {
+      await markNotificationRead({ notificationId: n.id, uid });
+      setRealItems((prev) =>
+        prev.map((x) =>
+          x.id === n.id
+            ? { ...x, readBy: { ...(x.readBy || {}), [uid]: new Date().toISOString() } }
+            : x
+        )
+      );
+    } catch (e) {}
+
+    // 알림에 맞는 화면으로 이동 (deepLink). 없으면 상세 페이지로 폴백.
+    const route = resolveNotiRoute(n);
+    navigate(route || `/notificationsdetail/${n.id}`);
   };
 
   const hasAny = itemsWithRead.length > 0;

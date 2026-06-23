@@ -1,9 +1,10 @@
 /* eslint-disable */
 // src/components/home/FavoritePlayersSection.jsx
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { images } from "../../utils/imageAssets";
+import { getPlayerRankMap } from "../../services/rankingService";
 import EmptyState from "../common/EmptyState";
 import AvatarPlaceholder from "../common/AvatarPlaceholder";
 
@@ -74,10 +75,32 @@ const Card = styled.div`
 
 const AvatarArea = styled.div`
   width: 100%;
-  padding: 10px 0 4px;
+  /* 상단 패딩 확보: 1~3위 왕관이 카드(overflow:hidden) 밖으로 잘리지 않도록 */
+  padding: 28px 0 4px;
   display: flex;
   align-items: center;
   justify-content: center;
+`;
+
+/* 아바타 + 왕관 오버레이용 래퍼 */
+const AvatarBox = styled.div`
+  position: relative;
+  width: 60px;
+  height: 60px;
+`;
+
+/* 1~3위: 프로필 사진 위에 살짝 겹쳐 배치(로고 PNG 하단 여백 보정) */
+const CrownImg = styled.img`
+  position: absolute;
+  top: -23px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
 `;
 
 const PlayerAvatar = styled.img`
@@ -110,8 +133,22 @@ const PlayerName = styled.div`
 export default function FavoritePlayersSection({ items = [] }) {
   const navigate = useNavigate();
   const slideRef = useRef(null);
+  const [playerRankMap, setPlayerRankMap] = useState(null);
 
   const limitedItems = useMemo(() => (items || []).slice(0, 9), [items]);
+
+  // ✅ 선수 전역 랭킹 — 1~3위면 프로필 위에 왕관 표시용
+  useEffect(() => {
+    let alive = true;
+    getPlayerRankMap()
+      .then((map) => {
+        if (alive) setPlayerRankMap(map);
+      })
+      .catch((e) => console.warn("[FavoritePlayersSection] getPlayerRankMap failed:", e?.message || e));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleViewPlayer = (playerId) => {
     navigate(`/player/${playerId}`);
@@ -154,14 +191,20 @@ export default function FavoritePlayersSection({ items = [] }) {
               (p.photoUrl && String(p.photoUrl).trim()) ||
               "";
 
+            const rank = playerRankMap?.get(String(playerId || "").trim());
+            const showCrown = rank && rank <= 3;
+
             return (
               <Card key={playerId} onClick={() => handleViewPlayer(playerId)}>
                 <AvatarArea>
-                  {avatarSrc ? (
-                    <PlayerAvatar src={avatarSrc} alt={name} />
-                  ) : (
-                    <AvatarPlaceholder size={60} />
-                  )}
+                  <AvatarBox>
+                    {showCrown ? <CrownImg src={images.logo} alt={`${rank}위`} /> : null}
+                    {avatarSrc ? (
+                      <PlayerAvatar src={avatarSrc} alt={name} />
+                    ) : (
+                      <AvatarPlaceholder size={60} />
+                    )}
+                  </AvatarBox>
                 </AvatarArea>
                 <CardBody>
                   <PlayerName>{name}</PlayerName>

@@ -587,6 +587,12 @@ export default function AdminPlayersListPage() {
         onlyCaptains,
       });
       const list = Array.isArray(res?.rows) ? res.rows : [];
+      // 새로 가입한 사람 순(가입일 내림차순)으로 정렬
+      list.sort((a, b) => {
+        const ta = toDate(a?.createdAt)?.getTime() || 0;
+        const tb = toDate(b?.createdAt)?.getTime() || 0;
+        return tb - ta;
+      });
       setRows(list);
       setPage(1);
     } catch (e) {

@@ -197,13 +197,14 @@ const HeroLogoBox = styled.div`
   flex-shrink: 0;
 `;
 
+/* 선수 프로필(AvatarCrown)과 동일하게 로고 위에 살짝 겹쳐 배치(로고 PNG 하단 여백 보정) */
 const HeroCrown = styled.img`
   position: absolute;
-  top: -25px;
+  top: -32px;
   left: 50%;
   transform: translateX(-50%);
-  width: 32px;
-  height: 32px;
+  width: 50px;
+  height: 50px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;

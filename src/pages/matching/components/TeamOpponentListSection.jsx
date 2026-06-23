@@ -69,6 +69,21 @@ const LogoArea = styled.div`
   width: 80px;
   display: flex;
   justify-content: center;
+  position: relative;
+`;
+
+/* 1~3위: 프로필 사진 위에 살짝 겹쳐 배치(앱 전체 공통 기준) */
+const CrownOver = styled.img`
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
 `;
 
 const LogoOuter = styled.div`
@@ -133,15 +148,26 @@ const SummaryText = styled.span`
   color: ${({ theme }) => theme.colors.textNormal};
 `;
 
-const WinRateBadge = styled.span`
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
-  color: ${({ theme }) =>
-    theme.mode === "dark" ? "#a5b4fc" : "#2563eb"};
-  font-size: 11px;
+const WinRateText = styled.span`
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 12px;
   font-weight: 500;
+`;
+
+const RankArea = styled.div`
+  width: 36px;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
+const RankText = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
 `;
 
 const RecentLabel = styled.span`
@@ -215,6 +241,7 @@ export default function TeamOpponentListSection({
   sheetOpen,
   setSheetOpen,
   onTeamClick,
+  rankMap,
 }) {
   const list = Array.isArray(teams) ? teams : [];
 
@@ -242,12 +269,21 @@ export default function TeamOpponentListSection({
           const summaryText = buildSummaryText(team);
           const winRatePercent = getWinRatePercent(team);
           const recentResults = getRecentResults(team, 5);
+          const rank = rankMap && rankMap.get ? rankMap.get(team.clubId) : null;
+          const showCrown = rank && rank <= 3;
 
           return (
             <React.Fragment key={team.clubId || index}>
               <TeamBlock onClick={() => onTeamClick && onTeamClick(team.clubId)}>
                 <Row>
+                  <RankArea>
+                    {rank ? <RankText>{rank}위</RankText> : null}
+                  </RankArea>
+
                   <LogoArea>
+                    {showCrown ? (
+                      <CrownOver src={images.logo} alt={`${rank}위`} />
+                    ) : null}
                     <LogoOuter>
                       <LogoImg
                         src={teamLogoSrc(team.logoUrl || images[team.logoKey])}
@@ -272,7 +308,7 @@ export default function TeamOpponentListSection({
                         }}
                       >
                         <SummaryText>{summaryText}</SummaryText>
-                        <WinRateBadge>승률 {winRatePercent}%</WinRateBadge>
+                        <WinRateText>승률 {winRatePercent}%</WinRateText>
                       </div>
                     </SummaryRow>
 

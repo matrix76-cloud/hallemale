@@ -78,15 +78,18 @@ const RankBadge = styled.div`
     $top ? theme.colors.primary : theme.colors.textStrong};
 `;
 
+/* 1~3위: 프로필 사진 위에 살짝 겹쳐 배치(로고 PNG 하단 여백 보정) — 앱 전체 공통 기준 */
 const CrownImg = styled.img`
   position: absolute;
-  top: -12px;
+  top: -15px;
   left: 50%;
   transform: translateX(-50%);
   width: 24px;
   height: 24px;
   object-fit: contain;
+  z-index: 2;
   pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
 `;
 
 const NewBadge = styled.span`
@@ -155,6 +158,13 @@ const AvatarStack = styled.div`
   flex-direction: column;
   align-items: center;
   gap: 6px;
+`;
+
+/* 아바타 + 왕관 오버레이용 래퍼 */
+const AvatarBox = styled.div`
+  position: relative;
+  width: 40px;
+  height: 40px;
 `;
 
 const AvatarCircle = styled.img`
@@ -369,7 +379,6 @@ export default function PlayerRankingSection({ rows = [] }) {
             <RowWrap key={`${p.userId || index}-${rank}`}>
               <RankCell>
                 <RankBadge $top={showCrown}>
-                  {showCrown ? <CrownImg src={images.logo} alt={`${rank}위`} /> : null}
                   {rankLabel(rank)}
                 </RankBadge>
                 {isNew && <NewBadge>NEW</NewBadge>}
@@ -380,14 +389,17 @@ export default function PlayerRankingSection({ rows = [] }) {
                 onClick={() => handlePlayerClick(p.userId)}
               >
                 <AvatarStack>
-                  {avatarSrc ? (
-                    <AvatarCircle
-                      src={avatarSrc}
-                      alt={p.name || p.nickname || "player"}
-                    />
-                  ) : (
-                    <AvatarPlaceholder size={40} />
-                  )}
+                  <AvatarBox>
+                    {showCrown ? <CrownImg src={images.logo} alt={`${rank}위`} /> : null}
+                    {avatarSrc ? (
+                      <AvatarCircle
+                        src={avatarSrc}
+                        alt={p.name || p.nickname || "player"}
+                      />
+                    ) : (
+                      <AvatarPlaceholder size={40} />
+                    )}
+                  </AvatarBox>
                   {p.isTeamCaptain === true ? <CaptainPill>팀장</CaptainPill> : null}
                 </AvatarStack>
 

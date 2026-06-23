@@ -107,14 +107,14 @@ const SquareAvatarPlaceholder = styled(AvatarPlaceholder)`
   border-radius: 14px;
 `;
 
-/* 1~3위: 아바타(프로필) 위에 겹쳐 배치되는 로고 */
+/* 1~3위: 아바타(프로필) 위에 살짝 겹쳐 배치(로고 PNG 하단 여백 보정) */
 const CrownOver = styled.img`
   position: absolute;
-  top: -13px;
+  top: -20px;
   left: 50%;
   transform: translateX(-50%);
-  width: 28px;
-  height: 28px;
+  width: 31px;
+  height: 31px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;

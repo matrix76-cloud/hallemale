@@ -10,6 +10,7 @@ import AiRecommendedTeamsSection from "./components/AiRecommendedTeamsSection";
 import TeamOpponentListSection from "./components/TeamOpponentListSection";
 import Spinner from "../../components/common/Spinner";
 import { useMatchingData } from "../../hooks/useMatchingData";
+import { getTeamRankMap } from "../../services/teamRankingService";
 
 /* ==================== 상수/헬퍼 ==================== */
 
@@ -87,12 +88,26 @@ export default function MatchingPage() {
   });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState(filters);
+  const [rankMap, setRankMap] = useState(null);
 
   useEffect(() => {
     if (clubLoading) return;
     if (!activeTeamId) return;
     preloadMatchingHomeData(activeTeamId).catch(() => {});
   }, [clubLoading, activeTeamId, preloadMatchingHomeData]);
+
+  // 팀 랭킹 등수(clubId → 등수) — 랭킹 페이지와 동일 기준
+  useEffect(() => {
+    let alive = true;
+    getTeamRankMap()
+      .then((m) => {
+        if (alive) setRankMap(m);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const appliedCount = useMemo(() => countAppliedFilters(filters), [filters]);
 
@@ -191,6 +206,7 @@ export default function MatchingPage() {
           sheetOpen={sheetOpen}
           setSheetOpen={setSheetOpen}
           onTeamClick={(clubId) => navigate(`/team/${clubId}`)}
+          rankMap={rankMap}
         />
       </Inner>
     </Wrap>

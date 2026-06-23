@@ -429,7 +429,8 @@ const ColLogo = styled.div`
 /* 1~3위 프로필 위에 겹쳐지는 로고 (전체보기 페이지와 동일) */
 const CrownImg = styled.img`
   position: absolute;
-  top: ${({ $sm }) => ($sm ? "-13px" : "-16px")};
+  /* 큰 로고(46px)/작은 로고(38px) 사진 크기에 비례 */
+  top: ${({ $sm }) => ($sm ? "-14px" : "-17px")};
   left: 50%;
   transform: translateX(-50%);
   width: ${({ $sm }) => ($sm ? "23px" : "28px")};

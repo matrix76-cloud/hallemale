@@ -1,9 +1,10 @@
 /* eslint-disable */
-import React from "react";
+import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
 import { NOTIFICATIONS_BY_ID } from "../../mock/notificationsMock";
+import { getNotice } from "../../services/noticesService";
 import SubHeaderBar from "../../layouts/components/SubHeaderBar";
 
 const PageWrap = styled.div`
@@ -76,7 +77,7 @@ const FooterHint = styled.div`
 
 const formatTime = (iso) => {
   if (!iso) return "";
-  const d = new Date(iso);
+  const d = typeof iso?.toDate === "function" ? iso.toDate() : new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const year = d.getFullYear();
   const month = d.getMonth() + 1;
@@ -90,11 +91,56 @@ export default function NotificationDetailPage() {
   const navigate = useNavigate();
   const { notificationId } = useParams();
 
-  const data = NOTIFICATIONS_BY_ID[notificationId];
+  const [data, setData] = useState(() => NOTIFICATIONS_BY_ID[notificationId] || null);
+  const [loading, setLoading] = useState(() => !NOTIFICATIONS_BY_ID[notificationId]);
+
+  // mock에 없으면 관리자 공지(notices)에서 불러온다
+  useEffect(() => {
+    const mock = NOTIFICATIONS_BY_ID[notificationId];
+    if (mock) {
+      setData(mock);
+      setLoading(false);
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    getNotice(notificationId)
+      .then((n) => {
+        if (!alive) return;
+        setData(
+          n
+            ? {
+                kind: "notice",
+                title: n.title,
+                body: n.content,
+                createdAt: n.createdAt,
+                important: n.pinned,
+              }
+            : null
+        );
+      })
+      .catch(() => {
+        if (alive) setData(null);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [notificationId]);
 
   const handleBack = () => {
     goBackOrHome(navigate);
   };
+
+  if (loading) {
+    return (
+      <PageWrap>
+        <FooterHint>불러오는 중…</FooterHint>
+      </PageWrap>
+    );
+  }
 
   if (!data) {
     return (
@@ -127,6 +173,7 @@ export default function NotificationDetailPage() {
           <span>{formatTime(data.createdAt)}</span>
           {data.important && <ImportantLabel>중요</ImportantLabel>}
         </MetaRow>
+        {data.title && <Title>{data.title}</Title>}
         <Body>{data.body}</Body>
 
         <FooterHint>

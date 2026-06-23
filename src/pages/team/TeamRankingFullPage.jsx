@@ -100,14 +100,14 @@ const AvatarImg = styled.img`
   display: block;
 `;
 
-/* 1~3위: 아바타(프로필) 위에 겹쳐 배치되는 로고 */
+/* 1~3위: 아바타(프로필) 위에 살짝 겹쳐 배치(앱 전체 공통 기준) */
 const CrownOver = styled.img`
   position: absolute;
-  top: -16px;
+  top: -20px;
   left: 50%;
   transform: translateX(-50%);
-  width: 28px;
-  height: 28px;
+  width: 31px;
+  height: 31px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;
