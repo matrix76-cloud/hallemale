@@ -1657,6 +1657,26 @@ export async function submitMatchReview({
   return { ok: true };
 }
 
+// ✅ 내가(raterUid) 이미 리뷰를 남긴 경기 id 집합 — 전적 탭 "리뷰 남길/끝난 경기" 구분용
+// - reviews/{raterUid} 문서를 직접 조회(타깃 read 1건/경기)해 rules 안전 + 가벼움
+export async function listMyReviewedMatchIds({ matchIds = [], raterUid } = {}) {
+  const uid = toStr(raterUid);
+  const ids = (Array.isArray(matchIds) ? matchIds : []).map(toStr).filter(Boolean);
+  if (!uid || ids.length === 0) return new Set();
+
+  const results = await Promise.all(
+    ids.map(async (mid) => {
+      try {
+        const snap = await getDoc(doc(db, "match_requests", mid, "reviews", uid));
+        return snap.exists() ? mid : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+  return new Set(results.filter(Boolean));
+}
+
 // 한 경기의 모든 선수 평점 조회 (최신순)
 export async function listMatchReviews({ matchRequestId } = {}) {
   const id = toStr(matchRequestId);

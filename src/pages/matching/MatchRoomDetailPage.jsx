@@ -15,6 +15,7 @@ import {
   submitMatchResultWithMedia,
   acceptMatchResult,
   disputeMatchResult,
+  submitMatchReview,
   appendMatchResultComment,
   appendMatchResultPhotos,
   markMatchRoomSeen,
@@ -31,6 +32,7 @@ import MatchRoomChat from "../../components/matchRoom/MatchRoomChat";
 import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCelebration";
+import MatchAcceptedCelebration from "../../components/matchRoom/MatchAcceptedCelebration";
 import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
@@ -143,6 +145,50 @@ const CenterState = styled.div`
   white-space: nowrap;
   color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
   text-align: center;
+`;
+
+/* 팀원에게 "조율중" 안내를 보여주는 화면 */
+const MemberGateWrap = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 28px;
+  gap: 12px;
+`;
+
+const MemberGateIcon = styled.div`
+  font-size: 44px;
+  line-height: 1;
+`;
+
+const MemberGateTitle = styled.h3`
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const MemberGateText = styled.p`
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-line;
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
+`;
+
+const MemberGateBtn = styled.button`
+  margin-top: 10px;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 28px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: ${({ theme }) => theme.colors.primary || "#4f46e5"};
+  cursor: pointer;
 `;
 
 /* /venue(구장 정하기) 화면 하단에 도킹되는 채팅 — 입력창이 항상 보이도록 */
@@ -2747,7 +2793,7 @@ function parseCommentBlocks(raw, { actorClubId = "", targetClubId = "", actorTea
 export default function MatchRoomDetailPage() {
   const navigate = useNavigate();
   const params = useParams();
-  const { club } = useClub();
+  const { club, isTeamLeader } = useClub();
   const { firebaseUser, userDoc } = useAuth();
   const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
   const { setHeaderSubtitle, setHeaderConfig, showBottomSheet, hideBottomSheet, showToast } = useUIContext() || {};
@@ -2777,6 +2823,8 @@ export default function MatchRoomDetailPage() {
   const [fieldLatLng, setFieldLatLng] = useState(null);
   const [venueConfirmChecked, setVenueConfirmChecked] = useState(false); // "구장 예약 직접 확인" 체크
   const [showConfirmAnim, setShowConfirmAnim] = useState(false); // (2-7) 확정 축하 애니메이션
+  const [showAcceptAnim, setShowAcceptAnim] = useState(false); // 매칭 성사(수락) 축하 애니메이션
+  const acceptAnimRef = useRef(false);
   const [venuePickerOpen, setVenuePickerOpen] = useState(false);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [venueImageUrl, setVenueImageUrl] = useState("");
@@ -2806,6 +2854,27 @@ export default function MatchRoomDetailPage() {
   const [resultComment, setResultComment] = useState("");
   const [resultFiles, setResultFiles] = useState([]);
   const [resultBusy, setResultBusy] = useState(false);
+
+  // ✅ 지난 경기 리뷰(별점·한줄평) — 팀장·팀원 공통, 1인 1리뷰
+  const [reviewStars, setReviewStars] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const reviewPrefillRef = useRef("");
+
+  // 내가 이전에 남긴 리뷰가 있으면 입력칸에 한 번 채움 (경기별 1회)
+  useEffect(() => {
+    const rid = toStr(room?.id);
+    if (!rid || !myUid) return;
+    if (reviewPrefillRef.current === rid) return;
+    reviewPrefillRef.current = rid;
+    const mine = (Array.isArray(room?.reviews) ? room.reviews : []).find(
+      (r) => toStr(r.raterUid) === myUid
+    );
+    if (mine) {
+      setReviewStars(Math.max(0, Math.min(5, Number(mine.stars) || 0)));
+      setReviewComment(toStr(mine.comment));
+    }
+  }, [room, myUid]);
 
   // 조율 단계 라인업 확정 시트
   const [lineupSheetOpen, setLineupSheetOpen] = useState(false);
@@ -2866,6 +2935,27 @@ export default function MatchRoomDetailPage() {
       cancelled = true;
     };
   }, [roomId]);
+
+  // 매칭 수락 직후(수락한 사람) / 수락 푸시알림 클릭 진입(요청한 사람) 시
+  // "매칭 성사" 축하 애니메이션을 1회 표시. 조율중(accepted/proposed)일 때만.
+  useEffect(() => {
+    if (acceptAnimRef.current) return;
+    // 라우터 state(앱 내 이동) 또는 ?celebrate=accepted(푸시 딥링크) 둘 다 지원
+    const wantCelebrate =
+      !!location.state?.celebrateAccepted ||
+      new URLSearchParams(location.search || "").get("celebrate") === "accepted";
+    if (!wantCelebrate) return;
+    if (!room) return;
+    const st = toStr(room.status);
+    if (st !== "accepted" && st !== "proposed") return;
+    acceptAnimRef.current = true;
+    setShowAcceptAnim(true);
+    // 새로고침/뒤로가기 시 재생되지 않도록 state·쿼리에서 플래그 제거 (다른 state는 보존)
+    navigate(location.pathname, {
+      replace: true,
+      state: { viewClubId: location.state?.viewClubId },
+    });
+  }, [room, location.state, location.pathname, location.search, navigate]);
 
   // 결과 자동 확정: waiting_accept 상태에서 경기 종료일 + 3일이 지나면 제출값으로 확정
   useEffect(() => {
@@ -3362,6 +3452,26 @@ export default function MatchRoomDetailPage() {
   const isFinished = status === "finished";
   const isCancelled = status === "cancelled";
 
+  // 팀원(비팀장)은 "조율중"(accepted/proposed) 경기의 상세를 볼 수 없음 → 안내 화면으로 대체.
+  // 확정/지난경기(finished)/취소는 팀원도 열람 가능.
+  if (isAdjusting && !isTeamLeader) {
+    return (
+      <PageWrap>
+        <MemberGateWrap>
+          <MemberGateIcon>🤝</MemberGateIcon>
+          <MemberGateTitle>조율 중인 경기예요</MemberGateTitle>
+          <MemberGateText>
+            팀장이 상대 팀과 일정·구장을 조율하고 있어요.{"\n"}
+            경기가 확정되면 팀원도 상세 내용을 확인할 수 있어요.
+          </MemberGateText>
+          <MemberGateBtn type="button" onClick={() => goBackOrHome(navigate)}>
+            돌아가기
+          </MemberGateBtn>
+        </MemberGateWrap>
+      </PageWrap>
+    );
+  }
+
   // 진행단계 스텝퍼 (직접 입력 흐름)
   // 결제 단계 제거 (현장 정산만 있어 앱 결제 없음)
   // 단계: 라인업(양 팀 확정) → 구장·일정(제안) → 확정(상대 수락)
@@ -3711,6 +3821,39 @@ export default function MatchRoomDetailPage() {
       window.alert(e?.message || "결과 제출에 실패했습니다.");
     } finally {
       setResultBusy(false);
+    }
+  };
+
+  // ✅ 지난 경기 리뷰 제출/수정 (팀장·팀원 공통) — 상대 팀 평점
+  const handleSubmitReview = async () => {
+    if (!myClubId || !myUid) {
+      window.alert("로그인 정보를 확인할 수 없습니다.");
+      return;
+    }
+    if (reviewStars < 1) {
+      window.alert("별점을 선택해 주세요.");
+      return;
+    }
+    const targetClubId = isActor ? toStr(room.targetClubId) : toStr(room.actorClubId);
+    setReviewBusy(true);
+    try {
+      await submitMatchReview({
+        matchRequestId: room.id,
+        raterUid: myUid,
+        raterName: toStr(userDoc?.nickname) || toStr(userDoc?.name),
+        raterClubId: myClubId,
+        targetClubId,
+        stars: reviewStars,
+        comment: reviewComment,
+      });
+      reviewPrefillRef.current = ""; // 새 데이터로 prefill 재적용 허용
+      await refresh();
+      if (showToast) showToast("리뷰를 남겼어요. 감사합니다!");
+      else window.alert("리뷰를 남겼어요. 감사합니다!");
+    } catch (e) {
+      window.alert(e?.message || "리뷰 등록에 실패했습니다.");
+    } finally {
+      setReviewBusy(false);
     }
   };
 
@@ -4105,9 +4248,9 @@ export default function MatchRoomDetailPage() {
     );
   }
 
-  // 경기 결과 입력 폼: 최종 스코어 / 상대 팀 평가 / 사진·후기 (3카드)
-  // 다른 팀 관점(읽기전용)에서는 입력 폼 미노출
-  const canInputResult = !resultState && canOpenResultInput && isViewerMyTeam;
+  // 경기 결과 입력 폼: 최종 스코어 / 사진·후기 (2카드)
+  // 다른 팀 관점(읽기전용)에서는 입력 폼 미노출. ✅ 결과(스코어) 입력은 팀장만.
+  const canInputResult = !resultState && canOpenResultInput && isViewerMyTeam && isTeamLeader;
 
   const resultInputCards = (
     <>
@@ -4160,30 +4303,7 @@ export default function MatchRoomDetailPage() {
         </ScoreCardRow>
       </SectionCard>
 
-      {/* 상대 팀 평가 카드 */}
-      <SectionCard>
-        <SectionTitleRow>
-          <SectionTitleLeft>
-            <span>상대 팀은 어땠나요?</span>
-          </SectionTitleLeft>
-          <SectionTitleActions />
-        </SectionTitleRow>
-        <RatingSubtitle>매너·실력을 별점으로 평가하면 상대 팀 평판에 반영돼요.</RatingSubtitle>
-        <StarsRow>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <StarBtn
-              key={n}
-              type="button"
-              $on={n <= oppRating}
-              onClick={() => setOppRating(n === oppRating ? 0 : n)}
-              aria-label={`${n}점`}
-            >
-              {n <= oppRating ? "★" : "☆"}
-            </StarBtn>
-          ))}
-        </StarsRow>
-        <RatingValueLabel>{RATING_LABELS[oppRating] || ""}</RatingValueLabel>
-      </SectionCard>
+      {/* 별점 평가는 '리뷰 남기기' 카드로 분리 (팀장·팀원 공통, 지난 경기에서) */}
 
       {/* 사진 · 한줄 후기 카드 */}
       <SectionCard>
@@ -4384,6 +4504,15 @@ export default function MatchRoomDetailPage() {
         </ResultInfoBox>
       )}
 
+      {/* ✅ 팀원: 결과(스코어) 입력은 팀장 전용 안내 */}
+      {!resultState && canOpenResultInput && isViewerMyTeam && !isTeamLeader && (
+        <ResultInfoBox>
+          경기 결과(스코어)는 <strong>팀장</strong>이 입력해요.
+          <br />
+          경기가 끝났다면 아래에서 상대 팀 <strong>리뷰</strong>를 남겨 주세요.
+        </ResultInfoBox>
+      )}
+
       {resultState === "disputed" && <ResultStatusText>이의 제기 상태입니다. 관리자 검토 후 처리됩니다.</ResultStatusText>}
     </SectionCard>
   );
@@ -4456,6 +4585,44 @@ export default function MatchRoomDetailPage() {
       ) : (
         <ReviewEmpty>아직 상대 팀이 남긴 평점이 없어요.</ReviewEmpty>
       )}
+    </SectionCard>
+  );
+
+  // ✅ 내가 상대 팀에 남기는 리뷰 카드 (팀장·팀원 공통, 지난 경기) — 1인 1리뷰
+  const myHasReview = allReviews.some((r) => toStr(r.raterUid) === myUid);
+  const myReviewSection = (
+    <SectionCard>
+      <SectionTitleRow>
+        <SectionTitleLeft>
+          <span>{oppName} 리뷰 남기기</span>
+        </SectionTitleLeft>
+        <SectionTitleActions />
+      </SectionTitleRow>
+      <RatingSubtitle>매너·실력을 별점으로 남기면 상대 팀 평판에 반영돼요. 팀원도 남길 수 있어요.</RatingSubtitle>
+      <StarsRow>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <StarBtn
+            key={n}
+            type="button"
+            $on={n <= reviewStars}
+            onClick={() => setReviewStars(n === reviewStars ? 0 : n)}
+            aria-label={`${n}점`}
+          >
+            {n <= reviewStars ? "★" : "☆"}
+          </StarBtn>
+        ))}
+      </StarsRow>
+      <RatingValueLabel>{RATING_LABELS[reviewStars] || ""}</RatingValueLabel>
+      <TextArea
+        value={reviewComment}
+        onChange={(e) => setReviewComment(e.target.value)}
+        placeholder="한줄 후기 (예: 매너 좋았습니다. 다음에 또 경기해요!)"
+      />
+      <ResultSubmitBar>
+        <PrimaryButton type="button" onClick={handleSubmitReview} disabled={reviewBusy || reviewStars < 1}>
+          {reviewBusy ? "처리중..." : myHasReview ? "리뷰 수정" : "리뷰 남기기"}
+        </PrimaryButton>
+      </ResultSubmitBar>
     </SectionCard>
   );
 
@@ -4588,6 +4755,9 @@ export default function MatchRoomDetailPage() {
 
             {/* 지난(완료) 경기: 경기 결과 카드를 결과 배너 바로 아래에 배치 */}
             {isPast && resultSection}
+
+            {/* 지난 경기: 내가 상대 팀에 남기는 리뷰 (팀장·팀원 공통) */}
+            {isPast && isViewerMyTeam && myReviewSection}
 
             {/* 결과 확정된 완료 경기: 상대 팀 선수들이 우리 팀에 남긴 평점 (보기 전용) */}
             {isResultView && oppReviewSection}
@@ -5570,6 +5740,20 @@ export default function MatchRoomDetailPage() {
         ]
           .filter(Boolean)
           .join("\n")}
+      />
+
+      <MatchAcceptedCelebration
+        open={showAcceptAnim}
+        myName={toStr(myTeamView?.name) || "우리팀"}
+        myLogoUrl={teamLogoSrc(myTeamView?.logoUrl)}
+        oppName={oppName}
+        oppLogoUrl={teamLogoSrc(oppTeamView?.logoUrl)}
+        onStart={() => setShowAcceptAnim(false)}
+        onClose={() => setShowAcceptAnim(false)}
+        onLater={() => {
+          setShowAcceptAnim(false);
+          navigate("/matchingmanage");
+        }}
       />
 
       {/* 라인업 보기 모달 — 우리/상대 라인업을 한 창에서 확인. X 또는 바깥 클릭으로 닫힘 */}

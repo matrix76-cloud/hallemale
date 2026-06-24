@@ -14,6 +14,21 @@ import {
   where,
   limit,
 } from "firebase/firestore";
+import { getNameChangeStatus } from "../utils/nameChange";
+
+/**
+ * 닉네임 중복 여부 확인
+ * - 공백 정규화 후 동일한 닉네임을 가진 다른 사용자가 있으면 true
+ * - exceptUid: 본인은 제외
+ */
+export async function isNicknameTaken(nickname, exceptUid = "") {
+  const target = String(nickname || "").trim().replace(/\s+/g, " ");
+  if (!target) return false;
+
+  const qy = query(collection(db, "users"), where("nickname", "==", target), limit(2));
+  const snap = await getDocs(qy);
+  return snap.docs.some((d) => d.id !== String(exceptUid || "").trim());
+}
 
 /**
  * users/{uid} 최소 스키마 보장
@@ -154,7 +169,32 @@ export const updateUserProfile = async ({
     updatedAt: serverTimestamp(),
   };
 
-  if (typeof nickname === "string") payload.nickname = nickname;
+  if (typeof nickname === "string") {
+    const nextNick = nickname.trim().replace(/\s+/g, " ");
+
+    // 현재 닉네임과 비교 — 변경될 때만 중복/쿨다운 검사
+    const curSnap = await getDoc(ref);
+    const cur = curSnap.exists() ? curSnap.data() || {} : {};
+    const curNick = String(cur.nickname || "").trim().replace(/\s+/g, " ");
+
+    if (nextNick && nextNick !== curNick) {
+      // ✅ 쿨다운 가드: 한번 정하면 90일 후 변경 가능
+      const { locked, remainingDays } = getNameChangeStatus(cur.nicknameUpdatedAt);
+      if (locked) {
+        throw new Error(`닉네임은 ${remainingDays}일 후에 변경할 수 있어요.`);
+      }
+
+      // ✅ 중복 가드
+      if (await isNicknameTaken(nextNick, uid)) {
+        throw new Error("이미 사용 중인 닉네임이에요. 다른 닉네임을 입력해 주세요.");
+      }
+
+      payload.nickname = nextNick;
+      payload.nicknameUpdatedAt = serverTimestamp();
+    } else {
+      payload.nickname = nextNick;
+    }
+  }
   if (typeof avatarUrl === "string" || avatarUrl === null) payload.avatarUrl = avatarUrl;
 
   if (typeof onboardingDone === "boolean") payload.onboardingDone = onboardingDone;

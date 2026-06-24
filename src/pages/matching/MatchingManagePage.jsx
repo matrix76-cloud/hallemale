@@ -5,7 +5,6 @@ import styled from "styled-components";
 import { useNavigate, useLocation } from "react-router-dom";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import Spinner from "../../components/common/Spinner";
-import InfoDialog from "../../components/common/InfoDialog";
 
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
@@ -701,7 +700,7 @@ export default function MatchingManagePage() {
     initialTab === "sent" || initialTab === "closed" ? initialTab : "received"
   );
 
-  const { club, members: myMembers } = useClub();
+  const { club, members: myMembers, isTeamLeader } = useClub();
   const myClubId = toStr(club?.clubId || club?.id);
   const myMemberCount = Array.isArray(myMembers) ? myMembers.length : 0;
 
@@ -718,11 +717,6 @@ export default function MatchingManagePage() {
   const [fromRoster, setFromRoster] = useState([]);
   const [toRoster, setToRoster] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
-
-  // ✅ 수락 완료 안내 (매칭룸으로 이동 유도)
-  const [acceptDoneOpen, setAcceptDoneOpen] = useState(false);
-  const [acceptDoneMatchId, setAcceptDoneMatchId] = useState("");
-  const [acceptDoneOppName, setAcceptDoneOppName] = useState("");
 
   const reload = async () => {
     if (!myClubId) {
@@ -794,6 +788,12 @@ export default function MatchingManagePage() {
       return;
     }
 
+    // ✅ 매칭 요청 수락/거절/취소는 팀장만 가능
+    if (!isTeamLeader) {
+      alert("매칭 요청 수락·거절은 팀장만 할 수 있어요.");
+      return;
+    }
+
     const key = `${action.type}:${matchId}`;
     if (busyKey) return;
 
@@ -807,14 +807,11 @@ export default function MatchingManagePage() {
           return;
         }
         await acceptMatchRequest({ myClubId, latestNoti: latest });
-        await reload();
 
-        const opp = row?.opponentSnapshot || {};
-        const oppName = toStr(opp?.name) || "상대 팀";
-
-        setAcceptDoneMatchId(matchId);
-        setAcceptDoneOppName(oppName);
-        setAcceptDoneOpen(true);
+        // 매칭 성사 → 조율중 매칭룸으로 이동하며 "매칭 성사" 축하 애니메이션 표시
+        nav(`/match-roomdetail/${matchId}`, {
+          state: { celebrateAccepted: true },
+        });
         return;
       }
 
@@ -874,11 +871,20 @@ export default function MatchingManagePage() {
     setRosterLoading(false);
   };
 
-  const closeAcceptDone = () => {
-    setAcceptDoneOpen(false);
-    setAcceptDoneMatchId("");
-    setAcceptDoneOppName("");
-  };
+  // 매칭 신청/수락 관리는 팀장만. 팀원은 경기 종료 후 평점·리뷰만 가능.
+  if (!isTeamLeader) {
+    return (
+      <Page>
+        <Inner>
+          <EmptyState
+            icon="🤝"
+            text="매칭 신청·수락은 팀장만 관리할 수 있어요."
+            sub="팀원은 경기가 끝난 뒤 상대 팀 평점·리뷰를 남길 수 있어요."
+          />
+        </Inner>
+      </Page>
+    );
+  }
 
   return (
     <Page>
@@ -1127,23 +1133,6 @@ export default function MatchingManagePage() {
           </ModalCard>
         </Overlay>
       )}
-
-      <InfoDialog
-        open={acceptDoneOpen}
-        tone="success"
-        title="매칭이 수락됐어요"
-        message={`이제 매칭룸에서\n일정과 내용을 확정할 수 있습니다.\n\n상대팀: ${acceptDoneOppName || "상대 팀"}`}
-        primaryText="매칭룸으로 이동"
-        onPrimary={() => {
-        closeAcceptDone();
-        nav("/match-roomlist");
-        }}
-        secondaryText="나중에"
-        onClose={closeAcceptDone}
-        hideSecondary={false}
-        showClose={true}
-        closeOnOverlay={false}
-      />
     </Page>
   );
 }

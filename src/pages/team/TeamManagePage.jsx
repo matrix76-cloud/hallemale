@@ -27,6 +27,8 @@ import {
   forceRemoveClubMember,
   updateClubRegion,
 } from "../../services/clubManageService";
+import { isClubNameTaken } from "../../services/teamService";
+import { getNameChangeStatus } from "../../utils/nameChange";
 
 import {
   uploadCompressedImageMedia,
@@ -72,6 +74,8 @@ export default function TeamManagePage() {
   const [savingName, setSavingName] = useState(false);
   const [nameSaveState, setNameSaveState] = useState("idle"); // idle | saving | saved | error
   const [nameSaveMsg, setNameSaveMsg] = useState("");
+  // 팀명 중복 확인 상태: "idle" | "checking" | "available" | "taken" | "error"
+  const [nameCheckStatus, setNameCheckStatus] = useState("idle");
 
   // ✅ 로고 변경(업로드 결과를 저장 버튼에서 반영) → 저장 버튼 제거: 업로드 후 자동 저장(디바운스)
   const [logoBusy, setLogoBusy] = useState(false);
@@ -138,7 +142,6 @@ export default function TeamManagePage() {
 
   // ===== 디바운스 타이머 refs =====
   const introTimerRef = useRef(null);
-  const nameTimerRef = useRef(null);
   const logoTimerRef = useRef(null);
   const regionTimerRef = useRef(null);
 
@@ -563,7 +566,7 @@ export default function TeamManagePage() {
   }, [clubId, pendingLogo?.logoUrl, pendingLogo?.logoPath]);
 
   /* ======================
-   * ✅ 팀 이름 변경 (실시간 저장, 디바운스)
+   * ✅ 팀 이름 변경 (중복체크 + 명시적 변경, 90일 쿨다운)
    * ====================== */
 
   const validateTeamName = (v) => {
@@ -574,69 +577,74 @@ export default function TeamManagePage() {
     return "";
   };
 
+  // 마지막 변경(또는 생성)일 기준 쿨다운
+  const nameLock = getNameChangeStatus(club?.nameUpdatedAt || club?.createdAt);
+  const nameChanged = String(nameDraft || "").trim() !== String(club?.name || "").trim();
+
   const onChangeNameDraft = (v) => {
     setNameDraft(v);
+    setNameCheckStatus("idle"); // 변경 시 다시 확인 필요
+    setNameSaveState("idle");
+    setNameSaveMsg("");
   };
 
-  // ✅ nameDraft 변경 시 디바운스로 즉시 저장
-  useEffect(() => {
-    if (!clubId) return;
-    if (!isOwner) return;
+  const nameValid = !validateTeamName(nameDraft);
 
+  // ✅ 중복체크 버튼
+  const handleCheckName = async () => {
     const next = String(nameDraft || "").trim();
-    const prevServer = String(nameServerRef.current || "").trim();
+    if (!nameValid || nameCheckStatus === "checking") return;
 
-    if (!next) {
-      setNameSaveState("idle");
-      setNameSaveMsg("");
-      return;
+    setNameCheckStatus("checking");
+    try {
+      const taken = await isClubNameTaken(next, clubId);
+      setNameCheckStatus(taken ? "taken" : "available");
+    } catch (e) {
+      setNameCheckStatus("error");
     }
+  };
 
+  // ✅ 변경 버튼 (명시적 저장)
+  const handleSaveName = async () => {
+    if (savingName) return;
+    const next = String(nameDraft || "").trim();
     const err = validateTeamName(next);
     if (err) {
       setNameSaveState("error");
       setNameSaveMsg(err);
       return;
     }
-
-    if (next === prevServer) {
-      setNameSaveState("idle");
-      setNameSaveMsg("");
+    if (nameLock.locked) {
+      setNameSaveState("error");
+      setNameSaveMsg(`팀 이름은 ${nameLock.remainingDays}일 후에 변경할 수 있어요.`);
+      return;
+    }
+    if (nameCheckStatus !== "available") {
+      setNameSaveState("error");
+      setNameSaveMsg("중복체크를 먼저 진행해 주세요.");
       return;
     }
 
-    clearTimer(nameTimerRef);
-
+    setSavingName(true);
     setNameSaveState("saving");
     setNameSaveMsg("팀 이름 저장 중...");
+    try {
+      await updateClubName({ clubId, name: next });
+      nameServerRef.current = next;
+      setNameSaveState("saved");
+      setNameSaveMsg("팀 이름이 변경됐어요.");
+      setNameCheckStatus("idle");
 
-    nameTimerRef.current = setTimeout(async () => {
-      if (savingName) return;
-
-      setSavingName(true);
-      try {
-        await updateClubName({ clubId, name: next });
-
-        nameServerRef.current = next;
-        setNameSaveState("saved");
-        setNameSaveMsg("팀 이름 저장됨");
-
-        // 화면 club도 즉시 반영
-        setClub((prev) => {
-          if (!prev) return prev;
-          return { ...prev, name: next };
-        });
-      } catch (e) {
-        console.warn("[TeamManage] auto save name failed:", e?.message || e);
-        setNameSaveState("error");
-        setNameSaveMsg("팀 이름 저장 실패");
-      } finally {
-        setSavingName(false);
-      }
-    }, 900);
-
-    return () => clearTimer(nameTimerRef);
-  }, [clubId, isOwner, nameDraft]);
+      // 화면 club 즉시 반영 (쿨다운 시작 표시를 위해 nameUpdatedAt도 갱신)
+      setClub((prev) => (prev ? { ...prev, name: next, nameUpdatedAt: { seconds: Math.floor(Date.now() / 1000) } } : prev));
+    } catch (e) {
+      console.warn("[TeamManage] save name failed:", e?.message || e);
+      setNameSaveState("error");
+      setNameSaveMsg(e?.message || "팀 이름 저장 실패");
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   /* ======================
    * ✅ 소개/홍보 실시간 저장 (디바운스)
@@ -1098,13 +1106,63 @@ export default function TeamManagePage() {
 
           <Field>
             <Label>팀 이름</Label>
-            <ModalInput
-              value={nameDraft}
-              onChange={(e) => onChangeNameDraft(e.target.value)}
-              placeholder="팀 이름"
-              disabled={savingName}
-            />
- 
+            <NameEditRow>
+              <ModalInput
+                style={{ flex: 1 }}
+                value={nameDraft}
+                onChange={(e) => onChangeNameDraft(e.target.value)}
+                placeholder="팀 이름"
+                disabled={savingName || nameLock.locked}
+              />
+              <NameCheckBtn
+                type="button"
+                onClick={handleCheckName}
+                disabled={
+                  savingName ||
+                  nameLock.locked ||
+                  !nameChanged ||
+                  !nameValid ||
+                  nameCheckStatus === "checking"
+                }
+              >
+                {nameCheckStatus === "checking" ? "확인 중..." : "중복체크"}
+              </NameCheckBtn>
+              <BtnPrimary
+                style={{ flex: "0 0 auto", height: 42, borderRadius: 8, padding: "0 14px" }}
+                type="button"
+                onClick={handleSaveName}
+                disabled={
+                  savingName ||
+                  nameLock.locked ||
+                  !nameChanged ||
+                  nameCheckStatus !== "available"
+                }
+              >
+                {savingName ? "변경 중..." : "변경"}
+              </BtnPrimary>
+            </NameEditRow>
+
+            {nameLock.locked ? (
+              <NameStatusText>
+                팀 이름은 {nameLock.remainingDays}일 후에 변경할 수 있어요.
+              </NameStatusText>
+            ) : (
+              <>
+                {nameChanged && nameCheckStatus === "idle" && (
+                  <NameStatusText>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatusText>
+                )}
+                {nameCheckStatus === "available" && (
+                  <NameStatusText $tone="ok">사용할 수 있는 팀 이름이에요.</NameStatusText>
+                )}
+                {nameCheckStatus === "taken" && (
+                  <NameStatusText $tone="error">이미 사용 중인 팀 이름이에요.</NameStatusText>
+                )}
+                {nameCheckStatus === "error" && (
+                  <NameStatusText $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatusText>
+                )}
+                <NameStatusText>팀 이름은 한번 정하면 90일 후에 변경할 수 있어요.</NameStatusText>
+              </>
+            )}
           </Field>
 
           <Divider />
@@ -1826,6 +1884,43 @@ const HintText = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.6;
+`;
+
+const NameEditRow = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+`;
+
+const NameCheckBtn = styled.button`
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+`;
+
+const NameStatusText = styled.div`
+  font-size: 12px;
+  margin-top: 4px;
+  color: ${({ $tone, theme }) =>
+    $tone === "ok"
+      ? theme.colors.primary
+      : $tone === "error"
+      ? "#ef4444"
+      : theme.colors.textWeak};
 `;
 
 const AutoSaveHint = styled.div`

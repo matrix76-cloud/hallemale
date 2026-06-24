@@ -90,26 +90,30 @@ const Badge = styled.span`
     `}
 `;
 
-const tabs = [
-  { key: "home", label: "홈", path: "/home" },
-  { key: "matchingmanage", label: "매칭관리", path: "/matchingmanage" },
-  { key: "community", label: "커뮤니티", path: "/community" },
-  { key: "my", label: "내정보", path: "/my" },
-];
+// 팀장: 매칭관리 탭 / 팀원: "우리 팀 경기" 탭 (아이콘은 매칭 슬롯 재사용)
+const LEADER_SECOND_TAB = { key: "matchingmanage", iconKey: "matchingmanage", label: "매칭관리", path: "/matchingmanage" };
+const MEMBER_SECOND_TAB = { key: "records", iconKey: "matchingmanage", label: "전적", path: "/records" };
 
-export default function BottomTabBar({ currentPath, onNavigate, matchingCount = 0 }) {
+export default function BottomTabBar({ currentPath, onNavigate, matchingCount = 0, isTeamLeader = false }) {
   const formatCount = (n) => {
     if (!n || n <= 0) return "";
     if (n > 9) return "9+";
     return String(n);
   };
 
+  const tabs = [
+    { key: "home", iconKey: "home", label: "홈", path: "/home" },
+    isTeamLeader ? LEADER_SECOND_TAB : MEMBER_SECOND_TAB,
+    { key: "community", iconKey: "community", label: "커뮤니티", path: "/community" },
+    { key: "my", iconKey: "my", label: "내정보", path: "/my" },
+  ];
+
   return (
     <Wrap>
       {tabs.map((tab) => {
         const active = currentPath.startsWith(tab.path);
-        const isMatchingTab = tab.key === "matchingmanage";
-        const showBadge = isMatchingTab && matchingCount > 0;
+        // 매칭관리(팀장) 탭에만 받은 제안 배지 표시
+        const showBadge = tab.key === "matchingmanage" && matchingCount > 0;
 
         return (
           <Item
@@ -122,8 +126,8 @@ export default function BottomTabBar({ currentPath, onNavigate, matchingCount = 
               <IconImg
                 src={
                   active
-                    ? bottomTabIcons[tab.key].active
-                    : bottomTabIcons[tab.key].inactive
+                    ? bottomTabIcons[tab.iconKey].active
+                    : bottomTabIcons[tab.iconKey].inactive
                 }
                 alt={tab.label}
               />

@@ -592,6 +592,20 @@ function safeSlug(input) {
     .slice(0, 40);
 }
 
+/**
+ * 팀 이름 중복 여부 확인
+ * - 공백 정규화 후 동일한 이름이 이미 존재하면 true
+ * - exceptId: 본인 팀 문서는 중복에서 제외 (이름 변경 시)
+ */
+export async function isClubNameTaken(name, exceptId = "") {
+  const target = String(name || "").trim().replace(/\s+/g, " ");
+  if (!target) return false;
+
+  const qy = query(collection(db, "clubs"), where("name", "==", target), limit(2));
+  const snap = await getDocs(qy);
+  return snap.docs.some((d) => d.id !== String(exceptId || "").trim());
+}
+
 export async function createClub({
   ownerUid,
   name,
@@ -607,8 +621,15 @@ export async function createClub({
   if (!String(name || "").trim()) throw new Error("createClub: name is required");
   if (!String(region || "").trim()) throw new Error("createClub: region is required");
 
+  const normalizedName = String(name || "").trim().replace(/\s+/g, " ");
+
+  // ✅ 서버측 중복 가드 (최종 방어)
+  if (await isClubNameTaken(normalizedName)) {
+    throw new Error("이미 사용 중인 팀 이름이에요. 다른 이름을 입력해 주세요.");
+  }
+
   const basePayload = {
-    name: String(name || "").trim(),
+    name: normalizedName,
     region: String(region || "").trim(),
     regionSido: regionSido || null,
     regionGu: regionGu || null,
@@ -630,6 +651,9 @@ export async function createClub({
       winRate: 0,
       updatedAt: serverTimestamp(),
     },
+
+    // ✅ 이름 변경 쿨다운 기준 (한번 정하면 3개월 뒤 변경 가능)
+    nameUpdatedAt: serverTimestamp(),
 
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

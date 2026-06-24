@@ -40,6 +40,14 @@ const MemberCard = styled.button`
   }
 `;
 
+/* 아바타 + 왕관 오버레이용 래퍼 */
+const AvatarBox = styled.div`
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+`;
+
 const Avatar = styled.img`
   width: 44px;
   height: 44px;
@@ -47,7 +55,20 @@ const Avatar = styled.img`
   object-fit: cover;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  flex-shrink: 0;
+`;
+
+/* 선수 랭킹 1~3위: 프로필 사진 위에 겹쳐 배치되는 왕관 (개인 랭킹과 동일 스타일) */
+const Crown = styled.img`
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
 `;
 
 const Meta = styled.div`
@@ -114,7 +135,7 @@ function positionLabel(pos) {
   return "";
 }
 
-export default function TeamMembersSection({ members = [], onPlayerClick }) {
+export default function TeamMembersSection({ members = [], onPlayerClick, rankMap = null }) {
   const list = Array.isArray(members) ? members : [];
   if (!list.length) {
     return <EmptyState compact text="등록된 팀원이 없습니다." />;
@@ -135,6 +156,9 @@ export default function TeamMembersSection({ members = [], onPlayerClick }) {
 
           const posLabel = positionLabel(m?.mainPosition);
 
+          const playerRank = rankMap && uid ? rankMap.get(uid) : null;
+          const showCrown = !!playerRank && playerRank <= 3;
+
           return (
             <MemberCard
               key={uid || idx}
@@ -142,11 +166,14 @@ export default function TeamMembersSection({ members = [], onPlayerClick }) {
               onClick={() => onPlayerClick && onPlayerClick(m)}
               title={name}
             >
-              {avatarSrc ? (
-                <Avatar src={avatarSrc} alt={name} />
-              ) : (
-                <AvatarPlaceholder size={44} />
-              )}
+              <AvatarBox>
+                {showCrown ? <Crown src={images.logo} alt={`${playerRank}위`} /> : null}
+                {avatarSrc ? (
+                  <Avatar src={avatarSrc} alt={name} />
+                ) : (
+                  <AvatarPlaceholder size={44} />
+                )}
+              </AvatarBox>
 
               <Meta>
                 <NameRow>

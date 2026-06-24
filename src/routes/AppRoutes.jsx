@@ -114,6 +114,7 @@ import AdminBannersPage from "../pages/admin/AdminBannersPage";
 import AdminVenuesPage from "../pages/admin/AdminVenuesPage";
 import AdminUpdatesPage from "../pages/admin/AdminUpdatesPage";
 import FinishedMatchesPage from "../pages/matching/FinishedMatchesPage";
+import MyTeamMatchesPage from "../pages/matching/MyTeamMatchesPage";
 import EventPage from "../pages/event/EventPage";
 import AdminEventPopupsPage from "../pages/admin/AdminEventPopupsPage";
 import VenueDetailPage from "../pages/venue/VenueDetailPage";
@@ -158,7 +159,7 @@ function RequireAdmin({ children }) {
 // ── 종료 모달이 뜨는 페이지 (백스택 없는 진입점) ──
 const ROOT_PATHS = ["/", "/welcome", "/home"];
 // ── 하단 탭바 중 홈이 아닌 탭 (뒤로가기 시 홈으로 이동) ──
-const FOOTER_NON_HOME = ["/matchingmanage", "/community", "/my"];
+const FOOTER_NON_HOME = ["/matchingmanage", "/records", "/community", "/my"];
 
 /**
  * 라우트 변경 시 RN에 NAV_STATE 발송 + BACK_REQUEST / APP_EXIT_REQUEST 수신 처리
@@ -355,6 +356,7 @@ export default function AppRoutes() {
         >
           <Route path="/home" element={<HomePage />} />
           <Route path="/matchingmanage" element={<MatchingManagePage />} />
+          <Route path="/records" element={<MyTeamMatchesPage />} />
           <Route path="/community" element={<CommunityListPage />} />
           <Route path="/my" element={<MyProfilePage />} />
 

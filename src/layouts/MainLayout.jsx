@@ -7,7 +7,9 @@ import TopHeader from "./components/TopHeader";
 import BottomTabBar from "./components/BottomTabBar";
 import PageContainer from "./components/PageContainer";
 import { useUI } from "../hooks/useUI";
+import { useClub } from "../hooks/useClub";
 import useMatchBadgeCount from "../hooks/useMatchBadgeCount";
+import useAutoReadNotifications from "../hooks/useAutoReadNotifications";
 
 const Wrap = styled.div`
   min-height: 100vh;
@@ -115,6 +117,10 @@ export default function MainLayout({ hideHeader = false }) {
   const { toast, modal, hideModal, bottomSheet, hideBottomSheet, globalLoading } = useUI();
 
   const { count: matchingCount, refresh: refreshMatchBadge, uid, clubId } = useMatchBadgeCount();
+  const { isTeamLeader } = useClub();
+
+  // ✅ 알림창을 거치지 않고 해당 화면에 직접 들어가면 관련 알림 자동 읽음
+  useAutoReadNotifications();
 
   const path = location.pathname || "/";
   const p = path.toLowerCase();
@@ -122,6 +128,7 @@ export default function MainLayout({ hideHeader = false }) {
   const getTitle = () => {
     if (p.startsWith("/home")) return "할래말래";
     if (p.startsWith("/matchingmanage")) return "매칭관리";
+    if (p.startsWith("/records")) return "전적";
     if (p === "/matching") return "매칭하기";
     if (p === "/match-roomlist") return "매칭룸";
     if (p.endsWith("/venue")) return "구장 정하기";
@@ -216,6 +223,7 @@ export default function MainLayout({ hideHeader = false }) {
     p === "/privacy" ||
     p === "/impact" ||
     p.startsWith("/matchingmanage") ||
+    p.startsWith("/records") ||
     p.startsWith("/my");
 
   const title = getTitle();
@@ -243,7 +251,7 @@ export default function MainLayout({ hideHeader = false }) {
       </Main>
 
       {!hideHeader && !showBack && (
-        <BottomTabBar currentPath={location.pathname} onNavigate={navigate} matchingCount={matchingCount} />
+        <BottomTabBar currentPath={location.pathname} onNavigate={navigate} matchingCount={matchingCount} isTeamLeader={isTeamLeader} />
       )}
 
       {toast && <ToastWrap>{toast.message}</ToastWrap>}

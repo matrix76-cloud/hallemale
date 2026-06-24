@@ -6,7 +6,7 @@
 // ✅ 라인업 스냅샷 SSOT: actorLineup/targetLineup 자체 필드(memberIds/memberCount/previewMembers)
 
 import { db, auth } from "./firebase";
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
 import { MIN_TEAM_MEMBERS } from "../utils/constants";
@@ -16,11 +16,19 @@ const toStr = (v) => String(v || "").trim();
 const teamMemberCount = (team) =>
   Array.isArray(team?.members) ? team.members.length : 0;
 
-// 팀 멤버 uid 목록 (알림 targetIds용 — 앱내 알림창 쿼리 + 푸시 발송 대상)
-const teamMemberUids = (team) =>
-  Array.isArray(team?.members)
-    ? team.members.map((m) => toStr(m?.uid || m?.userId || m?.id)).filter(Boolean)
-    : [];
+// ✅ 매칭 알림 대상: 팀 전체가 아니라 해당 팀의 "팀장(ownerUid)"에게만 전달.
+// (팀원은 매칭 신청/수락/거절/취소 알림을 받지 않음 — 경기 종료 후 평점·리뷰만 가능)
+async function clubLeaderUids(clubId) {
+  const id = toStr(clubId);
+  if (!id) return [];
+  try {
+    const snap = await getDoc(doc(db, "clubs", id));
+    const ownerUid = toStr(snap.data()?.ownerUid);
+    return ownerUid ? [ownerUid] : [];
+  } catch (e) {
+    return [];
+  }
+}
 
 const MATCH_SIZE_KEYS = ["3v3", "4v4", "5v5"];
 const matchSizeLabel = (k) => {
@@ -109,9 +117,12 @@ function buildLineupSnapshot({ lineup } = {}) {
 }
 
 async function createNoti({ key, payload, title, body, pushEnabled }) {
+  // ✅ 수신 대상은 payload.clubId 팀의 팀장 1명. (앱내 알림 쿼리 + 푸시 모두 팀장에게만)
+  const targetIds = await clubLeaderUids(payload?.clubId);
+
   const docData = buildNotificationDoc({
     key,
-    payload,
+    payload: { ...payload, targetIds },
     title,
     body,
     pushEnabled,
@@ -187,7 +198,6 @@ export async function createMatchRequest({
       toTeamSnapshot,
       fromLineupSnapshot,
       toLineupSnapshot,
-      targetIds: teamMemberUids(targetTeam),
     };
 
     const { title, body } = buildMatchTitleBody("MATCH_REQUEST", payload);
@@ -214,7 +224,6 @@ export async function createMatchRequest({
       toTeamSnapshot,
       fromLineupSnapshot,
       toLineupSnapshot,
-      targetIds: teamMemberUids(actorTeam),
     };
 
     const title = "매칭 신청 완료";
@@ -282,6 +291,8 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
       toTeamSnapshot,
       fromLineupSnapshot,
       toLineupSnapshot,
+      // 클릭 시 조율중 매칭룸으로 이동 + "매칭 성사" 축하 애니메이션 트리거
+      deepLink: `/matchroom/${matchId}?celebrate=accepted`,
     };
 
     const { title, body } = buildMatchTitleBody("MATCH_ACCEPTED", payload);

@@ -10,8 +10,9 @@ import { useNavigate } from "react-router-dom";
 import { playerAvatars } from "../../utils/imageAssets";
 import { KR_AREAS } from "../../utils/constants";
 import { useAuth } from "../../hooks/useAuth";
-import { updateUserProfile } from "../../services/userService";
+import { updateUserProfile, isNicknameTaken } from "../../services/userService";
 import { uploadUserAvatar } from "../../services/mediaService";
+import { getNameChangeStatus } from "../../utils/nameChange";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 
 const POSITION_LABEL = {
@@ -39,8 +40,14 @@ export default function MyProfileEditPage() {
   const avatarInputRef = useRef(null);
 
   const [nickname, setNickname] = useState("");
+  // 닉네임 중복 확인 상태: "idle" | "checking" | "available" | "taken" | "error"
+  const [nickStatus, setNickStatus] = useState("idle");
   const [regionSido, setRegionSido] = useState("");
   const [regionGu, setRegionGu] = useState("");
+
+  const originalNick = String(userDoc?.nickname || "").trim();
+  const nickChanged = nickname.trim() !== originalNick;
+  const nickLock = getNameChangeStatus(userDoc?.nicknameUpdatedAt);
 
   const [didInit, setDidInit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -106,7 +113,25 @@ export default function MyProfileEditPage() {
     reader.readAsDataURL(file);
   };
 
-  const canSave = nickname.trim().length > 0 && !!uid;
+  // ✅ 닉네임 중복 확인 (수동: 중복체크 버튼)
+  const handleCheckNick = async () => {
+    const trimmed = nickname.trim();
+    if (!trimmed || nickStatus === "checking") return;
+
+    setNickStatus("checking");
+    try {
+      const taken = await isNicknameTaken(trimmed, uid);
+      setNickStatus(taken ? "taken" : "available");
+    } catch (e) {
+      setNickStatus("error");
+    }
+  };
+
+  const canSave =
+    nickname.trim().length > 0 &&
+    !!uid &&
+    // 닉네임을 바꾼 경우에만: 쿨다운 해제 + 중복체크 통과 필요
+    (!nickChanged || (!nickLock.locked && nickStatus === "available"));
 
   const handleSave = async () => {
     if (!canSave) {
@@ -141,7 +166,7 @@ export default function MyProfileEditPage() {
       nav("/my");
     } catch (e) {
       console.warn("[MyProfileEdit] save failed:", e?.message || e);
-      window.alert("저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      window.alert(e?.message || "저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSaving(false);
     }
@@ -223,12 +248,54 @@ export default function MyProfileEditPage() {
 
           <FieldGroup>
             <Label htmlFor="nickname">닉네임</Label>
-            <Input
-              id="nickname"
-              placeholder="예) 한주성"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-            />
+            <InputRow>
+              <Input
+                id="nickname"
+                style={{ flex: 1 }}
+                placeholder="예) 한주성"
+                value={nickname}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  setNickStatus("idle"); // 변경 시 다시 확인 필요
+                }}
+                disabled={isSaving || nickLock.locked}
+              />
+              <CheckButton
+                type="button"
+                onClick={handleCheckNick}
+                disabled={
+                  isSaving ||
+                  nickLock.locked ||
+                  !nickname.trim() ||
+                  !nickChanged ||
+                  nickStatus === "checking"
+                }
+              >
+                {nickStatus === "checking" ? "확인 중..." : "중복체크"}
+              </CheckButton>
+            </InputRow>
+
+            {nickLock.locked ? (
+              <NameStatus>
+                닉네임은 {nickLock.remainingDays}일 후에 변경할 수 있어요.
+              </NameStatus>
+            ) : (
+              <>
+                {nickChanged && nickStatus === "idle" && (
+                  <NameStatus>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatus>
+                )}
+                {nickStatus === "available" && (
+                  <NameStatus $tone="ok">사용할 수 있는 닉네임이에요.</NameStatus>
+                )}
+                {nickStatus === "taken" && (
+                  <NameStatus $tone="error">이미 사용 중인 닉네임이에요.</NameStatus>
+                )}
+                {nickStatus === "error" && (
+                  <NameStatus $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatus>
+                )}
+                <NameStatus>닉네임은 한번 정하면 90일 후에 변경할 수 있어요.</NameStatus>
+              </>
+            )}
           </FieldGroup>
 
           <FieldGroup>
@@ -386,6 +453,43 @@ const Input = styled.input`
     border-color: ${({ theme }) => theme.colors.primary};
     background: ${({ theme }) => theme.colors.card};
   }
+`;
+
+const InputRow = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+`;
+
+const CheckButton = styled.button`
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+`;
+
+const NameStatus = styled.div`
+  font-size: 12px;
+  margin-top: 2px;
+  color: ${({ $tone, theme }) =>
+    $tone === "ok"
+      ? theme.colors.primary
+      : $tone === "error"
+      ? "#ef4444"
+      : theme.colors.textWeak};
 `;
 
 const TwoColRow = styled.div`

@@ -13,6 +13,7 @@ import TeamStatsSection from "../../components/team/TeamStatsSection";
 import TeamMembersSection from "../../components/team/TeamMembersSection";
 import { getTeamProfile } from "../../services/teamService";
 import { getTeamRankMap } from "../../services/teamRankingService";
+import { getPlayerRankMap } from "../../services/rankingService";
 import { images } from "../../utils/imageAssets";
 import TeamAvatarPlaceholder from "../../components/common/TeamAvatarPlaceholder";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
@@ -990,7 +991,7 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const myUid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
 
   // ✅ 우리팀 clubId는 userDoc.myClubId 하나만 SSOT로 사용 (없으면 온보딩/가드)
-  const { club, members: myMembers, loading: myClubLoading } = useClub();
+  const { club, members: myMembers, loading: myClubLoading, isTeamLeader } = useClub();
   const myClubId = String(club?.clubId || club?.id || "").trim();
   const myMemberCount = Array.isArray(myMembers) ? myMembers.length : 0;
 
@@ -1007,6 +1008,7 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const [team, setTeam] = useState(null);
   const [error, setError] = useState("");
   const [teamRank, setTeamRank] = useState(null);
+  const [playerRankMap, setPlayerRankMap] = useState(null); // ✅ 선수 전역 순위(userId→등수): 팀원 1~3위 왕관용
 
   const [showLineupSelectModal, setShowLineupSelectModal] = useState(false);
 
@@ -1173,6 +1175,19 @@ useEffect(() => {
     };
   }, [teamId, team?.clubId, team?.id]);
 
+  // ✅ 선수 전역 랭킹(팀원 1~3위 왕관용)
+  useEffect(() => {
+    let alive = true;
+    getPlayerRankMap()
+      .then((map) => {
+        if (alive) setPlayerRankMap(map);
+      })
+      .catch((e) => console.warn("[TeamProfile] player rank load failed:", e?.message || e));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const isMyTeam = useMemo(() => {
     if (!team || !myUid) return false;
     if (team.ownerUid && String(team.ownerUid) === String(myUid)) return true;
@@ -1248,6 +1263,12 @@ useEffect(() => {
 
     if (!myClubId) {
       alert("내 팀 정보를 확인할 수 없습니다. 팀 생성/가입 후 이용해 주세요.");
+      return;
+    }
+
+    // ✅ 매칭 신청은 팀장만 가능
+    if (!isTeamLeader) {
+      alert("매칭 신청은 팀장만 할 수 있어요.");
       return;
     }
 
@@ -1554,7 +1575,7 @@ useEffect(() => {
                   {membersCount && <SectionMeta>{membersCount}</SectionMeta>}
                 </SectionHeaderRow>
 
-                <TeamMembersSection members={membersWithCaptain} onPlayerClick={onPlayerClick} />
+                <TeamMembersSection members={membersWithCaptain} onPlayerClick={onPlayerClick} rankMap={playerRankMap} />
               </Section>
 
               {mediaList.length > 0 && (

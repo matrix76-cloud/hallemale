@@ -15,6 +15,7 @@ import {
   markNotificationRead,
 } from "../../services/notificationService";
 import { subscribePublishedNotices } from "../../services/noticesService";
+import { resolveNotiRoute } from "../../utils/notiRoute";
 import EmptyState from "../../components/common/EmptyState";
 
 // 관리자 공지(notices)는 서버 readBy가 없어 읽음 표시를 로컬에 보관
@@ -171,60 +172,6 @@ function formatTimeAny(v) {
   return `${month}.${date} ${hour}:${min}`;
 }
 
-// 알림 → 이동할 화면(deepLink) 해석
-// - 1) 명시적 deepLink(top-level 우선, 없으면 meta) + 라우트 불일치 보정
-// - 2) deepLink 없으면 종류(kind)·식별자 기반 폴백 (깨진 상세 페이지 방지)
-function resolveNotiRoute(n) {
-  const raw = String(n?.deepLink || n?.meta?.deepLink || "").trim();
-  if (raw) {
-    const s = raw.startsWith("/") ? raw : `/${raw}`;
-    if (s === "/chat") return "/chats";
-    if (s.startsWith("/chat/")) {
-      const cid = s.slice("/chat/".length);
-      // 매칭룸 채팅(match_{roomId})은 매칭룸 상세페이지로 연결
-      if (cid.startsWith("match_")) return `/match-roomdetail/${cid.slice("match_".length)}`;
-      return `/chats/${cid}`;
-    }
-    if (s.startsWith("/matchroom/")) return `/match-roomdetail/${s.slice("/matchroom/".length)}`;
-    if (s.startsWith("/community/")) return `/communitypost/${s.slice("/community/".length)}`;
-    // 팀 초대/참여요청 → 내정보 요청 화면
-    if (s.startsWith("/clubs/")) {
-      const rest = s.slice("/clubs/".length); // "{clubId}/manage" 또는 "{clubId}"
-      const clubId = rest.split("/")[0];
-      if (rest.endsWith("/manage")) return "/my/team-invites";        // 받은 초대
-      return clubId ? `/team/${clubId}/join-requests` : "/my/team-invites"; // 참여요청
-    }
-    return s;
-  }
-
-  // deepLink 없음 → 종류별 폴백
-  const kind = String(n?.kind || "").trim();
-  const sub = String(n?.subType || n?.type || "").toUpperCase();
-  const clubId = String(n?.clubId || n?.meta?.clubId || "").trim();
-  const matchId = String(
-    n?.matchId || n?.meta?.matchId || (n?.linkType === "match" ? n?.linkTargetId : "") || ""
-  ).trim();
-  const chatId = String(
-    n?.meta?.chatId || (n?.linkType === "chat" ? n?.linkTargetId : "") || ""
-  ).trim();
-  const reqId = String(n?.meta?.joinRequestId || "").trim();
-
-  if (kind === "chat") {
-    if (chatId.startsWith("match_")) return `/match-roomdetail/${chatId.slice("match_".length)}`;
-    return chatId ? `/chats/${chatId}` : "/chats";
-  }
-  if (kind === "match") return matchId ? `/match-roomdetail/${matchId}` : "/matchingmanage";
-  if (kind === "team") {
-    if (sub.includes("JOIN_REQUEST") && sub.includes("CREATED") && clubId)
-      return reqId ? `/team/${clubId}/join-requests/${reqId}` : `/team/${clubId}/join-requests`;
-    if (sub.includes("INVITE") && !sub.includes("ACCEPTED") && !sub.includes("REJECTED"))
-      return "/my/team-invites";
-    return "/my";
-  }
-  if (kind === "notice") return "/notifications";
-  return "";
-}
-
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { userDoc } = useAuth();
@@ -318,6 +265,18 @@ export default function NotificationsPage() {
         )
       );
     } catch (e) {}
+
+    // 매칭 수락 알림: 조율중 매칭룸으로 이동하며 "매칭 성사" 축하 애니메이션 표시
+    const isMatchAccepted =
+      String(n?.key || "").toUpperCase() === "MATCH_ACCEPTED" ||
+      String(n?.subType || "").toLowerCase() === "matchaccepted";
+    const acceptedMatchId = String(n?.matchId || n?.meta?.matchId || "").trim();
+    if (isMatchAccepted && acceptedMatchId) {
+      navigate(`/match-roomdetail/${acceptedMatchId}`, {
+        state: { celebrateAccepted: true },
+      });
+      return;
+    }
 
     // 알림에 맞는 화면으로 이동 (deepLink). 없으면 상세 페이지로 폴백.
     const route = resolveNotiRoute(n);

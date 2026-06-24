@@ -22,6 +22,7 @@ import {
 } from "firebase/firestore";
 
 import { enqueueTeamSnapshotRefreshTask } from "./taskService";
+import { getNameChangeStatus } from "../utils/nameChange";
 
 async function notifyTeamEvent({ clubId, targetUids, subType, type, title, body, actorUid }) {
   const targets = (Array.isArray(targetUids) ? targetUids : []).filter(Boolean);
@@ -145,15 +146,38 @@ export async function updateClubMedia({ clubId, media }) {
  */
 export async function updateClubName({ clubId, name }) {
   const id = String(clubId || "").trim();
-  const nextName = String(name || "").trim();
+  const nextName = String(name || "").trim().replace(/\s+/g, " ");
 
   if (!id) throw new Error("updateClubName: clubId is required");
   if (!nextName) throw new Error("updateClubName: name is required");
 
   const ref = doc(db, "clubs", id);
+  const curSnap = await getDoc(ref);
+  if (!curSnap.exists()) throw new Error("updateClubName: club not found");
+  const cur = curSnap.data() || {};
+
+  // ✅ 변경 없음 → no-op (쿨다운/중복 검사 스킵)
+  const curName = String(cur.name || "").trim().replace(/\s+/g, " ");
+  if (nextName === curName) return true;
+
+  // ✅ 쿨다운 가드: 마지막 변경(또는 생성)일로부터 90일 이내면 거부
+  const { locked, remainingDays } = getNameChangeStatus(cur.nameUpdatedAt || cur.createdAt);
+  if (locked) {
+    throw new Error(`팀 이름은 ${remainingDays}일 후에 변경할 수 있어요.`);
+  }
+
+  // ✅ 중복 가드: 같은 이름을 가진 다른 팀이 있으면 거부
+  const dupSnap = await getDocs(
+    query(collection(db, "clubs"), where("name", "==", nextName), limit(2))
+  );
+  const takenByOther = dupSnap.docs.some((d) => d.id !== id);
+  if (takenByOther) {
+    throw new Error("이미 사용 중인 팀 이름이에요. 다른 이름을 입력해 주세요.");
+  }
 
   await updateDoc(ref, {
     name: nextName,
+    nameUpdatedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
@@ -167,9 +191,21 @@ export async function updateClubName({ clubId, name }) {
 }
 
 /**
+ * ✅ 팀 미소속 판정 (SSOT)
+ * - 무소속 = activeTeamId 와 (레거시) clubId 가 모두 비어 있어야 함
+ * - 가입 경로별로 둘 중 하나만 세팅된 데이터가 있어 둘 다 검사
+ */
+function isTeamless(v) {
+  const activeTeamId = String(v?.activeTeamId || "").trim();
+  const clubId = String(v?.clubId || "").trim();
+  return !activeTeamId && !clubId;
+}
+
+/**
  * ✅ (기본) 초대 가능한 선수 목록
  * - users.activeTeamId === "" 인 유저를 기본으로 보여줌
  * - ✅ 기본 리스트는 orderBy 제거(인덱스 요구를 최소화)
+ * - ✅ 팀에 소속된 유저(activeTeamId/clubId 보유)는 제외
  */
 export async function listInvitableUsers({ excludeUid, max = 20 }) {
   const usersCol = collection(db, "users");
@@ -190,6 +226,7 @@ export async function listInvitableUsers({ excludeUid, max = 20 }) {
       const v = d.data() || {};
       const uid = d.id;
       if (excludeUid && uid === excludeUid) return;
+      if (!isTeamless(v)) return; // ✅ 이미 팀에 소속된 유저 제외
       list.push({ uid, id: uid, ...v });
     });
     return list;
@@ -237,6 +274,7 @@ export async function searchUsersByNickname({ keyword, excludeUid, max = 20 }) {
       const v = d.data() || {};
       const uid = d.id;
       if (excludeUid && uid === excludeUid) return;
+      if (!isTeamless(v)) return; // ✅ 이미 팀에 소속된 유저 제외
       list.push({ uid, id: uid, ...v });
     });
     return list;

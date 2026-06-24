@@ -13,7 +13,7 @@ import { FiChevronRight } from "react-icons/fi";
 
 import TeamAvatarPlaceholder from "../../components/common/TeamAvatarPlaceholder";
 import { useAuth } from "../../hooks/useAuth";
-import { createClub } from "../../services/teamService";
+import { createClub, isClubNameTaken } from "../../services/teamService";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 
 /* ===== 레이아웃 ===== */
@@ -110,6 +110,43 @@ const Label = styled.label`
 const LabelSub = styled.span`
   font-size: 11px;
   color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const NameStatus = styled.div`
+  font-size: 12px;
+  margin-top: 2px;
+  color: ${({ $tone, theme }) =>
+    $tone === "ok"
+      ? theme.colors.primary
+      : $tone === "error"
+      ? "#ef4444"
+      : theme.colors.textWeak};
+`;
+
+const InputRow = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+`;
+
+const CheckButton = styled.button`
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
 `;
 
 const Input = styled.input`
@@ -399,6 +436,8 @@ export default function TeamCreatePage() {
 
   // STEP 2: 팀 기본 정보 + 홍보 문구
   const [teamName, setTeamName] = useState("");
+  // 팀명 중복 확인 상태: "idle" | "checking" | "available" | "taken" | "error"
+  const [nameStatus, setNameStatus] = useState("idle");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState([]);
 
@@ -410,6 +449,20 @@ export default function TeamCreatePage() {
     if (!regionSido || !regionGu) return "";
     return `${regionSido} ${regionGu}`;
   }, [regionSido, regionGu]);
+
+  // ✅ 팀명 중복 확인 (수동: 중복체크 버튼)
+  const handleCheckName = async () => {
+    const trimmed = teamName.trim();
+    if (!trimmed || nameStatus === "checking") return;
+
+    setNameStatus("checking");
+    try {
+      const taken = await isClubNameTaken(trimmed);
+      setNameStatus(taken ? "taken" : "available");
+    } catch (e) {
+      setNameStatus("error");
+    }
+  };
 
   const [usePromoText, setUsePromoText] = useState(false);
   const [promoText, setPromoText] = useState("");
@@ -449,7 +502,11 @@ export default function TeamCreatePage() {
     reader.readAsDataURL(file);
   };
 
-  const canGoNextStep2 = teamName.trim().length > 0 && teamName.trim().length <= 6 && region.trim().length > 0;
+  const canGoNextStep2 =
+    teamName.trim().length > 0 &&
+    teamName.trim().length <= 6 &&
+    region.trim().length > 0 &&
+    nameStatus === "available";
   const canSubmit = canGoNextStep2 && !!uid;
 
   const handleNext = () => {
@@ -576,16 +633,39 @@ export default function TeamCreatePage() {
                 <Label htmlFor="teamName">팀 이름</Label>
                 <LabelSub>매칭/랭킹 등 모든 곳에 표시돼요.</LabelSub>
               </LabelRow>
-              <Input
-                id="teamName"
-                placeholder="예) 청춘호랑이"
-                value={teamName}
-                onChange={(e) => {
-                  const next = String(e.target.value || "").slice(0, 6);
-                  setTeamName(next);
-                }}
-                disabled={isSubmitting}
-              />
+              <InputRow>
+                <Input
+                  id="teamName"
+                  style={{ flex: 1 }}
+                  placeholder="예) 청춘호랑이"
+                  value={teamName}
+                  onChange={(e) => {
+                    const next = String(e.target.value || "").slice(0, 6);
+                    setTeamName(next);
+                    setNameStatus("idle"); // 이름이 바뀌면 다시 확인 필요
+                  }}
+                  disabled={isSubmitting}
+                />
+                <CheckButton
+                  type="button"
+                  onClick={handleCheckName}
+                  disabled={isSubmitting || !teamName.trim() || nameStatus === "checking"}
+                >
+                  {nameStatus === "checking" ? "확인 중..." : "중복체크"}
+                </CheckButton>
+              </InputRow>
+              {nameStatus === "idle" && teamName.trim() && (
+                <NameStatus>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatus>
+              )}
+              {nameStatus === "available" && (
+                <NameStatus $tone="ok">사용할 수 있는 팀 이름이에요.</NameStatus>
+              )}
+              {nameStatus === "taken" && (
+                <NameStatus $tone="error">이미 사용 중인 팀 이름이에요.</NameStatus>
+              )}
+              {nameStatus === "error" && (
+                <NameStatus $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatus>
+              )}
             </FieldGroup>
 
             <FieldGroup>

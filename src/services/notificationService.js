@@ -17,6 +17,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 
 function toDateSafe(v) {
@@ -179,6 +180,28 @@ export function computeReadForUi({ items, uid }) {
   console.groupEnd();
 
   return withRead;
+}
+
+// ✅ 여러 알림을 한 번에 읽음 처리 (자동읽음용)
+export async function markNotificationsRead({ ids, uid }) {
+  const list = Array.from(new Set((ids || []).filter(Boolean)));
+  if (!uid || list.length === 0) return;
+
+  // writeBatch는 1회 500건 제한 → 안전하게 나눠서 처리
+  const CHUNK = 400;
+  for (let i = 0; i < list.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    list.slice(i, i + CHUNK).forEach((id) => {
+      batch.update(doc(db, "notifications", id), {
+        [`readBy.${uid}`]: serverTimestamp(),
+      });
+    });
+    try {
+      await batch.commit();
+    } catch (e) {
+      console.warn("[noti] markNotificationsRead chunk failed:", e?.message || e);
+    }
+  }
 }
 
 export async function markNotificationRead({ notificationId, uid }) {
