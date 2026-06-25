@@ -12,9 +12,8 @@ import {
   uploadVenueImage,
 } from "../../services/venuesService";
 import {
-  listPendingVenues,
-  approveVenue,
-  rejectVenue,
+  listAllVenuesAdmin,
+  setVenueStatus,
 } from "../../services/ownerVenueService";
 
 const Page = styled.div`
@@ -416,6 +415,19 @@ function makeEmptyForm() {
   };
 }
 
+const STATUS_META = {
+  pending: { label: "신청중", bg: "#fef3c7", color: "#a16207" },
+  approved: { label: "승인", bg: "#dcfce7", color: "#15803d" },
+  rejected: { label: "반려", bg: "#fee2e2", color: "#b91c1c" },
+};
+
+const APP_FILTERS = [
+  { key: "all", label: "전체" },
+  { key: "pending", label: "신청중" },
+  { key: "approved", label: "승인" },
+  { key: "rejected", label: "반려" },
+];
+
 function fmtYmdHm(d) {
   if (!d) return "-";
   const yy = d.getFullYear();
@@ -431,7 +443,8 @@ export default function AdminVenuesPage() {
 
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState([]);
-  const [pending, setPending] = useState([]);
+  const [apps, setApps] = useState([]); // 구장주 신청 건 (ownerUid 있음)
+  const [appFilter, setAppFilter] = useState("all"); // all | pending | approved | rejected
   const [form, setForm] = useState(makeEmptyForm());
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -442,12 +455,13 @@ export default function AdminVenuesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [rows, pend] = await Promise.all([
+      const [rows, all] = await Promise.all([
         listAllVenues(),
-        listPendingVenues().catch(() => []),
+        listAllVenuesAdmin().catch(() => []),
       ]);
       setList(rows);
-      setPending(pend);
+      // 구장주가 신청한 건만 (ownerUid 보유)
+      setApps(all.filter((v) => v.ownerUid));
     } catch (e) {
       console.error("[AdminVenuesPage] load failed", e);
       setList([]);
@@ -456,28 +470,21 @@ export default function AdminVenuesPage() {
     }
   };
 
-  const handleApprove = async (row) => {
-    if (!window.confirm(`"${row.name || row.id}" 구장을 승인할까요? 승인 시 사용자에게 노출됩니다.`)) return;
-    setBusy(true);
-    try {
-      await approveVenue(row.id);
-      await load();
-    } catch (e) {
-      window.alert(e?.message || "승인에 실패했습니다.");
-    } finally {
-      setBusy(false);
+  // 신청 상태 변경: 승인 / 반려 / 신청대기로 되돌리기
+  const changeAppStatus = async (row, status) => {
+    let reason = "";
+    if (status === "rejected") {
+      reason = window.prompt(`"${row.name || row.id}" 반려 사유를 입력하세요. (구장주에게 표시됩니다)`, row.rejectReason || "");
+      if (reason === null) return;
+    } else if (status === "approved") {
+      if (!window.confirm(`"${row.name || row.id}" 신청을 승인할까요? 승인 시 사용자에게 노출됩니다.`)) return;
     }
-  };
-
-  const handleReject = async (row) => {
-    const reason = window.prompt(`"${row.name || row.id}" 반려 사유를 입력하세요. (구장주에게 표시됩니다)`, "");
-    if (reason === null) return;
     setBusy(true);
     try {
-      await rejectVenue(row.id, reason);
+      await setVenueStatus(row.id, status, reason);
       await load();
     } catch (e) {
-      window.alert(e?.message || "반려에 실패했습니다.");
+      window.alert(e?.message || "상태 변경에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -623,45 +630,100 @@ export default function AdminVenuesPage() {
         권장합니다. (예: 위도 37.5896, 경도 127.0297)
       </SpecBox>
 
-      {/* 구장주 심사 대기 목록 */}
+      {/* 구장주 신청 관리 (신청여부 + 상태 변경) */}
       <Card>
-        <CardTitle>🏟️ 구장주 등록 심사 대기 ({pending.length})</CardTitle>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+          <CardTitle style={{ margin: 0 }}>
+            🏟️ 구장주 신청 관리 ({apps.length})
+            {apps.filter((a) => a.status === "pending").length > 0 && (
+              <span style={{ marginLeft: 8, fontSize: 12, color: "#a16207", fontWeight: 700 }}>
+                · 신청중 {apps.filter((a) => a.status === "pending").length}건
+              </span>
+            )}
+          </CardTitle>
+          <div style={{ display: "flex", gap: 6 }}>
+            {APP_FILTERS.map((f) => (
+              <Btn
+                key={f.key}
+                type="button"
+                $primary={appFilter === f.key}
+                onClick={() => setAppFilter(f.key)}
+              >
+                {f.label}
+              </Btn>
+            ))}
+          </div>
+        </div>
+
         {loading ? (
           <AdminLoading />
-        ) : pending.length === 0 ? (
-          <EmptyText>심사 대기 중인 구장 신청이 없습니다.</EmptyText>
         ) : (
-          <ListWrap>
-            {pending.map((row) => (
-              <Item key={row.id}>
-                <Thumb>
-                  {row.imageUrl ? <ThumbImg src={row.imageUrl} alt="" /> : null}
-                </Thumb>
-                <ItemMeta>
-                  <ItemTitle>{row.name || "(이름 없음)"}</ItemTitle>
-                  <ItemDesc>
-                    {row.address}
-                    {row.addressDetail ? ` ${row.addressDetail}` : ""}
-                  </ItemDesc>
-                  <ItemMetaRow>
-                    <span>코트 {row.courts?.length || 0}개</span>
-                    {row.ownerName && <span>대표: {row.ownerName}</span>}
-                    {row.contactPhone && <span>{row.contactPhone}</span>}
-                    {row.bizNo && <span>사업자 {row.bizNo}</span>}
-                    <span>{fmtYmdHm(row.createdAt)}</span>
-                  </ItemMetaRow>
-                </ItemMeta>
-                <ItemActions>
-                  <Btn type="button" $primary onClick={() => handleApprove(row)} disabled={busy}>
-                    승인
-                  </Btn>
-                  <DangerBtn type="button" onClick={() => handleReject(row)} disabled={busy}>
-                    반려
-                  </DangerBtn>
-                </ItemActions>
-              </Item>
-            ))}
-          </ListWrap>
+          (() => {
+            const filtered = apps.filter((a) => appFilter === "all" || a.status === appFilter);
+            if (filtered.length === 0) {
+              return <EmptyText>해당하는 구장 신청이 없습니다.</EmptyText>;
+            }
+            return (
+              <ListWrap>
+                {filtered.map((row) => {
+                  const sm = STATUS_META[row.status] || STATUS_META.pending;
+                  return (
+                    <Item key={row.id}>
+                      <Thumb>
+                        {row.imageUrl ? <ThumbImg src={row.imageUrl} alt="" /> : null}
+                      </Thumb>
+                      <ItemMeta>
+                        <ItemTitle>
+                          {row.name || "(이름 없음)"}
+                          <span
+                            style={{
+                              marginLeft: 8, padding: "2px 8px", borderRadius: 999,
+                              fontSize: 11, fontWeight: 700, background: sm.bg, color: sm.color,
+                            }}
+                          >
+                            {sm.label}
+                          </span>
+                        </ItemTitle>
+                        <ItemDesc>
+                          {row.address}
+                          {row.addressDetail ? ` ${row.addressDetail}` : ""}
+                        </ItemDesc>
+                        <ItemMetaRow>
+                          <span>코트 {row.courts?.length || 0}개</span>
+                          {row.ownerName && <span>대표: {row.ownerName}</span>}
+                          {row.contactPhone && <span>{row.contactPhone}</span>}
+                          {row.bizNo && <span>사업자 {row.bizNo}</span>}
+                          <span>{fmtYmdHm(row.createdAt)}</span>
+                        </ItemMetaRow>
+                        {row.status === "rejected" && row.rejectReason && (
+                          <ItemMetaRow style={{ color: "#b91c1c" }}>
+                            반려사유: {row.rejectReason}
+                          </ItemMetaRow>
+                        )}
+                      </ItemMeta>
+                      <ItemActions>
+                        {row.status !== "approved" && (
+                          <Btn type="button" $primary onClick={() => changeAppStatus(row, "approved")} disabled={busy}>
+                            승인
+                          </Btn>
+                        )}
+                        {row.status !== "rejected" && (
+                          <DangerBtn type="button" onClick={() => changeAppStatus(row, "rejected")} disabled={busy}>
+                            반려
+                          </DangerBtn>
+                        )}
+                        {row.status !== "pending" && (
+                          <Btn type="button" onClick={() => changeAppStatus(row, "pending")} disabled={busy}>
+                            신청대기로
+                          </Btn>
+                        )}
+                      </ItemActions>
+                    </Item>
+                  );
+                })}
+              </ListWrap>
+            );
+          })()
         )}
       </Card>
 

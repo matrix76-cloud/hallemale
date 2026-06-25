@@ -336,6 +336,32 @@ export async function rejectVenue(id, reason = "") {
   });
 }
 
+/** 어드민: 전체 구장 목록 (status 포함) */
+export async function listAllVenuesAdmin() {
+  const snap = await getDocs(query(collection(db, "venues")));
+  const rows = [];
+  snap.forEach((d) => rows.push(venueRow(d)));
+  rows.sort((a, b) => {
+    const ta = a.createdAt ? a.createdAt.getTime() : 0;
+    const tb = b.createdAt ? b.createdAt.getTime() : 0;
+    return tb - ta;
+  });
+  return rows;
+}
+
+/** 어드민: 임의 상태로 변경 (신청대기/승인/반려) */
+export async function setVenueStatus(id, status, reason = "") {
+  const vid = safeStr(id);
+  if (!vid) throw new Error("id가 비어있습니다.");
+  const next = ["pending", "approved", "rejected"].includes(status) ? status : "pending";
+  await updateDoc(doc(db, "venues", vid), {
+    status: next,
+    rejectReason: next === "rejected" ? safeStr(reason) : "",
+    active: next === "approved", // 승인일 때만 사용자 노출
+    updatedAt: serverTimestamp(),
+  });
+}
+
 /** 어드민: 심사 대기 구장 목록 */
 export async function listPendingVenues() {
   const snap = await getDocs(
