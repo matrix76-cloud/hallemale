@@ -62,6 +62,27 @@ const FacTag = styled.span`
   font-size: 12.5px;
   color: ${({ theme }) => theme.colors.textNormal};
 `;
+const Gallery = styled.div`
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+`;
+const GImg = styled.img`
+  width: 140px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex-shrink: 0;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+const InfoLine = styled.div`
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  & > b { width: 76px; flex-shrink: 0; color: ${({ theme }) => theme.colors.textWeak}; font-weight: 600; }
+  & > span { color: ${({ theme }) => theme.colors.textStrong}; flex: 1; }
+`;
 
 function courtToForm(c, i) {
   return {
@@ -113,6 +134,12 @@ export default function OwnerVenuePage() {
         {venue.imageUrl ? <CoverImg src={venue.imageUrl} alt={venue.name} /> : <NoCover>등록된 사진 없음</NoCover>}
       </Cover>
 
+      {venue.photos?.length > 1 && (
+        <Gallery>
+          {venue.photos.map((u, i) => <GImg key={i} src={u} alt={`구장 사진 ${i + 1}`} />)}
+        </Gallery>
+      )}
+
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -123,9 +150,17 @@ export default function OwnerVenuePage() {
             {venue.status === "approved" ? "승인됨" : venue.status === "pending" ? "심사중" : "반려"}
           </Badge>
         </div>
-        {venue.phone && <VAddr>📞 {venue.phone}</VAddr>}
+        {venue.rejectReason && (
+          <SectionDesc style={{ color: "#dc2626" }}>반려 사유: {venue.rejectReason}</SectionDesc>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
+          {venue.region && <InfoLine><b>지역</b><span>{venue.region}</span></InfoLine>}
+          {venue.phone && <InfoLine><b>연락처</b><span>{venue.phone}</span></InfoLine>}
+          <InfoLine><b>유형 / 비용</b><span>{venue.type === "outdoor" ? "실외" : "실내"} · {venue.cost === "paid" ? "유료" : "무료"}</span></InfoLine>
+          <InfoLine><b>예약 코트</b><span>{venue.courts?.length || 0}개</span></InfoLine>
+        </div>
         {venue.facilities?.length > 0 && (
-          <ChipWrap>
+          <ChipWrap style={{ marginTop: 4 }}>
             {venue.facilities.map((f) => <FacTag key={f}>{f}</FacTag>)}
           </ChipWrap>
         )}
@@ -186,10 +221,29 @@ export default function OwnerVenuePage() {
           <SectionDesc style={{ whiteSpace: "pre-wrap" }}>{venue.description}</SectionDesc>
         </Card>
       )}
+      {venue.rules && (
+        <Card>
+          <SectionTitle>이용 규칙</SectionTitle>
+          <SectionDesc style={{ whiteSpace: "pre-wrap" }}>{venue.rules}</SectionDesc>
+        </Card>
+      )}
       {venue.refundPolicy && (
         <Card>
           <SectionTitle>환불 정책</SectionTitle>
           <SectionDesc style={{ whiteSpace: "pre-wrap" }}>{venue.refundPolicy}</SectionDesc>
+        </Card>
+      )}
+
+      {(venue.ownerName || venue.contactPhone || venue.bizName || venue.bizNo) && (
+        <Card>
+          <SectionTitle>사업자 / 관리자 정보</SectionTitle>
+          <SectionDesc>심사 확인용 정보로, 사용자에게는 공개되지 않아요.</SectionDesc>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {venue.ownerName && <InfoLine><b>대표자</b><span>{venue.ownerName}</span></InfoLine>}
+            {venue.contactPhone && <InfoLine><b>연락처</b><span>{venue.contactPhone}</span></InfoLine>}
+            {venue.bizName && <InfoLine><b>상호</b><span>{venue.bizName}</span></InfoLine>}
+            {venue.bizNo && <InfoLine><b>사업자번호</b><span>{venue.bizNo}</span></InfoLine>}
+          </div>
         </Card>
       )}
     </Page>

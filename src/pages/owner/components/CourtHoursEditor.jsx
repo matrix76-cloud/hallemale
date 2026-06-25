@@ -10,24 +10,6 @@ const Wrap = styled.div`
   flex-direction: column;
   gap: 8px;
 `;
-const QuickRow = styled.div`
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-`;
-const QuickBtn = styled.button`
-  flex: 1;
-  min-width: 120px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.surface};
-  color: ${({ theme }) => theme.colors.textNormal};
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  &:active { transform: translateY(1px); }
-`;
 const DayRow = styled.div`
   display: grid;
   grid-template-columns: 30px 56px 1fr;
@@ -90,26 +72,8 @@ export default function CourtHoursEditor({ hours, onChange }) {
     onChange({ ...h, [key]: { ...h[key], ...patch } });
   };
 
-  // 월요일 값을 평일(화~금)에 복사
-  const applyWeekday = () => {
-    const base = h.mon;
-    const next = { ...h };
-    ["tue", "wed", "thu", "fri"].forEach((k) => (next[k] = { ...base }));
-    onChange(next);
-  };
-  // 토요일 값을 일요일에 복사
-  const applyWeekend = () => {
-    const base = h.sat;
-    onChange({ ...h, sun: { ...base } });
-  };
-
   return (
     <Wrap>
-      <QuickRow>
-        <QuickBtn type="button" onClick={applyWeekday}>월 → 평일(화~금) 일괄</QuickBtn>
-        <QuickBtn type="button" onClick={applyWeekend}>토 → 일요일 일괄</QuickBtn>
-      </QuickRow>
-
       {DAY_KEYS.map((key) => {
         const d = h[key] || {};
         const closed = !!d.closed;
