@@ -212,17 +212,22 @@ function decodeJwtPayload(idToken) {
 
 /** 웹 전용: 구글 팝업 로그인 */
 async function webSignInWithGoogle({ keepLogin }) {
-  await setPersistence(auth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
-
   const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
 
   // 모바일 브라우저는 팝업이 자주 차단/실패하므로 redirect 방식을 우선 사용.
   // 복귀 후 consumeRedirectResultIfAny()가 로그인을 완료한다.
   if (isMobileBrowser()) {
+    // 모바일은 redirect라 제스처 제약이 없으므로 지속성을 먼저 설정해도 무방.
+    await setPersistence(auth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
     await signInWithRedirect(auth, provider);
     return { success: true, provider: "google", strategy: "web_redirect_started" };
   }
 
+  // ⚠️ 데스크톱 팝업: signInWithPopup 앞에 await(setPersistence 등)를 두면
+  //    사용자 클릭 제스처가 끊겨 팝업이 차단되고 → redirect 폴백 → localhost+커스텀 authDomain
+  //    조합에서 세션이 안 붙는 버그가 난다. 그래서 팝업을 "제스처와 같은 틱"에서 먼저 호출한다.
+  //    웹 기본 지속성이 LOCAL 이므로 keepLogin=true 면 setPersistence 생략해도 유지된다.
   try {
     const userCred = await signInWithPopup(auth, provider);
     const uid = safeTrim(userCred?.user?.uid);
@@ -230,9 +235,15 @@ async function webSignInWithGoogle({ keepLogin }) {
 
     if (!uid) return { success: false, provider: "google", error_code: "no_uid" };
 
+    // 로그인 성공 후, 비유지(keepLogin=false)면 세션 지속성으로 전환.
+    if (!keepLogin) {
+      try { await setPersistence(auth, browserSessionPersistence); } catch {}
+    }
+
     await ensureUserDoc({ uid, email, provider: "google" });
     return { success: true, provider: "google", uid, user: userCred.user };
   } catch (e) {
+    // 그래도 팝업이 차단되면 redirect 폴백(배포 환경에선 동작). localhost에선 안 붙을 수 있음.
     if (isPopupBlockedError(e)) {
       await signInWithRedirect(auth, provider);
       return { success: true, provider: "google", strategy: "web_redirect_started" };

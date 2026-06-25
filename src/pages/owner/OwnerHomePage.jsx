@@ -15,6 +15,8 @@ import {
 import { Page, Card, SectionTitle, SectionDesc, Badge, GhostBtn } from "./components/ownerUi";
 import OwnerSpinner from "./components/OwnerSpinner";
 import VenueGateNotice from "./components/VenueGateNotice";
+import LockedPreview from "./components/LockedPreview";
+import ReservationSkeleton from "./components/ReservationSkeleton";
 
 /* ---------- 시간/날짜 헬퍼 ---------- */
 function toMin(hhmm) {
@@ -293,11 +295,12 @@ export default function OwnerHomePage() {
   if (ownerLoading) {
     return <Page><OwnerSpinner label="불러오는 중…" /></Page>;
   }
+  // 소프트 게이트: 미등록/심사중/반려면 막지 않고, 예약화면을 흐릿하게 깔고 앞에 안내
   if (!venue || venue.status !== "approved") {
     return (
-      <Page>
-        <VenueGateNotice venue={venue} refresh={ownerRefresh} />
-      </Page>
+      <LockedPreview notice={<VenueGateNotice venue={venue} refresh={ownerRefresh} />}>
+        <ReservationSkeleton />
+      </LockedPreview>
     );
   }
   if (!courts.length) {

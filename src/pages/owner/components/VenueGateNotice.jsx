@@ -1,88 +1,141 @@
 /* eslint-disable */
 // src/pages/owner/components/VenueGateNotice.jsx
-// 구장 미등록/심사중/반려 상태를 막지 않고 '안내(인포)'로 보여주는 카드.
-// 승인 전이면 각 탭 상단/본문에 이걸 띄운다.
+// 구장 미등록/심사중/반려를 막지 않고 '안내(인포)'로 보여주는 카드.
+// 잠금 미리보기(LockedPreview) 앞면에 올라간다.
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import styled from "styled-components";
-import { Card, PrimaryBtn, GhostBtn, Badge } from "./ownerUi";
+import styled, { keyframes } from "styled-components";
+import { FiMapPin, FiClock, FiAlertCircle, FiArrowRight, FiRefreshCw } from "react-icons/fi";
+import { PrimaryBtn, GhostBtn } from "./ownerUi";
 
-const Wrap = styled(Card)`
+const pop = keyframes`
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+`;
+
+const Card = styled.div`
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 20px;
+  box-shadow: 0 20px 50px -12px rgba(15, 23, 42, 0.28);
+  padding: 30px 22px 22px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 14px;
-  padding: 28px 18px;
+  animation: ${pop} 0.35s ease-out both;
 `;
-const Emoji = styled.div`font-size: 46px; line-height: 1;`;
+
+const Badge = styled.div`
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: ${({ $tone, theme }) =>
+    $tone === "pending"
+      ? "linear-gradient(135deg, #f59e0b, #d97706)"
+      : $tone === "rejected"
+      ? "linear-gradient(135deg, #f43f5e, #e11d48)"
+      : `linear-gradient(135deg, ${theme.colors.primary}, #7c3aed)`};
+  box-shadow: 0 12px 26px -8px
+    ${({ $tone, theme }) =>
+      $tone === "pending"
+        ? "rgba(217,119,6,0.6)"
+        : $tone === "rejected"
+        ? "rgba(225,29,72,0.6)"
+        : "rgba(79,70,229,0.6)"};
+`;
+
 const Title = styled.div`
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 800;
+  letter-spacing: -0.02em;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
+
 const Desc = styled.div`
   font-size: 13.5px;
   line-height: 1.6;
   color: ${({ theme }) => theme.colors.textWeak};
   white-space: pre-line;
 `;
+
+const StatePill = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: ${({ $tone }) => ($tone === "pending" ? "#fef3c7" : "#fee2e2")};
+  color: ${({ $tone }) => ($tone === "pending" ? "#b45309" : "#b91c1c")};
+`;
+
 const Reject = styled.div`
   width: 100%;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 10px;
-  padding: 10px 12px;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(244,63,94,0.12)" : "#fef2f2")};
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(244,63,94,0.3)" : "#fecaca")};
+  border-radius: 12px;
+  padding: 11px 13px;
   font-size: 12.5px;
-  color: #b91c1c;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fda4af" : "#b91c1c")};
   text-align: left;
   line-height: 1.5;
 `;
-const Btns = styled.div`width: 100%; display: flex; flex-direction: column; gap: 10px;`;
 
-/**
- * @param {object|null} venue
- * @param {function} [refresh]
- */
+const Btns = styled.div`
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+`;
+
+const CtaBtn = styled(PrimaryBtn)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+`;
+
+const RefreshBtn = styled(GhostBtn)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+`;
+
 export default function VenueGateNotice({ venue, refresh }) {
   const navigate = useNavigate();
+  const status = !venue ? "none" : venue.status;
 
-  // 미등록
-  if (!venue) {
+  if (status === "pending") {
     return (
-      <Wrap>
-        <Emoji>🏟️</Emoji>
-        <Title>아직 등록한 구장이 없어요</Title>
-        <Desc>{"구장을 등록하면 예약을 받고\n시간대·가격을 관리할 수 있어요."}</Desc>
-        <Btns>
-          <PrimaryBtn type="button" onClick={() => navigate("/owner/register")}>
-            구장 등록하기
-          </PrimaryBtn>
-        </Btns>
-      </Wrap>
-    );
-  }
-
-  // 심사중
-  if (venue.status === "pending") {
-    return (
-      <Wrap>
-        <Emoji>⏳</Emoji>
+      <Card>
+        <Badge $tone="pending"><FiClock size={36} /></Badge>
         <Title>구장 심사가 진행 중이에요</Title>
-        <Desc>{`'${venue.name}'\n관리자 승인 후 예약 관리를 시작할 수 있어요.`}</Desc>
-        <Badge $tone="pending">심사중</Badge>
-        <Btns>
-          {refresh && (
-            <GhostBtn type="button" onClick={() => refresh()}>새로고침</GhostBtn>
-          )}
-        </Btns>
-      </Wrap>
+        <Desc>{`'${venue.name}'\n관리자 승인 후 예약 관리가 열려요.`}</Desc>
+        <StatePill $tone="pending"><FiClock size={13} /> 심사중</StatePill>
+        {refresh && (
+          <Btns>
+            <RefreshBtn type="button" onClick={() => refresh()}>
+              <FiRefreshCw size={15} /> 새로고침
+            </RefreshBtn>
+          </Btns>
+        )}
+      </Card>
     );
   }
 
-  // 반려
-  if (venue.status === "rejected") {
+  if (status === "rejected") {
     return (
-      <Wrap>
-        <Emoji>📋</Emoji>
+      <Card>
+        <Badge $tone="rejected"><FiAlertCircle size={36} /></Badge>
         <Title>등록이 반려되었어요</Title>
         <Desc>정보를 수정해 다시 신청해주세요.</Desc>
         {venue.rejectReason ? (
@@ -92,13 +145,25 @@ export default function VenueGateNotice({ venue, refresh }) {
           </Reject>
         ) : null}
         <Btns>
-          <PrimaryBtn type="button" onClick={() => navigate("/owner/register")}>
-            정보 수정하고 다시 신청
-          </PrimaryBtn>
+          <CtaBtn type="button" onClick={() => navigate("/owner/register")}>
+            정보 수정하고 다시 신청 <FiArrowRight size={17} />
+          </CtaBtn>
         </Btns>
-      </Wrap>
+      </Card>
     );
   }
 
-  return null;
+  // 미등록
+  return (
+    <Card>
+      <Badge $tone="none"><FiMapPin size={36} /></Badge>
+      <Title>아직 등록한 구장이 없어요</Title>
+      <Desc>{"구장을 등록하면\n예약을 받고 시간대·가격을 관리할 수 있어요."}</Desc>
+      <Btns>
+        <CtaBtn type="button" onClick={() => navigate("/owner/register")}>
+          구장 등록하기 <FiArrowRight size={17} />
+        </CtaBtn>
+      </Btns>
+    </Card>
+  );
 }
