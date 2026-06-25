@@ -32,7 +32,16 @@ export default function KakaoCallbackPage() {
     (async () => {
       const res = await completeWebKakaoLogin(code);
       if (res?.success) {
-        navigate("/home", { replace: true });
+        // 구장주 로그인 등에서 지정한 복귀 경로 우선
+        let dest = "/home";
+        try {
+          const saved = localStorage.getItem("hm.postLoginRedirect");
+          if (saved) {
+            dest = saved;
+            localStorage.removeItem("hm.postLoginRedirect");
+          }
+        } catch {}
+        navigate(dest, { replace: true });
       } else {
         console.error("[KakaoCallback] 실패:", res);
         setError("카카오 로그인에 실패했어요. 다시 시도해 주세요.");

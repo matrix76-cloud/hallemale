@@ -58,6 +58,7 @@ export function AuthProvider({ children }) {
     );
 
     const unsub = watchAuthState(async (user) => {
+      console.log("🔑OWNER onAuthStateChanged:", user?.uid || "(null)");
       setFirebaseUser(user || null);
 
       if (!user?.uid) {

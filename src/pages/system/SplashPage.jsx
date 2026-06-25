@@ -125,8 +125,16 @@ export default function SplashPage() {
     // ✅ 프리로드 완료 여부와 무관하게 1초 후 무조건 이동
     // (cleanup으로 지우지 않음 — 의존성 재실행 때 타이머가 사라져 멈추는 문제 방지)
     timerRef.current = setTimeout(() => {
-      // 카카오 단일 로그인 전환으로 전화번호 인증 단계 제거 → 항상 /home
-      navigate("/home", { replace: true });
+      // 구장주 로그인 등에서 지정한 복귀 경로 우선, 없으면 /home
+      let dest = "/home";
+      try {
+        const saved = localStorage.getItem("hm.postLoginRedirect");
+        if (saved) {
+          dest = saved;
+          localStorage.removeItem("hm.postLoginRedirect");
+        }
+      } catch {}
+      navigate(dest, { replace: true });
     }, SPLASH_MS);
   }, [
     authLoading,

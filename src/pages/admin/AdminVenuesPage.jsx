@@ -11,6 +11,11 @@ import {
   deleteVenue,
   uploadVenueImage,
 } from "../../services/venuesService";
+import {
+  listPendingVenues,
+  approveVenue,
+  rejectVenue,
+} from "../../services/ownerVenueService";
 
 const Page = styled.div`
   display: flex;
@@ -426,6 +431,7 @@ export default function AdminVenuesPage() {
 
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState([]);
+  const [pending, setPending] = useState([]);
   const [form, setForm] = useState(makeEmptyForm());
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -436,13 +442,44 @@ export default function AdminVenuesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const rows = await listAllVenues();
+      const [rows, pend] = await Promise.all([
+        listAllVenues(),
+        listPendingVenues().catch(() => []),
+      ]);
       setList(rows);
+      setPending(pend);
     } catch (e) {
       console.error("[AdminVenuesPage] load failed", e);
       setList([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApprove = async (row) => {
+    if (!window.confirm(`"${row.name || row.id}" 구장을 승인할까요? 승인 시 사용자에게 노출됩니다.`)) return;
+    setBusy(true);
+    try {
+      await approveVenue(row.id);
+      await load();
+    } catch (e) {
+      window.alert(e?.message || "승인에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReject = async (row) => {
+    const reason = window.prompt(`"${row.name || row.id}" 반려 사유를 입력하세요. (구장주에게 표시됩니다)`, "");
+    if (reason === null) return;
+    setBusy(true);
+    try {
+      await rejectVenue(row.id, reason);
+      await load();
+    } catch (e) {
+      window.alert(e?.message || "반려에 실패했습니다.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -585,6 +622,48 @@ export default function AdminVenuesPage() {
         좌표(위도/경도)는 비워둬도 등록 가능하지만, 지도 표시를 위해서는 입력을
         권장합니다. (예: 위도 37.5896, 경도 127.0297)
       </SpecBox>
+
+      {/* 구장주 심사 대기 목록 */}
+      <Card>
+        <CardTitle>🏟️ 구장주 등록 심사 대기 ({pending.length})</CardTitle>
+        {loading ? (
+          <AdminLoading />
+        ) : pending.length === 0 ? (
+          <EmptyText>심사 대기 중인 구장 신청이 없습니다.</EmptyText>
+        ) : (
+          <ListWrap>
+            {pending.map((row) => (
+              <Item key={row.id}>
+                <Thumb>
+                  {row.imageUrl ? <ThumbImg src={row.imageUrl} alt="" /> : null}
+                </Thumb>
+                <ItemMeta>
+                  <ItemTitle>{row.name || "(이름 없음)"}</ItemTitle>
+                  <ItemDesc>
+                    {row.address}
+                    {row.addressDetail ? ` ${row.addressDetail}` : ""}
+                  </ItemDesc>
+                  <ItemMetaRow>
+                    <span>코트 {row.courts?.length || 0}개</span>
+                    {row.ownerName && <span>대표: {row.ownerName}</span>}
+                    {row.contactPhone && <span>{row.contactPhone}</span>}
+                    {row.bizNo && <span>사업자 {row.bizNo}</span>}
+                    <span>{fmtYmdHm(row.createdAt)}</span>
+                  </ItemMetaRow>
+                </ItemMeta>
+                <ItemActions>
+                  <Btn type="button" $primary onClick={() => handleApprove(row)} disabled={busy}>
+                    승인
+                  </Btn>
+                  <DangerBtn type="button" onClick={() => handleReject(row)} disabled={busy}>
+                    반려
+                  </DangerBtn>
+                </ItemActions>
+              </Item>
+            ))}
+          </ListWrap>
+        )}
+      </Card>
 
       {/* 등록/수정 폼 (모달) */}
       {formOpen && (

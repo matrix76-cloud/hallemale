@@ -110,6 +110,16 @@ import EventPage from "../pages/event/EventPage";
 import AdminEventPopupsPage from "../pages/admin/AdminEventPopupsPage";
 import VenueDetailPage from "../pages/venue/VenueDetailPage";
 
+// ✅ 구장 관리자(구장주) 워크스페이스
+import OwnerLayout from "../layouts/OwnerLayout";
+import OwnerLoginPage from "../pages/owner/OwnerLoginPage";
+import OwnerEntry from "../pages/owner/OwnerEntry";
+import OwnerRegisterPage from "../pages/owner/OwnerRegisterPage";
+import OwnerStatusPage from "../pages/owner/OwnerStatusPage";
+import OwnerHomePage from "../pages/owner/OwnerHomePage";
+import OwnerVenuePage from "../pages/owner/OwnerVenuePage";
+import OwnerMyPage from "../pages/owner/OwnerMyPage";
+
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
   if (loading) return <AppLoadingPage />;
@@ -139,6 +149,15 @@ function RequireConsent({ children }) {
 function RequireClub({ children }) {
   const { loading } = useClub();
   if (loading) return <AppLoadingPage />;
+  return children;
+}
+
+// 구장 관리자 전용 인증 게이트 — 미로그인 시 /owner/login 으로 (일반 /login 아님)
+function RequireOwnerAuth({ children }) {
+  const { isLoggedIn, loading, firebaseUser } = useAuth();
+  console.log("🔑OWNER RequireOwnerAuth:", { loading, isLoggedIn, uid: firebaseUser?.uid || null });
+  if (loading) return <AppLoadingPage />;
+  if (!isLoggedIn) return <Navigate to="/owner/login" replace />;
   return children;
 }
 
@@ -421,6 +440,24 @@ export default function AppRoutes() {
           }
         >
           <Route path="/invites" element={<InvitesPage />} />
+        </Route>
+
+        {/* ✅ 구장 관리자(구장주) 워크스페이스 — 별도 라우트 트리 */}
+        <Route path="/owner/login" element={<OwnerLoginPage />} />
+        <Route
+          element={
+            <RequireOwnerAuth>
+              <OwnerLayout />
+            </RequireOwnerAuth>
+          }
+        >
+          <Route path="/owner" element={<OwnerEntry />} />
+          <Route path="/owner/register" element={<OwnerRegisterPage />} />
+          <Route path="/owner/pending" element={<OwnerStatusPage />} />
+          {/* 소프트 게이트: 막지 않고 입장 → 각 탭에서 등록/심사 안내 */}
+          <Route path="/owner/home" element={<OwnerHomePage />} />
+          <Route path="/owner/venue" element={<OwnerVenuePage />} />
+          <Route path="/owner/my" element={<OwnerMyPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />
