@@ -682,7 +682,7 @@ const EmptyText = styled.div`
 export default function MatchRoomListPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { club } = useClub();
+  const { club, isTeamLeader } = useClub();
   const myClubId = toStr(club?.clubId || club?.id);
   const { firebaseUser, userDoc } = useAuth();
   const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
@@ -916,11 +916,13 @@ export default function MatchRoomListPage() {
             })}
           </ProgressRow>
 
-          <MessageRow>
-            <MsgIcon />
-            <MsgText>{lastMsg || "아직 메시지가 없어요"}</MsgText>
-            {unread > 0 && <UnreadBadge>{unread > 99 ? "99+" : unread}</UnreadBadge>}
-          </MessageRow>
+          {isTeamLeader && (
+            <MessageRow>
+              <MsgIcon />
+              <MsgText>{lastMsg || "아직 메시지가 없어요"}</MsgText>
+              {unread > 0 && <UnreadBadge>{unread > 99 ? "99+" : unread}</UnreadBadge>}
+            </MessageRow>
+          )}
         </RoomCard>
       );
     }
@@ -948,6 +950,20 @@ export default function MatchRoomListPage() {
           <VsSep>VS</VsSep>
           {renderTeamCol({ team: oppTeam, fallbackName: "상대팀" })}
         </TeamsRow>
+
+        {/* ✅ 확정 경기 카드: 메시지 미리보기 (팀장 전용) */}
+        {isTeamLeader && room?.status === "confirmed" && !isPast && (() => {
+          const meta = chatMeta[room.id] || {};
+          const lastMsg = toStr(meta.lastMessageText);
+          const unread = Number(meta.unread) || 0;
+          return (
+            <MessageRow>
+              <MsgIcon />
+              <MsgText>{lastMsg || "아직 메시지가 없어요"}</MsgText>
+              {unread > 0 && <UnreadBadge>{unread > 99 ? "99+" : unread}</UnreadBadge>}
+            </MessageRow>
+          );
+        })()}
       </RoomCard>
     );
   };

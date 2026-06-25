@@ -16,8 +16,6 @@ import {
   acceptMatchResult,
   disputeMatchResult,
   submitMatchReview,
-  appendMatchResultComment,
-  appendMatchResultPhotos,
   markMatchRoomSeen,
   sendLineupReminder,
 } from "../../services/matchRoomService";
@@ -34,6 +32,7 @@ import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCelebration";
 import MatchAcceptedCelebration from "../../components/matchRoom/MatchAcceptedCelebration";
 import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
+import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
 import { getUserDoc } from "../../services/userService";
@@ -95,6 +94,20 @@ const formatShortDate = (v) => {
   const d = typeof v?.toDate === "function" ? v.toDate() : new Date(v);
   if (Number.isNaN(d.getTime())) return "";
   return `${d.getMonth() + 1}.${d.getDate()}`;
+};
+
+// 마지막 메시지 시각 → 상대시간("방금"/"N분"/"N시간"/"N일")
+const formatRelTime = (v) => {
+  if (!v) return "";
+  const d = typeof v?.toDate === "function" ? v.toDate() : new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "방금";
+  if (min < 60) return `${min}분`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간`;
+  return `${Math.floor(hr / 24)}일`;
 };
 
 /* ==================== 스타일 ==================== */
@@ -445,17 +458,6 @@ const SectionTitleActions = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-`;
-
-const AddMiniButton = styled.button`
-  border: none;
-  background: ${({ theme }) => theme.colors.primary};
-  color: #ffffff;
-  font-size: 13px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  white-space: nowrap;
 `;
 
 const MapBox = styled.div`
@@ -887,6 +889,90 @@ const ConfCancelBtn = styled.button`
   &:active {
     opacity: 0.8;
   }
+`;
+
+/* ───── 확정 경기: 매칭룸 채팅 진입 카드 (팀장 전용) ───── */
+const ConfMsgCard = styled.button`
+  width: 100%;
+  max-width: 360px;
+  margin: 14px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  &:active {
+    opacity: 0.85;
+  }
+`;
+const ConfMsgAvatar = styled.img`
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: ${({ theme }) => mrp(theme.mode).surface2};
+`;
+const ConfMsgTexts = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+const ConfMsgTitle = styled.div`
+  font-size: 15px;
+  font-weight: 800;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+const ConfMsgSub = styled.div`
+  font-size: 12.5px;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+const ConfMsgDot = styled.span`
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 0 3px ${({ theme }) => mrp(theme.mode).surface};
+`;
+
+/* ───── 확정 경기: 채팅 열었을 때 상단 "경기 정보로" 바 ───── */
+const ConfChatBar = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: ${({ theme }) => mrp(theme.mode).bg2};
+  border-bottom: 0.5px solid
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.08)" : "#eef0f3")};
+`;
+const ConfChatBackBtn = styled.button`
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: transparent;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
 `;
 
 /* ───── 직접 입력 구장 안내 (작게) ───── */
@@ -2185,64 +2271,6 @@ const TextArea = styled.textarea`
   }
 `;
 
-const PhotoRow = styled.div`
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-
-  &::-webkit-scrollbar {
-    height: 4px;
-  }
-`;
-
-const PhotoThumb = styled.div`
-  width: 74px;
-  height: 74px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  flex: 0 0 auto;
-  position: relative;
-`;
-
-const PhotoImg = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const PhotoRemove = styled.button`
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  border: none;
-  background: rgba(0, 0, 0, 0.7);
-  color: #ffffff;
-  cursor: pointer;
-`;
-
-const PhotoAdd = styled.button`
-  width: 74px;
-  height: 74px;
-  border-radius: 8px;
-  border: 1px dashed ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.card};
-  flex: 0 0 auto;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  color: ${({ theme }) => theme.colors.textWeak};
-  font-size: 11px;
-`;
-
 /* ====== 결과 입력 리디자인(3카드) ====== */
 const RATING_LABELS = ["", "별로예요", "그저 그래요", "괜찮아요", "좋아요", "최고예요"];
 
@@ -2576,55 +2604,6 @@ const ScoreHeroHint = styled.div`
   text-align: center;
 `;
 
-const CommentStack = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`;
-
-const CommentItem = styled.div`
-  padding: 12px 12px;
-  border-radius: 8px;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-`;
-
-const CommentHeader = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textWeak};
-  margin-bottom: 8px;
-`;
-
-const CommentBody = styled.div`
-  font-size: 15px;
-  color: ${({ theme }) => theme.colors.textStrong};
-  line-height: 1.6;
-  white-space: pre-wrap;
-`;
-
-const FullPhotoList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`;
-
-const FullPhotoItem = styled.div`
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  border-radius: 8px;
-  overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-`;
-
-const FullPhotoImg = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-`;
-
 /* ✅ 경기결과 입력 잠금 안내 박스 */
 const ResultInfoBox = styled.div`
   margin-top: 8px;
@@ -2636,100 +2615,6 @@ const ResultInfoBox = styled.div`
   color: ${({ theme }) => theme.colors.textWeak};
   font-size: 12px;
   line-height: 1.55;
-`;
-
-/* ====== 추가 모달 ====== */
-
-const ModalDim = styled.div`
-  position: fixed;
-  inset: 0;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(0,0,0,0.65)" : "rgba(15, 23, 42, 0.42)"};
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  z-index: 9999;
-`;
-
-const ModalSheet = styled.div`
-  width: 100%;
-  max-width: 520px;
-  background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px 20px 0 0;
-  padding: 14px 14px 16px;
-  box-shadow: ${({ theme }) =>
-    theme.mode === "dark"
-      ? "0 -12px 30px rgba(0, 0, 0, 0.5)"
-      : "0 -12px 30px rgba(15, 23, 42, 0.18)"};
-`;
-
-const ModalTopRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-`;
-
-const ModalTitle = styled.div`
-  font-size: 16px;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-
-const ModalClose = styled.button`
-  border: none;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6"};
-  color: ${({ theme }) => theme.colors.textStrong};
-  font-size: 12px;
-  padding: 7px 10px;
-  border-radius: 999px;
-  cursor: pointer;
-`;
-
-const ModalBody = styled.div`
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`;
-
-const ModalActions = styled.div`
-  margin-top: 12px;
-  display: flex;
-  gap: 8px;
-`;
-
-const ModalBtn = styled.button`
-  flex: 1;
-  border: none;
-  border-radius: 999px;
-  padding: 13px 0;
-  font-size: 14px;
-  cursor: pointer;
-
-  ${({ theme, $variant, disabled }) => {
-    if (disabled) {
-      const bg =
-        theme.mode === "dark" ? theme.colors.surface : "#e5e7eb";
-      return `
-        background:${bg};
-        color:${theme.colors.textWeak};
-        cursor: default;
-      `;
-    }
-    if ($variant === "primary") {
-      return `
-        background:${theme.colors.primary};
-        color:#ffffff;
-      `;
-    }
-    const bg =
-      theme.mode === "dark" ? "rgba(255,255,255,0.06)" : "#f3f4f6";
-    return `
-      background:${bg};
-      color:${theme.colors.textStrong};
-    `;
-  }}
 `;
 
 /* ==================== helpers ==================== */
@@ -2746,58 +2631,6 @@ function formatPositionKo(pos) {
   return toStr(pos);
 }
 
-// ✅ comment 문자열을 "기존/추가" 블록으로 분리 렌더
-// - 과거 데이터에 남아있는 "· <clubId/uid>" 같은 토큰은 화면에서 제거/치환
-function parseCommentBlocks(raw, { actorClubId = "", targetClubId = "", actorTeamName = "", targetTeamName = "" } = {}) {
-  const text = String(raw || "").trim();
-  if (!text) return [];
-
-  const isLikelyId = (s) => {
-    const v = String(s || "").trim();
-    if (!v) return false;
-    if (v.length < 12) return false;
-    return /^[A-Za-z0-9_-]+$/.test(v);
-  };
-
-  const prettifyHeader = (h) => {
-    const headerRaw = String(h || "").trim();
-    if (!headerRaw) return "추가 기록";
-
-    const parts = headerRaw
-      .split("·")
-      .map((x) => String(x || "").trim())
-      .filter(Boolean);
-
-    const mapped = parts.map((p) => {
-      if (actorClubId && p === actorClubId) return actorTeamName || "참가팀";
-      if (targetClubId && p === targetClubId) return targetTeamName || "참가팀";
-      return p;
-    });
-
-    if (mapped.length >= 2 && isLikelyId(mapped[mapped.length - 1])) {
-      mapped.pop();
-    }
-
-    const cleaned = mapped.filter((p) => !isLikelyId(p));
-
-    return cleaned.join(" · ") || "추가 기록";
-  };
-
-  const parts = text.split(/\n\n(?=\[추가 기록\])/g).filter(Boolean);
-
-  return parts.map((p, idx) => {
-    const s = String(p || "").trim();
-    if (s.startsWith("[추가 기록]")) {
-      const lines = s.split("\n");
-      const headerLine = String(lines[0] || "").replace("[추가 기록]", "").trim();
-      const header = prettifyHeader(headerLine);
-      const body = lines.slice(1).join("\n").trim();
-      return { key: `add-${idx}`, header: `추가 기록 · ${header}`, body: body || "" };
-    }
-    return { key: `base-${idx}`, header: "기존 코멘트", body: s };
-  });
-}
-
 /* ==================== 페이지 ==================== */
 
 export default function MatchRoomDetailPage() {
@@ -2810,6 +2643,12 @@ export default function MatchRoomDetailPage() {
 
   const myClubId = toStr(club?.clubId || club?.id);
   const roomId = toStr(params?.roomId || params?.matchId);
+
+  // ✅ 확정 경기 채팅 진입 카드용: 매칭룸 안읽음/마지막 메시지(팀장 전용 노출)
+  const { byRoom: chatMeta } = useMatchRoomUnread({ clubId: myClubId, uid: myUid });
+  const roomChat = chatMeta[roomId] || {};
+  // 확정 경기 상세에서 "메시지" 카드를 눌러 채팅을 펼쳤는지
+  const [confirmedChatOpen, setConfirmedChatOpen] = useState(false);
 
   const authorDisplayName = toStr(club?.name) || "참가자";
 
@@ -2861,8 +2700,6 @@ export default function MatchRoomDetailPage() {
   const [myScoreInput, setMyScoreInput] = useState("");
   const [oppScoreInput, setOppScoreInput] = useState("");
   const [oppRating, setOppRating] = useState(0); // 상대 팀 별점(1~5)
-  const [resultComment, setResultComment] = useState("");
-  const [resultFiles, setResultFiles] = useState([]);
   const [resultBusy, setResultBusy] = useState(false);
 
   // ✅ 지난 경기 리뷰(별점·한줄평) — 팀장·팀원 공통, 1인 1리뷰
@@ -2899,15 +2736,6 @@ export default function MatchRoomDetailPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
-
-  const fileRef = useRef(null);
-
-  const [addOpen, setAddOpen] = useState(false);
-  const [addMode, setAddMode] = useState("");
-  const [addText, setAddText] = useState("");
-  const [addFiles, setAddFiles] = useState([]);
-  const addFileRef = useRef(null);
-  const [addBusy, setAddBusy] = useState(false);
 
   const refresh = async () => {
     if (!roomId) return;
@@ -3050,9 +2878,6 @@ export default function MatchRoomDetailPage() {
 
     if (room.myScore != null) setMyScoreInput(String(room.myScore));
     if (room.oppScore != null) setOppScoreInput(String(room.oppScore));
-
-    const savedComment = toStr(room?.result?.comment);
-    if (savedComment) setResultComment(savedComment);
   }, [room, myClubId]);
 
   // 구장 정하기 페이지일 때 상단 헤더 부제에 "내 팀 vs 상대팀" 표시
@@ -3535,16 +3360,6 @@ export default function MatchRoomDetailPage() {
   const resultSubmittedBy = toStr(room?.result?.submittedByClubId);
   const iSubmittedResult = !!myClubId && !!resultSubmittedBy && myClubId === resultSubmittedBy;
 
-  const savedPhotoUrls = Array.isArray(room?.result?.photoUrls) ? room.result.photoUrls : [];
-  const savedComment = toStr(room?.result?.comment);
-
-  const commentBlocks = parseCommentBlocks(savedComment, {
-    actorClubId: toStr(room?.actorClubId),
-    targetClubId: toStr(room?.targetClubId),
-    actorTeamName: toStr(room?.myTeam?.name),
-    targetTeamName: toStr(room?.oppTeam?.name),
-  });
-
   const canAcceptResult = isConfirmed && resultState === "waiting_accept" && !iSubmittedResult && !resultBusy;
 
   /* ✅ 경기 결과 입력 노출 타이밍: 경기 시작(확정 scheduledAt) + 선택한 경기 시간(durationMin) 후 */
@@ -3599,101 +3414,6 @@ export default function MatchRoomDetailPage() {
   const autoConfirmAtLabel = Number.isFinite(autoConfirmAtMs)
     ? formatKoreanDateTime(new Date(autoConfirmAtMs).toISOString())
     : "";
-
-  const openAddComment = () => {
-    if (!myClubId) {
-      window.alert("팀 정보를 확인할 수 없습니다.");
-      return;
-    }
-    setAddMode("comment");
-    setAddText("");
-    setAddFiles([]);
-    setAddOpen(true);
-  };
-
-  const openAddPhotos = () => {
-    if (!myClubId) {
-      window.alert("팀 정보를 확인할 수 없습니다.");
-      return;
-    }
-    setAddMode("photo");
-    setAddText("");
-    setAddFiles([]);
-    setAddOpen(true);
-  };
-
-  const closeAdd = () => {
-    if (addBusy) return;
-    setAddOpen(false);
-    setAddMode("");
-    setAddText("");
-    setAddFiles([]);
-  };
-
-  const onPickAddPhotos = () => {
-    if (addBusy) return;
-    addFileRef.current?.click();
-  };
-
-  const onAddFilesChanged = (e) => {
-    const list = Array.from(e.target.files || []);
-    e.target.value = "";
-    if (!list.length) return;
-
-    setAddFiles((prev) => {
-      const next = [...(prev || []), ...list].slice(0, 6);
-      return next;
-    });
-  };
-
-  const removeAddFile = (idx) => {
-    setAddFiles((prev) => (prev || []).filter((_, i) => i !== idx));
-  };
-
-  const saveAdd = async () => {
-    if (!myClubId) return;
-    if (!room?.id) return;
-
-    setAddBusy(true);
-    try {
-      if (addMode === "comment") {
-        const c = String(addText || "").trim();
-        if (!c) {
-          window.alert("코멘트를 입력해 주세요.");
-          return;
-        }
-        await appendMatchResultComment({
-          matchRequestId: room.id,
-          comment: c,
-          submittedByClubId: myClubId,
-          authorDisplayName,
-        });
-        await refresh();
-        closeAdd();
-        return;
-      }
-
-      if (addMode === "photo") {
-        if (!addFiles.length) {
-          window.alert("사진을 선택해 주세요.");
-          return;
-        }
-        await appendMatchResultPhotos({
-          matchRequestId: room.id,
-          files: addFiles,
-          submittedByClubId: myClubId,
-          authorDisplayName,
-        });
-        await refresh();
-        closeAdd();
-        return;
-      }
-    } catch (e) {
-      window.alert(e?.message || "추가 저장에 실패했습니다.");
-    } finally {
-      setAddBusy(false);
-    }
-  };
 
   const handlePropose = async () => {
     if (!myClubId) {
@@ -3769,26 +3489,6 @@ export default function MatchRoomDetailPage() {
     await handleCancelMatch();
   };
 
-  const onPickPhotos = () => {
-    if (resultBusy) return;
-    fileRef.current?.click();
-  };
-
-  const onFilesChanged = (e) => {
-    const list = Array.from(e.target.files || []);
-    e.target.value = "";
-    if (!list.length) return;
-
-    setResultFiles((prev) => {
-      const next = [...(prev || []), ...list].slice(0, 1);
-      return next;
-    });
-  };
-
-  const removePickedFile = (idx) => {
-    setResultFiles((prev) => (prev || []).filter((_, i) => i !== idx));
-  };
-
   const handleSubmitResult = async () => {
     if (!myClubId) return;
 
@@ -3817,14 +3517,11 @@ export default function MatchRoomDetailPage() {
         matchRequestId: room.id,
         actorScore,
         targetScore,
-        comment: resultComment,
-        files: resultFiles,
         opponentRating: oppRating,
         submittedByClubId: myClubId,
         authorDisplayName,
       });
 
-      setResultFiles([]);
       setOppRating(0);
       await refresh();
       window.alert("결과를 제출했습니다. 상대팀 승인을 기다립니다.");
@@ -4325,45 +4022,6 @@ export default function MatchRoomDetailPage() {
 
       {/* 별점 평가는 '리뷰 남기기' 카드로 분리 (팀장·팀원 공통, 지난 경기에서) */}
 
-      {/* 사진 · 한줄 후기 카드 */}
-      <SectionCard>
-        <SectionTitleRow>
-          <SectionTitleLeft>
-            <span>사진 · 한줄 후기</span>
-            <SubLabel>선택</SubLabel>
-          </SectionTitleLeft>
-          <SectionTitleActions />
-        </SectionTitleRow>
-
-        <PhotoRow>
-          {resultFiles.map((f, idx) => {
-            const src = URL.createObjectURL(f);
-            return (
-              <PhotoThumb key={`${f.name}-${idx}`}>
-                <PhotoImg src={src} alt="picked" />
-                <PhotoRemove type="button" onClick={() => removePickedFile(idx)}>
-                  ×
-                </PhotoRemove>
-              </PhotoThumb>
-            );
-          })}
-          {resultFiles.length < 1 && (
-            <PhotoAdd type="button" onClick={() => fileRef.current?.click()}>
-              <span style={{ fontSize: 18 }}>📷</span>
-              <span>{resultFiles.length}/1</span>
-            </PhotoAdd>
-          )}
-        </PhotoRow>
-
-        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFilesChanged} />
-
-        <TextArea
-          value={resultComment}
-          onChange={(e) => setResultComment(e.target.value)}
-          placeholder="코멘트 (예: 매너 좋았습니다. 다음에 또 경기해요!)"
-        />
-      </SectionCard>
-
       <ResultSubmitBar>
         <PrimaryButton
           type="button"
@@ -4716,7 +4374,7 @@ export default function MatchRoomDetailPage() {
     <>
       <PageWrap
         $dark={!isVenue}
-        $confirmed={!isVenue && (status === "confirmed" || status === "cancelled" || status === "finished")}
+        $confirmed={!isVenue && (status === "confirmed" || status === "cancelled" || status === "finished") && !confirmedChatOpen}
       >
         {!(isVenue || status === "confirmed" || status === "cancelled" || status === "finished") && (
           <DarkHeader>
@@ -4790,7 +4448,24 @@ export default function MatchRoomDetailPage() {
           </DarkHeader>
         )}
 
-        {!isVenue && status === "cancelled" ? (
+        {!isVenue && isConfirmed && confirmedChatOpen ? (
+          <>
+            <ConfChatBar>
+              <ConfChatBackBtn type="button" onClick={() => setConfirmedChatOpen(false)}>
+                ← 경기 정보
+              </ConfChatBackBtn>
+            </ConfChatBar>
+            <MatchRoomChat
+              chatId={chatId}
+              myUid={myUid}
+              opponentName={oppName}
+              opponentLeaderName={oppLeader.name}
+              opponentAvatarUrl={oppLeader.avatarUrl}
+              otherUid={oppLeader.uid}
+              systemNotice="경기가 확정됐어요 🎉 · 채팅으로 계속 대화하세요"
+            />
+          </>
+        ) : !isVenue && status === "cancelled" ? (
           <ConfWrap>
             <CancelIcon>✕</CancelIcon>
             <ConfTitle>경기가 취소됐어요</ConfTitle>
@@ -4838,6 +4513,30 @@ export default function MatchRoomDetailPage() {
                 </ConfBannerText>
               </ConfBanner>
             ) : null}
+
+            {/* ✅ 확정 후에도 같은 매칭룸 채팅 계속 (팀장 전용) */}
+            {isConfirmed && !isPast && isTeamLeader && (
+              <ConfMsgCard type="button" onClick={() => setConfirmedChatOpen(true)}>
+                {toStr(oppLeader.avatarUrl) ? (
+                  <ConfMsgAvatar src={oppLeader.avatarUrl} alt={oppName} />
+                ) : (
+                  <AvatarPlaceholder size={46} />
+                )}
+                <ConfMsgTexts>
+                  <ConfMsgTitle>{oppName} · 매칭룸 채팅</ConfMsgTitle>
+                  <ConfMsgSub>
+                    {Number(roomChat.unread) > 0
+                      ? `새 메시지 ${roomChat.unread}개${
+                          formatRelTime(roomChat.lastMessageAt)
+                            ? ` · ${formatRelTime(roomChat.lastMessageAt)}`
+                            : ""
+                        }`
+                      : toStr(roomChat.lastMessageText) || "확정 후에도 메시지로 계속 대화해요"}
+                  </ConfMsgSub>
+                </ConfMsgTexts>
+                {Number(roomChat.unread) > 0 ? <ConfMsgDot /> : null}
+              </ConfMsgCard>
+            )}
 
             {/* 지난(완료) 경기: 경기 결과 카드를 결과 배너 바로 아래에 배치 */}
             {isPast && resultSection}
@@ -5428,35 +5127,6 @@ export default function MatchRoomDetailPage() {
                       </ScoreBlock>
                     </ResultScoreRow>
 
-                    <ResultStatusText>사진(선택)과 코멘트를 남길 수 있어요.</ResultStatusText>
-
-                    <PhotoRow>
-                      {resultFiles.map((f, idx) => {
-                        const src = URL.createObjectURL(f);
-                        return (
-                          <PhotoThumb key={`${f.name}-${idx}`}>
-                            <PhotoImg src={src} alt="picked" />
-                            <PhotoRemove type="button" onClick={() => removePickedFile(idx)}>
-                              ×
-                            </PhotoRemove>
-                          </PhotoThumb>
-                        );
-                      })}
-                      {resultFiles.length < 1 && (
-                        <PhotoAdd type="button" onClick={() => fileRef.current?.click()}>
-                          ＋
-                        </PhotoAdd>
-                      )}
-                    </PhotoRow>
-
-                    <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFilesChanged} />
-
-                    <TextArea
-                      value={resultComment}
-                      onChange={(e) => setResultComment(e.target.value)}
-                      placeholder="코멘트 (예: 매너 좋았습니다. 다음에 또 경기해요!)"
-                    />
-
                     <ActionsWrap>
                       <PrimaryButton
                         type="button"
@@ -5477,27 +5147,6 @@ export default function MatchRoomDetailPage() {
                       <ScoreHeroNum>{String(targetScoreSaved ?? "-")}</ScoreHeroNum>
                     </ScoreHero>
                     <ScoreHeroHint>상대팀 승인을 기다리는 중입니다.</ScoreHeroHint>
-
-                    {savedComment ? (
-                      <CommentStack>
-                        {commentBlocks.map((b) => (
-                          <CommentItem key={b.key}>
-                            <CommentHeader>{b.header}</CommentHeader>
-                            <CommentBody>{b.body}</CommentBody>
-                          </CommentItem>
-                        ))}
-                      </CommentStack>
-                    ) : null}
-
-                    {savedPhotoUrls.length > 0 ? (
-                      <FullPhotoList>
-                        {savedPhotoUrls.map((url, idx) => (
-                          <FullPhotoItem key={`${url}-${idx}`}>
-                            <FullPhotoImg src={url} alt="result" />
-                          </FullPhotoItem>
-                        ))}
-                      </FullPhotoList>
-                    ) : null}
 
                     {!iSubmittedResult ? (
                       isTeamLeader ? (
@@ -5544,75 +5193,6 @@ export default function MatchRoomDetailPage() {
                 </ScoreHero>
 
                 <ScoreHeroHint>{room?.scheduledAt ? `${formatKoreanDateTime(room.scheduledAt)} 경기` : "경기 결과"}</ScoreHeroHint>
-              </SectionCard>
-
-              <SectionCard>
-                <SectionTitleRow>
-                  <SectionTitleLeft>
-                    <SectionIcon>📷</SectionIcon>
-                    <span>경기 사진</span>
-                  </SectionTitleLeft>
-                  <SectionTitleActions>
-                    <AddMiniButton
-                      type="button"
-                      onClick={() => {
-                        setAddMode("photo");
-                        setAddText("");
-                        setAddFiles([]);
-                        setAddOpen(true);
-                      }}
-                    >
-                      사진 추가하기
-                    </AddMiniButton>
-                  </SectionTitleActions>
-                </SectionTitleRow>
-
-                {savedPhotoUrls.length > 0 ? (
-                  <FullPhotoList>
-                    {savedPhotoUrls.map((url, idx) => (
-                      <FullPhotoItem key={`${url}-${idx}`}>
-                        <FullPhotoImg src={url} alt="result" />
-                      </FullPhotoItem>
-                    ))}
-                  </FullPhotoList>
-                ) : (
-                  <EmptyState compact text="아직 등록된 사진이 없습니다." />
-                )}
-              </SectionCard>
-
-              <SectionCard>
-                <SectionTitleRow>
-                  <SectionTitleLeft>
-                    <SectionIcon>💬</SectionIcon>
-                    <span>코멘트</span>
-                  </SectionTitleLeft>
-                  <SectionTitleActions>
-                    <AddMiniButton
-                      type="button"
-                      onClick={() => {
-                        setAddMode("comment");
-                        setAddText("");
-                        setAddFiles([]);
-                        setAddOpen(true);
-                      }}
-                    >
-                      글 추가하기
-                    </AddMiniButton>
-                  </SectionTitleActions>
-                </SectionTitleRow>
-
-                {savedComment ? (
-                  <CommentStack>
-                    {commentBlocks.map((b) => (
-                      <CommentItem key={b.key}>
-                        <CommentHeader>{b.header}</CommentHeader>
-                        <CommentBody>{b.body}</CommentBody>
-                      </CommentItem>
-                    ))}
-                  </CommentStack>
-                ) : (
-                  <EmptyState compact text="아직 등록된 코멘트가 없습니다." />
-                )}
               </SectionCard>
             </>
           )}
@@ -5725,64 +5305,6 @@ export default function MatchRoomDetailPage() {
           </>
         )}
       </PageWrap>
-
-      {addOpen && (
-        <ModalDim onClick={closeAdd}>
-          <ModalSheet onClick={(e) => e.stopPropagation()}>
-            <ModalTopRow>
-              <ModalTitle>{addMode === "photo" ? "사진 추가하기" : "글 추가하기"}</ModalTitle>
-              <ModalClose type="button" onClick={closeAdd}>
-                닫기
-              </ModalClose>
-            </ModalTopRow>
-
-            <ModalBody>
-              {addMode === "photo" ? (
-                <>
-                  <PhotoRow>
-                    {addFiles.map((f, idx) => {
-                      const src = URL.createObjectURL(f);
-                      return (
-                        <PhotoThumb key={`${f.name}-${idx}`}>
-                          <PhotoImg src={src} alt="picked" />
-                          <PhotoRemove type="button" onClick={() => removeAddFile(idx)}>
-                            ×
-                          </PhotoRemove>
-                        </PhotoThumb>
-                      );
-                    })}
-                    {addFiles.length < 6 && (
-                      <PhotoAdd type="button" onClick={onPickAddPhotos}>
-                        ＋
-                      </PhotoAdd>
-                    )}
-                  </PhotoRow>
-
-                  <input ref={addFileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onAddFilesChanged} />
-
-                  <ResultStatusText>최대 6장까지 추가할 수 있어요.</ResultStatusText>
-                </>
-              ) : (
-                <TextArea value={addText} onChange={(e) => setAddText(e.target.value)} placeholder="경기 코멘트를 추가해 주세요." />
-              )}
-            </ModalBody>
-
-            <ModalActions>
-              <ModalBtn type="button" onClick={closeAdd} disabled={addBusy}>
-                취소
-              </ModalBtn>
-              <ModalBtn
-                type="button"
-                $variant="primary"
-                onClick={saveAdd}
-                disabled={addBusy || (addMode === "comment" ? !String(addText || "").trim() : addMode === "photo" ? !addFiles.length : true)}
-              >
-                {addBusy ? "저장중..." : "추가 저장"}
-              </ModalBtn>
-            </ModalActions>
-          </ModalSheet>
-        </ModalDim>
-      )}
 
       <VenuePickerSheet
         open={venuePickerOpen}

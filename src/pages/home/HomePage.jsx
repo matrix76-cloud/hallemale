@@ -108,15 +108,19 @@ export default function HomePage() {
   const { club } = useClub();
   const myClubId = String(club?.clubId || club?.id || "").trim();
 
-  const { homeData, loading: homeLoading, refreshFavorites, preloadHomeData } = useHomeData();
+  const { homeData, loading: homeLoading, loadedUid, refreshFavorites, preloadHomeData } = useHomeData();
 
-  // ✅ preload가 안 됐으면 HomePage 진입 시 직접 로드 (fallback)
+  // ✅ 현재 로그인 uid와 캐시된 homeData의 주인이 다르면 stale (계정 전환 후 이전 계정 데이터)
+  const staleForUser = !!loadedUid && loadedUid !== uid;
+
+  // ✅ preload가 안 됐거나 다른 계정 데이터면 HomePage 진입 시 직접 로드 (fallback)
   useEffect(() => {
-    if (!uid || authLoading || homeLoading || homeData) return;
+    if (!uid || authLoading || homeLoading) return;
+    if (homeData && loadedUid === uid) return; // 이미 이 계정 데이터가 있으면 스킵
     preloadHomeData(uid).catch((e) =>
       console.error("[HomePage] fallback preload failed:", e)
     );
-  }, [uid, authLoading, homeLoading, homeData, preloadHomeData]);
+  }, [uid, authLoading, homeLoading, homeData, loadedUid, preloadHomeData]);
 
   // ✅ 즐겨찾기만 페이지 진입마다 갱신
   useEffect(() => {
@@ -155,7 +159,7 @@ export default function HomePage() {
 
   if (!isLoggedIn) return null;
 
-  if (homeLoading || !homeData) {
+  if (homeLoading || !homeData || staleForUser) {
     return (
       <Wrap>
         <Content>
