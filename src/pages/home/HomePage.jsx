@@ -9,7 +9,6 @@ import HomeHeroBanner from "../../components/home/HomeHeroBanner";
 import HomeUpcomingMatch from "../../components/home/HomeUpcomingMatch";
 import TeamProfileSection from "../../components/home/TeamProfileSection";
 import WinningTeamsSection from "../../components/home/WinningTeamsSection";
-import WinningTickerBar from "../../components/home/WinningTickerBar";
 import TeamRankingSection from "../../components/home/TeamRankingSection";
 import PlayerRankingSection from "../../components/home/PlayerRankingSection";
 import FavoriteTeamsSection from "../../components/home/FavoriteTeamsSection";
@@ -34,11 +33,6 @@ const Content = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-`;
-
-const TickerRow = styled.div`
-  /* 좌우 패딩 없이 화면 끝까지 (PageContainer 16px 상쇄) */
-  margin: 0 -16px;
 `;
 
 const HeroRow = styled.div`
@@ -205,9 +199,6 @@ export default function HomePage() {
             matchRoomAttention={matchRoomAttention}
             matchRoomUnread={matchRoomUnread}
           />
-          <TickerRow>
-            <WinningTickerBar items={winningTeamsHighlight} />
-          </TickerRow>
           <WinningTeamsSection items={winningTeamsHighlight} />
           <TeamRankingSection rows={teamRankingTop5} />
           <PlayerRankingSection rows={playerRankingTop5} />

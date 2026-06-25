@@ -1214,7 +1214,39 @@ useEffect(() => {
   const introUpdated = formatUpdateDate(team?.updatedAt || team?.createdAt);
   const statsUpdated = formatUpdateDate(team?.stats?.updatedAt || team?.updatedAt || team?.createdAt);
 
-  const recentResults = buildRecentResults(team?.stats);
+  // ✅ 최근 전적/최근 상태를 "경기 기록(날짜순)"에서 산출 → 경기기록과 항상 일치.
+  //    (clubs.stats.recentResults는 '결과 반영 순서'라 날짜순과 어긋날 수 있음)
+  const recentFromMatches = (() => {
+    const arr = Array.isArray(pastMatches) ? pastMatches : [];
+    const ts = (m) => {
+      const v = m?.scheduledAt || m?.confirmedAt || m?.finishedAt || m?.updatedAt || m?.createdAt;
+      if (!v) return 0;
+      if (v?.toMillis) return v.toMillis();
+      if (v?.toDate) return v.toDate().getTime();
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    return [...arr]
+      .filter((m) => m?.myScore != null && m?.oppScore != null)
+      .sort((a, b) => {
+        const d = ts(b) - ts(a);
+        if (d !== 0) return d;
+        // 같은 날짜는 경기기록(TeamMatchHistorySection)과 동일하게 id 내림차순
+        const ai = String(a?.id || "");
+        const bi = String(b?.id || "");
+        return bi > ai ? 1 : bi < ai ? -1 : 0;
+      })
+      .map((m) => {
+        const my = Number(m.myScore);
+        const opp = Number(m.oppScore);
+        return my > opp ? "W" : my < opp ? "L" : "D";
+      })
+      .slice(0, 5);
+  })();
+
+  const recentResults = recentFromMatches.length > 0 ? recentFromMatches : buildRecentResults(team?.stats);
+  // 최근 상태(연승/연패)도 같은 날짜순 결과로 계산되도록 stats.recentResults 덮어쓰기
+  const statsForDisplay = team?.stats ? { ...team.stats, recentResults } : team?.stats;
 
   // 상대 팀들이 매긴 별점 평판 (경기 결과 확정 시 집계됨)
   const repCount = Number(team?.reputation?.count) || 0;
@@ -1506,13 +1538,14 @@ useEffect(() => {
                   {statsUpdated && <SectionMeta>{statsUpdated}</SectionMeta>}
                 </SectionHeaderRow>
 
-                <TeamStatsSection stats={team.stats} />
+                <TeamStatsSection stats={statsForDisplay} />
 
                 {recentResults.length > 0 && (
                   <RecentResultsRow>
                     <RecentResultsLabel>최근 전적</RecentResultsLabel>
                     <RecentDots>
-                      {recentResults.map((r, idx) => {
+                      {/* 왼쪽=오래된 경기, 오른쪽=가장 최근 (recentResults는 최신순이라 뒤집어 표시) */}
+                      {[...recentResults].reverse().map((r, idx) => {
                         if (r === "W") return <WinChip key={`recent-${idx}`} size="sm" />;
                         if (r === "D") return <DrawChip key={`recent-${idx}`} size="sm" />;
                         return <LoseChip key={`recent-${idx}`} size="sm" />;

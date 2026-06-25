@@ -258,8 +258,9 @@ function getRecentFormsSafe(t, count = 5) {
     (Array.isArray(t?.recentForms) && t.recentForms) ||
     [];
 
+  // recentResults 는 "최신이 index 0". 최신 count개를 뽑되, 표시는 왼쪽=오래된/오른쪽=최신
   const norm = src.map(normalizeRecentResult).filter(Boolean);
-  return norm.slice(-count).reverse();
+  return norm.slice(0, count).reverse();
 }
 
 function buildRegionText(t) {

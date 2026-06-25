@@ -318,9 +318,22 @@ export default function TeamRankingSection({ rows = [] }) {
 
           const recordNumbers = draws > 0 ? `${wins}:${losses}:${draws}` : `${wins}:${losses}`;
 
-          let resultKind = "draw";
-          if (wins > losses && wins >= draws) resultKind = "win";
-          else if (losses > wins && losses >= draws) resultKind = "lose";
+          // ✅ "최근 팀전적" 칩 = 가장 최근 결과(recentResults[0]) 기준.
+          //    데이터 없으면 집계로 폴백하되, 무승부가 0이면 무로 떨어지지 않게.
+          const recent = Array.isArray(t.recentResults) ? t.recentResults : [];
+          const normResult = (x) => {
+            const v = String(x || "").trim().toUpperCase();
+            if (v === "W" || v.includes("승")) return "win";
+            if (v === "L" || v.includes("패")) return "lose";
+            if (v === "D" || v.includes("무")) return "draw";
+            return null;
+          };
+          let resultKind = normResult(recent[0]);
+          if (!resultKind) {
+            if (wins > losses) resultKind = "win";
+            else if (losses > wins) resultKind = "lose";
+            else if (draws > 0) resultKind = "draw";
+          }
 
           const delay = (rows.length - idx - 1) * 0.7;
 

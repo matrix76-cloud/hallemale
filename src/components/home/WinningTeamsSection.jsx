@@ -6,7 +6,7 @@ import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
 
 const SectionWrap = styled.section`
-  margin-top: 8px;
+  margin-top: 22px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -31,7 +31,8 @@ const SlideRow = styled.div`
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  padding: 2px 2px 4px;
+  /* 상단 여백 확보: 1~3위 왕관이 제목과 겹치거나 잘리지 않게 */
+  padding: 22px 2px 4px;
   scroll-snap-type: x mandatory;
 
   scrollbar-width: none;
@@ -54,14 +55,33 @@ const Card = styled.div`
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "transparent"};
   box-shadow: ${({ theme }) => theme.shadows.card};
-  overflow: hidden;
+  position: relative; /* 왕관이 카드 위로 튀어나오도록 overflow 클리핑 제거 */
   display: flex;
   flex-direction: column;
   cursor: pointer;
 `;
 
 const ImageArea = styled.div`
+  position: relative;
   width: 100%;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0; /* Card에서 overflow 제거 → 이미지 상단 모서리는 여기서 라운딩 */
+`;
+
+/* 전체 1~3위: 이미지 위에 왕관 로고 (프로필 사진 크기에 비례) */
+const CrownImg = styled.img`
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30%;
+  max-width: 40px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.25));
 `;
 
 const TeamImage = styled.img`
@@ -77,6 +97,7 @@ const CardBody = styled.div`
   flex-direction: column;
   align-items: center;
   gap: 3px;
+  border-radius: 0 0 8px 8px; /* Card overflow 제거 → 하단 모서리 라운딩 유지 */
 `;
 
 const NameRow = styled.div`
@@ -88,13 +109,25 @@ const NameRow = styled.div`
 `;
 
 const TeamName = styled.div`
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 800;
   color: ${({ theme }) => theme.colors.textStrong};
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
-  line-height: 1.2;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.25;
+`;
+
+const MetaText = styled.div`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 `;
 
 /* ✅ 기존 streakLabel 없을 수 있으니 winRate로 표시 */
@@ -109,6 +142,14 @@ const StreakText = styled.div`
 function toNum(n, fallback = 0) {
   const v = Number(n);
   return Number.isFinite(v) ? v : fallback;
+}
+
+function regionText(t) {
+  const r = String(t?.region || "").trim();
+  if (r) return r;
+  const sido = String(t?.regionSido || "").trim();
+  const gu = String(t?.regionGu || "").trim();
+  return `${sido} ${gu}`.trim() || "지역 미정";
 }
 
 function formatWinRate(t) {
@@ -170,15 +211,16 @@ export default function WinningTeamsSection({ items = [] }) {
 
           return (
             <Card key={teamId} onClick={() => navigate(`/team/${teamId}`)}>
+              {t.rank >= 1 && t.rank <= 3 ? <CrownImg src={images.logo} alt={`${t.rank}위`} /> : null}
               <ImageArea>
                 <TeamImage src={imgSrc} alt={t.name} />
               </ImageArea>
 
               <CardBody>
-                <NameRow>
-                  <TeamName>{t.name}</TeamName>
-                </NameRow>
-
+                <TeamName title={t.name}>{t.name}</TeamName>
+                <MetaText>
+                  {regionText(t)}{t.rank > 0 ? ` · 전체 ${t.rank}위` : ""}
+                </MetaText>
                 <StreakText>{t.streakLabel || formatWinRate(t)}</StreakText>
               </CardBody>
             </Card>

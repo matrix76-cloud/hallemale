@@ -36,6 +36,7 @@ import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCelebration";
 import MatchAcceptedCelebration from "../../components/matchRoom/MatchAcceptedCelebration";
 import MatchFinalCelebration from "../../components/matchRoom/MatchFinalCelebration";
+import CancelReasonSheet from "../../components/matchRoom/CancelReasonSheet";
 import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
 import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import useVisualViewportHeightVar from "../../hooks/useVisualViewportHeightVar";
@@ -1086,6 +1087,67 @@ const VenueNote = styled.div`
     color: ${({ theme }) => mrp(theme.mode).t2};
     font-weight: 700;
   }
+`;
+
+/* ───── 제휴구장 확정: 예약완료 카드 ───── */
+const ResvCard = styled.div`
+  width: 100%;
+  max-width: 360px;
+  margin: 14px 0 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+`;
+const ResvThumb = styled.div`
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  background: #1b1f27;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+`;
+const ResvThumbImg = styled.img`width: 100%; height: 100%; object-fit: cover; display: block;`;
+const ResvBadge = styled.span`
+  position: absolute; top: 10px; left: 10px;
+  padding: 5px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 800;
+  background: rgba(34, 197, 94, 0.92); color: #fff;
+`;
+const ResvInfo = styled.div`padding: 12px 14px 14px;`;
+const ResvName = styled.div`font-size: 16px; font-weight: 800; color: ${({ theme }) => mrp(theme.mode).t1};`;
+const ResvSub = styled.div`margin-top: 3px; font-size: 12.5px; color: ${({ theme }) => mrp(theme.mode).t3};`;
+
+/* ───── 제휴구장 확정: 구장 결제완료 카드 ───── */
+const PaidCard = styled.div`
+  width: 100%; max-width: 360px; margin: 14px 0 0;
+  border-radius: 16px; padding: 16px;
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.4)" : "rgba(124,92,201,0.35)")};
+`;
+const PaidHead = styled.div`display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;`;
+const PaidTitle = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => mrp(theme.mode).t1};`;
+const PaidBadge = styled.span`
+  padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.25)" : "#efe9ff")};
+  color: ${({ theme }) => mrp(theme.mode).puD};
+`;
+const PaidRow = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: ${({ $big }) => ($big ? "10px 0 0" : "6px 0")};
+  font-size: ${({ $big }) => ($big ? "15px" : "13.5px")};
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  & > b { font-weight: 800; color: ${({ theme }) => mrp(theme.mode).t1}; }
+`;
+const PaidDone = styled.span`
+  font-size: 12.5px; font-weight: 700;
+  color: ${({ $on, theme }) => ($on ? "#16a34a" : mrp(theme.mode).t3)};
+`;
+const PaidDivider = styled.div`height: 1px; background: ${({ theme }) => mrp(theme.mode).line}; margin: 8px 0 2px;`;
+const ReceiptBtn = styled.button`
+  width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px; cursor: pointer;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2}; background: transparent;
+  color: ${({ theme }) => mrp(theme.mode).t2}; font-size: 13.5px; font-weight: 700;
 `;
 
 /* ───── 경기 취소(cancelled) 전용 화면 ───── */
@@ -2812,6 +2874,8 @@ export default function MatchRoomDetailPage() {
   const acceptedAnimRef = useRef(null); // 제휴구장 수락 상태(전환 감지용, null=미초기화)
   const loadPartnerPayRef = useRef(null); // 실시간 구독에서 최신 loadPartnerPay 호출용
   const acceptAnimRef = useRef(false);
+  const [cancelSheetOpen, setCancelSheetOpen] = useState(false); // 취소 사유 선택 시트
+  const [cancelBusy, setCancelBusy] = useState(false);
   const [showFinalAnim, setShowFinalAnim] = useState(false); // 최종 경기 확정(양 팀 결제 완료) 웅장 축하
   const finalAnimRef = useRef(false); // 최종 확정 축하 1회 가드
   const confirmedRef = useRef(null); // 경기 확정 상태(전환 감지용, null=미초기화)
@@ -2971,8 +3035,10 @@ export default function MatchRoomDetailPage() {
     const prev = acceptedAnimRef.current;
     acceptedAnimRef.current = accepted;
     if (prev === null) return; // 첫 로드 기준값만 기록(이미 수락된 방 재방문 시 축하 안 함)
-    if (!prev && accepted) setShowPayPromptAnim(true); // false→true 전환에만 축하
-  }, [partnerPay?.pb?.accepted]);
+    // ✅ 'proposed'(수락~결제 전) 단계에서만 표시. 결제 완료(confirmed) 후엔 절대 안 뜨게.
+    //    (결제 후 매칭룸 재진입 시 partnerPay가 null→로드되며 false→true로 보여 오작동하는 것 방지)
+    if (!prev && accepted && toStr(room?.status) === "proposed") setShowPayPromptAnim(true);
+  }, [partnerPay?.pb?.accepted, room?.status]);
 
   // 매칭 수락 직후(수락한 사람) / 수락 푸시알림 클릭 진입(요청한 사람) 시
   // "매칭 성사" 축하 애니메이션을 1회 표시. 조율중(accepted/proposed)일 때만.
@@ -3019,6 +3085,7 @@ export default function MatchRoomDetailPage() {
     confirmedRef.current = isConfirmedNow;
     if (prev === null) return; // 첫 로드: 기준값만 기록(이미 확정된 방 재방문 시 축하 안 함)
     if (!prev && isConfirmedNow && partnerPay?.pb && !finalAnimRef.current) {
+      setShowPayPromptAnim(false); // 확정되면 '제안 수락 완료' 창은 닫고 경기 확정 축하만
       finalAnimRef.current = true;
       setShowFinalAnim(true);
     }
@@ -3202,15 +3269,9 @@ export default function MatchRoomDetailPage() {
               <RoomMenuBtn
                 type="button"
                 $danger
-                onClick={async () => {
+                onClick={() => {
                   hideBottomSheet && hideBottomSheet();
-                  if (
-                    !window.confirm(
-                      "정말 이 매칭을 취소할까요?\n취소하면 되돌릴 수 없어요."
-                    )
-                  )
-                    return;
-                  await handleCancelMatch();
+                  setCancelSheetOpen(true);
                 }}
               >
                 ✖ 매칭 취소
@@ -3724,13 +3785,25 @@ export default function MatchRoomDetailPage() {
     } finally { setPartnerPaying(false); }
   };
 
-  const handleCancelMatch = async () => {
+  // 취소 사유 선택 시트에서 확정 → 사유/환불(구조)와 함께 취소
+  const handleCancelMatch = async (reasonKey, reasonText) => {
+    if (cancelBusy) return;
+    setCancelBusy(true);
     try {
-      await cancelMatchRequest({ matchRequestId: room.id, cancelledByClubId: myClubId });
+      await cancelMatchRequest({
+        matchRequestId: room.id,
+        cancelledByClubId: myClubId,
+        reasonKey,
+        reasonText,
+        cancelledByName: toStr(myTeamView?.name) || toStr(room?.myTeam?.name) || "상대팀",
+      });
+      setCancelSheetOpen(false);
       await refresh();
       goBackOrHome(navigate);
     } catch (e) {
       window.alert(e?.message || "매칭 취소에 실패했습니다.");
+    } finally {
+      setCancelBusy(false);
     }
   };
 
@@ -3751,10 +3824,9 @@ export default function MatchRoomDetailPage() {
     }
   };
 
-  // 확정 경기 취소 — 되돌릴 수 없으므로 확인 후 진행
-  const handleCancelConfirmedMatch = async () => {
-    if (!window.confirm("이 확정 경기를 취소할까요? 취소하면 되돌릴 수 없어요.")) return;
-    await handleCancelMatch();
+  // 확정 경기 취소 — 사유 선택 시트 오픈(결제건이면 환불 안내 포함)
+  const handleCancelConfirmedMatch = () => {
+    setCancelSheetOpen(true);
   };
 
   const handleSubmitResult = async () => {
@@ -4026,6 +4098,8 @@ export default function MatchRoomDetailPage() {
     : iCancelled
     ? "우리팀 사정으로 확정된 경기가 취소됐어요."
     : "상대팀 사정으로 확정된 경기가 취소됐어요.";
+  const cancelReasonStored = toStr(room?.cancelReason); // 선택한 실제 취소 사유(상대팀에 표시)
+  const cancelRefund = room?.refund || null; // { status:"refunded"|"pending", amount } | null
 
   // 제안한 구장 사진(제휴구장). 있으면 지도 대신 사진을 보여준다(직접입력 구장은 사진이 없어 지도 폴백).
   const propVenueImage = toStr(partnerPay?.pb?.venueImageUrl);
@@ -4845,20 +4919,37 @@ export default function MatchRoomDetailPage() {
 
             <CancelCard>
               <CancelRow>
-                <CancelK>사유</CancelK>
+                <CancelK>취소 주체</CancelK>
                 <CancelV>{cancelReasonLabel}</CancelV>
               </CancelRow>
               <CancelRow>
+                <CancelK>사유</CancelK>
+                <CancelV>{cancelReasonStored || "사유 미입력"}</CancelV>
+              </CancelRow>
+              <CancelRow>
                 <CancelK>정산</CancelK>
-                <CancelV>현장 정산 · 결제 없음</CancelV>
+                <CancelV>
+                  {cancelRefund && cancelRefund.amount > 0
+                    ? cancelRefund.status === "refunded"
+                      ? `${Number(cancelRefund.amount).toLocaleString()}원 환불 완료`
+                      : `${Number(cancelRefund.amount).toLocaleString()}원 환불 예정`
+                    : "현장 정산 · 결제 없음"}
+                </CancelV>
               </CancelRow>
             </CancelCard>
 
             <CancelInfo>
               <span>ⓘ</span>
               <div>
-                직접 입력 경기는 앱 결제가 없어 <b>환불 절차가 없어요.</b> 별도 정산이
-                있었다면 두 팀이 직접 정리해요.
+                {cancelRefund && cancelRefund.amount > 0 ? (
+                  cancelRefund.status === "refunded" ? (
+                    <>결제하신 구장비는 <b>환불 처리됐어요.</b> (결제 수단으로 환불)</>
+                  ) : (
+                    <>결제하신 구장비는 <b>환불 처리될 예정이에요.</b> (영업일 기준 처리)</>
+                  )
+                ) : (
+                  <>직접 입력 경기는 앱 결제가 없어 <b>환불 절차가 없어요.</b> 별도 정산이 있었다면 두 팀이 직접 정리해요.</>
+                )}
               </div>
             </CancelInfo>
 
@@ -4881,7 +4972,11 @@ export default function MatchRoomDetailPage() {
                 <ConfBannerCheck>✓</ConfBannerCheck>
                 <ConfBannerText>
                   <ConfBannerTitle>경기 확정!</ConfBannerTitle>
-                  <ConfBannerSub>상대 팀과 일정이 확정됐어요. 경기장에서 만나요!</ConfBannerSub>
+                  <ConfBannerSub>
+                    {partnerPay?.pb
+                      ? "구장 결제까지 완료됐어요. 경기장에서 만나요!"
+                      : "상대 팀과 일정이 확정됐어요. 경기장에서 만나요!"}
+                  </ConfBannerSub>
                 </ConfBannerText>
               </ConfBanner>
             ) : null}
@@ -4999,14 +5094,57 @@ export default function MatchRoomDetailPage() {
               </TicketBody>
             </Ticket>
 
-            <VenueNote>
-              <span>📌</span>
-              <span>
-                <b>구장 예약·문의는 직접 해주세요.</b> 할래말래의 직접 입력 구장은
-                매칭(상대·인원 모으기)만 도와드려요. 구장 예약과 문의는 이용자가 직접
-                진행해야 합니다.
-              </span>
-            </VenueNote>
+            {/* ✅ 제휴구장 예약: 예약완료 + 구장 결제완료 카드 */}
+            {partnerPay?.pb && (() => {
+              const pb = partnerPay.pb;
+              const resv = partnerPay.resv;
+              const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
+              const myShare = side === "A" ? pb.shareA : pb.shareB;
+              const aPaid = pb.finalized || resv?.paidByA;
+              const bPaid = pb.finalized || resv?.paidByB;
+              return (
+                <>
+                  <ResvCard>
+                    <ResvThumb>
+                      {toStr(pb.venueImageUrl)
+                        ? <ResvThumbImg src={pb.venueImageUrl} alt={toStr(pb.venueName)} />
+                        : <FiMapPin size={26} />}
+                      <ResvBadge>✓ 예약 완료</ResvBadge>
+                    </ResvThumb>
+                    <ResvInfo>
+                      <ResvName>{toStr(pb.venueName) || "제휴구장"}</ResvName>
+                      <ResvSub>{toStr(pb.courtName)}</ResvSub>
+                    </ResvInfo>
+                  </ResvCard>
+
+                  <PaidCard>
+                    <PaidHead>
+                      <PaidTitle>🧾 구장 결제 완료</PaidTitle>
+                      <PaidBadge>예약확정</PaidBadge>
+                    </PaidHead>
+                    <PaidRow><span>대관료 (양 팀 공동)</span><b>{Number(pb.totalPrice || 0).toLocaleString()}원</b></PaidRow>
+                    <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><PaidDone $on={!!aPaid}>{aPaid ? "✓ 결제완료" : "대기"}</PaidDone></PaidRow>
+                    <PaidRow><span>{toStr(pb.opponentTeamName) || "B팀"}</span><PaidDone $on={!!bPaid}>{bPaid ? "✓ 결제완료" : "대기"}</PaidDone></PaidRow>
+                    <PaidDivider />
+                    <PaidRow $big><span>내 결제 금액 (1/2)</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
+                    <ReceiptBtn type="button" onClick={() => showToast && showToast({ message: "결제 영수증 기능은 준비 중이에요." })}>
+                      🧾 결제 영수증 보기
+                    </ReceiptBtn>
+                  </PaidCard>
+                </>
+              );
+            })()}
+
+            {!partnerPay?.pb && (
+              <VenueNote>
+                <span>📌</span>
+                <span>
+                  <b>구장 예약·문의는 직접 해주세요.</b> 할래말래의 직접 입력 구장은
+                  매칭(상대·인원 모으기)만 도와드려요. 구장 예약과 문의는 이용자가 직접
+                  진행해야 합니다.
+                </span>
+              </VenueNote>
+            )}
 
             {/* 경기 결과 입력/제출/인정 — 확정 화면에서 바로 (별도 채팅 없음) */}
             {!isPast && resultSection}
@@ -5678,6 +5816,23 @@ export default function MatchRoomDetailPage() {
           if (isVenue) setVenueMode("none");
         }}
         onConfirm={handleMapPickerConfirm}
+      />
+
+      <CancelReasonSheet
+        open={cancelSheetOpen}
+        busy={cancelBusy}
+        paid={!!partnerPay?.resv && (partnerPay.resv.paidByA || partnerPay.resv.paidByB)}
+        refundAmount={(() => {
+          const r = partnerPay?.resv;
+          const pb = partnerPay?.pb || {};
+          if (!r) return 0;
+          let amt = 0;
+          if (r.paidByA) amt += Number(pb.shareA) || 0;
+          if (r.paidByB) amt += Number(pb.shareB) || 0;
+          return amt;
+        })()}
+        onConfirm={(k, t) => handleCancelMatch(k, t)}
+        onClose={() => setCancelSheetOpen(false)}
       />
 
       <MatchFinalCelebration

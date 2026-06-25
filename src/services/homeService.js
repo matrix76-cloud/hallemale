@@ -365,6 +365,10 @@ export async function loadHomePageData({ uid } = {}) {
   const allClubs = await listAllClubs(db);
 
   // 내 팀
+  // 전체 팀 랭킹 순위 맵 (clubId -> 1-based 순위) — 연승팀/내 팀 순위 공용
+  const rankedTeams = [...allClubs].sort(teamRankingComparator);
+  const rankByClubId = new Map(rankedTeams.map((t, i) => [t.clubId, i + 1]));
+
   let myTeam = null;
   let myTeamRank = null;
 
@@ -373,10 +377,7 @@ export async function loadHomePageData({ uid } = {}) {
     if (myTeam) {
       const memberCount = await getMembersCount(db, myTeam.clubId);
       myTeam = { ...myTeam, memberCount };
-
-      const rankedTeams = [...allClubs].sort(teamRankingComparator);
-      const idx = rankedTeams.findIndex((t) => t.clubId === myTeam.clubId);
-      myTeamRank = idx >= 0 ? idx + 1 : null;
+      myTeamRank = rankByClubId.get(myTeam.clubId) || null;
     }
   }
 
@@ -399,6 +400,7 @@ export async function loadHomePageData({ uid } = {}) {
       wins: t.stats?.wins || 0,
       losses: t.stats?.losses || 0,
       draws: t.stats?.draws || 0,
+      recentResults: Array.isArray(t.stats?.recentResults) ? t.stats.recentResults : [],
     }));
 
   // ✅ 연승팀 하이라이트 (실데이터 recentResults 기반)
@@ -416,7 +418,7 @@ export async function loadHomePageData({ uid } = {}) {
     })
     .slice(0, 5)
     .map(({ team, winStreak }) => ({
-      rank: 0,
+      rank: rankByClubId.get(team.clubId) || 0,
       clubId: team.clubId,
       id: team.clubId,
       name: team.name,

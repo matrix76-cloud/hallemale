@@ -31,6 +31,109 @@ import { getUserProfileByUid } from "./userService";
 import { listClubMembers } from "./clubManageService";
 import { fetchLineupRosterProfiles } from "./lineupRosterService";
 import { sendSystemMessage } from "./chatService";
+import { chargeFizz } from "./fizzService";
+
+// 경기 취소 사유 프리셋 (상대팀에 표시)
+export const MATCH_CANCEL_REASONS = [
+  { key: "shortage", label: "팀원이 부족해요" },
+  { key: "schedule", label: "일정이 안 맞아요" },
+  { key: "injury", label: "부상·컨디션 문제" },
+  { key: "venue", label: "구장 사정(예약 문제 등)" },
+  { key: "weather", label: "날씨 문제" },
+  { key: "mutual", label: "상대팀과 합의 취소" },
+  { key: "etc", label: "기타(직접 입력)" },
+];
+const MATCH_CANCEL_REASON_LABELS = MATCH_CANCEL_REASONS.reduce((m, r) => { m[r.key] = r.label; return m; }, {});
+
+// ⚠️ 테스트 단계: 실제 환불(피지 잔액 복구)은 보류. 환불 "기록/구조"만 남김.
+//    PG/실결제 연동 후 true 로 바꾸면 실제 환불(chargeFizz)이 실행됨.
+const REFUND_CREDIT_ENABLED = false;
+
+// 제휴구장 결제 예약이 있으면 취소 + 환불(구조) 처리. 직접입력 등 결제 없으면 null 반환.
+async function refundPartnerReservationIfPaid(matchId, reasonStr) {
+  const snap = await getDocs(
+    query(collection(db, "venueReservations"), where("matchId", "==", toStr(matchId)))
+  );
+  let resvDoc = null;
+  snap.forEach((d) => {
+    const st = toStr(d.data()?.status);
+    if (st === "confirmed" || st === "pending") resvDoc = d;
+  });
+  if (!resvDoc) return null; // 결제 없음(직접입력 등)
+
+  const data = resvDoc.data() || {};
+  const num = (v) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+  const shareA = num(data.shareA);
+  const shareB = num(data.shareB);
+  const breakdown = [];
+  if (data.paidByA && toStr(data.teamAPayerUid)) breakdown.push({ team: "A", uid: toStr(data.teamAPayerUid), amount: shareA });
+  if (data.paidByB && toStr(data.teamBPayerUid)) breakdown.push({ team: "B", uid: toStr(data.teamBPayerUid), amount: shareB });
+  const total = breakdown.reduce((s, r) => s + r.amount, 0);
+
+  // 실제 잔액 복구는 테스트 단계 보류
+  if (REFUND_CREDIT_ENABLED) {
+    for (const r of breakdown) {
+      if (r.uid && r.amount > 0) { try { await chargeFizz(r.uid, r.amount); } catch (e) {} }
+    }
+  }
+
+  const refundStatus = REFUND_CREDIT_ENABLED ? "refunded" : "pending";
+  await updateDoc(doc(db, "venueReservations", resvDoc.id), {
+    status: "cancelled",
+    refunded: REFUND_CREDIT_ENABLED,
+    refundStatus, // "refunded"(완료) | "pending"(환불 대기 — PG 연동 전)
+    refundAmount: total,
+    refundReason: toStr(reasonStr),
+    refundBreakdown: breakdown,
+    refundedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return { status: refundStatus, amount: total, breakdown };
+}
+
+// 경기 종료(결과 입력) 후 팀원들에게 "상대 팀 리뷰 작성" 알림 (팀장 제외)
+async function notifyClubMembersToReview(matchId, clubId) {
+  const mid = toStr(matchId);
+  const cid = toStr(clubId);
+  if (!mid || !cid) return;
+
+  // 팀장(ownerUid)은 결과 입력 담당 → 리뷰 알림에서 제외
+  let ownerUid = "";
+  try {
+    const cs = await getDoc(doc(db, "clubs", cid));
+    ownerUid = toStr(cs.exists() ? cs.data()?.ownerUid : "");
+  } catch (e) {}
+
+  let members = [];
+  try {
+    members = await listClubMembers({ clubId: cid, limitCount: 100 });
+  } catch (e) {}
+
+  const uids = members
+    .map((m) => toStr(m?.uid || m?.id))
+    .filter(Boolean)
+    .filter((u) => u !== ownerUid);
+  if (!uids.length) return;
+
+  await addDoc(collection(db, "notifications"), {
+    kind: "match",
+    subType: "matchReviewRequest",
+    type: "match_review_request",
+    title: "경기 후기를 남겨주세요",
+    body: "경기가 끝났어요! 상대 팀에 대한 평점·후기를 남겨주세요.",
+    targetType: "USER",
+    targetIds: uids,
+    linkType: "match",
+    linkTargetId: mid,
+    meta: { matchId: mid, deepLink: `/match-roomdetail/${mid}` },
+    push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+    prefsCategory: "match",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    readBy: {},
+  });
+}
 
 /* ========================= util ========================= */
 
@@ -1122,24 +1225,79 @@ export async function confirmProposedSchedule({ matchRequestId, confirmedByClubI
   return true;
 }
 
-export async function cancelMatchRequest({ matchRequestId, cancelledByClubId } = {}) {
+export async function cancelMatchRequest({
+  matchRequestId,
+  cancelledByClubId,
+  reasonKey = "",
+  reasonText = "",
+  cancelledByName = "",
+} = {}) {
   const id = toStr(matchRequestId);
   if (!id) throw new Error("cancelMatchRequest: matchRequestId is required");
 
   const ref = doc(db, "match_requests", id);
+  const by = toStr(cancelledByClubId);
+
+  // 사유 문자열(상대팀 표시용)
+  const label = MATCH_CANCEL_REASON_LABELS[toStr(reasonKey)] || "";
+  const reasonStr =
+    [label, toStr(reasonText)].filter(Boolean).join(" · ") || "사유 미입력";
+
+  // 제휴구장 결제 예약이면 환불(구조) 처리 — 직접입력은 null
+  let refund = null;
+  try {
+    refund = await refundPartnerReservationIfPaid(id, reasonStr);
+  } catch (e) {
+    console.warn("[cancelMatchRequest] refund failed:", e?.message || e);
+  }
 
   const patch = {
     status: "cancelled",
+    cancelReason: reasonStr,
+    cancelReasonKey: toStr(reasonKey),
+    cancelReasonText: toStr(reasonText),
+    cancelledAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     ...activityPatch(),
   };
-  // 누가 취소했는지 기록 (취소 화면 사유 표시용)
-  const by = toStr(cancelledByClubId);
   if (by) patch.cancelledByClubId = by;
+  if (refund) patch.refund = refund;
 
   await updateDoc(ref, patch);
 
-  return true;
+  // 상대팀 알림(푸시) — 취소 사유 포함
+  try {
+    const oppClubId = await getOpponentClubId(id, by);
+    if (oppClubId) {
+      const refundNote =
+        refund && refund.amount > 0
+          ? refund.status === "refunded"
+            ? ` · 결제하신 ${refund.amount.toLocaleString()}원은 환불됐어요.`
+            : ` · 결제하신 ${refund.amount.toLocaleString()}원은 환불 처리될 예정이에요.`
+          : "";
+      await notifyMatchRoomEvent({
+        matchId: id,
+        recipientClubId: oppClubId,
+        subType: "matchCancelled",
+        type: "match_cancelled",
+        title: "경기가 취소됐어요",
+        body: `${toStr(cancelledByName) || "상대팀"}이(가) 경기를 취소했어요. 사유: ${reasonStr}${refundNote}`,
+      });
+    }
+  } catch (e) {
+    console.warn("[cancelMatchRequest] notify failed:", e?.message || e);
+  }
+
+  // 채팅 시스템 메시지
+  try {
+    await sendSystemMessage({
+      chatId: `match_${id}`,
+      text: `경기가 취소됐어요. 사유: ${reasonStr}`,
+      meta: { type: "match_cancelled", clubId: by, reasonKey: toStr(reasonKey) },
+    });
+  } catch (e) {}
+
+  return { ok: true, refund };
 }
 
 /* ========================= result (submit) ========================= */
@@ -1203,6 +1361,13 @@ export async function submitMatchResultWithMedia({
 
   const ref = doc(db, "match_requests", id);
 
+  // 팀원 리뷰 알림 1회만 발송하도록 기존 발송 여부 확인
+  let reviewAlreadyNotified = false;
+  try {
+    const cur = await getDoc(ref);
+    reviewAlreadyNotified = !!cur.data()?.reviewRequestSent;
+  } catch (e) {}
+
   await updateDoc(ref, {
     // score SSOT
     myScore: as, // actorScore
@@ -1211,6 +1376,7 @@ export async function submitMatchResultWithMedia({
     // ✅ confirmed 상태 유지(확정된 게임에서 결과 입력)
     status: "confirmed",
     resultState: "waiting_accept",
+    reviewRequestSent: true,
 
     result: {
       submittedByClubId: by,
@@ -1240,6 +1406,18 @@ export async function submitMatchResultWithMedia({
       title: "경기 결과 입력됨",
       body: `상대팀이 경기 결과(${as} : ${ts})를 입력했어요. 확인하고 인정해 주세요.`,
     });
+  }
+
+  // 팀장이 결과를 입력하면, 양 팀 팀원들에게 "상대 팀 리뷰 작성" 알림 (1회만, 팀장 제외)
+  if (!reviewAlreadyNotified) {
+    try {
+      await Promise.all([
+        notifyClubMembersToReview(id, by),
+        oppForResult ? notifyClubMembersToReview(id, oppForResult) : Promise.resolve(),
+      ]);
+    } catch (e) {
+      console.warn("[submitMatchResult] member review notify failed:", e?.message || e);
+    }
   }
 
   return { ok: true, photoUrls: uploadedUrls };
