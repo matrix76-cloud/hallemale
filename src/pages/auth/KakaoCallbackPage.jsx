@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { completeWebKakaoLogin } from "../../services/authService";
+import { completeOwnerWebKakaoLogin, LS_OWNER_KAKAO_FLOW } from "../../services/ownerAuthService";
 
 export default function KakaoCallbackPage() {
   const navigate = useNavigate();
@@ -30,18 +31,24 @@ export default function KakaoCallbackPage() {
     }
 
     (async () => {
+      // 구장주 카카오 로그인 흐름이면 ownerAuth로 로그인 후 /owner 로
+      let ownerFlow = false;
+      try { ownerFlow = localStorage.getItem(LS_OWNER_KAKAO_FLOW) === "1"; } catch {}
+
+      if (ownerFlow) {
+        const res = await completeOwnerWebKakaoLogin(code);
+        if (res?.success) {
+          navigate("/owner", { replace: true });
+        } else {
+          console.error("[KakaoCallback owner] 실패:", res);
+          setError("카카오 로그인에 실패했어요. 다시 시도해 주세요.");
+        }
+        return;
+      }
+
       const res = await completeWebKakaoLogin(code);
       if (res?.success) {
-        // 구장주 로그인 등에서 지정한 복귀 경로 우선
-        let dest = "/home";
-        try {
-          const saved = localStorage.getItem("hm.postLoginRedirect");
-          if (saved) {
-            dest = saved;
-            localStorage.removeItem("hm.postLoginRedirect");
-          }
-        } catch {}
-        navigate(dest, { replace: true });
+        navigate("/home", { replace: true });
       } else {
         console.error("[KakaoCallback] 실패:", res);
         setError("카카오 로그인에 실패했어요. 다시 시도해 주세요.");

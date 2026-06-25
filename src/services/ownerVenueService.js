@@ -26,6 +26,15 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { payFizz } from "./fizzService";
+
+function hhmmToMin(v) {
+  const [h, m] = String(v || "0:0").split(":").map((x) => parseInt(x, 10) || 0);
+  return h * 60 + m;
+}
+function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+  return hhmmToMin(aStart) < hhmmToMin(bEnd) && hhmmToMin(aEnd) > hhmmToMin(bStart);
+}
 
 function safeStr(v) {
   return String(v ?? "").trim();
@@ -468,6 +477,132 @@ export async function createReservation({
     updatedAt: serverTimestamp(),
   });
   return { id: ref.id };
+}
+
+/* ============================================================
+ * 사용자 예약 (목록 / 예약+결제+푸시)
+ * ========================================================== */
+
+/** 예약 가능한 구장 목록 — 승인 + 활성 + 코트 보유 */
+export async function listBookableVenues() {
+  const snap = await getDocs(
+    query(collection(db, "venues"), where("status", "==", "approved"))
+  );
+  const rows = [];
+  snap.forEach((d) => rows.push(venueRow(d)));
+  const out = rows.filter((v) => v.active && (v.courts?.length || 0) > 0);
+  out.sort((a, b) => {
+    const ta = a.createdAt ? a.createdAt.getTime() : 0;
+    const tb = b.createdAt ? b.createdAt.getTime() : 0;
+    return tb - ta;
+  });
+  return out;
+}
+
+/** 슬롯 가격 계산 (시간당 가격 × 슬롯시간 비율) */
+export function calcSlotPrice(court, startTime, endTime) {
+  const per = toNum(court?.pricePerHour) ?? 0;
+  const mins = Math.max(0, hhmmToMin(endTime) - hhmmToMin(startTime));
+  return Math.round((per * mins) / 60);
+}
+
+/**
+ * 구장 예약 + 피지 결제 + 구장주 푸시 알림.
+ * 1) 해당 슬롯이 비었는지 재검증(다른 예약/블록 겹침 확인)
+ * 2) 피지 차감(payFizz)
+ * 3) venueReservations 생성 (status=confirmed, paid=true)
+ * 4) 구장주에게 notifications 문서 생성(push queued → sendPushTick 발송)
+ */
+export async function bookVenue({ venue, court, date, startTime, endTime, user }) {
+  const venueId = safeStr(venue?.id);
+  const courtId = safeStr(court?.id);
+  const uid = safeStr(user?.uid);
+  if (!venueId || !courtId) throw new Error("구장/코트 정보가 올바르지 않습니다.");
+  if (!safeStr(date) || !safeStr(startTime) || !safeStr(endTime)) throw new Error("예약 시간이 올바르지 않습니다.");
+  if (!uid) throw new Error("로그인이 필요합니다.");
+
+  // 1) 슬롯 비었는지 재검증
+  const [reservations, blocks] = await Promise.all([
+    listReservations({ venueId, date, courtId }),
+    listBlocks({ venueId, date, courtId }),
+  ]);
+  const taken = reservations.some(
+    (r) => ["requested", "confirmed"].includes(r.status) && rangesOverlap(startTime, endTime, r.startTime, r.endTime)
+  );
+  if (taken) {
+    const err = new Error("이미 예약된 시간이에요. 다른 시간을 선택해주세요.");
+    err.code = "slot_taken";
+    throw err;
+  }
+  const blocked = blocks.some((b) => rangesOverlap(startTime, endTime, b.startTime, b.endTime));
+  if (blocked) {
+    const err = new Error("예약할 수 없는 시간이에요.");
+    err.code = "slot_blocked";
+    throw err;
+  }
+
+  const price = calcSlotPrice(court, startTime, endTime);
+
+  // 2) 피지 결제 (잔액 부족 시 에러 전파)
+  await payFizz(uid, price);
+
+  // 3) 예약 생성 (결제 완료 → 확정)
+  const ownerUid = safeStr(venue?.ownerUid);
+  let reservationId = "";
+  try {
+    const ref = await addDoc(collection(db, "venueReservations"), {
+      venueId,
+      courtId,
+      ownerUid,
+      courtName: safeStr(court?.name),
+      venueName: safeStr(venue?.name),
+      date: safeStr(date),
+      startTime: safeStr(startTime),
+      endTime: safeStr(endTime),
+      userId: uid,
+      userName: safeStr(user?.userName),
+      teamName: safeStr(user?.teamName),
+      phone: safeStr(user?.phone),
+      price,
+      paid: true,
+      paidFizz: price,
+      paymentMethod: "fizz",
+      status: "confirmed",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    reservationId = ref.id;
+  } catch (e) {
+    // 예약 저장 실패 시 결제 롤백(환불)
+    try { await payFizz(uid, -price); } catch {}
+    throw e;
+  }
+
+  // 4) 구장주 푸시 알림 (실패해도 예약은 유지)
+  if (ownerUid) {
+    try {
+      await addDoc(collection(db, "notifications"), {
+        kind: "venue",
+        subType: "venueReservationCreated",
+        type: "venue_reservation",
+        title: "새 구장 예약이 들어왔어요",
+        body: `${date} ${startTime}~${endTime} · ${safeStr(court?.name)} (${safeStr(user?.userName) || "예약자"})`,
+        targetType: "USER",
+        targetIds: [ownerUid],
+        linkType: "venue",
+        linkTargetId: venueId,
+        meta: { venueId, reservationId, deepLink: "/owner/home" },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "match",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn("[bookVenue] owner notify failed:", e?.message || e);
+    }
+  }
+
+  return { reservationId, price };
 }
 
 /* ============================================================

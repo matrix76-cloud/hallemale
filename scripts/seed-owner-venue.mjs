@@ -161,16 +161,20 @@ async function main() {
     }
     console.log(`📅 예약 ${reservations.length}건 저장 (오늘=${today})`);
 
-    // 블록(점심시간 막기) 예시
-    await setDoc(doc(db, "venueBlocks", "seed_block_1"), {
-      venueId: VENUE_ID,
-      courtId: COURT_A,
-      date: today,
-      startTime: "12:00",
-      endTime: "13:00",
-      createdAt: serverTimestamp(),
-    });
-    console.log(`⛔ 블록 1건 저장 (오늘 12:00~13:00 A코트)`);
+    // 블록(구장주가 막아둔 시간) 예시 — 점심·정비 시간
+    const blocks = [
+      { id: "seed_block_1", courtId: COURT_A, date: today, startTime: "12:00", endTime: "13:00" },
+      { id: "seed_block_2", courtId: COURT_A, date: today, startTime: "13:00", endTime: "14:00" },
+      { id: "seed_block_3", courtId: COURT_A, date: today, startTime: "18:00", endTime: "19:00" },
+      { id: "seed_block_4", courtId: COURT_B, date: today, startTime: "12:00", endTime: "13:00" },
+    ];
+    for (const b of blocks) {
+      await setDoc(doc(db, "venueBlocks", b.id), {
+        venueId: VENUE_ID, courtId: b.courtId, date: b.date,
+        startTime: b.startTime, endTime: b.endTime, createdAt: serverTimestamp(),
+      });
+    }
+    console.log(`⛔ 블록 ${blocks.length}건 저장 (오늘 A코트 12·13·18시 / B코트 12시 — '사용 불가')`);
   }
 
   console.log("\n✅ 시드 완료! /owner 로 들어가서 확인해줘.");

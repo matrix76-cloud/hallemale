@@ -4,36 +4,30 @@
 import React, { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { signInWithSocial } from "../../services/authService";
+import { ownerSignInWithSocial } from "../../services/ownerAuthService";
 import { markUserAsOwner } from "../../services/ownerVenueService";
-import { useAuth } from "../../hooks/useAuth";
+import { useOwnerAuth } from "../../hooks/useOwnerAuth";
 
 export default function OwnerLoginPage() {
   const navigate = useNavigate();
-  const { isLoggedIn, loading: authLoading, firebaseUser } = useAuth();
+  // 사용자 앱과 분리된 구장주 전용 세션(ownerAuth) 기준
+  const { isLoggedIn, uid } = useOwnerAuth();
   const [busy, setBusy] = useState(false);
 
-  // 로그인 인증이 끝나면(소셜 redirect 복귀/팝업 모두) 즉시 /owner 로 이동한다.
-  // ⚠️ navigate 를 userDoc 로딩(authLoading)이나 markUserAsOwner(Firestore 쓰기)에
-  //    묶지 않는다 — 그러면 인증은 됐는데 화면이 안 넘어가는 증상이 생긴다.
-  //    role 마킹은 화면 전환과 무관하게 백그라운드로 처리.
+  // 구장주 인증이 끝나면(팝업/redirect 복귀 모두) 즉시 /owner 로 이동한다.
   useEffect(() => {
-    if (isLoggedIn && firebaseUser?.uid) {
-      markUserAsOwner(firebaseUser.uid).catch(() => {});
+    if (isLoggedIn && uid) {
+      markUserAsOwner(uid).catch(() => {});
       navigate("/owner", { replace: true });
     }
-  }, [isLoggedIn, firebaseUser, navigate]);
+  }, [isLoggedIn, uid, navigate]);
 
   const doLogin = async (provider) => {
     if (busy) return;
     setBusy(true);
-    // 로그인 후(특히 카카오 redirect 콜백/스플래시 복귀) 구장주 홈으로 돌아오도록 표시
-    try { localStorage.setItem("hm.postLoginRedirect", "/owner"); } catch {}
     try {
-      const res = await signInWithSocial({ provider, keepLogin: true });
+      const res = await ownerSignInWithSocial({ provider, keepLogin: true });
       if (!res || res.success !== true) {
-        // 실패 시 복귀 플래그 정리 (다음 일반 로그인 가로채기 방지)
-        try { localStorage.removeItem("hm.postLoginRedirect"); } catch {}
         const code = res?.error_code || "";
         if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
           // 사용자가 닫음 — 무시

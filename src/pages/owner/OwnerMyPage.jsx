@@ -4,7 +4,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { useAuth } from "../../hooks/useAuth";
 import { useOwner } from "../../context/OwnerContext";
 import { Page, Card, SectionTitle, SectionDesc, GhostBtn, PrimaryBtn, Badge } from "./components/ownerUi";
 
@@ -56,8 +55,7 @@ const Logout = styled.button`
 
 export default function OwnerMyPage() {
   const navigate = useNavigate();
-  const { userDoc, firebaseUser, signOut } = useAuth();
-  const { venue } = useOwner();
+  const { userDoc, firebaseUser, signOut, venue } = useOwner();
   const [busy, setBusy] = useState(false);
 
   const handleLogout = async () => {
