@@ -65,16 +65,33 @@ const DayLabel = styled.div`
   color: ${({ $wd, theme }) =>
     $wd === "sun" ? "#ef4444" : $wd === "sat" ? "#2563eb" : theme.colors.textStrong};
 `;
-const Toggle = styled.button`
-  height: 30px;
-  padding: 0 12px;
+const Switch = styled.button`
+  position: relative;
+  width: 42px;
+  height: 24px;
   border-radius: 999px;
-  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
-  background: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.card)};
-  color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textWeak)};
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: ${({ $on, theme }) => ($on ? "#34d399" : (theme.colors.border || "#d1d5db"))};
+  transition: background 0.15s ease;
+  &:active { transform: translateY(1px); }
+`;
+const Knob = styled.span`
+  position: absolute;
+  top: 3px;
+  left: ${({ $on }) => ($on ? "21px" : "3px")};
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: left 0.15s ease;
+`;
+const StateLabel = styled.span`
   font-size: 12px;
   font-weight: 700;
-  cursor: pointer;
+  color: ${({ $on, theme }) => ($on ? "#059669" : theme.colors.textWeak)};
 `;
 const RangeText = styled.div`
   margin-left: auto;
@@ -154,9 +171,10 @@ export default function CourtHoursEditor({ hours, onChange }) {
           <DayBlock key={key}>
             <DayTop>
               <DayLabel $wd={key}>{DAY_LABELS[key]}</DayLabel>
-              <Toggle type="button" $on={!closed} onClick={() => toggleClosed(key)}>
-                {closed ? "휴무" : "영업"}
-              </Toggle>
+              <Switch type="button" $on={!closed} onClick={() => toggleClosed(key)} aria-label={closed ? "휴무" : "영업"}>
+                <Knob $on={!closed} />
+              </Switch>
+              <StateLabel $on={!closed}>{closed ? "휴무" : "영업"}</StateLabel>
               <RangeText>{rangeText}</RangeText>
             </DayTop>
             <HourGrid>

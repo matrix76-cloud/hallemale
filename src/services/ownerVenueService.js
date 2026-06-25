@@ -397,6 +397,8 @@ function reservationRow(d) {
     venueId: safeStr(data.venueId),
     courtId: safeStr(data.courtId),
     ownerUid: safeStr(data.ownerUid),
+    courtName: safeStr(data.courtName),
+    venueName: safeStr(data.venueName),
     date: safeStr(data.date), // YYYY-MM-DD
     startTime: safeStr(data.startTime), // HH:mm
     endTime: safeStr(data.endTime),
@@ -405,9 +407,23 @@ function reservationRow(d) {
     teamName: safeStr(data.teamName),
     phone: safeStr(data.phone),
     price: toNum(data.price) ?? 0,
-    status: ["requested", "confirmed", "rejected", "cancelled", "done"].includes(data.status)
+    status: ["requested", "pending", "confirmed", "rejected", "cancelled", "done"].includes(data.status)
       ? data.status
       : "requested",
+    // 두 팀 분할 결제
+    matchId: safeStr(data.matchId),
+    splitTotal: toNum(data.splitTotal) ?? (toNum(data.price) ?? 0),
+    shareA: toNum(data.shareA) ?? 0,
+    shareB: toNum(data.shareB) ?? 0,
+    teamAClubId: safeStr(data.teamAClubId),
+    teamBClubId: safeStr(data.teamBClubId),
+    teamAName: safeStr(data.teamAName),
+    teamBName: safeStr(data.teamBName),
+    paidByA: data.paidByA === true,
+    paidByB: data.paidByB === true,
+    teamAPayerUid: safeStr(data.teamAPayerUid),
+    teamBPayerUid: safeStr(data.teamBPayerUid),
+    paymentDeadline: safeStr(data.paymentDeadline),
     createdAt: toDate(data.createdAt),
   };
 }
@@ -603,6 +619,220 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user }
   }
 
   return { reservationId, price };
+}
+
+/* ============================================================
+ * 두 팀 분할 결제 (매칭룸 제휴구장 예약)
+ *  - 제안: 결제 없이 구장·시간·금액을 매칭에 기록(partnerBooking) + status=proposed
+ *  - 확정: 두 팀이 각자 절반 결제 → 실제 venueReservation 생성 + 구장주 알림
+ * ========================================================== */
+
+/** 슬롯이 비었는지 확인 (예약/블록 겹침) */
+async function assertSlotFree({ venueId, courtId, date, startTime, endTime }) {
+  const [rs, bs] = await Promise.all([
+    listReservations({ venueId, date, courtId }),
+    listBlocks({ venueId, date, courtId }),
+  ]);
+  const taken = rs.some(
+    (r) => ["requested", "pending", "confirmed"].includes(r.status) && rangesOverlap(startTime, endTime, r.startTime, r.endTime)
+  );
+  if (taken) { const e = new Error("이미 예약된 시간이에요."); e.code = "slot_taken"; throw e; }
+  const blocked = bs.some((b) => rangesOverlap(startTime, endTime, b.startTime, b.endTime));
+  if (blocked) { const e = new Error("예약할 수 없는 시간이에요."); e.code = "slot_blocked"; throw e; }
+}
+
+/** 절반씩 분할 */
+export function splitPrice(total) {
+  const t = toNum(total) ?? 0;
+  const a = Math.round(t / 2);
+  return { total: t, shareA: a, shareB: t - a };
+}
+
+/**
+ * 제안: 매칭에 제휴구장 예약 의향 기록 (결제 X).
+ * match_requests/{matchId}.partnerBooking 에 저장.
+ */
+export async function writePartnerBooking({ matchId, venue, court, date, startTime, endTime, proposerUid, proposerClubId, proposerTeamName, opponentClubId, opponentTeamName }) {
+  const id = safeStr(matchId);
+  if (!id) throw new Error("matchId가 필요합니다.");
+  await assertSlotFree({ venueId: venue.id, courtId: court.id, date, startTime, endTime });
+  const total = calcSlotPrice(court, startTime, endTime);
+  const { shareA, shareB } = splitPrice(total);
+
+  await updateDoc(doc(db, "match_requests", id), {
+    partnerBooking: {
+      venueId: safeStr(venue.id),
+      venueName: safeStr(venue.name),
+      ownerUid: safeStr(venue.ownerUid),
+      courtId: safeStr(court.id),
+      courtName: safeStr(court.name),
+      date: safeStr(date),
+      startTime: safeStr(startTime),
+      endTime: safeStr(endTime),
+      totalPrice: total,
+      shareA, shareB,
+      proposerUid: safeStr(proposerUid),
+      proposerClubId: safeStr(proposerClubId),
+      proposerTeamName: safeStr(proposerTeamName),
+      opponentClubId: safeStr(opponentClubId),
+      opponentTeamName: safeStr(opponentTeamName),
+      finalized: false,
+      reservationId: "",
+    },
+    updatedAt: serverTimestamp(),
+  });
+  return { total, shareA, shareB };
+}
+
+// 분할결제 마감 시간 (한 팀 결제 후 2시간)
+export const PARTNER_PAY_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/** 매칭의 분할예약 1건 조회 (pending/confirmed) */
+async function findMatchReservation(matchId) {
+  const snap = await getDocs(
+    query(collection(db, "venueReservations"), where("matchId", "==", safeStr(matchId)))
+  );
+  let row = null;
+  snap.forEach((d) => {
+    const r = reservationRow(d);
+    if (["pending", "confirmed"].includes(r.status)) row = { ...r, _deadline: d.data()?.paymentDeadline || "" };
+  });
+  return row;
+}
+
+/** 만료(2시간 초과) pending 예약이면 환불+취소 처리. 처리했으면 true */
+export async function expireMatchReservationIfNeeded(matchId) {
+  const r = await findMatchReservation(matchId);
+  if (!r || r.status !== "pending") return false;
+  const dl = r._deadline ? new Date(r._deadline).getTime() : 0;
+  if (!dl || Date.now() <= dl) return false;
+
+  // 먼저 낸 팀 환불
+  const refundUid = r.paidByA ? r.teamAPayerUid : r.teamBPayerUid;
+  // reservationRow에 payerUid가 없으므로 원문서에서 읽음
+  const dref = doc(db, "venueReservations", r.id);
+  const fresh = await getDoc(dref);
+  const data = fresh.data() || {};
+  const paidUid = data.paidByA ? safeStr(data.teamAPayerUid) : safeStr(data.teamBPayerUid);
+  const paidAmt = data.paidByA ? (toNum(data.shareA) ?? 0) : (toNum(data.shareB) ?? 0);
+  if (paidUid && paidAmt) { try { await payFizz(paidUid, -paidAmt); } catch {} }
+
+  await updateDoc(dref, { status: "cancelled", cancelReason: "payment_timeout", updatedAt: serverTimestamp() });
+  // 매칭의 partnerBooking 결제상태 초기화 (재결제 가능하게)
+  try {
+    await updateDoc(doc(db, "match_requests", safeStr(matchId)), {
+      "partnerBooking.payState": "expired",
+      updatedAt: serverTimestamp(),
+    });
+  } catch {}
+  return true;
+}
+
+/**
+ * 한 팀이 자기 몫 결제.
+ *  - 첫 결제: 예약 생성(status=pending) + 슬롯 잠금 + 2시간 마감.
+ *  - 둘째 결제: status=confirmed + 구장주 알림.
+ * side = "A"(제안팀) | "B"(상대팀)
+ */
+export async function payPartnerShare({ matchId, side, payerUid, payerTeamName }) {
+  const id = safeStr(matchId);
+  const sd = side === "A" ? "A" : "B";
+  const uid = safeStr(payerUid);
+  if (!id || !uid) throw new Error("결제 정보가 올바르지 않습니다.");
+
+  // 만료 먼저 정리
+  await expireMatchReservationIfNeeded(id);
+
+  const msnap = await getDoc(doc(db, "match_requests", id));
+  const pb = msnap.exists() ? msnap.data()?.partnerBooking : null;
+  if (!pb) throw new Error("제안된 구장 정보가 없습니다.");
+
+  const shareA = toNum(pb.shareA) ?? 0;
+  const shareB = toNum(pb.shareB) ?? 0;
+  const myShare = sd === "A" ? shareA : shareB;
+
+  const existing = await findMatchReservation(id);
+
+  // 첫 결제 → 예약 생성 (pending)
+  if (!existing) {
+    await assertSlotFree({ venueId: pb.venueId, courtId: pb.courtId, date: pb.date, startTime: pb.startTime, endTime: pb.endTime });
+    await payFizz(uid, myShare);
+    const deadlineISO = new Date(Date.now() + PARTNER_PAY_WINDOW_MS).toISOString();
+    let reservationId = "";
+    try {
+      const ref = await addDoc(collection(db, "venueReservations"), {
+        venueId: safeStr(pb.venueId), venueName: safeStr(pb.venueName), ownerUid: safeStr(pb.ownerUid),
+        courtId: safeStr(pb.courtId), courtName: safeStr(pb.courtName),
+        date: safeStr(pb.date), startTime: safeStr(pb.startTime), endTime: safeStr(pb.endTime),
+        userId: uid, userName: safeStr(payerTeamName), teamName: safeStr(payerTeamName),
+        price: toNum(pb.totalPrice) ?? 0, paymentMethod: "fizz", status: "pending",
+        matchId: id, splitTotal: toNum(pb.totalPrice) ?? 0, shareA, shareB,
+        teamAClubId: safeStr(pb.proposerClubId), teamBClubId: safeStr(pb.opponentClubId),
+        teamAName: safeStr(pb.proposerTeamName), teamBName: safeStr(pb.opponentTeamName),
+        paidByA: sd === "A", paidByB: sd === "B",
+        teamAPayerUid: sd === "A" ? uid : "", teamBPayerUid: sd === "B" ? uid : "",
+        paymentDeadline: deadlineISO,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+      reservationId = ref.id;
+    } catch (e) {
+      try { await payFizz(uid, -myShare); } catch {}
+      throw e;
+    }
+    await updateDoc(doc(db, "match_requests", id), {
+      "partnerBooking.payState": "half", "partnerBooking.reservationId": reservationId,
+      "partnerBooking.paymentDeadline": deadlineISO, updatedAt: serverTimestamp(),
+    });
+    return { state: "pending", reservationId, deadline: deadlineISO, share: myShare };
+  }
+
+  // 이미 이 팀이 냈으면
+  if ((sd === "A" && existing.paidByA) || (sd === "B" && existing.paidByB)) {
+    return { state: existing.status, already: true };
+  }
+
+  // 둘째 결제 → 확정
+  await payFizz(uid, myShare);
+  const patch = sd === "A"
+    ? { paidByA: true, teamAPayerUid: uid }
+    : { paidByB: true, teamBPayerUid: uid };
+  await updateDoc(doc(db, "venueReservations", existing.id), {
+    ...patch, status: "confirmed", paid: true, updatedAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, "match_requests", id), {
+    "partnerBooking.payState": "paid", "partnerBooking.finalized": true, updatedAt: serverTimestamp(),
+  });
+
+  // 구장주 알림 (양 팀 결제 완료 = 예약 확정)
+  if (pb.ownerUid) {
+    try {
+      await addDoc(collection(db, "notifications"), {
+        kind: "venue", subType: "venueReservationCreated", type: "venue_reservation",
+        title: "새 구장 예약이 확정됐어요",
+        body: `${pb.date} ${pb.startTime}~${pb.endTime} · ${safeStr(pb.courtName)} (${safeStr(pb.proposerTeamName)} vs ${safeStr(pb.opponentTeamName)})`,
+        targetType: "USER", targetIds: [safeStr(pb.ownerUid)],
+        linkType: "venue", linkTargetId: safeStr(pb.venueId),
+        meta: { venueId: pb.venueId, reservationId: existing.id, deepLink: "/owner/home" },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "match", createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+    } catch (e) { console.warn("[payPartnerShare] notify failed", e?.message || e); }
+  }
+  return { state: "confirmed", reservationId: existing.id, share: myShare };
+}
+
+/** 매칭의 분할예약 결제현황 (구장앱/매칭룸 표시용) */
+export async function getMatchReservationStatus(matchId) {
+  await expireMatchReservationIfNeeded(matchId);
+  const r = await findMatchReservation(matchId);
+  if (!r) return null;
+  return {
+    id: r.id, status: r.status,
+    paidByA: r.paidByA, paidByB: r.paidByB,
+    teamAName: r.teamAName, teamBName: r.teamBName,
+    shareA: r.shareA, shareB: r.shareB, total: r.splitTotal,
+    deadline: r._deadline || "",
+  };
 }
 
 /* ============================================================

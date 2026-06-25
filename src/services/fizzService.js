@@ -54,7 +54,7 @@ export async function payFizz(uid, amount) {
     const snap = await tx.get(ref);
     const cur = n(snap.exists() ? snap.data()?.fizzBalance : 0);
     if (cur < amt) {
-      const err = new Error("피지 잔액이 부족합니다.");
+      const err = new Error("잔액이 부족합니다.");
       err.code = "insufficient_fizz";
       err.balance = cur;
       throw err;
