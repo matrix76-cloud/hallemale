@@ -342,13 +342,10 @@ const SectionHeaderLeft = styled.div`
 const SectionIconCircle = styled.div`
   width: 30px;
   height: 30px;
-  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
-  color: ${({ theme }) => theme.colors.primary};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 17px;
 `;
 

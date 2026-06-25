@@ -9,13 +9,9 @@ const Wrap = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 999px;
-  padding: ${({ $size }) => ($size === "sm" ? "3px 8px" : "4px 10px")};
   font-size: ${({ $size }) => ($size === "sm" ? "11px" : "12px")};
   line-height: 1;
-  background: ${({ $bg }) => $bg};
   color: ${({ $color }) => $color};
-  border: 1px solid rgba(0, 0, 0, 0.04);
 `;
 
 /* ✅ 내부 배경 제거(두 겹 배경 문제 해결) */
@@ -61,7 +57,7 @@ export default function PositionChip({
   if (!posKo) return null;
 
   return (
-    <Wrap $size={size} $bg={style.bg} $color={style.color}>
+    <Wrap $size={size} $color={style.color}>
       {showAbbr && <Abbr>{style.abbr}</Abbr>}
       {!onlyAbbr && <span>{posKo}</span>}
     </Wrap>

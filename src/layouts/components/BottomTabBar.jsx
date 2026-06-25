@@ -4,6 +4,9 @@ import React from "react";
 import styled, { keyframes, css } from "styled-components";
 import { bottomTabIcons } from "../../utils/imageAssets";
 
+// 로고(왕관)와 동일한 보라색 — 선택된 탭 강조색
+const LOGO_PURPLE = "#7C5CC9";
+
 const Wrap = styled.nav`
   position: fixed;
   left: 0;
@@ -27,7 +30,7 @@ const Item = styled.button`
   align-items: center;
   justify-content: center;
   color: ${({ $active, theme }) =>
-    $active ? theme.colors.primary : theme.colors.textWeak};
+    $active ? LOGO_PURPLE : theme.colors.textWeak};
   cursor: pointer;
 `;
 
@@ -57,9 +60,15 @@ const IconWrap = styled.div`
   justify-content: center;
 `;
 
-const IconImg = styled.img`
+// 아이콘 이미지를 마스크로 사용 → 색을 CSS로 직접 지정(선택=로고 보라색, 비선택=흐린 글씨색)
+const IconImg = styled.span`
   width: 18px;
   height: 18px;
+  display: block;
+  background-color: ${({ $active, theme }) =>
+    $active ? LOGO_PURPLE : theme.colors.textWeak};
+  -webkit-mask: ${({ $src }) => `url(${$src})`} center / contain no-repeat;
+  mask: ${({ $src }) => `url(${$src})`} center / contain no-repeat;
 `;
 
 const Label = styled.span`
@@ -124,12 +133,10 @@ export default function BottomTabBar({ currentPath, onNavigate, matchingCount = 
           >
             <IconWrap>
               <IconImg
-                src={
-                  active
-                    ? bottomTabIcons[tab.iconKey].active
-                    : bottomTabIcons[tab.iconKey].inactive
-                }
-                alt={tab.label}
+                $active={active}
+                $src={bottomTabIcons[tab.iconKey].active}
+                role="img"
+                aria-label={tab.label}
               />
               {showBadge && (
                 <Badge $blink={!active}>{formatCount(matchingCount)}</Badge>

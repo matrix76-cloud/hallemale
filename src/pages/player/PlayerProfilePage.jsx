@@ -323,13 +323,10 @@ const SectionHeaderLeft = styled.div`
 const SectionIconCircle = styled.div`
   width: 28px;
   height: 28px;
-  border-radius: 999px;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(14,165,233,0.18)" : "#e0f2fe"};
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${({ theme }) => (theme.mode === "dark" ? "#38bdf8" : "#0284c7")};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 16px;
 `;
 
