@@ -4706,16 +4706,6 @@ export default function MatchRoomDetailPage() {
                       <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
                       {myRank ? <RankTag>랭킹 {myRank}위</RankTag> : null}
                     </VsNmWrap>
-                    <LineupMiniBtn
-                      type="button"
-                      $on={myLineupOpen}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMyLineupOpen((v) => !v);
-                      }}
-                    >
-                      {myLineupOpen ? "라인업 닫기" : "라인업 보기"}
-                    </LineupMiniBtn>
                   </VsTeam>
 
                   <VsMid>
@@ -4735,60 +4725,14 @@ export default function MatchRoomDetailPage() {
                       <VsNm>{oppName}</VsNm>
                       {oppRank ? <RankTag>랭킹 {oppRank}위</RankTag> : null}
                     </VsNmWrap>
-                    <LineupMiniBtn
-                      type="button"
-                      $on={oppLineupOpen}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOppLineupOpen((v) => !v);
-                      }}
-                    >
-                      {oppLineupOpen ? "라인업 닫기" : "라인업 보기"}
-                    </LineupMiniBtn>
                   </VsTeam>
                 </VsRow>
 
-                {myLineupOpen && (
-                  <LineupBox>
-                    <LineupTitleRow>
-                      <LineupTitle>{toStr(myTeamView?.name) || "우리팀"} 선수 명단</LineupTitle>
-                    </LineupTitleRow>
-                    <LineupList>
-                      {myPlayers.length > 0 ? (
-                        myPlayers.map((p) => renderPlayerRow(p, myRecord))
-                      ) : (
-                        <LineupTitle>등록된 선수가 없어요.</LineupTitle>
-                      )}
-                    </LineupList>
-                    {mySubPlayers.length > 0 && (
-                      <>
-                        <LineupTitle style={{ marginTop: 8 }}>후보 {mySubPlayers.length}명</LineupTitle>
-                        <LineupList>{mySubPlayers.map((p) => renderPlayerRow(p, myRecord))}</LineupList>
-                      </>
-                    )}
-                  </LineupBox>
-                )}
-
-                {oppLineupOpen && (
-                  <LineupBox>
-                    <LineupTitleRow>
-                      <LineupTitle>{oppName} 선수 명단</LineupTitle>
-                    </LineupTitleRow>
-                    <LineupList>
-                      {oppPlayers.length > 0 ? (
-                        oppPlayers.map((p) => renderPlayerRow(p, oppRecord))
-                      ) : (
-                        <LineupTitle>등록된 선수가 없어요.</LineupTitle>
-                      )}
-                    </LineupList>
-                    {oppSubPlayers.length > 0 && (
-                      <>
-                        <LineupTitle style={{ marginTop: 8 }}>후보 {oppSubPlayers.length}명</LineupTitle>
-                        <LineupList>{oppSubPlayers.map((p) => renderPlayerRow(p, oppRecord))}</LineupList>
-                      </>
-                    )}
-                  </LineupBox>
-                )}
+                <div style={{ textAlign: "center", marginTop: 10 }}>
+                  <LineupMiniBtn type="button" onClick={() => setLineupViewOpen(true)}>
+                    라인업 보기
+                  </LineupMiniBtn>
+                </div>
 
                 <TicketRows>
                   <TicketRow>
