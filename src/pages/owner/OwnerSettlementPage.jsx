@@ -3,6 +3,7 @@
 // 정산 — 실제 확정 예약 기준 수수료 분해 (P1: 정산예정액/내역, 추후 정산신청 연동)
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+import { useNavigate } from "react-router-dom";
 import { LuWallet } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
 import { listReservations } from "../../services/ownerVenueService";
@@ -32,6 +33,7 @@ const ItemT = styled.div`font-size: 13.5px; font-weight: 700; color: ${C.slate80
 const ItemS = styled.div`font-size: 11.5px; color: ${C.slate500};`;
 
 export default function OwnerSettlementPage() {
+  const navigate = useNavigate();
   const { venue, loading: ownerLoading, refresh } = useOwner();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +60,20 @@ export default function OwnerSettlementPage() {
   if (ownerLoading) return <OwnerSpinner label="불러오는 중…" />;
   if (!venue || venue.status !== "approved")
     return <Page><VenueGateNotice venue={venue} refresh={refresh} /></Page>;
+
+  // 사업자 인증 게이트 (명세서 2.1 — 인증 전 정산 불가)
+  if (venue.business?.status !== "verified") {
+    return (
+      <Page>
+        <ScreenTitle>정산</ScreenTitle>
+        <Card>
+          <SecTitle>사업자 인증이 필요해요</SecTitle>
+          <Caption>정산을 받으려면 먼저 사업자 인증을 완료해야 해요. '구장정보' 탭 하단에서 사업자 정보를 등록해주세요.</Caption>
+          <PrimaryBtn type="button" onClick={() => navigate("/owner/venue")}>구장정보에서 인증하기</PrimaryBtn>
+        </Card>
+      </Page>
+    );
+  }
 
   return (
     <Page>

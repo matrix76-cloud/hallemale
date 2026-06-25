@@ -58,26 +58,30 @@ export async function consumeOwnerRedirectResult() {
   }
 }
 
-/** 웹: 구글 (팝업 우선, 모바일/차단 시 redirect) */
+/** 웹: 구글 — 사용자 앱과 동일하게 PC/모바일 모두 팝업으로 통일 */
 async function ownerWebGoogle({ keepLogin }) {
-  await setPersistence(ownerAuth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
   const provider = new GoogleAuthProvider();
-  if (isMobileBrowser()) {
-    await signInWithRedirect(ownerAuth, provider);
-    return { success: true, provider: "google", strategy: "web_redirect_started" };
-  }
+  provider.setCustomParameters({ prompt: "select_account" });
+
+  // ⚠️ signInWithPopup 앞에 await(setPersistence)를 두면 클릭 제스처가 끊겨 팝업이 차단되고,
+  //    redirect 로 빠지면 localhost+커스텀 authDomain 에서 세션이 안 붙는다.
+  //    그래서 팝업을 제스처와 같은 틱에서 먼저 호출한다. (웹 기본 지속성이 LOCAL)
   try {
-    const cred = await signInWithPopup(ownerAuth, provider);
+    // 팝업 응답이 영원히 안 오는 경우(서드파티 저장소 차단 등) 대비 타임아웃 가드
+    const cred = await Promise.race([
+      signInWithPopup(ownerAuth, provider),
+      new Promise((_, reject) =>
+        setTimeout(() => reject({ code: "popup_timeout", message: "팝업 응답이 없습니다. 잠시 후 다시 시도해주세요." }), 25000)
+      ),
+    ]);
     const uid = s(cred?.user?.uid);
     if (!uid) return { success: false, provider: "google", error_code: "no_uid" };
+    if (!keepLogin) {
+      try { await setPersistence(ownerAuth, browserSessionPersistence); } catch {}
+    }
     await ensureUserDoc({ uid, email: s(cred?.user?.email), provider: "google" });
     return { success: true, provider: "google", uid, user: cred.user };
   } catch (e) {
-    const code = s(e?.code).toLowerCase();
-    if (code.includes("popup")) {
-      await signInWithRedirect(ownerAuth, provider);
-      return { success: true, provider: "google", strategy: "web_redirect_started" };
-    }
     return { success: false, provider: "google", error_code: e?.code, error_message: e?.message };
   }
 }

@@ -63,7 +63,11 @@ export default function MatchPayPage() {
     if (paying || myPaid) return;
     setPaying(true);
     try {
-      const res = await payPartnerShare({ matchId: id, side, payerUid: uid, payerTeamName: myTeam });
+      const res = await payPartnerShare({
+        matchId: id, side, payerUid: uid, payerTeamName: myTeam,
+        payerName: userDoc?.nickname || "",
+        payerPhone: userDoc?.phoneE164 || userDoc?.phone || "",
+      });
       await load();
       if (res?.state === "confirmed") {
         toast("양 팀 결제 완료! 구장 예약이 확정됐어요.");
