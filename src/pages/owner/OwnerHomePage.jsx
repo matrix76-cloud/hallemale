@@ -190,11 +190,19 @@ const Legend = styled.div`
 
 const STATUS_LABEL = {
   requested: "승인 대기",
+  pending: "결제 대기",
   confirmed: "예약 확정",
   rejected: "거절됨",
   cancelled: "취소됨",
   done: "이용 완료",
 };
+
+function remainMin(deadlineISO) {
+  if (!deadlineISO) return null;
+  const ms = new Date(deadlineISO).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Math.round(ms / 60000));
+}
 
 export default function OwnerHomePage() {
   const { venue, loading: ownerLoading, refresh: ownerRefresh } = useOwner();
@@ -252,7 +260,7 @@ export default function OwnerHomePage() {
 
   const slotKind = (slot) => {
     const r = reservations.find(
-      (x) => ["requested", "confirmed"].includes(x.status) && overlap(slot.start, slot.end, x.startTime, x.endTime)
+      (x) => ["requested", "pending", "confirmed"].includes(x.status) && overlap(slot.start, slot.end, x.startTime, x.endTime)
     );
     if (r) return { kind: "reserved", resv: r };
     const b = blocks.find((x) => overlap(slot.start, slot.end, x.startTime, x.endTime));
@@ -314,7 +322,8 @@ export default function OwnerHomePage() {
   }
 
   const pending = reservations.filter((r) => r.status === "requested");
-  const others = reservations.filter((r) => r.status !== "requested");
+  const splitWaiting = reservations.filter((r) => r.status === "pending"); // 두 팀 분할결제 대기
+  const others = reservations.filter((r) => !["requested", "pending"].includes(r.status));
 
   return (
     <Page>
@@ -371,6 +380,32 @@ export default function OwnerHomePage() {
           </SlotGrid>
         )}
       </Card>
+
+      {splitWaiting.length > 0 && (
+        <Card>
+          <SectionTitle>결제 대기 (두 팀) {`(${splitWaiting.length})`}</SectionTitle>
+          {splitWaiting.map((r) => {
+            const rm = remainMin(r.paymentDeadline);
+            return (
+              <ResvCard key={r.id}>
+                <ResvTop>
+                  <ResvName>{r.teamAName || "팀A"} vs {r.teamBName || "팀B"}</ResvName>
+                  <Badge $tone="pending">결제 대기{rm != null ? ` · ${rm}분 남음` : ""}</Badge>
+                </ResvTop>
+                <ResvMeta>
+                  {r.startTime} ~ {r.endTime}
+                  {r.splitTotal ? ` · 총 ${r.splitTotal.toLocaleString()}피지 (반반)` : ""}
+                </ResvMeta>
+                <ResvMeta>
+                  {r.teamAName || "팀A"}: {r.paidByA ? "✓ 결제완료" : "결제대기"}
+                  {"  ·  "}
+                  {r.teamBName || "팀B"}: {r.paidByB ? "✓ 결제완료" : "결제대기"}
+                </ResvMeta>
+              </ResvCard>
+            );
+          })}
+        </Card>
+      )}
 
       <Card>
         <SectionTitle>승인 대기 예약 {pending.length > 0 && `(${pending.length})`}</SectionTitle>

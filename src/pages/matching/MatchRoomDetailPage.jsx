@@ -22,6 +22,9 @@ import {
 import PositionChip from "../../components/common/PositionChip";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
+import { payPartnerShare, getMatchReservationStatus } from "../../services/ownerVenueService";
+import { doc as fsDoc, getDoc as fsGetDoc } from "firebase/firestore";
+import { db as fsDb } from "../../services/firebase";
 import { useUIContext } from "../../context/UIContext";
 import VenuePickerSheet from "../../components/common/VenuePickerSheet";
 import EmptyState from "../../components/common/EmptyState";
@@ -541,6 +544,54 @@ const PropV = styled.span`
   color: ${({ theme }) => (theme.mode === "dark" ? "#e5e7eb" : "#111827")};
   font-weight: 600;
   text-align: right;
+`;
+
+/* ───── 제휴구장 분할결제 박스 ───── */
+const PayBox = styled.div`
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(99,102,241,0.12)" : "#eef2ff")};
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+`;
+const PayTitle = styled.div`
+  font-size: 12px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+const PayTeams = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  flex-wrap: wrap;
+`;
+const PayBtn = styled.button`
+  height: 40px;
+  border: none;
+  border-radius: 9px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+  &:disabled { opacity: 0.5; }
+`;
+const PayWait = styled.div`
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #b45309;
+  text-align: center;
+`;
+const PayDone = styled.div`
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #15803d;
+  text-align: center;
 `;
 
 /* ───── 입력창 위 고정 액션바 ───── */
@@ -2645,6 +2696,10 @@ export default function MatchRoomDetailPage() {
   const { setHeaderSubtitle, setHeaderConfig, showBottomSheet, hideBottomSheet, showToast } = useUIContext() || {};
 
   const myClubId = toStr(club?.clubId || club?.id);
+
+  // 제휴구장 분할결제 상태 (partnerBooking + 예약 결제현황)
+  const [partnerPay, setPartnerPay] = useState(null); // { pb, resv }
+  const [partnerPaying, setPartnerPaying] = useState(false);
   const roomId = toStr(params?.roomId || params?.matchId);
 
   // ✅ 확정 경기 채팅 진입 카드용: 매칭룸 안읽음/마지막 메시지(팀장 전용 노출)
@@ -3459,6 +3514,46 @@ export default function MatchRoomDetailPage() {
     }
   };
 
+  // ───── 제휴구장 분할결제 현황 로드 + 결제 ─────
+  const loadPartnerPay = React.useCallback(async () => {
+    if (!room?.id) { setPartnerPay(null); return; }
+    try {
+      const snap = await fsGetDoc(fsDoc(fsDb, "match_requests", room.id));
+      const pb = snap.exists() ? snap.data()?.partnerBooking : null;
+      if (!pb) { setPartnerPay(null); return; }
+      const resv = await getMatchReservationStatus(room.id);
+      setPartnerPay({ pb, resv });
+    } catch (e) {
+      console.warn("[matchRoom] loadPartnerPay failed", e?.message || e);
+    }
+  }, [room?.id]);
+
+  useEffect(() => { loadPartnerPay(); }, [loadPartnerPay, status]);
+
+  const handlePayShare = async () => {
+    if (partnerPaying || !partnerPay?.pb) return;
+    const pb = partnerPay.pb;
+    const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
+    const myShare = side === "A" ? pb.shareA : pb.shareB;
+    if (!window.confirm(
+      `우리 팀 몫 ${Number(myShare).toLocaleString()}피지를 결제할까요?\n` +
+      `양 팀 모두 결제하면 예약이 확정돼요.\n(먼저 결제 후 2시간 내 상대팀 미결제 시 자동취소·환불)`
+    )) return;
+    setPartnerPaying(true);
+    try {
+      const res = await payPartnerShare({
+        matchId: room.id, side, payerUid: myUid,
+        payerTeamName: side === "A" ? pb.proposerTeamName : pb.opponentTeamName,
+      });
+      await loadPartnerPay();
+      if (res?.state === "confirmed") window.alert("두 팀 결제 완료! 구장 예약이 확정됐어요.");
+      else if (res?.already) window.alert("이미 우리 팀은 결제했어요. 상대팀 결제를 기다리는 중이에요.");
+      else window.alert("결제 완료! 상대팀이 2시간 내 결제하면 예약이 확정돼요.");
+    } catch (e) {
+      window.alert(e?.message || "결제에 실패했어요.");
+    } finally { setPartnerPaying(false); }
+  };
+
   const handleCancelMatch = async () => {
     try {
       await cancelMatchRequest({ matchRequestId: room.id, cancelledByClubId: myClubId });
@@ -3801,6 +3896,33 @@ export default function MatchRoomDetailPage() {
               <PropV>{venueDurLabel}</PropV>
             </PropRow>
           )}
+          {partnerPay?.pb && (() => {
+            const pb = partnerPay.pb;
+            const resv = partnerPay.resv;
+            const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
+            const myPaid = resv ? (side === "A" ? resv.paidByA : resv.paidByB) : false;
+            const confirmed = resv?.status === "confirmed";
+            const myShare = side === "A" ? pb.shareA : pb.shareB;
+            const rm = resv?.deadline ? Math.max(0, Math.round((new Date(resv.deadline).getTime() - Date.now()) / 60000)) : null;
+            return (
+              <PayBox>
+                <PayTitle>구장비 결제 · 총 {Number(pb.totalPrice).toLocaleString()}피지 (두 팀 반반)</PayTitle>
+                <PayTeams>
+                  <span>{pb.proposerTeamName}: {resv?.paidByA ? "✓ 결제완료" : "대기"}</span>
+                  <span>{pb.opponentTeamName}: {resv?.paidByB ? "✓ 결제완료" : "대기"}</span>
+                </PayTeams>
+                {confirmed ? (
+                  <PayDone>✅ 양 팀 결제완료 · 예약 확정</PayDone>
+                ) : myPaid ? (
+                  <PayWait>우리 팀 결제완료 · 상대팀 결제 대기 중{rm != null ? ` (${rm}분 남음)` : ""}</PayWait>
+                ) : (
+                  <PayBtn type="button" onClick={handlePayShare} disabled={partnerPaying}>
+                    {partnerPaying ? "결제 중…" : `우리 팀 몫 ${Number(myShare).toLocaleString()}피지 결제하기`}
+                  </PayBtn>
+                )}
+              </PayBox>
+            );
+          })()}
         </PropBody>
       </PropCard>
     ) : null;

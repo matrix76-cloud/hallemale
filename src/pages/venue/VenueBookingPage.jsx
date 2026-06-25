@@ -6,12 +6,16 @@ import styled from "styled-components";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { proposeMatchSchedule } from "../../services/matchRoomService";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../services/firebase";
 import {
   getVenue,
   listReservations,
   listBlocks,
   bookVenue,
+  writePartnerBooking,
   calcSlotPrice,
+  splitPrice,
   dowToKey,
 } from "../../services/ownerVenueService";
 import { getFizzBalance, chargeFizz } from "../../services/fizzService";
@@ -62,6 +66,24 @@ export default function VenueBookingPage() {
   const [balance, setBalance] = useState(0);
   const [payOpen, setPayOpen] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [matchInfo, setMatchInfo] = useState(null); // 매칭 두 팀 정보
+
+  // 매칭룸에서 들어온 경우: 두 팀 정보 로드(제안 시 상대팀 식별용)
+  useEffect(() => {
+    if (!matchId) { setMatchInfo(null); return; }
+    let cancelled = false;
+    getDoc(doc(db, "match_requests", matchId)).then((s) => {
+      if (cancelled || !s.exists()) return;
+      const d = s.data() || {};
+      setMatchInfo({
+        actorClubId: String(d.actorClubId || ""),
+        targetClubId: String(d.targetClubId || ""),
+        fromName: String(d.fromTeamSnapshot?.name || ""),
+        toName: String(d.toTeamSnapshot?.name || ""),
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [matchId]);
 
   const dates = useMemo(() => {
     const now = new Date();
@@ -117,7 +139,7 @@ export default function VenueBookingPage() {
   useEffect(() => { setSelected(null); loadSlots(); /* eslint-disable-next-line */ }, [venue?.id, courtId, date]);
 
   const slotState = (slot) => {
-    if (reservations.some((r) => ["requested", "confirmed"].includes(r.status) && overlap(slot.start, slot.end, r.startTime, r.endTime))) return "reserved";
+    if (reservations.some((r) => ["requested", "pending", "confirmed"].includes(r.status) && overlap(slot.start, slot.end, r.startTime, r.endTime))) return "reserved";
     if (blocks.some((b) => overlap(slot.start, slot.end, b.startTime, b.endTime))) return "blocked";
     if (date === nowMin.today && toMin(slot.start) <= nowMin.min) return "past";
     return "open";
@@ -150,30 +172,6 @@ export default function VenueBookingPage() {
           phone: userDoc?.phoneE164 || userDoc?.phone || "",
         },
       });
-      // 매칭룸에서 들어온 경우: 예약한 구장·시간을 매칭 구장·일정 제안으로 등록
-      if (matchId) {
-        const clubId = userDoc?.activeTeamId || userDoc?.clubId || "";
-        const hasLatLng = venue.lat != null && venue.lng != null;
-        if (clubId && hasLatLng) {
-          try {
-            await proposeMatchSchedule({
-              matchRequestId: matchId,
-              scheduledAtISO: `${date}T${selected.start}:00`,
-              fieldAddress: `${venue.name}${venue.address ? ` (${venue.address})` : ""}`,
-              fieldLatLng: { lat: venue.lat, lng: venue.lng },
-              durationMin: toMin(selected.end) - toMin(selected.start),
-              proposedByClubId: clubId,
-            });
-          } catch (e) {
-            console.warn("[VenueBooking] proposeMatchSchedule failed", e?.message || e);
-          }
-        }
-        setPayOpen(false);
-        window.alert("예약 완료! 이 구장·시간이 매칭 일정으로 제안됐어요. 상대팀이 확인합니다.");
-        navigate(`/match-roomdetail/${matchId}/venue`, { replace: true });
-        return;
-      }
-
       setPayOpen(false);
       setSelected(null);
       await loadSlots();
@@ -181,6 +179,49 @@ export default function VenueBookingPage() {
     } catch (e) {
       if (e?.code === "slot_taken") { await loadSlots(); }
       window.alert(e?.message || "예약에 실패했어요.");
+    } finally { setPaying(false); }
+  };
+
+  const myClubId = userDoc?.activeTeamId || userDoc?.clubId || "";
+  const handlePropose = async () => {
+    if (!selected || !court) return;
+    if (!matchInfo) return window.alert("매칭 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.");
+    if (!myClubId) return window.alert("팀 정보를 확인할 수 없어요.");
+    if (venue.lat == null || venue.lng == null) return window.alert("이 구장은 좌표 정보가 없어 제안할 수 없어요.");
+
+    const isActor = myClubId === matchInfo.actorClubId;
+    const opponentClubId = isActor ? matchInfo.targetClubId : matchInfo.actorClubId;
+    const myTeamName = isActor ? matchInfo.fromName : matchInfo.toName;
+    const oppTeamName = isActor ? matchInfo.toName : matchInfo.fromName;
+    const total = calcSlotPrice(court, selected.start, selected.end);
+    const { shareA, shareB } = splitPrice(total);
+    const myShare = isActor ? shareA : shareB;
+
+    if (!window.confirm(
+      `${date} ${selected.start}~${selected.end}\n${venue.name} · ${court.name}\n\n총 ${total.toLocaleString()}피지 (두 팀 반반)\n우리 팀 몫: ${myShare.toLocaleString()}피지\n\n상대팀에 제안할까요? (결제는 양 팀 수락 후)`
+    )) return;
+
+    setPaying(true);
+    try {
+      await proposeMatchSchedule({
+        matchRequestId: matchId,
+        scheduledAtISO: new Date(`${date}T${selected.start}:00`).toISOString(),
+        fieldAddress: `${venue.name}${venue.address ? ` (${venue.address})` : ""}`,
+        fieldLatLng: { lat: venue.lat, lng: venue.lng },
+        durationMin: toMin(selected.end) - toMin(selected.start),
+        proposedByClubId: myClubId,
+      });
+      await writePartnerBooking({
+        matchId, venue, court, date,
+        startTime: selected.start, endTime: selected.end,
+        proposerUid: uid, proposerClubId: myClubId, proposerTeamName: myTeamName,
+        opponentClubId, opponentTeamName: oppTeamName,
+      });
+      window.alert("상대팀에 구장·일정을 제안했어요! 양 팀이 수락·결제하면 예약이 확정돼요.");
+      // 직접입력 제안 흐름과 동일하게 채팅 화면으로 복귀 (핀 카드 + 채팅 유지)
+      navigate(`/match-roomdetail/${matchId}`, { replace: true });
+    } catch (e) {
+      window.alert(e?.message || "제안에 실패했어요.");
     } finally { setPaying(false); }
   };
 
@@ -295,9 +336,16 @@ export default function VenueBookingPage() {
         <BottomBar>
           <div>
             <BbDate>{date} {selected.start}~{selected.end}</BbDate>
-            <BbPrice>{price.toLocaleString()}원</BbPrice>
+            <BbPrice>
+              {price.toLocaleString()}피지
+              {matchId ? <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}> · 두 팀 반반</span> : null}
+            </BbPrice>
           </div>
-          <BookBtn onClick={() => setPayOpen(true)}>예약하기</BookBtn>
+          {matchId ? (
+            <BookBtn onClick={handlePropose} disabled={paying}>구장·일정 제안하기</BookBtn>
+          ) : (
+            <BookBtn onClick={() => setPayOpen(true)}>예약하기</BookBtn>
+          )}
         </BottomBar>
       )}
 
