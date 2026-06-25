@@ -8,6 +8,7 @@ import {
   listRefundableReservations, listRefundedReservations, processRefund,
 } from "../../services/refundService";
 
+const PAGE_SIZE = 10;
 const won = (n) => `${(Number(n) || 0).toLocaleString()}원`;
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -39,6 +40,8 @@ export default function AdminRefundsPage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(0);
+  useEffect(() => { setPage(0); }, [tab, period]);
 
   const load = async () => {
     setLoading(true);
@@ -62,6 +65,9 @@ export default function AdminRefundsPage() {
     const amount = rows.reduce((s, r) => s + (tab === "refunded" ? r.refundAmount : r.price), 0);
     return { count, amount };
   }, [rows, tab]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pagedRows = rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const doRefund = async (r) => {
     const input = window.prompt(
@@ -124,7 +130,7 @@ export default function AdminRefundsPage() {
               <span>{tab === "refunded" ? "환불액" : "결제액"}</span>
               {tab === "refunded" ? <Hide>환불일</Hide> : <span>관리</span>}
             </HeadRow>
-            {rows.map((r) => (
+            {pagedRows.map((r) => (
               <Rowi key={r.id} $refunded={tab === "refunded"}>
                 <NameCell>
                   <Nm>{r.venueName}</Nm>
@@ -146,6 +152,16 @@ export default function AdminRefundsPage() {
               </Rowi>
             ))}
           </Table>
+        )}
+
+        {!loading && rows.length > PAGE_SIZE && (
+          <Pager>
+            <PageNum onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>‹</PageNum>
+            {Array.from({ length: pageCount }, (_, i) => (
+              <PageNum key={i} $on={i === page} onClick={() => setPage(i)}>{i + 1}</PageNum>
+            ))}
+            <PageNum onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1}>›</PageNum>
+          </Pager>
         )}
       </Card>
     </Page>
@@ -181,6 +197,14 @@ const CardLabel = styled.div`font-size: 12px; color: ${({ theme }) => theme?.col
 const CardVal = styled.div`font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: ${({ $accent }) => ($accent ? "#b91c1c" : "#111827")};`;
 const Card = styled.section`background: ${({ theme }) => theme?.colors?.card || "#fff"}; border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"}; border-radius: 10px; padding: 14px;`;
 const EmptyText = styled.div`padding: 28px 0; text-align: center; font-size: 13px; color: #4b5563;`;
+const Pager = styled.div`display: flex; justify-content: center; gap: 6px; margin-top: 14px;`;
+const PageNum = styled.button`
+  min-width: 32px; height: 32px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600;
+  border: 1px solid ${({ $on, theme }) => ($on ? (theme?.colors?.primary || "#4f46e5") : (theme?.colors?.border || "#e5e7eb"))};
+  background: ${({ $on, theme }) => ($on ? (theme?.colors?.primary || "#4f46e5") : "transparent")};
+  color: ${({ $on }) => ($on ? "#fff" : "#4b5563")};
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+`;
 const Table = styled.div`width: 100%; display: flex; flex-direction: column;`;
 const cols = (refunded) => (refunded
   ? "1fr 150px 120px 110px 180px"

@@ -9,6 +9,7 @@ import {
   markReservationSettled, markManySettled, PLATFORM_FEE_RATE,
 } from "../../services/settlementService";
 
+const PAGE_SIZE = 8;
 const won = (n) => `${(Number(n) || 0).toLocaleString()}원`;
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -40,6 +41,8 @@ export default function AdminSettlementsPage() {
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState(null); // 선택한 구장 그룹
+  const [page, setPage] = useState(0);
+  useEffect(() => { setPage(0); }, [period]);
 
   const load = async () => {
     setLoading(true);
@@ -57,6 +60,8 @@ export default function AdminSettlementsPage() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [period]);
 
   const groups = useMemo(() => groupByVenue(rows), [rows]);
+  const pageCount = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const pagedGroups = groups.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const summary = useMemo(() => {
     const gross = rows.reduce((s, r) => s + r.price, 0);
@@ -126,7 +131,7 @@ export default function AdminSettlementsPage() {
               <span>상태</span>
               <span>관리</span>
             </HeadRow>
-            {groups.map((g) => (
+            {pagedGroups.map((g) => (
               <Rowi key={g.venueId || g.venueName}>
                 <Nm>{g.venueName}</Nm>
                 <span>{g.count}건</span>
@@ -145,6 +150,16 @@ export default function AdminSettlementsPage() {
               </Rowi>
             ))}
           </Table>
+        )}
+
+        {!loading && groups.length > PAGE_SIZE && (
+          <Pager>
+            <PageNum onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>‹</PageNum>
+            {Array.from({ length: pageCount }, (_, i) => (
+              <PageNum key={i} $on={i === page} onClick={() => setPage(i)}>{i + 1}</PageNum>
+            ))}
+            <PageNum onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1}>›</PageNum>
+          </Pager>
         )}
       </Card>
 
@@ -224,6 +239,14 @@ const CardVal = styled.div`
 `;
 const Card = styled.section`background: ${({ theme }) => theme?.colors?.card || "#fff"}; border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"}; border-radius: 10px; padding: 14px;`;
 const EmptyText = styled.div`padding: 28px 0; text-align: center; font-size: 13px; color: #4b5563;`;
+const Pager = styled.div`display: flex; justify-content: center; gap: 6px; margin-top: 14px;`;
+const PageNum = styled.button`
+  min-width: 32px; height: 32px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600;
+  border: 1px solid ${({ $on, theme }) => ($on ? (theme?.colors?.primary || "#4f46e5") : (theme?.colors?.border || "#e5e7eb"))};
+  background: ${({ $on, theme }) => ($on ? (theme?.colors?.primary || "#4f46e5") : "transparent")};
+  color: ${({ $on }) => ($on ? "#fff" : "#4b5563")};
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+`;
 const Table = styled.div`width: 100%; display: flex; flex-direction: column;`;
 const HeadRow = styled.div`
   display: grid; grid-template-columns: 1fr 60px 110px 110px 120px 92px 150px; gap: 10px; align-items: center;
