@@ -6,31 +6,33 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { OwnerProvider } from "../context/OwnerContext";
 import OwnerBottomTabBar from "./components/OwnerBottomTabBar";
+import { C } from "../pages/owner/components/od";
 
 const Wrap = styled.div`
   min-height: 100vh;
   min-height: 100dvh;
-  background: ${({ theme }) => theme.colors.bg};
+  background: ${C.slate100};
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
+  max-width: 448px;
+  margin: 0 auto;
 `;
 
 const Header = styled.header`
-  height: 52px;
+  height: 54px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  background: ${({ theme }) => theme.colors.card};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${C.violet600};
 `;
 
 const HeaderTitle = styled.div`
   font-size: 16px;
   font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: #fff;
 `;
 
 const BackBtn = styled.button`
@@ -42,8 +44,8 @@ const BackBtn = styled.button`
   height: 40px;
   border: none;
   background: transparent;
-  font-size: 22px;
-  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 24px;
+  color: #fff;
   cursor: pointer;
 `;
 
@@ -58,11 +60,13 @@ const Main = styled.main`
       : "env(safe-area-inset-bottom)"};
 `;
 
-const TAB_PATHS = ["/owner/home", "/owner/venue", "/owner/my"];
+const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/settlement", "/owner/venue"];
 
 function getTitle(p) {
-  if (p.startsWith("/owner/home")) return "예약 관리";
-  if (p.startsWith("/owner/venue")) return "내 구장";
+  if (p.startsWith("/owner/home")) return "예약관리";
+  if (p.startsWith("/owner/sales")) return "매출분석";
+  if (p.startsWith("/owner/settlement")) return "정산";
+  if (p.startsWith("/owner/venue")) return "구장정보";
   if (p.startsWith("/owner/my")) return "내정보";
   if (p.startsWith("/owner/register")) return "구장 등록";
   if (p.startsWith("/owner/pending")) return "심사 현황";

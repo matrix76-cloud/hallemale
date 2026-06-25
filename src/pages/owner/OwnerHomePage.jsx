@@ -1,461 +1,206 @@
 /* eslint-disable */
 // src/pages/owner/OwnerHomePage.jsx
-// 예약 관리 — 코트 선택 + 날짜 선택 → 시간 슬롯 그리드 + 예약 승인/거절 + 슬롯 막기
+// 예약관리 — 주간 캘린더 + 시간대별 슬롯 + 요약 + 승인/반려 + 시간막기 (명세서 3)
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+import { LuChevronLeft, LuChevronRight, LuLock, LuHourglass, LuCheck } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
 import {
-  listReservations,
-  listBlocks,
-  addBlock,
-  removeBlock,
-  setReservationStatus,
-  dowToKey,
+  listReservations, listBlocks, addBlock, removeBlock, setReservationStatus,
+  dowToKey, expireMatchReservationIfNeeded,
 } from "../../services/ownerVenueService";
-import { Page, Card, SectionTitle, SectionDesc, Badge, GhostBtn } from "./components/ownerUi";
-import OwnerSpinner from "./components/OwnerSpinner";
+import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
-import LockedPreview from "./components/LockedPreview";
-import ReservationSkeleton from "./components/ReservationSkeleton";
+import OwnerSpinner from "./components/OwnerSpinner";
 
-/* ---------- 시간/날짜 헬퍼 ---------- */
-function toMin(hhmm) {
-  const [h, m] = String(hhmm || "0:0").split(":").map((x) => parseInt(x, 10) || 0);
-  return h * 60 + m;
-}
-function toHHMM(min) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-function buildSlots(court, dayKey) {
-  if (!court) return [];
-  const h = court.hours && court.hours[dayKey];
-  if (!h || h.closed) return [];
-  const start = toMin(h.open);
-  const end = toMin(h.close);
-  const step = court.slotMinutes || 60;
-  const out = [];
-  for (let t = start; t + step <= end; t += step) {
-    out.push({ start: toHHMM(t), end: toHHMM(t + step) });
-  }
+function toMin(h){const[a,b]=String(h||"0:0").split(":").map(x=>parseInt(x,10)||0);return a*60+b;}
+function toHHMM(m){return `${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;}
+function overlap(aS,aE,bS,bE){return toMin(aS)<toMin(bE)&&toMin(aE)>toMin(bS);}
+function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function buildSlots(court,dayKey){
+  if(!court)return[];const h=court.hours?.[dayKey];if(!h||h.closed)return[];
+  const step=court.slotMinutes||60;const out=[];
+  for(let t=toMin(h.open);t+step<=toMin(h.close);t+=step)out.push({start:toHHMM(t),end:toHHMM(t+step)});
   return out;
 }
-function ymd(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
-function buildDates(baseMs, n = 14) {
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const d = new Date(baseMs + i * 86400000);
-    out.push({ date: ymd(d), day: d.getDate(), wd: WEEK[d.getDay()], dow: d.getDay() });
-  }
-  return out;
-}
-function overlap(aStart, aEnd, bStart, bEnd) {
-  return toMin(aStart) < toMin(bEnd) && toMin(aEnd) > toMin(bStart);
-}
+const WEEK=["일","월","화","수","목","금","토"];
 
-/* ---------- styles ---------- */
-const CourtTabs = styled.div`
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
+const ChipRow=styled.div`display:flex;gap:8px;overflow-x:auto;&::-webkit-scrollbar{display:none;}`;
+const CourtChip=styled(Chip)`position:relative;`;
+const ChipBadge=styled.span`position:absolute;top:-5px;right:-4px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:${C.amber500};color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;`;
+const WeekHead=styled.div`display:flex;align-items:center;justify-content:space-between;`;
+const WeekNav=styled.button`border:none;background:transparent;color:${C.slate500};cursor:pointer;display:flex;padding:4px;`;
+const WeekLabel=styled.div`font-size:13.5px;font-weight:700;color:${C.slate800};`;
+const Days=styled.div`display:grid;grid-template-columns:repeat(7,1fr);gap:6px;`;
+const Day=styled.button`border:1px solid ${({$on})=>($on?C.violet600:"transparent")};background:${({$on})=>($on?C.violet50:"transparent")};border-radius:12px;padding:6px 0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;`;
+const DayWd=styled.div`font-size:10px;color:${({$dow})=>($dow===0?C.red500:$dow===6?C.violet600:C.slate400)};font-weight:600;`;
+const DayNum=styled.div`font-size:15px;font-weight:700;color:${({$on})=>($on?C.violet600:C.slate800)};`;
+const Dots=styled.div`display:flex;gap:3px;height:6px;align-items:center;`;
+const Dot=styled.span`width:5px;height:5px;border-radius:999px;background:${({$c})=>$c};`;
+const Summary=styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:8px;`;
+const Sum=styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:10px 6px;text-align:center;background:#fff;`;
+const SumN=styled.div`font-size:18px;font-weight:800;color:${({$c})=>$c||C.slate800};`;
+const SumL=styled.div`font-size:11px;color:${C.slate500};margin-top:2px;`;
+const Grid=styled.div`display:grid;grid-template-columns:repeat(2,1fr);gap:8px;`;
+const Slot=styled.button`
+  display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:11px 12px;border-radius:12px;
+  cursor:${({$k})=>$k==="open"||$k==="blocked"?"pointer":"default"};
+  background:${({$k})=>$k==="confirmed"?C.violet50:"#fff"};
+  border:1px solid ${({$k})=>$k==="confirmed"?C.violet300:$k==="pending"?C.amber400:C.slate200};
+  ${({$k})=>$k==="pending"?`background-image:repeating-linear-gradient(45deg,#FBBF2422,#FBBF2422 6px,transparent 6px,transparent 12px);`:""}
+  opacity:${({$k})=>($k==="past"?0.45:1)};
 `;
-const CourtTab = styled.button`
-  flex: 0 0 auto;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
-  background: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.card)};
-  color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textNormal)};
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-`;
-const DateStrip = styled.div`
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-`;
-const DateCell = styled.button`
-  flex: 0 0 auto;
-  width: 52px;
-  height: 60px;
-  border-radius: 12px;
-  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
-  background: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.card)};
-  color: ${({ $on, $dow, theme }) =>
-    $on ? "#fff" : $dow === 0 ? "#ef4444" : $dow === 6 ? "#2563eb" : theme.colors.textNormal};
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  cursor: pointer;
-  font-weight: 600;
-  & small { font-size: 11px; opacity: 0.85; }
-  & b { font-size: 16px; }
-`;
-const SlotGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-`;
-const Slot = styled.button`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  cursor: ${({ $kind }) => ($kind === "reserved" ? "default" : "pointer")};
-  border: 1px solid
-    ${({ $kind, theme }) =>
-      $kind === "reserved" ? "#bfdbfe" : $kind === "blocked" ? "#fecaca" : theme.colors.border};
-  background: ${({ $kind, theme }) =>
-    $kind === "reserved" ? "#eff6ff" : $kind === "blocked" ? "#fef2f2" : theme.colors.card};
-  & .t { font-size: 13.5px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong}; }
-  & .s { font-size: 11.5px; font-weight: 600; }
-  & .reserved { color: #2563eb; }
-  & .blocked { color: #dc2626; }
-  & .open { color: ${({ theme }) => theme.colors.textWeak}; }
-`;
-const ResvCard = styled.div`
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 12px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`;
-const ResvTop = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-`;
-const ResvName = styled.div`
-  font-size: 14px;
-  font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-const ResvMeta = styled.div`
-  font-size: 12.5px;
-  color: ${({ theme }) => theme.colors.textWeak};
-  line-height: 1.5;
-`;
-const Actions = styled.div`display: flex; gap: 8px;`;
-const SmallBtn = styled.button`
-  flex: 1;
-  height: 40px;
-  border-radius: 9px;
-  border: 1px solid ${({ $danger, theme }) => ($danger ? "#fecaca" : theme.colors.border)};
-  background: ${({ $primary, $danger, theme }) =>
-    $primary ? theme.colors.primary : $danger ? "#fef2f2" : theme.colors.card};
-  color: ${({ $primary, $danger, theme }) =>
-    $primary ? "#fff" : $danger ? "#dc2626" : theme.colors.textNormal};
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  &:active { transform: translateY(1px); }
-`;
-const Empty = styled.div`
-  text-align: center;
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textWeak};
-  padding: 18px 0;
-`;
-const Legend = styled.div`
-  display: flex;
-  gap: 14px;
-  font-size: 11.5px;
-  color: ${({ theme }) => theme.colors.textWeak};
-  & span::before {
-    content: "";
-    display: inline-block;
-    width: 10px; height: 10px; border-radius: 3px;
-    margin-right: 4px; vertical-align: -1px;
-  }
-  & .open::before { background: ${({ theme }) => theme.colors.border}; }
-  & .reserved::before { background: #93c5fd; }
-  & .blocked::before { background: #fca5a5; }
-`;
+const SlotT=styled.div`font-size:13px;font-weight:700;color:${C.slate800};`;
+const SlotS=styled.div`font-size:11px;font-weight:700;display:flex;align-items:center;gap:3px;color:${({$k})=>$k==="confirmed"?C.violet600:$k==="pending"?C.amber500:$k==="blocked"?C.slate400:$k==="open"?C.green600:C.slate400};`;
+const Resv=styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;`;
+const ResvTop=styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;`;
+const ResvName=styled.div`font-size:14px;font-weight:700;color:${C.slate800};`;
+const ResvMeta=styled.div`font-size:12px;color:${C.slate500};`;
+const Acts=styled.div`display:flex;gap:8px;`;
+const SBtn=styled.button`flex:1;height:38px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid ${({$danger})=>$danger?C.red200:C.violet600};background:${({$primary})=>$primary?C.violet600:"transparent"};color:${({$primary,$danger})=>$primary?"#fff":$danger?C.red500:C.violet600};`;
+const Empty=styled.div`text-align:center;font-size:13px;color:${C.slate400};padding:18px 0;`;
 
-const STATUS_LABEL = {
-  requested: "승인 대기",
-  pending: "결제 대기",
-  confirmed: "예약 확정",
-  rejected: "거절됨",
-  cancelled: "취소됨",
-  done: "이용 완료",
-};
+export default function OwnerHomePage(){
+  const {venue,loading:ownerLoading,refresh:ownerRefresh}=useOwner();
+  const courts=venue?.courts||[];
+  const today=useMemo(()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate());},[]);
+  const [courtId,setCourtId]=useState(courts[0]?.id||"");
+  const [weekOff,setWeekOff]=useState(0);
+  const [date,setDate]=useState(ymd(today));
+  const [reservations,setReservations]=useState([]);
+  const [blocks,setBlocks]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState(false);
 
-function remainMin(deadlineISO) {
-  if (!deadlineISO) return null;
-  const ms = new Date(deadlineISO).getTime() - Date.now();
-  if (!Number.isFinite(ms)) return null;
-  return Math.max(0, Math.round(ms / 60000));
-}
+  const court=courts.find(c=>c.id===courtId)||courts[0]||null;
 
-export default function OwnerHomePage() {
-  const { venue, loading: ownerLoading, refresh: ownerRefresh } = useOwner();
-  const courts = venue?.courts || [];
+  const weekDays=useMemo(()=>{
+    const base=new Date(today);base.setDate(base.getDate()-base.getDay()+weekOff*7);
+    return Array.from({length:7},(_,i)=>{const d=new Date(base);d.setDate(base.getDate()+i);return{date:ymd(d),num:d.getDate(),dow:d.getDay()};});
+  },[today,weekOff]);
 
-  const dates = useMemo(() => {
-    // Date.now() 사용 금지 컨텍스트 아님 — 일반 런타임. 오늘 0시 기준.
-    const now = new Date();
-    const base = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    return buildDates(base, 14);
-  }, []);
-
-  const [courtId, setCourtId] = useState(courts[0]?.id || "");
-  const [date, setDate] = useState(dates[0]?.date || "");
-  const [reservations, setReservations] = useState([]);
-  const [blocks, setBlocks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-
-  const court = courts.find((c) => c.id === courtId) || courts[0] || null;
-
-  const load = async () => {
-    if (!venue?.id) return;
+  const load=async()=>{
+    if(!venue?.id||!court?.id)return;
     setLoading(true);
-    try {
-      const [rs, bs] = await Promise.all([
-        listReservations({ venueId: venue.id, date, courtId: court?.id || "" }),
-        listBlocks({ venueId: venue.id, date, courtId: court?.id || "" }),
+    try{
+      const [rs,bs]=await Promise.all([
+        listReservations({venueId:venue.id,courtId:court.id}),
+        listBlocks({venueId:venue.id,courtId:court.id}),
       ]);
-      setReservations(rs);
-      setBlocks(bs);
-    } catch (e) {
-      console.warn("[OwnerHome] load failed", e?.message || e);
-      setReservations([]);
-      setBlocks([]);
-    } finally {
-      setLoading(false);
-    }
+      const ids=[...new Set(rs.filter(r=>r.status==="pending"&&r.matchId).map(r=>r.matchId))];
+      if(ids.length)await Promise.all(ids.map(id=>expireMatchReservationIfNeeded(id).catch(()=>{})));
+      setReservations(rs);setBlocks(bs);
+    }catch(e){setReservations([]);setBlocks([]);}finally{setLoading(false);}
   };
+  useEffect(()=>{load();/*eslint-disable-next-line*/},[venue?.id,courtId]);
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line
-  }, [venue?.id, courtId, date]);
+  const dayKey=useMemo(()=>dowToKey(new Date(date).getDay()),[date]);
+  const dayHours=court?.hours?.[dayKey];
+  const isClosed=!dayHours||dayHours.closed;
+  const slots=useMemo(()=>buildSlots(court,dayKey),[court,dayKey]);
+  const dayResv=useMemo(()=>reservations.filter(r=>r.date===date),[reservations,date]);
+  const dayBlocks=useMemo(()=>blocks.filter(b=>b.date===date),[blocks,date]);
+  const nowMin=useMemo(()=>{const n=new Date();return{today:ymd(n),min:n.getHours()*60+n.getMinutes()};},[]);
 
-  const dayKey = useMemo(() => {
-    const info = dates.find((d) => d.date === date);
-    return info ? dowToKey(info.dow) : "mon";
-  }, [dates, date]);
-
-  const dayHours = court?.hours?.[dayKey];
-  const isClosedDay = !dayHours || dayHours.closed;
-
-  const slots = useMemo(() => buildSlots(court, dayKey), [court, dayKey]);
-
-  const slotKind = (slot) => {
-    const r = reservations.find(
-      (x) => ["requested", "pending", "confirmed"].includes(x.status) && overlap(slot.start, slot.end, x.startTime, x.endTime)
-    );
-    if (r) return { kind: "reserved", resv: r };
-    const b = blocks.find((x) => overlap(slot.start, slot.end, x.startTime, x.endTime));
-    if (b) return { kind: "blocked", block: b };
-    return { kind: "open" };
+  const slotKind=(s)=>{
+    const cf=dayResv.find(r=>r.status==="confirmed"&&overlap(s.start,s.end,r.startTime,r.endTime));
+    if(cf)return{k:"confirmed",r:cf};
+    const pd=dayResv.find(r=>["requested","pending"].includes(r.status)&&overlap(s.start,s.end,r.startTime,r.endTime));
+    if(pd)return{k:"pending",r:pd};
+    const bl=dayBlocks.find(b=>overlap(s.start,s.end,b.startTime,b.endTime));
+    if(bl)return{k:"blocked",b:bl};
+    if(date===nowMin.today&&toMin(s.start)<=nowMin.min)return{k:"past"};
+    return{k:"open"};
   };
+  const dayCounts=(dStr)=>{const rs=reservations.filter(r=>r.date===dStr);return{cf:rs.filter(r=>r.status==="confirmed").length,pd:rs.filter(r=>["requested","pending"].includes(r.status)).length};};
 
-  const onSlotClick = async (slot, info) => {
-    if (busy) return;
-    if (info.kind === "reserved") return; // 예약된 슬롯은 토글 불가
-    setBusy(true);
-    try {
-      if (info.kind === "blocked") {
-        await removeBlock(info.block.id);
-      } else {
-        await addBlock({ venueId: venue.id, courtId: court.id, date, startTime: slot.start, endTime: slot.end });
-      }
-      await load();
-    } catch (e) {
-      window.alert(e?.message || "처리에 실패했어요.");
-    } finally {
-      setBusy(false);
-    }
+  const onSlot=async(s,info)=>{
+    if(busy)return;
+    if(info.k==="open"){setBusy(true);try{await addBlock({venueId:venue.id,courtId:court.id,date,startTime:s.start,endTime:s.end});await load();}catch(e){}finally{setBusy(false);}}
+    else if(info.k==="blocked"){setBusy(true);try{await removeBlock(info.b.id);await load();}catch(e){}finally{setBusy(false);}}
   };
+  const changeResv=async(id,st)=>{setBusy(true);try{await setReservationStatus(id,st);await load();}catch(e){}finally{setBusy(false);}};
 
-  const changeResv = async (id, status) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await setReservationStatus(id, status);
-      await load();
-    } catch (e) {
-      window.alert(e?.message || "처리에 실패했어요.");
-    } finally {
-      setBusy(false);
-    }
-  };
+  if(ownerLoading)return <Page><OwnerSpinner label="불러오는 중…"/></Page>;
+  if(!venue||venue.status!=="approved")return <Page><VenueGateNotice venue={venue} refresh={ownerRefresh}/></Page>;
+  if(!courts.length)return <Page><Card><Empty>등록된 코트가 없어요. '구장정보'에서 코트를 추가해주세요.</Empty></Card></Page>;
 
-  // 소프트 게이트: 미등록/심사중/반려면 막지 않고 안내 카드만
-  if (ownerLoading) {
-    return <Page><OwnerSpinner label="불러오는 중…" /></Page>;
-  }
-  // 소프트 게이트: 미등록/심사중/반려면 막지 않고, 예약화면을 흐릿하게 깔고 앞에 안내
-  if (!venue || venue.status !== "approved") {
-    return (
-      <LockedPreview notice={<VenueGateNotice venue={venue} refresh={ownerRefresh} />}>
-        <ReservationSkeleton />
-      </LockedPreview>
-    );
-  }
-  if (!courts.length) {
-    return (
-      <Page>
-        <Card>
-          <Empty>등록된 코트가 없어요. '내 구장' 탭에서 코트를 추가해주세요.</Empty>
-        </Card>
-      </Page>
-    );
-  }
-
-  const pending = reservations.filter((r) => r.status === "requested");
-  const splitWaiting = reservations.filter((r) => r.status === "pending"); // 두 팀 분할결제 대기
-  const others = reservations.filter((r) => !["requested", "pending"].includes(r.status));
+  const sum=slots.reduce((a,s)=>{const k=slotKind(s).k;if(k==="confirmed")a.cf++;else if(k==="pending")a.pd++;else if(k==="blocked")a.bl++;else if(k==="open")a.op++;return a;},{cf:0,pd:0,bl:0,op:0});
+  const requested=dayResv.filter(r=>r.status==="requested");
 
   return (
     <Page>
-      <Card>
-        <SectionTitle>코트 선택</SectionTitle>
-        <CourtTabs>
-          {courts.map((c) => (
-            <CourtTab key={c.id} $on={c.id === court?.id} onClick={() => setCourtId(c.id)}>
-              {c.name}
-            </CourtTab>
-          ))}
-        </CourtTabs>
-        <DateStrip>
-          {dates.map((d) => (
-            <DateCell key={d.date} $on={d.date === date} $dow={d.dow} onClick={() => setDate(d.date)}>
-              <small>{d.wd}</small>
-              <b>{d.day}</b>
-            </DateCell>
-          ))}
-        </DateStrip>
-      </Card>
+      <ScreenTitle>예약관리</ScreenTitle>
+
+      <ChipRow>
+        {courts.map(c=>{const cnt=reservations.filter(r=>r.courtId===c.id&&r.status==="requested").length;return(
+          <CourtChip key={c.id} $on={c.id===court?.id} onClick={()=>setCourtId(c.id)}>
+            {c.name}{cnt>0&&<ChipBadge>{cnt>9?"9+":cnt}</ChipBadge>}
+          </CourtChip>
+        );})}
+      </ChipRow>
 
       <Card>
-        <SectionTitle>시간 슬롯</SectionTitle>
-        <SectionDesc>빈 슬롯을 누르면 예약을 막을 수 있어요. 막힌 슬롯을 다시 누르면 해제됩니다.</SectionDesc>
-        <Legend>
-          <span className="open">예약 가능</span>
-          <span className="reserved">예약됨</span>
-          <span className="blocked">막힘</span>
-        </Legend>
-        {loading ? (
-          <OwnerSpinner label="불러오는 중…" />
-        ) : isClosedDay ? (
-          <Empty>이 요일은 휴무예요. ('내 구장' 탭에서 운영시간을 바꿀 수 있어요)</Empty>
-        ) : slots.length === 0 ? (
-          <Empty>운영 시간이 설정되지 않았어요.</Empty>
-        ) : (
-          <SlotGrid>
-            {slots.map((s, i) => {
-              const info = slotKind(s);
-              return (
-                <Slot key={i} $kind={info.kind} onClick={() => onSlotClick(s, info)}>
-                  <span className="t">{s.start} ~ {s.end}</span>
-                  <span className={`s ${info.kind}`}>
-                    {info.kind === "reserved"
-                      ? `예약 · ${info.resv.teamName || info.resv.userName || "예약자"}`
-                      : info.kind === "blocked"
-                      ? "막힘 (탭하여 해제)"
-                      : "예약 가능"}
-                  </span>
-                </Slot>
-              );
-            })}
-          </SlotGrid>
+        <WeekHead>
+          <WeekNav onClick={()=>setWeekOff(w=>w-1)}><LuChevronLeft size={20}/></WeekNav>
+          <WeekLabel>{weekDays[0]?.date.slice(5).replace("-",".")} ~ {weekDays[6]?.date.slice(5).replace("-",".")}</WeekLabel>
+          <WeekNav onClick={()=>setWeekOff(w=>w+1)}><LuChevronRight size={20}/></WeekNav>
+        </WeekHead>
+        <Days>
+          {weekDays.map(d=>{const c=dayCounts(d.date);return(
+            <Day key={d.date} $on={d.date===date} onClick={()=>setDate(d.date)}>
+              <DayWd $dow={d.dow}>{WEEK[d.dow]}</DayWd>
+              <DayNum $on={d.date===date}>{d.num}</DayNum>
+              <Dots>{c.cf>0&&<Dot $c={C.violet600}/>}{c.pd>0&&<Dot $c={C.amber500}/>}</Dots>
+            </Day>
+          );})}
+        </Days>
+      </Card>
+
+      <Summary>
+        <Sum><SumN $c={C.violet600}>{sum.cf}</SumN><SumL>확정</SumL></Sum>
+        <Sum><SumN $c={C.amber500}>{sum.pd}</SumN><SumL>대기</SumL></Sum>
+        <Sum><SumN $c={C.slate400}>{sum.bl}</SumN><SumL>막기</SumL></Sum>
+        <Sum><SumN $c={C.green600}>{sum.op}</SumN><SumL>가능</SumL></Sum>
+      </Summary>
+
+      <Card>
+        <SecTitle>{date.slice(5).replace("-",".")} 시간대</SecTitle>
+        <Caption>빈 슬롯을 누르면 예약을 막을 수 있어요(타 채널 선점 등). 막은 슬롯을 다시 누르면 해제.</Caption>
+        {loading?<OwnerSpinner label="불러오는 중…"/>:isClosed?<Empty>이 요일은 휴무예요.</Empty>:slots.length===0?<Empty>운영시간이 없어요.</Empty>:(
+          <Grid>
+            {slots.map((s,i)=>{const info=slotKind(s);return(
+              <Slot key={i} $k={info.k} onClick={()=>onSlot(s,info)}>
+                <SlotT>{s.start}~{s.end}</SlotT>
+                <SlotS $k={info.k}>
+                  {info.k==="confirmed"?<><LuCheck size={12}/>확정</>
+                  :info.k==="pending"?<><LuHourglass size={12}/>{info.r?.status==="pending"?"결제대기":"승인대기"}</>
+                  :info.k==="blocked"?<><LuLock size={12}/>막힘</>
+                  :info.k==="past"?"지남"
+                  :<>예약가능 · {court.pricePerHour?Number(court.pricePerHour).toLocaleString()+"원":"무료"}</>}
+                </SlotS>
+              </Slot>
+            );})}
+          </Grid>
         )}
       </Card>
 
-      {splitWaiting.length > 0 && (
-        <Card>
-          <SectionTitle>결제 대기 (두 팀) {`(${splitWaiting.length})`}</SectionTitle>
-          {splitWaiting.map((r) => {
-            const rm = remainMin(r.paymentDeadline);
-            return (
-              <ResvCard key={r.id}>
-                <ResvTop>
-                  <ResvName>{r.teamAName || "팀A"} vs {r.teamBName || "팀B"}</ResvName>
-                  <Badge $tone="pending">결제 대기{rm != null ? ` · ${rm}분 남음` : ""}</Badge>
-                </ResvTop>
-                <ResvMeta>
-                  {r.startTime} ~ {r.endTime}
-                  {r.splitTotal ? ` · 총 ${r.splitTotal.toLocaleString()}원 (반반)` : ""}
-                </ResvMeta>
-                <ResvMeta>
-                  {r.teamAName || "팀A"}: {r.paidByA ? "✓ 결제완료" : "결제대기"}
-                  {"  ·  "}
-                  {r.teamBName || "팀B"}: {r.paidByB ? "✓ 결제완료" : "결제대기"}
-                </ResvMeta>
-              </ResvCard>
-            );
-          })}
-        </Card>
-      )}
-
       <Card>
-        <SectionTitle>승인 대기 예약 {pending.length > 0 && `(${pending.length})`}</SectionTitle>
-        {loading ? null : pending.length === 0 ? (
-          <Empty>승인 대기 중인 예약이 없어요.</Empty>
-        ) : (
-          pending.map((r) => (
-            <ResvCard key={r.id}>
-              <ResvTop>
-                <ResvName>{r.teamName || r.userName || "예약자"}</ResvName>
-                <Badge $tone="pending">{STATUS_LABEL[r.status]}</Badge>
-              </ResvTop>
-              <ResvMeta>
-                {r.startTime} ~ {r.endTime}
-                {r.price ? ` · ${r.price.toLocaleString()}원` : ""}
-                {r.phone ? ` · ${r.phone}` : ""}
-              </ResvMeta>
-              <Actions>
-                <SmallBtn $primary onClick={() => changeResv(r.id, "confirmed")}>승인</SmallBtn>
-                <SmallBtn $danger onClick={() => changeResv(r.id, "rejected")}>거절</SmallBtn>
-              </Actions>
-            </ResvCard>
-          ))
-        )}
+        <SecTitle>승인 대기 {requested.length>0&&`(${requested.length})`}</SecTitle>
+        {requested.length===0?<Empty>승인 대기 중인 예약이 없어요.</Empty>:requested.map(r=>(
+          <Resv key={r.id}>
+            <ResvTop>
+              <ResvName>{r.teamName||r.userName||"예약자"}</ResvName>
+              <StatBadge $tone="pending"><LuHourglass size={11}/>승인대기</StatBadge>
+            </ResvTop>
+            <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원`:""}{r.phone?` · ${r.phone}`:""}</ResvMeta>
+            <Acts>
+              <SBtn $primary onClick={()=>changeResv(r.id,"confirmed")} disabled={busy}>승인</SBtn>
+              <SBtn $danger onClick={()=>changeResv(r.id,"rejected")} disabled={busy}>반려·환불</SBtn>
+            </Acts>
+          </Resv>
+        ))}
       </Card>
-
-      {others.length > 0 && (
-        <Card>
-          <SectionTitle>그 외 예약</SectionTitle>
-          {others.map((r) => (
-            <ResvCard key={r.id}>
-              <ResvTop>
-                <ResvName>{r.teamName || r.userName || "예약자"}</ResvName>
-                <Badge $tone={r.status === "confirmed" ? "approved" : r.status === "rejected" || r.status === "cancelled" ? "rejected" : "default"}>
-                  {STATUS_LABEL[r.status]}
-                </Badge>
-              </ResvTop>
-              <ResvMeta>
-                {r.startTime} ~ {r.endTime}
-                {r.price ? ` · ${r.price.toLocaleString()}원` : ""}
-              </ResvMeta>
-              {r.status === "confirmed" && (
-                <Actions>
-                  <SmallBtn onClick={() => changeResv(r.id, "done")}>이용 완료 처리</SmallBtn>
-                </Actions>
-              )}
-            </ResvCard>
-          ))}
-        </Card>
-      )}
     </Page>
   );
 }

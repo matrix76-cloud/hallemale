@@ -80,9 +80,12 @@ export const MENUS = [
   },
   {
     key: "venues",
-    to: `${A}/venues`,
     icon: IoLocationOutline,
     label: "구장 관리",
+    sub: [
+      { to: `${A}/venues`, label: "구장 목록" },
+      { to: `${A}/settlements`, label: "결제 정산" },
+    ],
   },
   {
     key: "inquiries",

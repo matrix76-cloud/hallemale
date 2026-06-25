@@ -799,8 +799,14 @@ export async function payPartnerShare({ matchId, side, payerUid, payerTeamName }
   await updateDoc(doc(db, "venueReservations", existing.id), {
     ...patch, status: "confirmed", paid: true, updatedAt: serverTimestamp(),
   });
+  // 양 팀 결제 완료 → 매칭도 확정(confirmed)
   await updateDoc(doc(db, "match_requests", id), {
-    "partnerBooking.payState": "paid", "partnerBooking.finalized": true, updatedAt: serverTimestamp(),
+    "partnerBooking.payState": "paid",
+    "partnerBooking.finalized": true,
+    status: "confirmed",
+    confirmedByClubId: sd === "A" ? safeStr(pb.opponentClubId) : safeStr(pb.proposerClubId),
+    confirmedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
   // 구장주 알림 (양 팀 결제 완료 = 예약 확정)

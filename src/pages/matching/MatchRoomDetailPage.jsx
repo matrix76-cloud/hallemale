@@ -545,6 +545,26 @@ const PropV = styled.span`
   font-weight: 600;
   text-align: right;
 `;
+const PropPayBtn = styled.button`
+  margin-top: 8px;
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: 11px;
+  background: #7C3AED;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+const PropPayNote = styled.div`
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b45309;
+  text-align: center;
+`;
 
 /* ───── 제휴구장 분할결제 박스 ───── */
 const PayBox = styled.div`
@@ -3877,15 +3897,26 @@ export default function MatchRoomDetailPage() {
           )}
           {partnerPay?.pb && (() => {
             const pb = partnerPay.pb;
-            const myShare = myClubId === toStr(pb.proposerClubId) ? pb.shareA : pb.shareB;
+            const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
+            const myShare = side === "A" ? pb.shareA : pb.shareB;
+            const myPaid = partnerPay.resv ? (side === "A" ? partnerPay.resv.paidByA : partnerPay.resv.paidByB) : false;
             return (
-              <PropRow>
-                <PropK>구장비</PropK>
-                <PropV>
-                  총 {Number(pb.totalPrice).toLocaleString()}원
-                  <span style={{ color: "#6b7280", fontWeight: 600 }}> · 우리 팀 {Number(myShare).toLocaleString()}원</span>
-                </PropV>
-              </PropRow>
+              <>
+                <PropRow>
+                  <PropK>구장비</PropK>
+                  <PropV>
+                    총 {Number(pb.totalPrice).toLocaleString()}원
+                    <span style={{ color: "#6b7280", fontWeight: 600 }}> · 우리 팀 {Number(myShare).toLocaleString()}원</span>
+                  </PropV>
+                </PropRow>
+                {myPaid ? (
+                  <PropPayNote>우리 팀 결제완료 · 상대팀 결제 대기 중</PropPayNote>
+                ) : (
+                  <PropPayBtn type="button" onClick={() => navigate(`/match-pay/${roomId}`)}>
+                    구장비 결제하기 ({Number(myShare).toLocaleString()}원) →
+                  </PropPayBtn>
+                )}
+              </>
             );
           })()}
         </PropBody>
@@ -4093,10 +4124,10 @@ export default function MatchRoomDetailPage() {
         </ActGhost>
         <ActPrimary
           type="button"
-          onClick={handleConfirmSchedule}
+          onClick={partnerPay?.pb ? () => navigate(`/match-pay/${roomId}`) : handleConfirmSchedule}
           disabled={!canConfirm}
         >
-          수락하고 확정
+          {partnerPay?.pb ? "수락하고 결제" : "수락하고 확정"}
         </ActPrimary>
       </ActBar>
     );

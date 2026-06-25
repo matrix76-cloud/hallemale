@@ -27,6 +27,7 @@ import WelcomePage from "../pages/auth/WelcomePage";
 import KakaoCallbackPage from "../pages/auth/KakaoCallbackPage";
 import MatchRoomListPage from "../pages/matching/MatchRoomListPage";
 import MatchRoomDetailPage from "../pages/matching/MatchRoomDetailPage";
+import MatchPayPage from "../pages/matching/MatchPayPage";
 import MyProfilePage from "../pages/my/MyProfilePage";
 import MyProfileDetailPage from "../pages/my/MyProfileDetailPage";
 import MyPostsPage from "../pages/my/MyPostsPage";
@@ -104,6 +105,7 @@ import AdminChatListPage from "../pages/admin/AdminChatListPage";
 import AdminChatRoomDetailPage from "../pages/admin/AdminChatRoomDetailPage";
 import AdminBannersPage from "../pages/admin/AdminBannersPage";
 import AdminVenuesPage from "../pages/admin/AdminVenuesPage";
+import AdminSettlementsPage from "../pages/admin/AdminSettlementsPage";
 import AdminUpdatesPage from "../pages/admin/AdminUpdatesPage";
 import FinishedMatchesPage from "../pages/matching/FinishedMatchesPage";
 import MyTeamMatchesPage from "../pages/matching/MyTeamMatchesPage";
@@ -122,6 +124,8 @@ import OwnerStatusPage from "../pages/owner/OwnerStatusPage";
 import OwnerHomePage from "../pages/owner/OwnerHomePage";
 import OwnerVenuePage from "../pages/owner/OwnerVenuePage";
 import OwnerMyPage from "../pages/owner/OwnerMyPage";
+import OwnerSalesPage from "../pages/owner/OwnerSalesPage";
+import OwnerSettlementPage from "../pages/owner/OwnerSettlementPage";
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -348,6 +352,7 @@ export default function AppRoutes() {
           <Route path="/admin/chat/list/:chatId" element={<AdminChatRoomDetailPage />} />
           <Route path="/admin/banners" element={<AdminBannersPage />} />
           <Route path="/admin/venues" element={<AdminVenuesPage />} />
+          <Route path="/admin/settlements" element={<AdminSettlementsPage />} />
           <Route path="/admin/inquiries" element={<AdminInquiriesPage />} />
           <Route path="/admin/popups" element={<AdminEventPopupsPage />} />
           <Route path="/admin/updates" element={<AdminUpdatesPage />} />
@@ -375,6 +380,7 @@ export default function AppRoutes() {
           <Route path="/matching" element={<MatchingPage />} />
           <Route path="/match-roomlist" element={<MatchRoomListPage />} />
           <Route path="/match-roomdetail/:roomId" element={<MatchRoomDetailPage />} />
+          <Route path="/match-pay/:id" element={<MatchPayPage />} />
           <Route path="/match-roomdetail/:roomId/venue" element={<MatchRoomDetailPage />} />
 
           <Route path="/venues" element={<VenueListPage />} />
@@ -461,6 +467,8 @@ export default function AppRoutes() {
           <Route path="/owner/pending" element={<OwnerStatusPage />} />
           {/* 소프트 게이트: 막지 않고 입장 → 각 탭에서 등록/심사 안내 */}
           <Route path="/owner/home" element={<OwnerHomePage />} />
+          <Route path="/owner/sales" element={<OwnerSalesPage />} />
+          <Route path="/owner/settlement" element={<OwnerSettlementPage />} />
           <Route path="/owner/venue" element={<OwnerVenuePage />} />
           <Route path="/owner/my" element={<OwnerMyPage />} />
         </Route>
