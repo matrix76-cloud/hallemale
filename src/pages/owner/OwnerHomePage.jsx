@@ -3,11 +3,11 @@
 // 예약관리 — 주간 캘린더 + 시간대별 슬롯 + 요약 + 승인/반려 + 시간막기 (명세서 3)
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import { LuChevronLeft, LuChevronRight, LuLock, LuHourglass, LuCheck } from "react-icons/lu";
+import { LuChevronLeft, LuChevronRight, LuLock, LuHourglass, LuCheck, LuPhone } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
 import {
   listReservations, listBlocks, addBlock, removeBlock, setReservationStatus,
-  dowToKey, expireMatchReservationIfNeeded,
+  dowToKey, expireMatchReservationIfNeeded, resolveSlotPrice,
 } from "../../services/ownerVenueService";
 import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
@@ -44,14 +44,15 @@ const SumL=styled.div`font-size:11px;color:${C.slate500};margin-top:2px;`;
 const Grid=styled.div`display:grid;grid-template-columns:repeat(2,1fr);gap:8px;`;
 const Slot=styled.button`
   display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:11px 12px;border-radius:12px;
-  cursor:${({$k})=>$k==="open"||$k==="blocked"?"pointer":"default"};
-  background:${({$k})=>$k==="confirmed"?C.violet50:"#fff"};
+  cursor:${({$k})=>$k==="open"||$k==="blocked"||$k==="confirmed"||$k==="pending"||$k==="done"?"pointer":"default"};
+  background:${({$k})=>$k==="confirmed"?C.violet50:$k==="done"?"#F8FAFC":"#fff"};
   border:1px solid ${({$k})=>$k==="confirmed"?C.violet300:$k==="pending"?C.amber400:C.slate200};
   ${({$k})=>$k==="pending"?`background-image:repeating-linear-gradient(45deg,#FBBF2422,#FBBF2422 6px,transparent 6px,transparent 12px);`:""}
   opacity:${({$k})=>($k==="past"?0.45:1)};
 `;
 const SlotT=styled.div`font-size:13px;font-weight:700;color:${C.slate800};`;
-const SlotS=styled.div`font-size:11px;font-weight:700;display:flex;align-items:center;gap:3px;color:${({$k})=>$k==="confirmed"?C.violet600:$k==="pending"?C.amber500:$k==="blocked"?C.slate400:$k==="open"?C.green600:C.slate400};`;
+const SlotS=styled.div`font-size:11px;font-weight:700;display:flex;align-items:center;gap:3px;color:${({$k})=>$k==="confirmed"?C.violet600:$k==="pending"?C.amber500:$k==="done"?C.green600:$k==="blocked"?C.slate400:$k==="open"?C.green600:C.slate400};`;
+const SlotTeam=styled.div`font-size:10.5px;font-weight:600;color:${C.slate500};max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const Resv=styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;`;
 const ResvTop=styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;`;
 const ResvName=styled.div`font-size:14px;font-weight:700;color:${C.slate800};`;
@@ -59,6 +60,25 @@ const ResvMeta=styled.div`font-size:12px;color:${C.slate500};`;
 const Acts=styled.div`display:flex;gap:8px;`;
 const SBtn=styled.button`flex:1;height:38px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid ${({$danger})=>$danger?C.red200:C.violet600};background:${({$primary})=>$primary?C.violet600:"transparent"};color:${({$primary,$danger})=>$primary?"#fff":$danger?C.red500:C.violet600};`;
 const Empty=styled.div`text-align:center;font-size:13px;color:${C.slate400};padding:18px 0;`;
+const Overlay=styled.div`position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-end;justify-content:center;z-index:200;`;
+const Sheet=styled.div`
+  box-sizing:border-box;
+  width:100%;max-width:448px;max-height:85vh;overflow-y:auto;
+  background:#fff;border-radius:20px 20px 0 0;
+  padding-top:22px;
+  padding-bottom:calc(24px+env(safe-area-inset-bottom));
+  padding-left:24px;
+  padding-right:24px;
+  display:flex;flex-direction:column;gap:13px;
+`;
+const TeamBlock=styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;`;
+const TeamName=styled.div`font-size:14px;font-weight:800;color:${C.slate800};display:flex;align-items:center;justify-content:space-between;gap:8px;`;
+const MiniCall=styled.a`display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:${C.violet600};text-decoration:none;`;
+const SheetTitle=styled.div`font-size:17px;font-weight:800;color:${C.slate800};display:flex;align-items:center;justify-content:space-between;`;
+const X=styled.button`border:none;background:transparent;color:${C.slate400};font-size:24px;cursor:pointer;line-height:1;`;
+const DRow=styled.div`display:flex;justify-content:space-between;gap:10px;font-size:14px;align-items:center;& > span{color:${C.slate500};} & > b{color:${C.slate800};font-weight:700;text-align:right;}`;
+const Call=styled.a`display:flex;align-items:center;justify-content:center;gap:7px;height:48px;border-radius:12px;background:${C.violet600};color:#fff;font-size:15px;font-weight:800;text-decoration:none;margin-top:4px;`;
+const DoneBtn=styled.button`height:46px;border-radius:12px;border:1px solid ${C.slate200};background:#fff;color:${C.slate800};font-size:14px;font-weight:700;cursor:pointer;`;
 
 export default function OwnerHomePage(){
   const {venue,loading:ownerLoading,refresh:ownerRefresh}=useOwner();
@@ -71,6 +91,7 @@ export default function OwnerHomePage(){
   const [blocks,setBlocks]=useState([]);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
+  const [detailResv,setDetailResv]=useState(null); // 예약 상세 팝업
 
   const court=courts.find(c=>c.id===courtId)||courts[0]||null;
 
@@ -103,6 +124,8 @@ export default function OwnerHomePage(){
   const nowMin=useMemo(()=>{const n=new Date();return{today:ymd(n),min:n.getHours()*60+n.getMinutes()};},[]);
 
   const slotKind=(s)=>{
+    const dn=dayResv.find(r=>r.status==="done"&&overlap(s.start,s.end,r.startTime,r.endTime));
+    if(dn)return{k:"done",r:dn};
     const cf=dayResv.find(r=>r.status==="confirmed"&&overlap(s.start,s.end,r.startTime,r.endTime));
     if(cf)return{k:"confirmed",r:cf};
     const pd=dayResv.find(r=>["requested","pending"].includes(r.status)&&overlap(s.start,s.end,r.startTime,r.endTime));
@@ -112,20 +135,23 @@ export default function OwnerHomePage(){
     if(date===nowMin.today&&toMin(s.start)<=nowMin.min)return{k:"past"};
     return{k:"open"};
   };
+  const slotTeam=(r)=>{ if(!r)return""; if(r.matchId)return `${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`; return r.teamName||r.userName||"예약"; };
   const dayCounts=(dStr)=>{const rs=reservations.filter(r=>r.date===dStr);return{cf:rs.filter(r=>r.status==="confirmed").length,pd:rs.filter(r=>["requested","pending"].includes(r.status)).length};};
 
   const onSlot=async(s,info)=>{
     if(busy)return;
+    if(info.k==="confirmed"||info.k==="pending"||info.k==="done"){ if(info.r) setDetailResv(info.r); return; }
     if(info.k==="open"){setBusy(true);try{await addBlock({venueId:venue.id,courtId:court.id,date,startTime:s.start,endTime:s.end});await load();}catch(e){}finally{setBusy(false);}}
     else if(info.k==="blocked"){setBusy(true);try{await removeBlock(info.b.id);await load();}catch(e){}finally{setBusy(false);}}
   };
+  const markDone=async(id)=>{setBusy(true);try{await setReservationStatus(id,"done");await load();setDetailResv(null);}catch(e){}finally{setBusy(false);}};
   const changeResv=async(id,st)=>{setBusy(true);try{await setReservationStatus(id,st);await load();}catch(e){}finally{setBusy(false);}};
 
   if(ownerLoading)return <Page><OwnerSpinner label="불러오는 중…"/></Page>;
   if(!venue||venue.status!=="approved")return <Page><VenueGateNotice venue={venue} refresh={ownerRefresh}/></Page>;
   if(!courts.length)return <Page><Card><Empty>등록된 코트가 없어요. '구장정보'에서 코트를 추가해주세요.</Empty></Card></Page>;
 
-  const sum=slots.reduce((a,s)=>{const k=slotKind(s).k;if(k==="confirmed")a.cf++;else if(k==="pending")a.pd++;else if(k==="blocked")a.bl++;else if(k==="open")a.op++;return a;},{cf:0,pd:0,bl:0,op:0});
+  const sum=slots.reduce((a,s)=>{const k=slotKind(s).k;if(k==="confirmed"||k==="done")a.cf++;else if(k==="pending")a.pd++;else if(k==="blocked")a.bl++;else if(k==="open")a.op++;return a;},{cf:0,pd:0,bl:0,op:0});
   const requested=dayResv.filter(r=>r.status==="requested");
 
   return (
@@ -174,11 +200,13 @@ export default function OwnerHomePage(){
                 <SlotT>{s.start}~{s.end}</SlotT>
                 <SlotS $k={info.k}>
                   {info.k==="confirmed"?<><LuCheck size={12}/>확정</>
+                  :info.k==="done"?<><LuCheck size={12}/>사용</>
                   :info.k==="pending"?<><LuHourglass size={12}/>{info.r?.status==="pending"?"결제대기":"승인대기"}</>
                   :info.k==="blocked"?<><LuLock size={12}/>막힘</>
                   :info.k==="past"?"지남"
-                  :<>예약가능 · {court.pricePerHour?Number(court.pricePerHour).toLocaleString()+"원":"무료"}</>}
+                  :<>예약가능 · {(()=>{const p=resolveSlotPrice(court,date,s.start);return p?Number(p).toLocaleString()+"원":"무료";})()}</>}
                 </SlotS>
+                {info.r&&<SlotTeam>{slotTeam(info.r)}</SlotTeam>}
               </Slot>
             );})}
           </Grid>
@@ -201,6 +229,50 @@ export default function OwnerHomePage(){
           </Resv>
         ))}
       </Card>
+
+      {detailResv && (()=>{
+        const r=detailResv;
+        const isMatch=!!r.matchId;
+        const label=r.status==="confirmed"?"예약 확정":r.status==="pending"?"결제 대기":r.status==="done"?"이용 완료":r.status;
+        const tone=r.status==="confirmed"?"confirmed":r.status==="pending"?"pending":"done";
+        return (
+          <Overlay onClick={()=>setDetailResv(null)}>
+            <Sheet onClick={e=>e.stopPropagation()}>
+              <SheetTitle>예약 정보 <X onClick={()=>setDetailResv(null)}>×</X></SheetTitle>
+              <DRow><span>상태</span><StatBadge $tone={tone}>{label}</StatBadge></DRow>
+              <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
+              <DRow><span>코트</span><b>{r.courtName||court?.name||"-"}</b></DRow>
+              <DRow><span>금액</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원{isMatch?" (두 팀 반반)":""}</b></DRow>
+
+              {isMatch ? (
+                <>
+                  <DRow style={{marginTop:2}}><span style={{fontWeight:700,color:C.slate800}}>매칭 · 두 팀</span></DRow>
+                  {[
+                    {name:r.teamAName||"팀A", who:r.teamAPayerName, phone:r.teamAPayerPhone, paid:r.paidByA},
+                    {name:r.teamBName||"팀B", who:r.teamBPayerName, phone:r.teamBPayerPhone, paid:r.paidByB},
+                  ].map((t,i)=>(
+                    <TeamBlock key={i}>
+                      <TeamName>{t.name}<StatBadge $tone={t.paid?"done":"pending"}>{t.paid?"결제완료":"대기"}</StatBadge></TeamName>
+                      <DRow><span>대화명</span><b>{t.who||"-"}</b></DRow>
+                      <DRow><span>연락처</span>{t.phone?<MiniCall href={`tel:${t.phone}`}><LuPhone size={13}/> {t.phone}</MiniCall>:<b style={{color:C.slate400}}>미등록</b>}</DRow>
+                    </TeamBlock>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <DRow><span>팀명</span><b>{r.teamName||"-"}</b></DRow>
+                  {r.userName && <DRow><span>예약자 (대화명)</span><b>{r.userName}</b></DRow>}
+                  {r.phone
+                    ? <Call href={`tel:${r.phone}`}><LuPhone size={16}/> {r.phone} 전화걸기</Call>
+                    : <DRow><span>연락처</span><b style={{color:C.slate400}}>미등록</b></DRow>}
+                </>
+              )}
+
+              {r.status==="confirmed" && <DoneBtn onClick={()=>markDone(r.id)} disabled={busy}>이용 완료 처리</DoneBtn>}
+            </Sheet>
+          </Overlay>
+        );
+      })()}
     </Page>
   );
 }

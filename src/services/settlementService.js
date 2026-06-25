@@ -9,7 +9,7 @@
 
 import { db } from "./firebase";
 import {
-  collection, getDocs, doc, updateDoc, writeBatch, serverTimestamp,
+  collection, getDocs, getDoc, doc, updateDoc, writeBatch, serverTimestamp,
 } from "firebase/firestore";
 
 // 플랫폼 수수료율 (구장주에게 지급 = 매출 × (1 - 수수료율))
@@ -54,6 +54,28 @@ export async function listPaidReservations({ from = "", to = "" } = {}) {
   rows = rows.filter((r) => PAID_STATUSES.includes(r.status) && r.price > 0);
   if (from) rows = rows.filter((r) => r.date >= from);
   if (to) rows = rows.filter((r) => r.date <= to);
+
+  // 예약에 venueName/ownerUid 가 없으면 venues 에서 보강 (시드/구버전 데이터 대비)
+  const needVenue = [...new Set(rows.filter((r) => !r.venueName || r.venueName === "(이름 없음)" || !r.ownerUid).map((r) => r.venueId).filter(Boolean))];
+  if (needVenue.length) {
+    const vmap = {};
+    await Promise.all(needVenue.map(async (vid) => {
+      try {
+        const vs = await getDoc(doc(db, "venues", vid));
+        if (vs.exists()) vmap[vid] = vs.data();
+      } catch {}
+    }));
+    rows = rows.map((r) => {
+      const v = vmap[r.venueId];
+      if (!v) return r;
+      return {
+        ...r,
+        venueName: (!r.venueName || r.venueName === "(이름 없음)") ? (s(v.name) || r.venueName) : r.venueName,
+        ownerUid: r.ownerUid || s(v.ownerUid),
+      };
+    });
+  }
+
   rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // 최신순
   return rows;
 }

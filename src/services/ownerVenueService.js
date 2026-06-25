@@ -95,6 +95,37 @@ function normalizeHours(h, fbOpen, fbClose) {
   return out;
 }
 
+// 요일별 요금 구간(band) 정규화 — { mon:[{start,end,price}], ... }
+function normalizeBands(b) {
+  const out = {};
+  for (const d of DAY_KEYS) {
+    out[d] = arr(b?.[d])
+      .map((x) => ({ start: safeStr(x.start), end: safeStr(x.end), price: toNum(x.price) ?? 0 }))
+      .filter((x) => x.start && x.end);
+  }
+  return out;
+}
+// 특정 날짜 요금 오버라이드 — { "YYYY-MM-DD":[{start,end,price}] }
+function normalizeOverrides(o) {
+  const out = {};
+  if (o && typeof o === "object") {
+    for (const k of Object.keys(o)) {
+      const bands = arr(o[k]).map((x) => ({ start: safeStr(x.start), end: safeStr(x.end), price: toNum(x.price) ?? 0 })).filter((x) => x.start && x.end);
+      if (bands.length) out[k] = bands;
+    }
+  }
+  return out;
+}
+function normalizeNotice(n) {
+  const o = n || {};
+  return {
+    id: safeStr(o.id) || ("nt_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+    title: safeStr(o.title),
+    body: safeStr(o.body),
+    pinned: o.pinned === true,
+  };
+}
+
 /** 코트 1개 정규화 */
 function normalizeCourt(c, idx = 0) {
   const o = c || {};
@@ -102,11 +133,39 @@ function normalizeCourt(c, idx = 0) {
     id: safeStr(o.id) || makeCourtId(),
     name: safeStr(o.name) || `${idx + 1}코트`,
     type: o.type === "outdoor" ? "outdoor" : "indoor",
-    pricePerHour: toNum(o.pricePerHour) ?? 0,
+    pricePerHour: toNum(o.pricePerHour) ?? 0, // 기본요금(통일)
     slotMinutes: toNum(o.slotMinutes) || 60,
-    // 요일별 운영시간 (레거시 openTime/closeTime 있으면 그 값으로 전 요일 채움)
     hours: normalizeHours(o.hours, o.openTime, o.closeTime),
+    // 요금 3단계: 기본(pricePerHour) > 요일별(priceBands) > 특정날짜(priceOverrides)
+    priceBands: normalizeBands(o.priceBands),
+    priceOverrides: normalizeOverrides(o.priceOverrides),
+    // 코트별 공지/주의
+    notices: arr(o.notices).map(normalizeNotice),
+    cautions: arr(o.cautions).map((x) => safeStr(x)).filter(Boolean),
   };
+}
+
+/**
+ * 요금 우선순위 해석: 특정날짜 > 요일별 구간 > 기본요금. (시간당 요금 반환)
+ * 사용자앱 예약가/구장주 슬롯표시 공용.
+ */
+export function resolveSlotPrice(court, date, startTime) {
+  if (!court) return 0;
+  const m = hhmmToMin(startTime);
+  const inBand = (bands) => {
+    if (!Array.isArray(bands)) return null;
+    for (const b of bands) {
+      if (m >= hhmmToMin(b.start) && m < hhmmToMin(b.end)) return toNum(b.price) ?? null;
+    }
+    return null;
+  };
+  let p = inBand(court.priceOverrides?.[date]);
+  if (p != null) return p;
+  let dk = "mon";
+  try { dk = dowToKey(new Date(date).getDay()); } catch {}
+  p = inBand(court.priceBands?.[dk]);
+  if (p != null) return p;
+  return toNum(court.pricePerHour) ?? 0;
 }
 
 /** venues 문서 → 화면용 row */
@@ -150,6 +209,36 @@ export function venueRow(d) {
     type: data.type === "outdoor" ? "outdoor" : "indoor",
     cost: data.cost === "free" ? "free" : "paid",
     active: data.active !== false,
+
+    // 사용자 노출 방식 (멀티코트 묶기 vs 독립)
+    displayMode: data.displayMode === "separate" ? "separate" : "grouped",
+    displayName: safeStr(data.displayName) || safeStr(data.name),
+
+    // 사업자 인증 (어드민 수동 승인)
+    business: {
+      bizNo: safeStr(data.business?.bizNo) || safeStr(data.bizNo),
+      bizName: safeStr(data.business?.bizName) || safeStr(data.bizName),
+      ownerName: safeStr(data.business?.ownerName) || safeStr(data.ownerName),
+      openDate: safeStr(data.business?.openDate),
+      taxType: data.business?.taxType === "general" ? "general" : "simple", // 간이|일반
+      licenseUrl: safeStr(data.business?.licenseUrl),
+      status: ["pending", "verified", "rejected"].includes(data.business?.status) ? data.business.status : "none",
+      rejectReason: safeStr(data.business?.rejectReason),
+    },
+    // 통신판매업 신고 (일반과세 필수 / 간이 면제)
+    salesReport: {
+      number: safeStr(data.salesReport?.number),
+      certUrl: safeStr(data.salesReport?.certUrl),
+      exempt: data.salesReport?.exempt === true,
+      status: ["submitted"].includes(data.salesReport?.status) ? "submitted" : "none",
+    },
+    // 정산 계좌
+    settlement: {
+      bank: safeStr(data.settlement?.bank),
+      account: safeStr(data.settlement?.account),
+      holder: safeStr(data.settlement?.holder),
+      verified: data.settlement?.verified === true,
+    },
 
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
@@ -303,6 +392,8 @@ export async function updateMyVenue(id, patch = {}) {
     update.courts = cleanCourts;
     update.type = cleanCourts[0]?.type || "indoor";
   }
+  if (patch.displayMode !== undefined) update.displayMode = patch.displayMode === "separate" ? "separate" : "grouped";
+  if (patch.displayName !== undefined) update.displayName = safeStr(patch.displayName);
 
   await updateDoc(doc(db, "venues", vid), update);
 }
@@ -315,6 +406,61 @@ export async function resubmitVenue(id) {
     status: "pending",
     rejectReason: "",
     active: false,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/* ============================================================
+ * 사업자 인증 / 통신판매업 / 정산 계좌
+ * ========================================================== */
+
+/** 구장주: 사업자 인증 제출 → status=pending (어드민 승인 대기) */
+export async function submitBusinessVerification(id, { bizNo, bizName, ownerName, openDate, taxType, licenseUrl } = {}) {
+  const vid = safeStr(id);
+  if (!vid) throw new Error("id가 비어있습니다.");
+  if (!safeStr(bizNo)) throw new Error("사업자등록번호를 입력해주세요.");
+  await updateDoc(doc(db, "venues", vid), {
+    business: {
+      bizNo: safeStr(bizNo), bizName: safeStr(bizName), ownerName: safeStr(ownerName),
+      openDate: safeStr(openDate), taxType: taxType === "general" ? "general" : "simple",
+      licenseUrl: safeStr(licenseUrl), status: "pending", rejectReason: "",
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** 구장주: 통신판매업 신고 정보 저장 (일반과세 필수 / 간이 면제) */
+export async function saveSalesReport(id, { number, certUrl, exempt } = {}) {
+  const vid = safeStr(id);
+  if (!vid) throw new Error("id가 비어있습니다.");
+  await updateDoc(doc(db, "venues", vid), {
+    salesReport: {
+      number: safeStr(number), certUrl: safeStr(certUrl), exempt: exempt === true,
+      status: exempt ? "none" : (safeStr(number) ? "submitted" : "none"),
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** 구장주: 정산 계좌 저장 (1원 인증은 데모로 즉시 verified) */
+export async function saveSettlementAccount(id, { bank, account, holder } = {}) {
+  const vid = safeStr(id);
+  if (!vid) throw new Error("id가 비어있습니다.");
+  if (!safeStr(bank) || !safeStr(account)) throw new Error("은행/계좌번호를 입력해주세요.");
+  await updateDoc(doc(db, "venues", vid), {
+    settlement: { bank: safeStr(bank), account: safeStr(account), holder: safeStr(holder), verified: true },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** 어드민: 사업자 인증 승인/반려 */
+export async function setBusinessStatus(id, status, reason = "") {
+  const vid = safeStr(id);
+  if (!vid) throw new Error("id가 비어있습니다.");
+  const next = ["pending", "verified", "rejected"].includes(status) ? status : "pending";
+  await updateDoc(doc(db, "venues", vid), {
+    "business.status": next,
+    "business.rejectReason": next === "rejected" ? safeStr(reason) : "",
     updatedAt: serverTimestamp(),
   });
 }
@@ -423,6 +569,10 @@ function reservationRow(d) {
     paidByB: data.paidByB === true,
     teamAPayerUid: safeStr(data.teamAPayerUid),
     teamBPayerUid: safeStr(data.teamBPayerUid),
+    teamAPayerName: safeStr(data.teamAPayerName),
+    teamAPayerPhone: safeStr(data.teamAPayerPhone),
+    teamBPayerName: safeStr(data.teamBPayerName),
+    teamBPayerPhone: safeStr(data.teamBPayerPhone),
     paymentDeadline: safeStr(data.paymentDeadline),
     createdAt: toDate(data.createdAt),
   };
@@ -515,9 +665,9 @@ export async function listBookableVenues() {
   return out;
 }
 
-/** 슬롯 가격 계산 (시간당 가격 × 슬롯시간 비율) */
-export function calcSlotPrice(court, startTime, endTime) {
-  const per = toNum(court?.pricePerHour) ?? 0;
+/** 슬롯 가격 계산 — date 주면 3단계 요금(특정날짜>요일별>기본) 반영, 없으면 기본요금 */
+export function calcSlotPrice(court, startTime, endTime, date) {
+  const per = date ? resolveSlotPrice(court, date, startTime) : (toNum(court?.pricePerHour) ?? 0);
   const mins = Math.max(0, hhmmToMin(endTime) - hhmmToMin(startTime));
   return Math.round((per * mins) / 60);
 }
@@ -557,7 +707,7 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user }
     throw err;
   }
 
-  const price = calcSlotPrice(court, startTime, endTime);
+  const price = calcSlotPrice(court, startTime, endTime, date);
 
   // 2) 피지 결제 (잔액 부족 시 에러 전파)
   await payFizz(uid, price);
@@ -656,7 +806,7 @@ export async function writePartnerBooking({ matchId, venue, court, date, startTi
   const id = safeStr(matchId);
   if (!id) throw new Error("matchId가 필요합니다.");
   await assertSlotFree({ venueId: venue.id, courtId: court.id, date, startTime, endTime });
-  const total = calcSlotPrice(court, startTime, endTime);
+  const total = calcSlotPrice(court, startTime, endTime, date);
   const { shareA, shareB } = splitPrice(total);
 
   await updateDoc(doc(db, "match_requests", id), {
@@ -759,7 +909,7 @@ export async function expireMatchReservationIfNeeded(matchId) {
  *  - 둘째 결제: status=confirmed + 구장주 알림.
  * side = "A"(제안팀) | "B"(상대팀)
  */
-export async function payPartnerShare({ matchId, side, payerUid, payerTeamName }) {
+export async function payPartnerShare({ matchId, side, payerUid, payerTeamName, payerName, payerPhone }) {
   const id = safeStr(matchId);
   const sd = side === "A" ? "A" : "B";
   const uid = safeStr(payerUid);
@@ -796,6 +946,8 @@ export async function payPartnerShare({ matchId, side, payerUid, payerTeamName }
         teamAName: safeStr(pb.proposerTeamName), teamBName: safeStr(pb.opponentTeamName),
         paidByA: sd === "A", paidByB: sd === "B",
         teamAPayerUid: sd === "A" ? uid : "", teamBPayerUid: sd === "B" ? uid : "",
+        teamAPayerName: sd === "A" ? safeStr(payerName) : "", teamAPayerPhone: sd === "A" ? safeStr(payerPhone) : "",
+        teamBPayerName: sd === "B" ? safeStr(payerName) : "", teamBPayerPhone: sd === "B" ? safeStr(payerPhone) : "",
         paymentDeadline: deadlineISO,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
@@ -819,8 +971,8 @@ export async function payPartnerShare({ matchId, side, payerUid, payerTeamName }
   // 둘째 결제 → 확정
   await payFizz(uid, myShare);
   const patch = sd === "A"
-    ? { paidByA: true, teamAPayerUid: uid }
-    : { paidByB: true, teamBPayerUid: uid };
+    ? { paidByA: true, teamAPayerUid: uid, teamAPayerName: safeStr(payerName), teamAPayerPhone: safeStr(payerPhone) }
+    : { paidByB: true, teamBPayerUid: uid, teamBPayerName: safeStr(payerName), teamBPayerPhone: safeStr(payerPhone) };
   await updateDoc(doc(db, "venueReservations", existing.id), {
     ...patch, status: "confirmed", paid: true, updatedAt: serverTimestamp(),
   });

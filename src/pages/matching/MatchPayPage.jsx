@@ -108,7 +108,11 @@ export default function MatchPayPage() {
     if (paying || myPaid) return;
     setPaying(true);
     try {
-      const res = await payPartnerShare({ matchId: id, side, payerUid: uid, payerTeamName: myTeam });
+      const res = await payPartnerShare({
+        matchId: id, side, payerUid: uid, payerTeamName: myTeam,
+        payerName: userDoc?.nickname || "",
+        payerPhone: userDoc?.phoneE164 || userDoc?.phone || "",
+      });
       if (res?.state === "confirmed") {
         navedRef.current = true;
         navigate(`/match-roomdetail/${id}`, { replace: true, state: { celebrateConfirmed: true } });

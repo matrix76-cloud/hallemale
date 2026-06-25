@@ -106,6 +106,7 @@ import AdminChatRoomDetailPage from "../pages/admin/AdminChatRoomDetailPage";
 import AdminBannersPage from "../pages/admin/AdminBannersPage";
 import AdminVenuesPage from "../pages/admin/AdminVenuesPage";
 import AdminSettlementsPage from "../pages/admin/AdminSettlementsPage";
+import AdminRefundsPage from "../pages/admin/AdminRefundsPage";
 import AdminUpdatesPage from "../pages/admin/AdminUpdatesPage";
 import FinishedMatchesPage from "../pages/matching/FinishedMatchesPage";
 import MyTeamMatchesPage from "../pages/matching/MyTeamMatchesPage";
@@ -353,6 +354,7 @@ export default function AppRoutes() {
           <Route path="/admin/banners" element={<AdminBannersPage />} />
           <Route path="/admin/venues" element={<AdminVenuesPage />} />
           <Route path="/admin/settlements" element={<AdminSettlementsPage />} />
+          <Route path="/admin/refunds" element={<AdminRefundsPage />} />
           <Route path="/admin/inquiries" element={<AdminInquiriesPage />} />
           <Route path="/admin/popups" element={<AdminEventPopupsPage />} />
           <Route path="/admin/updates" element={<AdminUpdatesPage />} />

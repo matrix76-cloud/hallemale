@@ -9,6 +9,7 @@ import { createVenue, updateVenue, deleteVenue, uploadVenueImage } from "../../s
 import {
   listAllVenuesAdmin,
   setVenueStatus,
+  setBusinessStatus,
   updateMyVenue,
   defaultCourtHours,
   FACILITY_OPTIONS,
@@ -264,6 +265,24 @@ export default function AdminVenuesPage() {
       await setVenueStatus(row.id, status, reason);
       await load();
       setDetail((d) => (d && d.id === row.id ? { ...d, status, rejectReason: status === "rejected" ? reason : "" } : d));
+    } catch (e) {
+      window.alert(e?.message || "상태 변경 실패");
+    } finally { setBusy(false); }
+  };
+
+  const handleBizStatus = async (row, status) => {
+    let reason = "";
+    if (status === "rejected") {
+      reason = window.prompt(`"${row.name}" 사업자 인증 반려 사유:`, row.business?.rejectReason || "");
+      if (reason === null) return;
+    } else if (status === "verified") {
+      if (!window.confirm(`"${row.name}" 사업자 인증을 승인할까요? 승인 시 구장주가 정산 계좌를 등록할 수 있어요.`)) return;
+    }
+    setBusy(true);
+    try {
+      await setBusinessStatus(row.id, status, reason);
+      await load();
+      setDetail((d) => (d && d.id === row.id ? { ...d, business: { ...d.business, status, rejectReason: status === "rejected" ? reason : "" } } : d));
     } catch (e) {
       window.alert(e?.message || "상태 변경 실패");
     } finally { setBusy(false); }
@@ -535,6 +554,29 @@ export default function AdminVenuesPage() {
                 {detail.bizName && <DRow><b>상호</b><span>{detail.bizName}</span></DRow>}
                 {detail.bizNo && <DRow><b>사업자번호</b><span>{detail.bizNo}</span></DRow>}
                 <DRow><b>구장주 UID</b><span style={{ fontSize: 11, wordBreak: "break-all" }}>{detail.ownerUid}</span></DRow>
+              </Sec>
+            )}
+
+            {detail.ownerUid && detail.business && (
+              <Sec>
+                <SecTitle>🪪 사업자 인증 심사</SecTitle>
+                <DRow><b>인증상태</b><span style={{ fontWeight: 700, color: detail.business.status === "verified" ? "#15803d" : detail.business.status === "pending" ? "#a16207" : detail.business.status === "rejected" ? "#b91c1c" : "#6b7280" }}>
+                  {detail.business.status === "verified" ? "인증완료" : detail.business.status === "pending" ? "심사중" : detail.business.status === "rejected" ? "반려" : "미제출"}
+                </span></DRow>
+                {detail.business.bizNo && <DRow><b>사업자번호</b><span>{detail.business.bizNo}</span></DRow>}
+                {detail.business.openDate && <DRow><b>개업일자</b><span>{detail.business.openDate}</span></DRow>}
+                <DRow><b>과세유형</b><span>{detail.business.taxType === "general" ? "일반과세자(통신판매업 필수)" : "간이과세자(신고 면제)"}</span></DRow>
+                {detail.business.licenseUrl && <DRow><b>등록증</b><span><a href={detail.business.licenseUrl} target="_blank" rel="noreferrer" style={{ color: "#4f46e5" }}>사본 보기</a></span></DRow>}
+                {detail.business.rejectReason && <DRow><b>반려사유</b><span style={{ color: "#b91c1c" }}>{detail.business.rejectReason}</span></DRow>}
+                {detail.business.status === "pending" && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                    <SBtn $primary onClick={() => handleBizStatus(detail, "verified")} disabled={busy}>인증 승인</SBtn>
+                    <SBtn $danger onClick={() => handleBizStatus(detail, "rejected")} disabled={busy}>반려</SBtn>
+                  </div>
+                )}
+                {detail.business.status === "verified" && (
+                  <SBtn onClick={() => handleBizStatus(detail, "pending")} disabled={busy} style={{ marginTop: 6 }}>인증 취소(심사중으로)</SBtn>
+                )}
               </Sec>
             )}
 

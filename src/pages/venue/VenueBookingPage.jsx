@@ -181,7 +181,7 @@ export default function VenueBookingPage() {
     return "open";
   };
 
-  const price = selected && court ? calcSlotPrice(court, selected.start, selected.end) : 0;
+  const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date) : 0;
   const need = Math.max(0, price - balance);
 
   const handleCharge = async (amount) => {
@@ -738,10 +738,12 @@ const BookBtn = styled.button`
 
 const Sheet = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.45); display: flex; align-items: flex-end; justify-content: center; z-index: 950;`;
 const SheetCard = styled.div`
+  box-sizing: border-box;
   width: 100%; max-width: ${({ theme }) => theme.layout.maxWidth}px;
+  max-height: 85vh; overflow-y: auto;
   background: ${({ theme }) => theme.colors.card};
-  border-radius: 18px 18px 0 0; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
-  display: flex; flex-direction: column; gap: 10px;
+  border-radius: 20px 20px 0 0; padding: 22px 22px calc(24px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 11px;
 `;
 const SheetTitle = styled.div`font-size: 17px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong}; margin-bottom: 4px;`;
 const PayRow = styled.div`
