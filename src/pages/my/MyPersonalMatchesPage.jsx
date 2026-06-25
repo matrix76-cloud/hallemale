@@ -3,7 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { teamLogoSrc } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
+import { getTeamRankMap } from "../../services/teamRankingService";
 import { useClub } from "../../hooks/useClub";
 import { loadMatchRoomListPageData } from "../../services/matchRoomService";
 import Spinner from "../../components/common/Spinner";
@@ -45,6 +46,7 @@ export default function MyPersonalMatchesPage() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [rankMap, setRankMap] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -76,6 +78,21 @@ export default function MyPersonalMatchesPage() {
     };
   }, [myClubId]);
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const map = await getTeamRankMap();
+        if (alive) setRankMap(map);
+      } catch (e) {
+        if (alive) setRankMap(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const view = useMemo(() => {
     return (rooms || [])
       .filter((r) => r.status === "finished")
@@ -85,8 +102,10 @@ export default function MyPersonalMatchesPage() {
         return {
           id: r.id,
           myTeamName: r?.myTeam?.name || "내 팀",
+          myTeamId: r?.myTeam?.clubId || r?.myTeam?.id || "",
           myLogo: teamLogoSrc(r?.myTeam?.logoUrl),
           oppTeamName: r?.oppTeam?.name || "상대 팀",
+          oppTeamId: r?.oppTeam?.clubId || r?.oppTeam?.id || "",
           oppLogo: teamLogoSrc(r?.oppTeam?.logoUrl),
           date,
           time,
@@ -121,17 +140,27 @@ export default function MyPersonalMatchesPage() {
                 <TopRow>
                   <TeamRow>
                     <TeamSide>
-                      <TeamLogoWrap>
-                        <TeamLogo src={m.myLogo} alt={m.myTeamName} />
-                      </TeamLogoWrap>
+                      <LogoBox>
+                        {rankMap && rankMap.get(m.myTeamId) >= 1 && rankMap.get(m.myTeamId) <= 3 ? (
+                          <CrownImg src={images.logo} alt={`${rankMap.get(m.myTeamId)}위`} />
+                        ) : null}
+                        <TeamLogoWrap>
+                          <TeamLogo src={m.myLogo} alt={m.myTeamName} />
+                        </TeamLogoWrap>
+                      </LogoBox>
                       <TeamName>{m.myTeamName}</TeamName>
                     </TeamSide>
                     <VsText>VS</VsText>
                     <TeamSide style={{ justifyContent: "flex-end" }}>
                       <TeamName style={{ textAlign: "right" }}>{m.oppTeamName}</TeamName>
-                      <TeamLogoWrap>
-                        <TeamLogo src={m.oppLogo} alt={m.oppTeamName} />
-                      </TeamLogoWrap>
+                      <LogoBox>
+                        {rankMap && rankMap.get(m.oppTeamId) >= 1 && rankMap.get(m.oppTeamId) <= 3 ? (
+                          <CrownImg src={images.logo} alt={`${rankMap.get(m.oppTeamId)}위`} />
+                        ) : null}
+                        <TeamLogoWrap>
+                          <TeamLogo src={m.oppLogo} alt={m.oppTeamName} />
+                        </TeamLogoWrap>
+                      </LogoBox>
                     </TeamSide>
                   </TeamRow>
                 </TopRow>
@@ -234,6 +263,27 @@ const TeamLogoWrap = styled.div`
   overflow: hidden;
   background: ${({ theme }) => theme.colors.border};
   flex-shrink: 0;
+`;
+
+/* 1~3위: 로고 위에 왕관 로고 겹쳐 배치 (앱 전체 공통) */
+const LogoBox = styled.div`
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+`;
+
+const CrownImg = styled.img`
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
 `;
 
 const TeamLogo = styled.img`
