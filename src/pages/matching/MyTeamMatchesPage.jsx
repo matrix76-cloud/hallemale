@@ -1,6 +1,6 @@
 /* eslint-disable */
 // src/pages/matching/MyTeamMatchesPage.jsx
-// 팀원 하단바 전용 "전적" 탭 — 끝난 경기를 커뮤니티처럼 카테고리(리뷰 남길/끝난 경기)로 나누고
+// 팀원 하단바 전용 "전적" 탭 — 완료된 경기를 커뮤니티처럼 카테고리(리뷰 남길/완료된 경기)로 나누고
 // 최신순/오래된순 정렬을 제공. 카드 탭 → 매칭룸 상세에서 리뷰 작성.
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
@@ -268,7 +268,7 @@ const StateWrap = styled.div`
 
 const TABS = [
   { key: "needReview", label: "리뷰 남길 경기" },
-  { key: "done", label: "끝난 경기" },
+  { key: "done", label: "완료된 경기" },
 ];
 
 export default function MyTeamMatchesPage() {
@@ -456,7 +456,7 @@ export default function MyTeamMatchesPage() {
         <StateWrap>
           <EmptyState
             icon="🏀"
-            text={activeTab === "needReview" ? "리뷰를 남길 경기가 없어요." : "끝난 경기가 없어요."}
+            text={activeTab === "needReview" ? "리뷰를 남길 경기가 없어요." : "완료된 경기가 없어요."}
             sub={activeTab === "needReview" ? "경기가 끝나면 여기에서 상대 팀 리뷰를 남길 수 있어요." : undefined}
           />
         </StateWrap>

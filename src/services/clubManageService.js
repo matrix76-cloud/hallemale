@@ -491,20 +491,7 @@ export async function leaveClub({ clubId, uid }) {
 
   await batch.commit();
 
-  // ✅ 강퇴 알림
-  const meta = await resolveClubMetaSafe(cid);
-  await notifyTeamEvent({
-    clubId: cid,
-    targetUids: [tuid],
-    subType: "TEAM_MEMBER_KICKED",
-    type: "team_kicked",
-    title: "팀에서 내보내졌습니다",
-    body: meta.clubName
-      ? `${meta.clubName} 팀에서 강퇴되었습니다.`
-      : "팀에서 강퇴되었습니다.",
-    actorUid: auid,
-  });
-
+  // 자발적 탈퇴이므로 본인에게 별도 알림은 보내지 않는다.
   return { ok: true };
 }
 

@@ -132,9 +132,12 @@ export default function EventPopupModal() {
     pathname.startsWith("/signup") ||
     pathname.startsWith("/find-") ||
     pathname.startsWith("/link-phone");
+  // ✅ 홈 진입 시에만 노출 (다른 탭/화면에서는 표시 안 함)
+  const isHomePath = pathname === "/home" || pathname.startsWith("/home");
 
-  // 로그인 완료 + 어드민/인증/스플래시가 아닌 실제 화면에서만 노출
-  const blocked = isAdminPath || isAuthPath || isSplashPath || authLoading || !isLoggedIn;
+  // 로그인 완료 + 홈 화면일 때만 노출 (어드민/인증/스플래시 제외)
+  const blocked =
+    !isHomePath || isAdminPath || isAuthPath || isSplashPath || authLoading || !isLoggedIn;
 
   useEffect(() => {
     if (blocked) return;

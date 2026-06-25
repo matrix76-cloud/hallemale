@@ -299,7 +299,7 @@ async function notifyChatRecipients({ chatId, fromUid, preview } = {}) {
       actorUid: String(fromUid || ""),
       linkType: "chat",
       linkTargetId: chatId,
-      meta: { chatId, fromUid, deepLink: `/chat/${chatId}` },
+      meta: { chatId, fromUid, deepLink: `/chats/${chatId}` },
       push: { enabled: true, status: "queued", sentAt: null, failReason: null },
       prefsCategory: "chat",
       createdAt: serverTimestamp(),

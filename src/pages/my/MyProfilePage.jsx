@@ -170,7 +170,6 @@ export default function MyProfilePage() {
     if (key === "notice") nav("/settings/notices");
     if (key === "reportBlock") nav("/settings/block-report");
     if (key === "faq") nav("/settings/faq");
-    if (key === "changePassword") nav("/settings/password");
     if (key === "withdraw") nav("/settings/withdraw");
 
     if (key === "privacy") nav("/privacy");

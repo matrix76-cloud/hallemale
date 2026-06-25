@@ -122,6 +122,38 @@ export const getUserDoc = async (uid) => {
 };
 
 /**
+ * ✅ 약관·개인정보·연령(만 14세 이상) 동의 저장
+ * 최초 로그인 후 1회 동의 게이트에서 호출. 마케팅 수신은 선택.
+ */
+export const saveUserConsents = async ({
+  uid,
+  terms,
+  privacy,
+  ageOver14,
+  marketing = false,
+}) => {
+  if (!uid) throw new Error("saveUserConsents: uid is required");
+  if (!terms || !privacy || !ageOver14) {
+    throw new Error("필수 항목(이용약관·개인정보처리방침·만 14세 이상)에 모두 동의해야 합니다.");
+  }
+  const ref = doc(db, "users", uid);
+  // setDoc(merge): 문서가 없는 엣지(소셜-기존계정 연동 등)에서도 실패하지 않도록 보강
+  await setDoc(
+    ref,
+    {
+      termsConsent: true,
+      privacyConsent: true,
+      ageOver14Consent: true,
+      marketingConsent: !!marketing,
+      consentAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+  return { uid };
+};
+
+/**
  * ✅ 프로필 업데이트 (MyProfileEditPage에서 쓰는 필드 전부 지원)
  */
 export const updateUserProfile = async ({

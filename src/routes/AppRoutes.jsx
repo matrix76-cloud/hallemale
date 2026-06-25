@@ -11,20 +11,19 @@ import AuthLayout from "../layouts/AuthLayout";
 
 import HomePage from "../pages/home/HomePage";
 import LoginPage from "../pages/auth/LoginPage";
-import SignupPage from "../pages/auth/SignupPage";
 import ClubOnboardingPage from "../pages/auth/ClubOnboardingPage";
 
 import InvitesPage from "../pages/invites/InvitesPage";
 
 import NotFoundPage from "../pages/system/NotFoundPage";
 import AppLoadingPage from "../pages/system/AppLoadingPage";
+import AgreementGate from "../components/auth/AgreementGate";
 import SplashPage from "../pages/system/SplashPage";
 
 import { useAuth } from "../hooks/useAuth";
 import { useClub } from "../hooks/useClub";
 import WelcomePage from "../pages/auth/WelcomePage";
 import KakaoCallbackPage from "../pages/auth/KakaoCallbackPage";
-import SignupSuccessPage from "../pages/auth/SignupSuccessPage";
 import MatchRoomListPage from "../pages/matching/MatchRoomListPage";
 import MatchRoomDetailPage from "../pages/matching/MatchRoomDetailPage";
 import MyProfilePage from "../pages/my/MyProfilePage";
@@ -47,7 +46,6 @@ import NoticeListPage from "../pages/settings/NoticeListPage";
 import SettingsBlockedPage from "../pages/settings/SettingsBlockedPage";
 import WithdrawPage from "../pages/settings/WithdrawPage";
 import FAQPage from "../pages/settings/FAQPage";
-import ChangePasswordPage from "../pages/settings/ChangePasswordPage";
 
 import NotificationDetailPage from "../pages/notifications/NotificationDetailPage";
 import ChatRoomPage from "../pages/chat/ChatRoomPage";
@@ -76,13 +74,6 @@ import PlayerRankingFullPage from "../pages/player/PlayerRankingFullPage";
 import TeamRankingFullPage from "../pages/team/TeamRankingFullPage";
 import ImpactCampaignPage from "../pages/home/ImpactCampaignPage";
 import MatchAnalysisPage from "../pages/matching/MatchAnalysisPage";
-
-// ✅ Find ID / Password
-import FindIdPage from "../pages/auth/FindIdPage";
-import FindPasswordPage from "../pages/auth/FindPasswordPage";
-
-// ✅ Phone Linking
-import LinkPhonePage from "../pages/auth/LinkPhonePage";
 
 // ✅ Admin
 import AdminShell from "../admin/layout/AdminShell";
@@ -129,6 +120,19 @@ function RequireAuth({ children }) {
 // 카카오 단일 로그인으로 전환하며 전화번호 인증 단계 제거 (2026-06-12).
 // 게이트는 통과만 시킨다. (/link-phone 라우트는 남겨두되 더 이상 진입하지 않음)
 function RequirePhone({ children }) {
+  return children;
+}
+
+// 최초 로그인 후 1회: 만 14세 이상 + 이용약관·개인정보처리방침 동의 게이트.
+// 동의 내역(users.termsConsent/privacyConsent/ageOver14Consent)이 없으면 진입을 막고 동의 화면을 띄운다.
+function RequireConsent({ children }) {
+  const { userDoc, loading } = useAuth();
+  if (loading) return <AppLoadingPage />;
+  const agreed =
+    userDoc?.termsConsent === true &&
+    userDoc?.privacyConsent === true &&
+    userDoc?.ageOver14Consent === true;
+  if (!agreed) return <AgreementGate />;
   return children;
 }
 
@@ -262,23 +266,7 @@ export default function AppRoutes() {
         <Route element={<AuthLayout />}>
           <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/signupsuccess" element={<SignupSuccessPage />} />
           <Route path="/onboarding/club" element={<ClubOnboardingPage />} />
-
-          {/* ✅ 아이디/비밀번호 찾기 */}
-          <Route path="/find-id" element={<FindIdPage />} />
-          <Route path="/find-password" element={<FindPasswordPage />} />
-
-          {/* ✅ 전화번호 연동 (로그인 필수, RequirePhone 밖) */}
-          <Route
-            path="/link-phone"
-            element={
-              <RequireAuth>
-                <LinkPhonePage />
-              </RequireAuth>
-            }
-          />
         </Route>
 
         <Route element={<MainLayout />}>
@@ -347,9 +335,11 @@ export default function AppRoutes() {
           element={
             <RequireAuth>
               <RequirePhone>
+                <RequireConsent>
                 <RequireClub>
                   <MainLayout />
                 </RequireClub>
+                </RequireConsent>
               </RequirePhone>
             </RequireAuth>
           }
@@ -409,7 +399,6 @@ export default function AppRoutes() {
           <Route path="/settings/blocked" element={<SettingsBlockedPage />} />
           <Route path="/settings/withdraw" element={<WithdrawPage />} />
           <Route path="/settings/faq" element={<FAQPage />} />
-          <Route path="/settings/password" element={<ChangePasswordPage />} />
 
           <Route path="/community/write" element={<CommunityWritePage />} />
           <Route path="/communitypost/:postId" element={<CommunityDetailPage />} />
@@ -422,9 +411,11 @@ export default function AppRoutes() {
           element={
             <RequireAuth>
               <RequirePhone>
+                <RequireConsent>
                 <RequireClub>
                   <MainLayout hideHeader />
                 </RequireClub>
+                </RequireConsent>
               </RequirePhone>
             </RequireAuth>
           }

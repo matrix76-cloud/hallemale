@@ -2420,6 +2420,16 @@ const ResultBarSpacer = styled.div`
   height: 84px;
 `;
 
+const ReviewActionBtn = styled.button`
+  border: none;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+`;
+
 /* ───── 지난 경기: 상대 팀 선수 평점 카드 ───── */
 const ReviewHeadRow = styled.div`
   display: flex;
@@ -2859,6 +2869,7 @@ export default function MatchRoomDetailPage() {
   const [reviewStars, setReviewStars] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [editingReview, setEditingReview] = useState(false); // 등록된 리뷰 → "수정" 누르면 편집 모드
   const reviewPrefillRef = useRef("");
 
   // 내가 이전에 남긴 리뷰가 있으면 입력칸에 한 번 채움 (경기별 1회)
@@ -3847,9 +3858,10 @@ export default function MatchRoomDetailPage() {
         comment: reviewComment,
       });
       reviewPrefillRef.current = ""; // 새 데이터로 prefill 재적용 허용
-      await refresh();
-      if (showToast) showToast("리뷰를 남겼어요. 감사합니다!");
-      else window.alert("리뷰를 남겼어요. 감사합니다!");
+      await refresh();               // room.reviews 갱신 → 등록된 리뷰 카드로 표시
+      setEditingReview(false);
+      window.alert("리뷰가 등록되었습니다.");
+      return;
     } catch (e) {
       window.alert(e?.message || "리뷰 등록에 실패했습니다.");
     } finally {
@@ -3859,6 +3871,10 @@ export default function MatchRoomDetailPage() {
 
   const handleAcceptResult = async () => {
     if (!myClubId) return;
+    if (!isTeamLeader) {
+      window.alert("경기 결과 인정은 팀장만 할 수 있어요.");
+      return;
+    }
     setResultBusy(true);
     try {
       await acceptMatchResult({ matchRequestId: room.id, confirmedByClubId: myClubId });
@@ -3873,6 +3889,10 @@ export default function MatchRoomDetailPage() {
   };
 
   const handleDisputeResult = async () => {
+    if (!isTeamLeader) {
+      window.alert("이의 제기는 팀장만 할 수 있어요.");
+      return;
+    }
     const ok = window.confirm("이의 제기할까요?");
     if (!ok) return;
 
@@ -4447,15 +4467,21 @@ export default function MatchRoomDetailPage() {
 
       {!iSubmittedResult ? (
         <>
-          <ScoreHeroHint>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ScoreHeroHint>
-          <ResultActionsRow>
-            <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
-              {resultBusy ? "처리중..." : "결과 인정"}
-            </ResultButton>
-            <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
-              이의 제기
-            </ResultButton>
-          </ResultActionsRow>
+          {isTeamLeader ? (
+            <>
+              <ScoreHeroHint>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ScoreHeroHint>
+              <ResultActionsRow>
+                <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
+                  {resultBusy ? "처리중..." : "결과 인정"}
+                </ResultButton>
+                <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
+                  이의 제기
+                </ResultButton>
+              </ResultActionsRow>
+            </>
+          ) : (
+            <ScoreHeroHint>상대팀이 제출한 결과입니다. 결과 인정·이의 제기는 팀장이 처리해요.</ScoreHeroHint>
+          )}
           {autoConfirmAtLabel ? (
             <ResultStatusText>
               ⏳ {autoConfirmAtLabel}까지 승인하지 않으면 상대팀이 입력한 결과로 자동 확정됩니다.
@@ -4493,15 +4519,29 @@ export default function MatchRoomDetailPage() {
       </SectionTitleRow>
 
       {!resultState && !canOpenResultInput && (
-        <ResultInfoBox>
-          경기 시작 후 <strong>{venueDurLabel || "경기 시간"}</strong>이 지나면 경기 결과를 입력할 수 있어요.
-          {resultOpenAtLabel ? (
-            <>
-              <br />
-              입력 가능 시간: <strong>{resultOpenAtLabel}</strong>
-            </>
-          ) : null}
-        </ResultInfoBox>
+        isViewerMyTeam && !isTeamLeader ? (
+          <ResultInfoBox>
+            경기 결과(스코어)는 <strong>팀장</strong>이 입력해요.
+            <br />
+            경기가 끝나면 아래에서 상대 팀 <strong>리뷰</strong>를 남길 수 있어요.
+            {resultOpenAtLabel ? (
+              <>
+                <br />
+                리뷰 가능 시간: <strong>{resultOpenAtLabel}</strong>
+              </>
+            ) : null}
+          </ResultInfoBox>
+        ) : (
+          <ResultInfoBox>
+            경기 시작 후 <strong>{venueDurLabel || "경기 시간"}</strong>이 지나면 경기 결과를 입력할 수 있어요.
+            {resultOpenAtLabel ? (
+              <>
+                <br />
+                입력 가능 시간: <strong>{resultOpenAtLabel}</strong>
+              </>
+            ) : null}
+          </ResultInfoBox>
+        )
       )}
 
       {/* ✅ 팀원: 결과(스코어) 입력은 팀장 전용 안내 */}
@@ -4589,14 +4629,32 @@ export default function MatchRoomDetailPage() {
   );
 
   // ✅ 내가 상대 팀에 남기는 리뷰 카드 (팀장·팀원 공통, 지난 경기) — 1인 1리뷰
-  const myHasReview = allReviews.some((r) => toStr(r.raterUid) === myUid);
-  const myReviewSection = (
+  const myReview = allReviews.find((r) => toStr(r.raterUid) === myUid) || null;
+  const myHasReview = !!myReview;
+  // 이미 등록한 리뷰가 있으면 기본은 "등록됨" 표시, "수정" 누르면 편집 모드
+  const reviewEditing = !myHasReview || editingReview;
+
+  const startEditReview = () => {
+    if (myReview) {
+      setReviewStars(Math.max(0, Math.min(5, Number(myReview.stars) || 0)));
+      setReviewComment(toStr(myReview.comment));
+    }
+    setEditingReview(true);
+  };
+
+  const myReviewSection = reviewEditing ? (
     <SectionCard>
       <SectionTitleRow>
         <SectionTitleLeft>
-          <span>{oppName} 리뷰 남기기</span>
+          <span>{oppName} 리뷰 {myHasReview ? "수정" : "남기기"}</span>
         </SectionTitleLeft>
-        <SectionTitleActions />
+        <SectionTitleActions>
+          {myHasReview && (
+            <ReviewActionBtn type="button" onClick={() => setEditingReview(false)}>
+              취소
+            </ReviewActionBtn>
+          )}
+        </SectionTitleActions>
       </SectionTitleRow>
       <RatingSubtitle>매너·실력을 별점으로 남기면 상대 팀 평판에 반영돼요. 팀원도 남길 수 있어요.</RatingSubtitle>
       <StarsRow>
@@ -4620,9 +4678,37 @@ export default function MatchRoomDetailPage() {
       />
       <ResultSubmitBar>
         <PrimaryButton type="button" onClick={handleSubmitReview} disabled={reviewBusy || reviewStars < 1}>
-          {reviewBusy ? "처리중..." : myHasReview ? "리뷰 수정" : "리뷰 남기기"}
+          {reviewBusy ? "처리중..." : myHasReview ? "리뷰 수정 완료" : "리뷰 남기기"}
         </PrimaryButton>
       </ResultSubmitBar>
+    </SectionCard>
+  ) : (
+    <SectionCard>
+      <SectionTitleRow>
+        <SectionTitleLeft>
+          <span>{oppName}에 남긴 리뷰</span>
+        </SectionTitleLeft>
+        <SectionTitleActions>
+          <ReviewActionBtn type="button" onClick={startEditReview}>
+            수정
+          </ReviewActionBtn>
+        </SectionTitleActions>
+      </SectionTitleRow>
+      <RatingSubtitle>내가 남긴 리뷰예요. 언제든 수정할 수 있어요.</RatingSubtitle>
+      <ReviewList>
+        <ReviewItem>
+          <ReviewBody>
+            <ReviewNameRow>
+              <ReviewName>내 리뷰</ReviewName>
+              <ReviewStars>{starString(Math.round(Number(myReview.stars) || 0))}</ReviewStars>
+            </ReviewNameRow>
+            {myReview.comment ? <ReviewText>{toStr(myReview.comment)}</ReviewText> : null}
+            {formatShortDate(myReview.updatedAt || myReview.createdAt) ? (
+              <ReviewDate>{formatShortDate(myReview.updatedAt || myReview.createdAt)}</ReviewDate>
+            ) : null}
+          </ReviewBody>
+        </ReviewItem>
+      </ReviewList>
     </SectionCard>
   );
 
@@ -5414,17 +5500,21 @@ export default function MatchRoomDetailPage() {
                     ) : null}
 
                     {!iSubmittedResult ? (
-                      <>
-                        <ResultStatusText>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ResultStatusText>
-                        <ResultActionsRow>
-                          <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
-                            {resultBusy ? "처리중..." : "결과 인정"}
-                          </ResultButton>
-                          <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
-                            이의 제기
-                          </ResultButton>
-                        </ResultActionsRow>
-                      </>
+                      isTeamLeader ? (
+                        <>
+                          <ResultStatusText>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ResultStatusText>
+                          <ResultActionsRow>
+                            <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
+                              {resultBusy ? "처리중..." : "결과 인정"}
+                            </ResultButton>
+                            <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
+                              이의 제기
+                            </ResultButton>
+                          </ResultActionsRow>
+                        </>
+                      ) : (
+                        <ResultStatusText>상대팀이 제출한 결과입니다. 결과 인정·이의 제기는 팀장이 처리해요.</ResultStatusText>
+                      )
                     ) : (
                       <ResultStatusText>상대팀 승인을 기다리는 중입니다.</ResultStatusText>
                     )}

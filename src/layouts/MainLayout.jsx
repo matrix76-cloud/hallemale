@@ -165,7 +165,6 @@ export default function MainLayout({ hideHeader = false }) {
     if (p === "/settings/notices") return "공지사항";
     if (p === "/settings/block-report") return "신고/차단";
     if (p === "/settings/faq") return "FAQ";
-    if (p === "/settings/password") return "비밀번호 변경";
 
     if (p.startsWith("/my")) return "내 정보";
     if (p === "/community/write") return "게시글 쓰기";
