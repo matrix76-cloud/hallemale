@@ -21,6 +21,7 @@ import AgreementGate from "../components/auth/AgreementGate";
 import SplashPage from "../pages/system/SplashPage";
 
 import { useAuth } from "../hooks/useAuth";
+import { useOwnerAuth } from "../hooks/useOwnerAuth";
 import { useClub } from "../hooks/useClub";
 import WelcomePage from "../pages/auth/WelcomePage";
 import KakaoCallbackPage from "../pages/auth/KakaoCallbackPage";
@@ -109,6 +110,8 @@ import MyTeamMatchesPage from "../pages/matching/MyTeamMatchesPage";
 import EventPage from "../pages/event/EventPage";
 import AdminEventPopupsPage from "../pages/admin/AdminEventPopupsPage";
 import VenueDetailPage from "../pages/venue/VenueDetailPage";
+import VenueListPage from "../pages/venue/VenueListPage";
+import VenueBookingPage from "../pages/venue/VenueBookingPage";
 
 // ✅ 구장 관리자(구장주) 워크스페이스
 import OwnerLayout from "../layouts/OwnerLayout";
@@ -152,9 +155,10 @@ function RequireClub({ children }) {
   return children;
 }
 
-// 구장 관리자 전용 인증 게이트 — 미로그인 시 /owner/login 으로 (일반 /login 아님)
+// 구장 관리자 전용 인증 게이트 — 사용자 앱과 분리된 ownerAuth 세션 기준.
+// 미로그인 시 /owner/login 으로 (일반 /login 아님)
 function RequireOwnerAuth({ children }) {
-  const { isLoggedIn, loading } = useAuth();
+  const { isLoggedIn, loading } = useOwnerAuth();
   if (loading) return <AppLoadingPage />;
   if (!isLoggedIn) return <Navigate to="/owner/login" replace />;
   return children;
@@ -373,6 +377,8 @@ export default function AppRoutes() {
           <Route path="/match-roomdetail/:roomId" element={<MatchRoomDetailPage />} />
           <Route path="/match-roomdetail/:roomId/venue" element={<MatchRoomDetailPage />} />
 
+          <Route path="/venues" element={<VenueListPage />} />
+          <Route path="/venue-book/:id" element={<VenueBookingPage />} />
           <Route path="/venues/:id" element={<VenueDetailPage />} />
 
           <Route path="/matches/finished" element={<FinishedMatchesPage />} />

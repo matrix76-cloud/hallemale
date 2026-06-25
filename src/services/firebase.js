@@ -43,6 +43,15 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
+// ✅ 구장 관리자(구장주) 전용 Auth 인스턴스.
+//    같은 origin이라도 별도 Firebase 앱("owner")으로 분리하면 Auth 세션 저장소가
+//    독립적으로 관리되어, 사용자 앱 로그인과 구장주 로그인이 서로 섞이지 않는다.
+//    (같은 브라우저에서 사용자=A계정 / 구장주=B계정 동시 로그인 가능)
+//    Firestore/Storage는 같은 프로젝트(db) 공유 — 보안규칙 전면허용 상태라 동작에 무관.
+export const ownerApp =
+  getApps().find((a) => a.name === "owner") || initializeApp(firebaseConfig, "owner");
+export const ownerAuth = getAuth(ownerApp);
+
 // Analytics는 브라우저에서만 + measurementId 있을 때만 안전하게 활성화
 export const getAnalyticsIfAvailable = async () => {
   if (analytics) return analytics;

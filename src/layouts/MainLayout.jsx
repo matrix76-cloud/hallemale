@@ -129,6 +129,8 @@ export default function MainLayout({ hideHeader = false }) {
     if (p.startsWith("/home")) return "할래말래";
     if (p.startsWith("/matchingmanage")) return "매칭관리";
     if (p.startsWith("/records")) return "전적";
+    if (p === "/venues") return "구장 예약";
+    if (p.startsWith("/venue-book")) return "구장 예약";
     if (p === "/matching") return "매칭하기";
     if (p === "/match-roomlist") return "매칭룸";
     if (p.endsWith("/venue")) return "구장 정하기";
@@ -181,6 +183,8 @@ export default function MainLayout({ hideHeader = false }) {
 
   const showBack =
     p === "/matching" ||
+    p === "/venues" ||
+    p.startsWith("/venue-book") ||
     p.startsWith("/matching/analysis") ||
     p.startsWith("/team") ||
     p.startsWith("/player") ||

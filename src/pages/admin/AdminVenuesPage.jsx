@@ -10,9 +10,12 @@ import {
   listAllVenuesAdmin,
   setVenueStatus,
   updateMyVenue,
+  defaultCourtHours,
+  FACILITY_OPTIONS,
   DAY_KEYS,
   DAY_LABELS,
 } from "../../services/ownerVenueService";
+import CourtHoursEditor from "../owner/components/CourtHoursEditor";
 
 const PAGE_SIZE = 8;
 
@@ -163,12 +166,44 @@ const FInput = styled.input`height: 38px; padding: 0 12px; border-radius: 8px; b
 const FTextarea = styled.textarea`min-height: 60px; padding: 10px 12px; border-radius: 8px; border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"}; background: ${({ theme }) => theme?.colors?.card || "#fff"}; color: ${({ theme }) => theme?.colors?.textStrong || "#111827"}; font-size: 13px; font-family: inherit; resize: vertical;`;
 const FSelect = styled.select`height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"}; background: ${({ theme }) => theme?.colors?.card || "#fff"}; color: ${({ theme }) => theme?.colors?.textStrong || "#111827"}; font-size: 13px;`;
 const FRow = styled.div`display: flex; gap: 10px; & > * { flex: 1; }`;
-const ImgPick = styled.div`width: 100%; height: 130px; border-radius: 8px; border: 1.5px dashed ${({ theme }) => theme?.colors?.border || "#d1d5db"}; display: grid; place-items: center; background: ${({ theme }) => theme?.colors?.surface || "#f9fafb"}; overflow: hidden; cursor: pointer; margin-bottom: 10px;`;
-const ImgPrev = styled.img`width: 100%; height: 100%; object-fit: cover;`;
 const Hidden = styled.input`display: none;`;
+const Notice = styled.div`
+  font-size: 12px; line-height: 1.5; padding: 10px 12px; margin-bottom: 12px;
+  border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+`;
+const FormSecTitle = styled.div`
+  font-size: 13px; font-weight: 800; margin: 16px 0 8px;
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
+`;
+const PhotoStrip = styled.div`display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 10px;`;
+const PhotoBox = styled.div`position: relative; flex: 0 0 auto; width: 104px; height: 78px; border-radius: 8px; overflow: hidden; border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};`;
+const PhotoImg2 = styled.img`width: 100%; height: 100%; object-fit: cover;`;
+const RemovePhoto = styled.button`position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 999px; border: none; background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; line-height: 1; cursor: pointer;`;
+const AddPhoto = styled.button`flex: 0 0 auto; width: 104px; height: 78px; border-radius: 8px; border: 1.5px dashed ${({ theme }) => theme?.colors?.border || "#d1d5db"}; background: ${({ theme }) => theme?.colors?.surface || "#f9fafb"}; color: ${({ theme }) => theme?.colors?.textWeak || "#9ca3af"}; font-size: 12px; cursor: pointer;`;
+const FacWrap = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;`;
+const FacBtn = styled.button`
+  padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  border: 1px solid ${({ $on, theme }) => ($on ? (theme?.colors?.primary || "#4f46e5") : (theme?.colors?.border || "#e5e7eb"))};
+  background: ${({ $on, theme }) => ($on ? (theme?.colors?.primary || "#4f46e5") : "transparent")};
+  color: ${({ $on, theme }) => ($on ? "#fff" : (theme?.colors?.textNormal || "#4b5563"))};
+`;
+const CourtCard = styled.div`border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"}; border-radius: 10px; padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;`;
+const CourtHead = styled.div`display: flex; align-items: center; justify-content: space-between;`;
+const DelLink = styled.button`border: none; background: transparent; color: #b91c1c; font-size: 12.5px; font-weight: 700; cursor: pointer;`;
+const GhostBtn = styled.button`height: 38px; border-radius: 8px; border: 1.5px dashed ${({ theme }) => theme?.colors?.border || "#d1d5db"}; background: transparent; color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"}; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%;`;
 
 function emptyForm() {
-  return { id: null, name: "", address: "", addressDetail: "", lat: "", lng: "", imageUrl: "", storagePath: "", type: "indoor", cost: "free", memo: "", order: 0, active: true };
+  return {
+    id: null, ownerUid: null,
+    name: "", address: "", addressDetail: "", region: "", phone: "",
+    lat: "", lng: "", imageUrl: "", storagePath: "",
+    type: "indoor", cost: "free", active: true, order: 0,
+    description: "", rules: "", refundPolicy: "",
+    ownerName: "", contactPhone: "", bizName: "", bizNo: "",
+  };
+}
+function makeCourt(idx) {
+  return { name: `${idx + 1}코트`, type: "indoor", pricePerHour: "", slotMinutes: 60, hours: defaultCourtHours() };
 }
 
 export default function AdminVenuesPage() {
@@ -180,8 +215,11 @@ export default function AdminVenuesPage() {
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState(null); // 상세 모달 venue
 
-  // 추천구장 생성 폼
+  // 구장 등록/수정 폼 (추천구장 + 구장주구장 공통, 전체 데이터 편집)
   const [form, setForm] = useState(emptyForm());
+  const [photos, setPhotos] = useState([]);       // [{url, storagePath}]
+  const [facilities, setFacilities] = useState([]); // [string]
+  const [courts, setCourts] = useState([]);       // [{name,type,pricePerHour,slotMinutes,hours}]
   const [formOpen, setFormOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const isEditing = !!form.id;
@@ -243,35 +281,108 @@ export default function AdminVenuesPage() {
     } finally { setBusy(false); }
   };
 
-  /* 추천구장 생성/수정 */
+  /* 구장 생성/수정 (전체 데이터) */
   const updateForm = (p) => setForm((prev) => ({ ...prev, ...p }));
-  const openCreate = () => { setForm(emptyForm()); setFormOpen(true); };
-  const closeForm = () => { setForm(emptyForm()); setFormOpen(false); };
+  const resetForm = () => { setForm(emptyForm()); setPhotos([]); setFacilities([]); setCourts([]); };
+  const openCreate = () => { resetForm(); setFormOpen(true); };
+  const closeForm = () => { resetForm(); setFormOpen(false); };
   const pickImage = () => { if (!busy && !uploading) fileRef.current?.click(); };
   const onFile = async (e) => {
     const file = e.target.files?.[0]; if (!file) return; e.target.value = "";
     setUploading(true);
-    try { const { imageUrl, storagePath } = await uploadVenueImage(file); updateForm({ imageUrl, storagePath }); }
-    catch (err) { window.alert(err?.message || "업로드 실패"); }
+    try {
+      const { imageUrl, storagePath } = await uploadVenueImage(file);
+      setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
+    } catch (err) { window.alert(err?.message || "업로드 실패"); }
     finally { setUploading(false); }
   };
+  const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+
+  const toggleFacility = (f) =>
+    setFacilities((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
+
+  const setCourt = (i, patch) => setCourts((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  const addCourt = () => setCourts((prev) => [...prev, makeCourt(prev.length)]);
+  const removeCourt = (i) => setCourts((prev) => prev.filter((_, idx) => idx !== i));
+
   const saveForm = async () => {
     if (!form.name.trim()) return window.alert("구장명을 입력해주세요.");
     if (!form.address.trim()) return window.alert("주소를 입력해주세요.");
+    if (courts.some((c) => !c.name.trim())) return window.alert("코트 이름을 모두 입력해주세요.");
     setBusy(true);
     try {
-      if (isEditing) await updateVenue(form.id, form);
-      else await createVenue(form);
+      const venueType = courts[0]?.type || form.type || "indoor";
+      if (isEditing) {
+        // 수정 — 전체 필드 저장(updateMyVenue: 리치필드/코트/사진/편의시설/사업자정보)
+        await updateMyVenue(form.id, {
+          name: form.name.trim(),
+          address: form.address.trim(),
+          addressDetail: form.addressDetail?.trim() || "",
+          region: form.region || "",
+          phone: form.phone || "",
+          lat: form.lat === "" ? null : Number(form.lat),
+          lng: form.lng === "" ? null : Number(form.lng),
+          photos: photos.map((p) => p.url),
+          storagePaths: photos.map((p) => p.storagePath),
+          facilities,
+          courts,
+          description: form.description || "",
+          rules: form.rules || "",
+          refundPolicy: form.refundPolicy || "",
+          ownerName: form.ownerName || "",
+          contactPhone: form.contactPhone || "",
+          bizName: form.bizName || "",
+          bizNo: form.bizNo || "",
+        });
+        // updateMyVenue 가 다루지 않는 type/cost/active 는 venuesService 로 보완 저장
+        await updateVenue(form.id, { type: venueType, cost: form.cost, active: !!form.active });
+      } else {
+        // 신규 추천구장 — 기본 정보로 생성 후, 리치필드가 있으면 추가 저장
+        const created = await createVenue({
+          name: form.name.trim(), address: form.address.trim(), addressDetail: form.addressDetail,
+          lat: form.lat, lng: form.lng, imageUrl: photos[0]?.url || "", storagePath: photos[0]?.storagePath || "",
+          type: venueType, cost: form.cost, memo: form.description, order: form.order, active: !!form.active,
+        });
+        const newId = created?.id || created;
+        if (newId && (photos.length || facilities.length || courts.length || form.description || form.rules)) {
+          await updateMyVenue(newId, {
+            photos: photos.map((p) => p.url), storagePaths: photos.map((p) => p.storagePath),
+            facilities, courts, description: form.description || "", rules: form.rules || "",
+            refundPolicy: form.refundPolicy || "", phone: form.phone || "", region: form.region || "",
+          });
+        }
+      }
       closeForm(); await load();
     } catch (e) { window.alert(e?.message || "저장 실패"); }
     finally { setBusy(false); }
   };
-  const editRecommended = (row) => {
+
+  // 추천구장·구장주구장 공통 수정 진입 — 전체 데이터 프리필
+  const editVenue = (row) => {
     setForm({
-      id: row.id, name: row.name, address: row.address, addressDetail: row.addressDetail,
-      lat: row.lat ?? "", lng: row.lng ?? "", imageUrl: row.imageUrl, storagePath: row.storagePath,
-      type: row.type, cost: row.cost, memo: row.description || "", order: 0, active: row.active,
+      id: row.id, ownerUid: row.ownerUid || null,
+      name: row.name || "", address: row.address || "", addressDetail: row.addressDetail || "",
+      region: row.region || "", phone: row.phone || "",
+      lat: row.lat ?? "", lng: row.lng ?? "",
+      imageUrl: row.imageUrl || "", storagePath: row.storagePath || "",
+      type: row.type || "indoor", cost: row.cost || "free", active: row.active !== false, order: row.order || 0,
+      description: row.description || "", rules: row.rules || "", refundPolicy: row.refundPolicy || "",
+      ownerName: row.ownerName || "", contactPhone: row.contactPhone || "",
+      bizName: row.bizName || "", bizNo: row.bizNo || "",
     });
+    setPhotos(
+      row.photos?.length
+        ? row.photos.map((url, i) => ({ url, storagePath: row.storagePaths?.[i] || "" }))
+        : row.imageUrl ? [{ url: row.imageUrl, storagePath: row.storagePath || "" }] : []
+    );
+    setFacilities(row.facilities || []);
+    setCourts(
+      (row.courts || []).map((c, i) => ({
+        name: c.name || `${i + 1}코트`, type: c.type || "indoor",
+        pricePerHour: String(c.pricePerHour ?? ""), slotMinutes: c.slotMinutes || 60,
+        hours: c.hours || defaultCourtHours(),
+      }))
+    );
     setFormOpen(true);
   };
 
@@ -431,7 +542,7 @@ export default function AdminVenuesPage() {
               {detail.status !== "approved" && <SBtn $primary onClick={() => changeStatus(detail, "approved")} disabled={busy}>승인</SBtn>}
               {detail.status !== "rejected" && <SBtn $danger onClick={() => changeStatus(detail, "rejected")} disabled={busy}>반려</SBtn>}
               {detail.status !== "pending" && <SBtn onClick={() => changeStatus(detail, "pending")} disabled={busy}>신청대기로</SBtn>}
-              {!detail.ownerUid && <SBtn onClick={() => { const d = detail; setDetail(null); editRecommended(d); }}>정보 수정</SBtn>}
+              <SBtn $primary onClick={() => { const d = detail; setDetail(null); editVenue(d); }}>정보 수정</SBtn>
               <SBtn $danger onClick={() => handleDelete(detail)} disabled={busy}>삭제</SBtn>
             </ModalActions>
           </Modal>
@@ -443,17 +554,37 @@ export default function AdminVenuesPage() {
         <Overlay onClick={(e) => { if (e.target === e.currentTarget && !busy && !uploading) closeForm(); }}>
           <Modal onClick={(e) => e.stopPropagation()}>
             <ModalHead>
-              <ModalTitle>{isEditing ? "추천 구장 수정" : "추천 구장 등록"}</ModalTitle>
+              <ModalTitle>{form.ownerUid ? "구장 정보 수정" : isEditing ? "추천 구장 수정" : "추천 구장 등록"}</ModalTitle>
               <Close type="button" onClick={closeForm} disabled={busy || uploading}>×</Close>
             </ModalHead>
 
-            <ImgPick onClick={pickImage}>
-              {form.imageUrl ? <ImgPrev src={form.imageUrl} alt="" /> : <span style={{ fontSize: 12, color: "#9ca3af" }}>{uploading ? "업로드 중…" : "클릭해서 이미지 선택"}</span>}
-            </ImgPick>
+            {form.ownerUid && (
+              <Notice>구장주가 등록한 구장입니다. 여기서 수정하면 구장주 화면·사용자 노출에도 그대로 반영됩니다.</Notice>
+            )}
 
+            {/* 사진 (여러 장) */}
+            <FormSecTitle>구장 사진</FormSecTitle>
+            <PhotoStrip>
+              {photos.map((p, i) => (
+                <PhotoBox key={i}>
+                  <PhotoImg2 src={p.url} alt={`사진 ${i + 1}`} />
+                  <RemovePhoto type="button" onClick={() => removePhoto(i)}>×</RemovePhoto>
+                </PhotoBox>
+              ))}
+              <AddPhoto type="button" onClick={pickImage} disabled={uploading}>
+                {uploading ? "업로드 중…" : "＋ 사진"}
+              </AddPhoto>
+            </PhotoStrip>
+
+            {/* 기본 정보 */}
+            <FormSecTitle>기본 정보</FormSecTitle>
             <FormField><FLabel>구장명</FLabel><FInput value={form.name} onChange={(e) => updateForm({ name: e.target.value })} placeholder="예: 고려대 화정체육관" /></FormField>
             <FormField><FLabel>주소</FLabel><FInput value={form.address} onChange={(e) => updateForm({ address: e.target.value })} placeholder="예: 서울 성북구 고려대로 1" /></FormField>
             <FormField><FLabel>상세 주소</FLabel><FInput value={form.addressDetail} onChange={(e) => updateForm({ addressDetail: e.target.value })} placeholder="예: 지하 1층 농구코트" /></FormField>
+            <FRow>
+              <FormField><FLabel>지역</FLabel><FInput value={form.region} onChange={(e) => updateForm({ region: e.target.value })} placeholder="예: 서울 성북구" /></FormField>
+              <FormField><FLabel>구장 연락처</FLabel><FInput value={form.phone} onChange={(e) => updateForm({ phone: e.target.value })} placeholder="예: 02-1234-5678" /></FormField>
+            </FRow>
             <FRow>
               <FormField><FLabel>위도</FLabel><FInput type="number" step="any" value={form.lat} onChange={(e) => updateForm({ lat: e.target.value })} placeholder="37.5896" /></FormField>
               <FormField><FLabel>경도</FLabel><FInput type="number" step="any" value={form.lng} onChange={(e) => updateForm({ lng: e.target.value })} placeholder="127.0297" /></FormField>
@@ -462,10 +593,55 @@ export default function AdminVenuesPage() {
               <FormField><FLabel>종류</FLabel><FSelect value={form.type} onChange={(e) => updateForm({ type: e.target.value })}><option value="indoor">실내</option><option value="outdoor">실외</option></FSelect></FormField>
               <FormField><FLabel>이용 비용</FLabel><FSelect value={form.cost} onChange={(e) => updateForm({ cost: e.target.value })}><option value="free">무료</option><option value="paid">유료</option></FSelect></FormField>
             </FRow>
-            <FormField><FLabel>메모</FLabel><FTextarea value={form.memo} onChange={(e) => updateForm({ memo: e.target.value })} placeholder="예: 평일 18시 이후 개방 / 주차 가능" /></FormField>
-            <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer", marginBottom: 4 }}>
+            <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer", margin: "4px 0 4px" }}>
               <input type="checkbox" checked={form.active} onChange={(e) => updateForm({ active: e.target.checked })} /> 사용자에게 노출 (활성)
             </label>
+
+            {/* 편의시설 */}
+            <FormSecTitle>편의시설</FormSecTitle>
+            <FacWrap>
+              {FACILITY_OPTIONS.map((f) => (
+                <FacBtn key={f} type="button" $on={facilities.includes(f)} onClick={() => toggleFacility(f)}>{f}</FacBtn>
+              ))}
+            </FacWrap>
+
+            {/* 코트(예약 대상) */}
+            <FormSecTitle>예약 대상 (코트)</FormSecTitle>
+            {courts.map((c, i) => (
+              <CourtCard key={i}>
+                <CourtHead>
+                  <FLabel style={{ fontWeight: 700 }}>코트 {i + 1}</FLabel>
+                  <DelLink type="button" onClick={() => removeCourt(i)}>삭제</DelLink>
+                </CourtHead>
+                <FRow>
+                  <FormField><FLabel>이름</FLabel><FInput value={c.name} onChange={(e) => setCourt(i, { name: e.target.value })} placeholder="예: A코트" /></FormField>
+                  <FormField><FLabel>종류</FLabel><FSelect value={c.type} onChange={(e) => setCourt(i, { type: e.target.value })}><option value="indoor">실내</option><option value="outdoor">실외</option></FSelect></FormField>
+                </FRow>
+                <FRow>
+                  <FormField><FLabel>시간당 가격(원)</FLabel><FInput type="number" value={c.pricePerHour} onChange={(e) => setCourt(i, { pricePerHour: e.target.value })} placeholder="40000" /></FormField>
+                  <FormField><FLabel>슬롯 단위(분)</FLabel><FSelect value={c.slotMinutes} onChange={(e) => setCourt(i, { slotMinutes: Number(e.target.value) })}><option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option></FSelect></FormField>
+                </FRow>
+                <FormField><FLabel>요일별 운영시간</FLabel><CourtHoursEditor hours={c.hours} onChange={(hours) => setCourt(i, { hours })} /></FormField>
+              </CourtCard>
+            ))}
+            <GhostBtn type="button" onClick={addCourt}>＋ 코트 추가</GhostBtn>
+
+            {/* 안내 */}
+            <FormSecTitle>안내</FormSecTitle>
+            <FormField><FLabel>구장 소개</FLabel><FTextarea value={form.description} onChange={(e) => updateForm({ description: e.target.value })} placeholder="구장 특징, 바닥 재질, 주차 안내 등" /></FormField>
+            <FormField><FLabel>이용 규칙</FLabel><FTextarea value={form.rules} onChange={(e) => updateForm({ rules: e.target.value })} placeholder="예: 실내화 필수, 음식물 반입 금지" /></FormField>
+            <FormField><FLabel>환불 정책</FLabel><FTextarea value={form.refundPolicy} onChange={(e) => updateForm({ refundPolicy: e.target.value })} placeholder="환불 규정" /></FormField>
+
+            {/* 사업자 / 관리자 정보 */}
+            <FormSecTitle>사업자 / 관리자 정보</FormSecTitle>
+            <FRow>
+              <FormField><FLabel>대표자명</FLabel><FInput value={form.ownerName} onChange={(e) => updateForm({ ownerName: e.target.value })} placeholder="예: 홍길동" /></FormField>
+              <FormField><FLabel>관리자 연락처</FLabel><FInput value={form.contactPhone} onChange={(e) => updateForm({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" /></FormField>
+            </FRow>
+            <FRow>
+              <FormField><FLabel>상호(사업자명)</FLabel><FInput value={form.bizName} onChange={(e) => updateForm({ bizName: e.target.value })} placeholder="예: ○○스포츠" /></FormField>
+              <FormField><FLabel>사업자등록번호</FLabel><FInput value={form.bizNo} onChange={(e) => updateForm({ bizNo: e.target.value })} placeholder="예: 123-45-67890" /></FormField>
+            </FRow>
 
             <ModalActions>
               <SBtn onClick={closeForm} disabled={busy}>취소</SBtn>

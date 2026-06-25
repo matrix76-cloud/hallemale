@@ -581,7 +581,10 @@ const ActGhost = styled.button`
   color: ${({ theme }) => (theme.mode === "dark" ? "#e5e7eb" : "#374151")};
 `;
 const ActStack = styled.div`
-  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
   border-top: 0.5px solid
     ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,.08)" : "#eef0f3")};
   background: ${({ theme }) => (theme.mode === "dark" ? theme.colors.bg : "#fff")};
@@ -5114,15 +5117,18 @@ export default function MatchRoomDetailPage() {
                   </AskLabel>
                   <GateSub>경기를 진행할 구장 방식을 선택해요.</GateSub>
 
-                  {/* 제휴구장 예약 — 준비중(막아둠). 선택 불가 */}
-                  <OptCard type="button" disabled>
+                  {/* 제휴구장 예약 — 인앱 예약·피지 결제 흐름으로 연결 */}
+                  <OptCard
+                    type="button"
+                    onClick={() => navigate(`/venues?match=${roomId}`)}
+                  >
                     <Oic>🏟️</Oic>
                     <Ob>
                       <OptT>제휴구장 예약</OptT>
                       <OptD>앱에서 결제 · 자동 확정</OptD>
                       <Chips>
-                        <Pill $tone="n">준비중</Pill>
-                        <Pill $tone="n">에스크로 안전결제</Pill>
+                        <Pill $tone="p">피지 결제</Pill>
+                        <Pill $tone="n">바로 확정</Pill>
                       </Chips>
                     </Ob>
                     <SelDot $on={false} />
