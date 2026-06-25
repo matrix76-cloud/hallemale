@@ -1,10 +1,11 @@
 /* eslint-disable */
 // src/pages/venue/VenueBookingPage.jsx
-// 구장 예약 — 코트/날짜/빈 슬롯 선택 → 피지(가짜) 결제 → 예약 확정 + 구장주 푸시
+// 구장 예약 — 코트/날짜/빈 슬롯 선택 → 원(가짜) 결제 → 예약 확정 + 구장주 푸시
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useUI } from "../../hooks/useUI";
 import { proposeMatchSchedule } from "../../services/matchRoomService";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
@@ -53,6 +54,8 @@ export default function VenueBookingPage() {
   const navigate = useNavigate();
   const matchId = params.get("match") || ""; // 매칭룸에서 들어온 경우
   const { firebaseUser, userDoc } = useAuth();
+  const { showToast } = useUI() || {};
+  const toast = (message) => { if (showToast) showToast({ message }); };
   const uid = firebaseUser?.uid || "";
 
   const [venue, setVenue] = useState(null);
@@ -153,13 +156,13 @@ export default function VenueBookingPage() {
     try {
       const next = await chargeFizz(uid, amount);
       setBalance(next);
-    } catch (e) { window.alert(e?.message || "충전 실패"); }
+    } catch (e) { toast(e?.message || "충전 실패"); }
   };
 
   const handlePay = async () => {
-    if (!uid) return window.alert("로그인이 필요해요.");
+    if (!uid) return toast("로그인이 필요해요.");
     if (!selected || !court) return;
-    if (balance < price) return window.alert("피지 잔액이 부족해요. 충전해주세요.");
+    if (balance < price) return toast("잔액이 부족해요. 충전해주세요.");
     setPaying(true);
     try {
       await bookVenue({
@@ -175,31 +178,24 @@ export default function VenueBookingPage() {
       setPayOpen(false);
       setSelected(null);
       await loadSlots();
-      window.alert("예약이 확정됐어요! 구장 관리자에게 알림이 전송됐어요.");
+      toast("예약이 확정됐어요! 구장 관리자에게 알림이 전송됐어요.");
     } catch (e) {
       if (e?.code === "slot_taken") { await loadSlots(); }
-      window.alert(e?.message || "예약에 실패했어요.");
+      toast(e?.message || "예약에 실패했어요.");
     } finally { setPaying(false); }
   };
 
   const myClubId = userDoc?.activeTeamId || userDoc?.clubId || "";
   const handlePropose = async () => {
     if (!selected || !court) return;
-    if (!matchInfo) return window.alert("매칭 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.");
-    if (!myClubId) return window.alert("팀 정보를 확인할 수 없어요.");
-    if (venue.lat == null || venue.lng == null) return window.alert("이 구장은 좌표 정보가 없어 제안할 수 없어요.");
+    if (!matchInfo) return toast("매칭 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.");
+    if (!myClubId) return toast("팀 정보를 확인할 수 없어요.");
+    if (venue.lat == null || venue.lng == null) return toast("이 구장은 좌표 정보가 없어 제안할 수 없어요.");
 
     const isActor = myClubId === matchInfo.actorClubId;
     const opponentClubId = isActor ? matchInfo.targetClubId : matchInfo.actorClubId;
     const myTeamName = isActor ? matchInfo.fromName : matchInfo.toName;
     const oppTeamName = isActor ? matchInfo.toName : matchInfo.fromName;
-    const total = calcSlotPrice(court, selected.start, selected.end);
-    const { shareA, shareB } = splitPrice(total);
-    const myShare = isActor ? shareA : shareB;
-
-    if (!window.confirm(
-      `${date} ${selected.start}~${selected.end}\n${venue.name} · ${court.name}\n\n총 ${total.toLocaleString()}피지 (두 팀 반반)\n우리 팀 몫: ${myShare.toLocaleString()}피지\n\n상대팀에 제안할까요? (결제는 양 팀 수락 후)`
-    )) return;
 
     setPaying(true);
     try {
@@ -217,11 +213,11 @@ export default function VenueBookingPage() {
         proposerUid: uid, proposerClubId: myClubId, proposerTeamName: myTeamName,
         opponentClubId, opponentTeamName: oppTeamName,
       });
-      window.alert("상대팀에 구장·일정을 제안했어요! 양 팀이 수락·결제하면 예약이 확정돼요.");
+      toast("상대팀에 구장·일정을 제안했어요!");
       // 직접입력 제안 흐름과 동일하게 채팅 화면으로 복귀 (핀 카드 + 채팅 유지)
       navigate(`/match-roomdetail/${matchId}`, { replace: true });
     } catch (e) {
-      window.alert(e?.message || "제안에 실패했어요.");
+      toast(e?.message || "제안에 실패했어요.");
     } finally { setPaying(false); }
   };
 
@@ -337,7 +333,7 @@ export default function VenueBookingPage() {
           <div>
             <BbDate>{date} {selected.start}~{selected.end}</BbDate>
             <BbPrice>
-              {price.toLocaleString()}피지
+              {price.toLocaleString()}원
               {matchId ? <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}> · 두 팀 반반</span> : null}
             </BbPrice>
           </div>
@@ -356,12 +352,12 @@ export default function VenueBookingPage() {
             <PayRow><span>{venue.name} · {court.name}</span></PayRow>
             <PayRow><span>{date} {selected.start}~{selected.end}</span></PayRow>
             <Divider />
-            <PayRow $big><span>결제 금액</span><b>{price.toLocaleString()} 피지</b></PayRow>
-            <PayRow><span>보유 피지</span><b style={{ color: balance >= price ? "inherit" : "#dc2626" }}>{balance.toLocaleString()} 피지</b></PayRow>
+            <PayRow $big><span>결제 금액</span><b>{price.toLocaleString()} 원</b></PayRow>
+            <PayRow><span>보유 금액</span><b style={{ color: balance >= price ? "inherit" : "#dc2626" }}>{balance.toLocaleString()} 원</b></PayRow>
 
             {need > 0 && (
               <ChargeBox>
-                <small>피지가 {need.toLocaleString()} 부족해요. 충전(가짜)해주세요.</small>
+                <small>금액이 {need.toLocaleString()}원 부족해요. 충전해주세요.</small>
                 <ChargeBtns>
                   <Cb onClick={() => handleCharge(10000)}>+1만</Cb>
                   <Cb onClick={() => handleCharge(50000)}>+5만</Cb>
@@ -371,7 +367,7 @@ export default function VenueBookingPage() {
             )}
 
             <PayBtn disabled={paying || balance < price} onClick={handlePay}>
-              {paying ? "결제 중…" : `${price.toLocaleString()} 피지 결제하고 예약`}
+              {paying ? "결제 중…" : `${price.toLocaleString()} 원 결제하고 예약`}
             </PayBtn>
             <CancelBtn onClick={() => setPayOpen(false)} disabled={paying}>취소</CancelBtn>
           </SheetCard>

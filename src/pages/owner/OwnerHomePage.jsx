@@ -394,7 +394,7 @@ export default function OwnerHomePage() {
                 </ResvTop>
                 <ResvMeta>
                   {r.startTime} ~ {r.endTime}
-                  {r.splitTotal ? ` · 총 ${r.splitTotal.toLocaleString()}피지 (반반)` : ""}
+                  {r.splitTotal ? ` · 총 ${r.splitTotal.toLocaleString()}원 (반반)` : ""}
                 </ResvMeta>
                 <ResvMeta>
                   {r.teamAName || "팀A"}: {r.paidByA ? "✓ 결제완료" : "결제대기"}

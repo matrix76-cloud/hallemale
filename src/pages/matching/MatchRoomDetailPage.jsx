@@ -2700,6 +2700,7 @@ export default function MatchRoomDetailPage() {
   // 제휴구장 분할결제 상태 (partnerBooking + 예약 결제현황)
   const [partnerPay, setPartnerPay] = useState(null); // { pb, resv }
   const [partnerPaying, setPartnerPaying] = useState(false);
+
   const roomId = toStr(params?.roomId || params?.matchId);
 
   // ✅ 확정 경기 채팅 진입 카드용: 매칭룸 안읽음/마지막 메시지(팀장 전용 노출)
@@ -2713,6 +2714,22 @@ export default function MatchRoomDetailPage() {
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rankMap, setRankMap] = useState(null); // clubId → 전체 랭킹 등수
+
+  // ───── 제휴구장 분할결제 현황 로드 (room 선언 뒤 · early return 앞) ─────
+  const loadPartnerPay = React.useCallback(async () => {
+    if (!room?.id) { setPartnerPay(null); return; }
+    try {
+      const snap = await fsGetDoc(fsDoc(fsDb, "match_requests", room.id));
+      const pb = snap.exists() ? snap.data()?.partnerBooking : null;
+      if (!pb) { setPartnerPay(null); return; }
+      const resv = await getMatchReservationStatus(room.id);
+      setPartnerPay({ pb, resv });
+    } catch (e) {
+      console.warn("[matchRoom] loadPartnerPay failed", e?.message || e);
+    }
+  }, [room?.id]);
+
+  useEffect(() => { loadPartnerPay(); }, [loadPartnerPay, room?.status]);
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
@@ -3514,31 +3531,10 @@ export default function MatchRoomDetailPage() {
     }
   };
 
-  // ───── 제휴구장 분할결제 현황 로드 + 결제 ─────
-  const loadPartnerPay = React.useCallback(async () => {
-    if (!room?.id) { setPartnerPay(null); return; }
-    try {
-      const snap = await fsGetDoc(fsDoc(fsDb, "match_requests", room.id));
-      const pb = snap.exists() ? snap.data()?.partnerBooking : null;
-      if (!pb) { setPartnerPay(null); return; }
-      const resv = await getMatchReservationStatus(room.id);
-      setPartnerPay({ pb, resv });
-    } catch (e) {
-      console.warn("[matchRoom] loadPartnerPay failed", e?.message || e);
-    }
-  }, [room?.id]);
-
-  useEffect(() => { loadPartnerPay(); }, [loadPartnerPay, status]);
-
   const handlePayShare = async () => {
     if (partnerPaying || !partnerPay?.pb) return;
     const pb = partnerPay.pb;
     const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
-    const myShare = side === "A" ? pb.shareA : pb.shareB;
-    if (!window.confirm(
-      `우리 팀 몫 ${Number(myShare).toLocaleString()}피지를 결제할까요?\n` +
-      `양 팀 모두 결제하면 예약이 확정돼요.\n(먼저 결제 후 2시간 내 상대팀 미결제 시 자동취소·환불)`
-    )) return;
     setPartnerPaying(true);
     try {
       const res = await payPartnerShare({
@@ -3546,11 +3542,14 @@ export default function MatchRoomDetailPage() {
         payerTeamName: side === "A" ? pb.proposerTeamName : pb.opponentTeamName,
       });
       await loadPartnerPay();
-      if (res?.state === "confirmed") window.alert("두 팀 결제 완료! 구장 예약이 확정됐어요.");
-      else if (res?.already) window.alert("이미 우리 팀은 결제했어요. 상대팀 결제를 기다리는 중이에요.");
-      else window.alert("결제 완료! 상대팀이 2시간 내 결제하면 예약이 확정돼요.");
+      const msg = res?.state === "confirmed"
+        ? "두 팀 결제 완료! 구장 예약이 확정됐어요."
+        : res?.already
+        ? "이미 우리 팀은 결제했어요. 상대팀 결제를 기다리는 중이에요."
+        : "결제 완료! 상대팀이 2시간 내 결제하면 예약이 확정돼요.";
+      showToast && showToast({ message: msg });
     } catch (e) {
-      window.alert(e?.message || "결제에 실패했어요.");
+      showToast && showToast({ message: e?.message || "결제에 실패했어요." });
     } finally { setPartnerPaying(false); }
   };
 
@@ -3876,6 +3875,19 @@ export default function MatchRoomDetailPage() {
               <PropV>{venueDurLabel}</PropV>
             </PropRow>
           )}
+          {partnerPay?.pb && (() => {
+            const pb = partnerPay.pb;
+            const myShare = myClubId === toStr(pb.proposerClubId) ? pb.shareA : pb.shareB;
+            return (
+              <PropRow>
+                <PropK>구장비</PropK>
+                <PropV>
+                  총 {Number(pb.totalPrice).toLocaleString()}원
+                  <span style={{ color: "#6b7280", fontWeight: 600 }}> · 우리 팀 {Number(myShare).toLocaleString()}원</span>
+                </PropV>
+              </PropRow>
+            );
+          })()}
         </PropBody>
       </PropCard>
     ) : status === "confirmed" ? (
@@ -3906,7 +3918,7 @@ export default function MatchRoomDetailPage() {
             const rm = resv?.deadline ? Math.max(0, Math.round((new Date(resv.deadline).getTime() - Date.now()) / 60000)) : null;
             return (
               <PayBox>
-                <PayTitle>구장비 결제 · 총 {Number(pb.totalPrice).toLocaleString()}피지 (두 팀 반반)</PayTitle>
+                <PayTitle>구장비 결제 · 총 {Number(pb.totalPrice).toLocaleString()}원 (두 팀 반반)</PayTitle>
                 <PayTeams>
                   <span>{pb.proposerTeamName}: {resv?.paidByA ? "✓ 결제완료" : "대기"}</span>
                   <span>{pb.opponentTeamName}: {resv?.paidByB ? "✓ 결제완료" : "대기"}</span>
@@ -3917,7 +3929,7 @@ export default function MatchRoomDetailPage() {
                   <PayWait>우리 팀 결제완료 · 상대팀 결제 대기 중{rm != null ? ` (${rm}분 남음)` : ""}</PayWait>
                 ) : (
                   <PayBtn type="button" onClick={handlePayShare} disabled={partnerPaying}>
-                    {partnerPaying ? "결제 중…" : `우리 팀 몫 ${Number(myShare).toLocaleString()}피지 결제하기`}
+                    {partnerPaying ? "결제 중…" : `우리 팀 몫 ${Number(myShare).toLocaleString()}원 결제하기`}
                   </PayBtn>
                 )}
               </PayBox>
@@ -4948,7 +4960,7 @@ export default function MatchRoomDetailPage() {
                       <OptT>제휴구장 예약</OptT>
                       <OptD>앱에서 결제 · 자동 확정</OptD>
                       <Chips>
-                        <Pill $tone="p">피지 결제</Pill>
+                        <Pill $tone="p">앱 결제</Pill>
                         <Pill $tone="n">바로 확정</Pill>
                       </Chips>
                     </Ob>
