@@ -154,8 +154,7 @@ function RequireClub({ children }) {
 
 // 구장 관리자 전용 인증 게이트 — 미로그인 시 /owner/login 으로 (일반 /login 아님)
 function RequireOwnerAuth({ children }) {
-  const { isLoggedIn, loading, firebaseUser } = useAuth();
-  console.log("🔑OWNER RequireOwnerAuth:", { loading, isLoggedIn, uid: firebaseUser?.uid || null });
+  const { isLoggedIn, loading } = useAuth();
   if (loading) return <AppLoadingPage />;
   if (!isLoggedIn) return <Navigate to="/owner/login" replace />;
   return children;

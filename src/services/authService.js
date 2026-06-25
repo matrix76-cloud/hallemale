@@ -215,21 +215,26 @@ async function webSignInWithGoogle({ keepLogin }) {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
 
-  // 모바일 브라우저는 팝업이 자주 차단/실패하므로 redirect 방식을 우선 사용.
-  // 복귀 후 consumeRedirectResultIfAny()가 로그인을 완료한다.
-  if (isMobileBrowser()) {
-    // 모바일은 redirect라 제스처 제약이 없으므로 지속성을 먼저 설정해도 무방.
-    await setPersistence(auth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
-    await signInWithRedirect(auth, provider);
-    return { success: true, provider: "google", strategy: "web_redirect_started" };
-  }
+  // classmanage 와 동일하게 PC/모바일 모두 팝업으로 통일.
+  // signInWithRedirect 는 localhost 복귀 시 세션이 안 붙어 로그인이 막히므로 사용하지 않음.
+  // (크롬 반응형/모바일 에뮬레이션이면 UA가 모바일로 잡혀 redirect 분기를 타던 문제도 제거됨)
 
   // ⚠️ 데스크톱 팝업: signInWithPopup 앞에 await(setPersistence 등)를 두면
   //    사용자 클릭 제스처가 끊겨 팝업이 차단되고 → redirect 폴백 → localhost+커스텀 authDomain
   //    조합에서 세션이 안 붙는 버그가 난다. 그래서 팝업을 "제스처와 같은 틱"에서 먼저 호출한다.
   //    웹 기본 지속성이 LOCAL 이므로 keepLogin=true 면 setPersistence 생략해도 유지된다.
   try {
-    const userCred = await signInWithPopup(auth, provider);
+    // 팝업이 결과를 못 돌려주고 영원히 멈추는 경우(서드파티 저장소 차단 등)를 대비한 타임아웃 가드.
+    const popupPromise = signInWithPopup(auth, provider);
+    const userCred = await Promise.race([
+      popupPromise,
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject({ code: "popup_timeout", message: "팝업 응답이 없습니다(서드파티 쿠키 차단 가능성). 브라우저 설정을 확인하세요." }),
+          25000
+        )
+      ),
+    ]);
     const uid = safeTrim(userCred?.user?.uid);
     const email = safeTrim(userCred?.user?.email || "");
 
@@ -243,11 +248,8 @@ async function webSignInWithGoogle({ keepLogin }) {
     await ensureUserDoc({ uid, email, provider: "google" });
     return { success: true, provider: "google", uid, user: userCred.user };
   } catch (e) {
-    // 그래도 팝업이 차단되면 redirect 폴백(배포 환경에선 동작). localhost에선 안 붙을 수 있음.
-    if (isPopupBlockedError(e)) {
-      await signInWithRedirect(auth, provider);
-      return { success: true, provider: "google", strategy: "web_redirect_started" };
-    }
+    // ⚠️ redirect 폴백 제거: localhost + 커스텀 authDomain 조합에서 redirect는 세션이 안 붙고
+    //    페이지만 떠나버려서 진짜 에러를 못 본다. 실패 코드를 그대로 올려서 처리/표시한다.
     return { success: false, provider: "google", error_code: e?.code, error_message: e?.message };
   }
 }

@@ -17,11 +17,8 @@ export default function OwnerLoginPage() {
   // ⚠️ navigate 를 userDoc 로딩(authLoading)이나 markUserAsOwner(Firestore 쓰기)에
   //    묶지 않는다 — 그러면 인증은 됐는데 화면이 안 넘어가는 증상이 생긴다.
   //    role 마킹은 화면 전환과 무관하게 백그라운드로 처리.
-  console.log("🔑OWNER LoginPage render:", { authLoading, isLoggedIn, uid: firebaseUser?.uid || null });
   useEffect(() => {
-    console.log("🔑OWNER LoginPage effect:", { authLoading, isLoggedIn, uid: firebaseUser?.uid || null });
     if (isLoggedIn && firebaseUser?.uid) {
-      console.log("🔑OWNER → navigate /owner");
       markUserAsOwner(firebaseUser.uid).catch(() => {});
       navigate("/owner", { replace: true });
     }
@@ -34,7 +31,6 @@ export default function OwnerLoginPage() {
     try { localStorage.setItem("hm.postLoginRedirect", "/owner"); } catch {}
     try {
       const res = await signInWithSocial({ provider, keepLogin: true });
-      console.log("🔑OWNER signInWithSocial res:", res);
       if (!res || res.success !== true) {
         // 실패 시 복귀 플래그 정리 (다음 일반 로그인 가로채기 방지)
         try { localStorage.removeItem("hm.postLoginRedirect"); } catch {}
