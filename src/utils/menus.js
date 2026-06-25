@@ -106,12 +106,6 @@ export const MENUS = [
       { to: `${A}/community/reports`, label: "신고글" },
     ],
   },
-  {
-    key: "chat",
-    to: `${A}/chat/list`,
-    icon: IoChatbubblesOutline,
-    label: "채팅 관리",
-  },
 
   // ━━━ 콘텐츠 ━━━
   { section: "콘텐츠" },

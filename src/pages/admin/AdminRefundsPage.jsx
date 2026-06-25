@@ -124,14 +124,16 @@ export default function AdminRefundsPage() {
         ) : (
           <Table>
             <HeadRow $refunded={tab === "refunded"}>
+              <Hide>No.</Hide>
               <span>구장 / 코트</span>
               <span>예약일시</span>
               <Hide>이용자</Hide>
               <span>{tab === "refunded" ? "환불액" : "결제액"}</span>
               {tab === "refunded" ? <Hide>환불일</Hide> : <span>관리</span>}
             </HeadRow>
-            {pagedRows.map((r) => (
+            {pagedRows.map((r, i) => (
               <Rowi key={r.id} $refunded={tab === "refunded"}>
+                <Hide><Idx>{page * PAGE_SIZE + i + 1}</Idx></Hide>
                 <NameCell>
                   <Nm>{r.venueName}</Nm>
                   <Sub2>{r.courtName}{r.teamName ? ` · ${r.teamName}` : ""}</Sub2>
@@ -154,7 +156,7 @@ export default function AdminRefundsPage() {
           </Table>
         )}
 
-        {!loading && rows.length > PAGE_SIZE && (
+        {!loading && rows.length > 0 && (
           <Pager>
             <PageNum onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>‹</PageNum>
             {Array.from({ length: pageCount }, (_, i) => (
@@ -207,8 +209,8 @@ const PageNum = styled.button`
 `;
 const Table = styled.div`width: 100%; display: flex; flex-direction: column;`;
 const cols = (refunded) => (refunded
-  ? "1fr 150px 120px 110px 180px"
-  : "1fr 150px 120px 110px 110px");
+  ? "44px 1fr 150px 120px 110px 180px"
+  : "44px 1fr 150px 120px 110px 110px");
 const HeadRow = styled.div`
   display: grid; grid-template-columns: ${({ $refunded }) => cols($refunded)}; gap: 10px; align-items: center;
   padding: 0 8px 10px; border-bottom: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
@@ -221,6 +223,7 @@ const Rowi = styled.div`
   @media (max-width: 860px) { grid-template-columns: 1fr 110px 100px; }
 `;
 const NameCell = styled.div`min-width: 0;`;
+const Idx = styled.span`font-size: 12.5px; font-weight: 700; color: ${({ theme }) => theme?.colors?.textWeak || "#9ca3af"};`;
 const Nm = styled.div`font-weight: 700; color: ${({ theme }) => theme?.colors?.textStrong || "#111827"}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const Sub2 = styled.div`font-size: 11.5px; color: ${({ theme }) => theme?.colors?.textWeak || "#9ca3af"}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const TimeS = styled.span`color: #9ca3af; font-size: 11.5px;`;

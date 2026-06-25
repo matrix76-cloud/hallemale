@@ -66,7 +66,7 @@ const Sheet=styled.div`
   width:100%;max-width:448px;max-height:85vh;overflow-y:auto;
   background:#fff;border-radius:20px 20px 0 0;
   padding-top:22px;
-  padding-bottom:calc(24px+env(safe-area-inset-bottom));
+  padding-bottom:calc(24px + env(safe-area-inset-bottom));
   padding-left:24px;
   padding-right:24px;
   display:flex;flex-direction:column;gap:13px;

@@ -123,6 +123,7 @@ export default function AdminSettlementsPage() {
         ) : (
           <Table>
             <HeadRow>
+              <Hide>No.</Hide>
               <span>구장명</span>
               <span>건수</span>
               <Hide>매출</Hide>
@@ -131,8 +132,9 @@ export default function AdminSettlementsPage() {
               <span>상태</span>
               <span>관리</span>
             </HeadRow>
-            {pagedGroups.map((g) => (
+            {pagedGroups.map((g, i) => (
               <Rowi key={g.venueId || g.venueName}>
+                <Hide><Idx>{page * PAGE_SIZE + i + 1}</Idx></Hide>
                 <Nm>{g.venueName}</Nm>
                 <span>{g.count}건</span>
                 <Hide>{won(g.gross)}</Hide>
@@ -152,7 +154,7 @@ export default function AdminSettlementsPage() {
           </Table>
         )}
 
-        {!loading && groups.length > PAGE_SIZE && (
+        {!loading && groups.length > 0 && (
           <Pager>
             <PageNum onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>‹</PageNum>
             {Array.from({ length: pageCount }, (_, i) => (
@@ -249,17 +251,18 @@ const PageNum = styled.button`
 `;
 const Table = styled.div`width: 100%; display: flex; flex-direction: column;`;
 const HeadRow = styled.div`
-  display: grid; grid-template-columns: 1fr 60px 110px 110px 120px 92px 150px; gap: 10px; align-items: center;
+  display: grid; grid-template-columns: 44px 1fr 60px 110px 110px 120px 92px 150px; gap: 10px; align-items: center;
   padding: 0 8px 10px; border-bottom: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
   font-size: 11.5px; font-weight: 700; color: ${({ theme }) => theme?.colors?.textWeak || "#9ca3af"};
   @media (max-width: 860px) { grid-template-columns: 1fr 50px 110px 80px 130px; }
 `;
 const Rowi = styled.div`
-  display: grid; grid-template-columns: 1fr 60px 110px 110px 120px 92px 150px; gap: 10px; align-items: center;
+  display: grid; grid-template-columns: 44px 1fr 60px 110px 110px 120px 92px 150px; gap: 10px; align-items: center;
   padding: 12px 8px; border-bottom: 1px solid ${({ theme }) => theme?.colors?.divider || "#f1f5f9"}; font-size: 13px;
   @media (max-width: 860px) { grid-template-columns: 1fr 50px 110px 80px 130px; }
 `;
 const Nm = styled.div`font-weight: 700; color: ${({ theme }) => theme?.colors?.textStrong || "#111827"}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const Idx = styled.span`font-size: 12.5px; font-weight: 700; color: ${({ theme }) => theme?.colors?.textWeak || "#9ca3af"};`;
 const Strong = styled.div`font-weight: 800; color: #4f46e5;`;
 const Hide = styled.span`@media (max-width: 860px) { display: none; }`;
 const Badge = styled.span`
