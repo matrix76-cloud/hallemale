@@ -67,8 +67,8 @@ const IconImg = styled.span`
   display: block;
   background-color: ${({ $active, theme }) =>
     $active ? LOGO_PURPLE : theme.colors.textWeak};
-  -webkit-mask: ${({ $src }) => `url(${$src})`} center / contain no-repeat;
-  mask: ${({ $src }) => `url(${$src})`} center / contain no-repeat;
+  -webkit-mask: ${({ $src }) => `url(${$src})`} center / 100% 100% no-repeat;
+  mask: ${({ $src }) => `url(${$src})`} center / 100% 100% no-repeat;
 `;
 
 const Label = styled.span`

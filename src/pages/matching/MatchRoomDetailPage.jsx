@@ -18,11 +18,12 @@ import {
   submitMatchReview,
   markMatchRoomSeen,
   sendLineupReminder,
+  subscribeMatchRoom,
 } from "../../services/matchRoomService";
 import PositionChip from "../../components/common/PositionChip";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
-import { payPartnerShare, getMatchReservationStatus } from "../../services/ownerVenueService";
+import { payPartnerShare, getMatchReservationStatus, acceptPartnerProposal } from "../../services/ownerVenueService";
 import { doc as fsDoc, getDoc as fsGetDoc } from "firebase/firestore";
 import { db as fsDb } from "../../services/firebase";
 import { useUIContext } from "../../context/UIContext";
@@ -34,8 +35,10 @@ import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCelebration";
 import MatchAcceptedCelebration from "../../components/matchRoom/MatchAcceptedCelebration";
+import MatchFinalCelebration from "../../components/matchRoom/MatchFinalCelebration";
 import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
 import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
+import useVisualViewportHeightVar from "../../hooks/useVisualViewportHeightVar";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
 import { getUserDoc } from "../../services/userService";
@@ -122,15 +125,16 @@ const PageWrap = styled.div`
     $confirmed
       ? `
         /* 확정 화면: 헤더 뺀 뷰포트 높이 안에서 전체가 일반 스크롤 (공유버튼 고정 안 함) */
-        height: calc(100dvh - 52px - env(safe-area-inset-top));
+        height: calc(var(--app-vph, 100dvh) - 52px - env(safe-area-inset-top));
         overflow-y: auto;
       `
       : $dark
       ? `
         /* 헤더(52px+safe area) 뺀 뷰포트 높이로 하드 고정 →
-           메시지는 내부 스크롤, 입력창은 항상 화면 하단 고정 */
-        height: calc(100dvh - 52px - env(safe-area-inset-top));
-        max-height: calc(100dvh - 52px - env(safe-area-inset-top));
+           메시지는 내부 스크롤, 입력창은 항상 화면 하단 고정.
+           키보드가 올라오면 --app-vph(visualViewport 높이)로 줄어들어 입력창이 가려지지 않음 */
+        height: calc(var(--app-vph, 100dvh) - 52px - env(safe-area-inset-top));
+        max-height: calc(var(--app-vph, 100dvh) - 52px - env(safe-area-inset-top));
         min-height: 0;
         overflow: hidden;
       `
@@ -522,6 +526,15 @@ const PropBadge = styled.div`
   border-radius: 999px;
   backdrop-filter: blur(4px);
 `;
+const PropVenueImg = styled.img`
+  width: 100%;
+  height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? mrp(theme.mode).surface2 : "#e5e7eb"};
+`;
 const PropBody = styled.div`
   padding: 8px 12px 10px;
 `;
@@ -557,6 +570,12 @@ const PropPayBtn = styled.button`
   font-weight: 800;
   cursor: pointer;
   &:active { transform: translateY(1px); }
+  &:disabled {
+    background: ${({ theme }) => (theme.mode === "dark" ? "#3b3550" : "#cbc3e8")};
+    color: ${({ theme }) => (theme.mode === "dark" ? "#8b85a0" : "#ffffff")};
+    cursor: default;
+    transform: none;
+  }
 `;
 const PropPayNote = styled.div`
   margin-top: 6px;
@@ -1972,6 +1991,7 @@ const Oic = styled.div`
     $primary
       ? `linear-gradient(145deg, ${mrp(theme.mode).pu}, ${mrp(theme.mode).puD})`
       : mrp(theme.mode).surface2};
+  color: ${({ theme, $primary }) => ($primary ? "#fff" : mrp(theme.mode).t2)};
 `;
 const Ob = styled.div`
   flex: 1;
@@ -2075,6 +2095,14 @@ const GateBottomBar = styled.div`
   background: ${({ theme }) => mrp(theme.mode).bg2};
 `;
 
+const GateHint = styled.div`
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  margin-bottom: 10px;
+`;
+
 /* 하단 "이 방식으로 정하기" 버튼 */
 const GateProceedBtn = styled.button`
   width: 100%;
@@ -2090,8 +2118,13 @@ const GateProceedBtn = styled.button`
       ? "linear-gradient(135deg,#7c6cff,#6c5ce7)"
       : "#6c5ce7"};
   box-shadow: 0 12px 24px -12px rgba(108, 92, 231, 0.7);
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+    box-shadow: none;
+  }
   &:active {
-    transform: translateY(1px);
+    transform: ${({ disabled }) => (disabled ? "none" : "translateY(1px)")};
   }
 `;
 
@@ -2715,6 +2748,9 @@ export default function MatchRoomDetailPage() {
   const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
   const { setHeaderSubtitle, setHeaderConfig, showBottomSheet, hideBottomSheet, showToast } = useUIContext() || {};
 
+  // ✅ 모바일 키보드가 올라오면 채팅 입력창이 가려지지 않도록 실제 보이는 높이를 CSS 변수로 노출
+  useVisualViewportHeightVar();
+
   const myClubId = toStr(club?.clubId || club?.id);
 
   // 제휴구장 분할결제 상태 (partnerBooking + 예약 결제현황)
@@ -2750,6 +2786,8 @@ export default function MatchRoomDetailPage() {
   }, [room?.id]);
 
   useEffect(() => { loadPartnerPay(); }, [loadPartnerPay, room?.status]);
+  // 실시간 구독 콜백에서 항상 최신 loadPartnerPay 를 호출할 수 있도록 ref 동기화
+  useEffect(() => { loadPartnerPayRef.current = loadPartnerPay; }, [loadPartnerPay]);
 
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
@@ -2768,7 +2806,15 @@ export default function MatchRoomDetailPage() {
   const [venueConfirmChecked, setVenueConfirmChecked] = useState(false); // "구장 예약 직접 확인" 체크
   const [showConfirmAnim, setShowConfirmAnim] = useState(false); // (2-7) 확정 축하 애니메이션
   const [showAcceptAnim, setShowAcceptAnim] = useState(false); // 매칭 성사(수락) 축하 애니메이션
+  const [showLineupDoneAnim, setShowLineupDoneAnim] = useState(false); // 양 팀 라인업 확정 축하
+  const lineupBothRef = useRef(null); // 양 팀 라인업 확정 상태(전환 감지용, null=미초기화)
+  const [showPayPromptAnim, setShowPayPromptAnim] = useState(false); // 제휴구장 제안 수락 → 결제 안내 축하
+  const acceptedAnimRef = useRef(null); // 제휴구장 수락 상태(전환 감지용, null=미초기화)
+  const loadPartnerPayRef = useRef(null); // 실시간 구독에서 최신 loadPartnerPay 호출용
   const acceptAnimRef = useRef(false);
+  const [showFinalAnim, setShowFinalAnim] = useState(false); // 최종 경기 확정(양 팀 결제 완료) 웅장 축하
+  const finalAnimRef = useRef(false); // 최종 확정 축하 1회 가드
+  const confirmedRef = useRef(null); // 경기 확정 상태(전환 감지용, null=미초기화)
   const [venuePickerOpen, setVenuePickerOpen] = useState(false);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [venueImageUrl, setVenueImageUrl] = useState("");
@@ -2783,6 +2829,8 @@ export default function MatchRoomDetailPage() {
   // 구장 정하기 방식 선택 게이트: "none"(미선택) → 게이트 노출 → "direct"(직접 입력) 선택 시 지도 흐름.
   // ("제휴구장 예약"은 준비중 — 결제/예약 백엔드 미구현)
   const [venueMode, setVenueMode] = useState("none");
+  // 구장 방식 선택 게이트: 직접입력/제휴 중 택1 후 "이 방식으로 정하기" 버튼으로 진행
+  const [gateChoice, setGateChoice] = useState("");
 
   // 매칭룸 탭은 URL로 분리: /match-roomdetail/:id (채팅) vs /:id/venue (구장 정하기 별도 페이지)
   const location = useLocation();
@@ -2870,6 +2918,62 @@ export default function MatchRoomDetailPage() {
     };
   }, [roomId]);
 
+  // ✅ 실시간 구독: 상대 팀장의 라인업 확정·일정 제안·확정 등 핵심 변화가 생기면 즉시 재조회.
+  //    (라인업을 둘 다 확정하면 "구장·일정 제안하기" 버튼이 새로고침 없이 바로 뜨도록)
+  useEffect(() => {
+    if (!roomId) return;
+    let cancelled = false;
+    let lastSig = null;
+    const unsub = subscribeMatchRoom(roomId, (sig) => {
+      if (cancelled || !sig) return;
+      const key = JSON.stringify(sig);
+      if (lastSig === null) {
+        lastSig = key; // 초기 스냅샷은 이미 로드된 상태와 동일 → 건너뜀
+        return;
+      }
+      if (key !== lastSig) {
+        lastSig = key;
+        loadMatchRoomDetail(roomId)
+          .then((res) => {
+            if (!cancelled) setRoom(res?.room || null);
+          })
+          .catch(() => {});
+        // 제휴구장 수락/결제 현황도 함께 갱신 (status 변화가 없어도 partnerBooking.accepted 반영)
+        loadPartnerPayRef.current && loadPartnerPayRef.current();
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsub && unsub();
+    };
+  }, [roomId]);
+
+  // ✅ 양 팀 라인업이 "둘 다 확정"으로 전환되는 순간 → 라인업 확정 축하 화면 1회 표시.
+  //    (실시간 구독 덕에 상대가 확정해도 내 화면에서 바로 트리거됨)
+  useEffect(() => {
+    if (!room) return;
+    const st = toStr(room.status);
+    const iAmActorClub = !!myClubId && myClubId === toStr(room.actorClubId);
+    const myConfirmed = !!(iAmActorClub ? room.myLineup : room.oppLineup)?.confirmed;
+    const oppConfirmed = !!(iAmActorClub ? room.oppLineup : room.myLineup)?.confirmed;
+    const both = st === "accepted" && myConfirmed && oppConfirmed;
+
+    const prev = lineupBothRef.current;
+    lineupBothRef.current = both;
+    if (prev === null) return; // 첫 로드: 기준값만 기록(이미 확정된 방 재방문 시 축하 안 함)
+    if (!prev && both) setShowLineupDoneAnim(true); // false→true 전환에만 축하
+  }, [room, myClubId]);
+
+  // ✅ 제휴구장 제안이 "수락됨"으로 전환되는 순간 → 결제 안내 축하 화면 1회 표시(양 팀).
+  //    (수락자: 즉시 / 제안자: 실시간 구독으로 partnerPay 갱신되며 트리거)
+  useEffect(() => {
+    const accepted = !!partnerPay?.pb?.accepted;
+    const prev = acceptedAnimRef.current;
+    acceptedAnimRef.current = accepted;
+    if (prev === null) return; // 첫 로드 기준값만 기록(이미 수락된 방 재방문 시 축하 안 함)
+    if (!prev && accepted) setShowPayPromptAnim(true); // false→true 전환에만 축하
+  }, [partnerPay?.pb?.accepted]);
+
   // 매칭 수락 직후(수락한 사람) / 수락 푸시알림 클릭 진입(요청한 사람) 시
   // "매칭 성사" 축하 애니메이션을 1회 표시. 조율중(accepted/proposed)일 때만.
   useEffect(() => {
@@ -2890,6 +2994,35 @@ export default function MatchRoomDetailPage() {
       state: { viewClubId: location.state?.viewClubId },
     });
   }, [room, location.state, location.pathname, location.search, navigate]);
+
+  // 최종 경기 확정 축하 — 결제 완료로 진입(celebrateConfirmed) 또는 푸시 딥링크(?celebrate=confirmed)
+  useEffect(() => {
+    if (finalAnimRef.current) return;
+    const want =
+      !!location.state?.celebrateConfirmed ||
+      new URLSearchParams(location.search || "").get("celebrate") === "confirmed";
+    if (!want || !room) return;
+    if (toStr(room.status) !== "confirmed") return;
+    finalAnimRef.current = true;
+    setShowFinalAnim(true);
+    navigate(location.pathname, {
+      replace: true,
+      state: { viewClubId: location.state?.viewClubId },
+    });
+  }, [room, location.state, location.pathname, location.search, navigate]);
+
+  // 실시간: 방을 보는 중 양 팀 결제로 status가 confirmed로 전환되면 최종 확정 축하(제휴구장 결제 건)
+  useEffect(() => {
+    if (!room) return;
+    const isConfirmedNow = toStr(room.status) === "confirmed";
+    const prev = confirmedRef.current;
+    confirmedRef.current = isConfirmedNow;
+    if (prev === null) return; // 첫 로드: 기준값만 기록(이미 확정된 방 재방문 시 축하 안 함)
+    if (!prev && isConfirmedNow && partnerPay?.pb && !finalAnimRef.current) {
+      finalAnimRef.current = true;
+      setShowFinalAnim(true);
+    }
+  }, [room, partnerPay?.pb]);
 
   // 결과 자동 확정: waiting_accept 상태에서 경기 종료일 + 3일이 지나면 제출값으로 확정
   useEffect(() => {
@@ -3372,10 +3505,15 @@ export default function MatchRoomDetailPage() {
   const oppSubPlayers = (isActor ? room.oppLineup?.subPlayers : room.myLineup?.subPlayers) || [];
 
   const isAdjusting = status === "accepted" || status === "proposed";
-  // accepted 상태에서 아직 직접 입력을 고르기 전이면 "구장 정하기 방식 선택" 게이트 노출
-  const showVenueGate = status === "accepted" && venueMode !== "direct";
   const proposerClubId = toStr(room.proposedByClubId);
   const iAmProposer = !!myClubId && !!proposerClubId && myClubId === proposerClubId;
+  // "구장 정하기 방식 선택" 게이트(제휴/직접) 노출 조건:
+  //  - accepted: 아직 직접입력을 고르기 전
+  //  - proposed + 수정/역제안(editMode): 보낸 팀 "제안 수정"·받은 팀 "다른 일정 제안" 모두
+  //    방식(제휴/직접)부터 다시 고르도록 게이트를 먼저 보여줌
+  const showVenueGate =
+    venueMode !== "direct" &&
+    (status === "accepted" || (status === "proposed" && editMode));
   const canEdit = status === "accepted" ? true : status === "proposed" ? editMode : false;
   const canConfirm = status === "proposed" && !!myClubId && !iAmProposer;
 
@@ -3548,6 +3686,19 @@ export default function MatchRoomDetailPage() {
       await refresh();
     } catch (e) {
       window.alert(e?.message || "일정 확정에 실패했습니다.");
+    }
+  };
+
+  // 제휴구장 제안 수락(결제 전) — 양 팀에 결제 안내 축하창을 띄우고, 양 팀 결제 버튼 잠금 해제
+  const handleAcceptPartnerProposal = async () => {
+    if (!myClubId || !room?.id) return;
+    try {
+      await acceptPartnerProposal({ matchId: room.id, acceptedByClubId: myClubId });
+      await refresh();
+      await loadPartnerPay();
+      setShowPayPromptAnim(true); // 수락자 즉시 표시(제안자는 실시간 구독으로 표시)
+    } catch (e) {
+      window.alert(e?.message || "제안 수락에 실패했습니다.");
     }
   };
 
@@ -3876,12 +4027,33 @@ export default function MatchRoomDetailPage() {
     ? "우리팀 사정으로 확정된 경기가 취소됐어요."
     : "상대팀 사정으로 확정된 경기가 취소됐어요.";
 
+  // 제안한 구장 사진(제휴구장). 있으면 지도 대신 사진을 보여준다(직접입력 구장은 사진이 없어 지도 폴백).
+  const propVenueImage = toStr(partnerPay?.pb?.venueImageUrl);
+  // 제안한 구장(제휴구장)이면 카드 클릭 시 구장 상세로 이동. 직접입력 구장은 상세가 없어 이동 안 함.
+  const propVenueId = toStr(partnerPay?.pb?.venueId);
+  const openVenueDetail = () => {
+    if (propVenueId) navigate(`/venue-book/${propVenueId}`);
+  };
+
   const chatPinnedCard =
     status === "proposed" ? (
-      <PropCard>
+      <PropCard
+        onClick={openVenueDetail}
+        role={propVenueId ? "button" : undefined}
+        style={{ cursor: propVenueId ? "pointer" : "default" }}
+      >
         <PropMapWrap>
-          <PropBadge>🗺️ 지도 위치</PropBadge>
-          <VenueMiniMap latLng={fieldLatLng} height={84} />
+          {propVenueImage ? (
+            <>
+              <PropBadge>🏟️ 구장 사진</PropBadge>
+              <PropVenueImg src={propVenueImage} alt={toStr(fieldAddress) || "구장 사진"} />
+            </>
+          ) : (
+            <>
+              <PropBadge>🗺️ 지도 위치</PropBadge>
+              <VenueMiniMap latLng={fieldLatLng} height={84} />
+            </>
+          )}
         </PropMapWrap>
         <PropBody>
           <PropName>{toStr(fieldAddress) || "선택한 구장 위치"}</PropName>
@@ -3911,10 +4083,21 @@ export default function MatchRoomDetailPage() {
                 </PropRow>
                 {myPaid ? (
                   <PropPayNote>우리 팀 결제완료 · 상대팀 결제 대기 중</PropPayNote>
-                ) : (
-                  <PropPayBtn type="button" onClick={() => navigate(`/match-pay/${roomId}`)}>
+                ) : pb.accepted ? (
+                  // 상대팀이 제안을 수락 → 양 팀 결제 잠금 해제
+                  <PropPayBtn type="button" onClick={(e) => { e.stopPropagation(); navigate(`/match-pay/${roomId}`); }}>
                     구장비 결제하기 ({Number(myShare).toLocaleString()}원) →
                   </PropPayBtn>
+                ) : (
+                  <>
+                    {/* 상대팀이 제안을 수락해야 구장비 결제가 열린다 */}
+                    <PropPayBtn type="button" disabled onClick={(e) => e.stopPropagation()}>
+                      구장비 결제하기 ({Number(myShare).toLocaleString()}원)
+                    </PropPayBtn>
+                    <PropPayNote style={{ color: "#6b7280" }}>
+                      제안이 수락되면 결제할 수 있어요
+                    </PropPayNote>
+                  </>
                 )}
               </>
             );
@@ -3922,10 +4105,19 @@ export default function MatchRoomDetailPage() {
         </PropBody>
       </PropCard>
     ) : status === "confirmed" ? (
-      <PropCard $confirmed>
+      <PropCard
+        $confirmed
+        onClick={openVenueDetail}
+        role={propVenueId ? "button" : undefined}
+        style={{ cursor: propVenueId ? "pointer" : "default" }}
+      >
         <PropMapWrap>
           <PropBadge $confirmed>✅ 경기 확정</PropBadge>
-          <VenueMiniMap latLng={fieldLatLng} height={84} />
+          {propVenueImage ? (
+            <PropVenueImg src={propVenueImage} alt={toStr(fieldAddress) || "구장 사진"} />
+          ) : (
+            <VenueMiniMap latLng={fieldLatLng} height={84} />
+          )}
         </PropMapWrap>
         <PropBody>
           <PropName>{toStr(fieldAddress) || "확정된 구장"}</PropName>
@@ -3959,7 +4151,7 @@ export default function MatchRoomDetailPage() {
                 ) : myPaid ? (
                   <PayWait>우리 팀 결제완료 · 상대팀 결제 대기 중{rm != null ? ` (${rm}분 남음)` : ""}</PayWait>
                 ) : (
-                  <PayBtn type="button" onClick={handlePayShare} disabled={partnerPaying}>
+                  <PayBtn type="button" onClick={(e) => { e.stopPropagation(); handlePayShare(); }} disabled={partnerPaying}>
                     {partnerPaying ? "결제 중…" : `우리 팀 몫 ${Number(myShare).toLocaleString()}원 결제하기`}
                   </PayBtn>
                 )}
@@ -4090,25 +4282,37 @@ export default function MatchRoomDetailPage() {
     }
   } else if (status === "proposed") {
     chatTopBar = iAmProposer ? (
+      partnerPay?.pb?.accepted ? (
+        // 제휴구장: 상대팀이 수락함 → 결제는 위 구장 카드의 버튼으로 (중복 버튼 제거)
+        <ActStack>
+          <ActNote>✅ 상대팀이 제안을 수락했어요 · 위 구장 카드에서 구장비를 결제해 주세요</ActNote>
+        </ActStack>
+      ) : (
+        <ActStack>
+          <ActNote>상대팀 응답을 기다리는 중…</ActNote>
+          <ActRow>
+            <ActGhost
+              type="button"
+              onClick={() => {
+                // 구장 위치 선택(맵 픽커)이 아니라 날짜/시간 입력 화면을 바로 띄운다.
+                // (이 화면의 "변경" 버튼으로 구장 위치도 바꿀 수 있음)
+                setEditMode(true);
+                setVenueMode("none");
+                navigate(`/match-roomdetail/${roomId}/venue`);
+              }}
+            >
+              제안 수정
+            </ActGhost>
+            <ActGhost type="button" onClick={handleCancelProposal}>
+              제안 취소
+            </ActGhost>
+          </ActRow>
+        </ActStack>
+      )
+    ) : partnerPay?.pb?.accepted ? (
+      // 제휴구장: 내가 수락함 → 결제는 위 구장 카드의 버튼으로 (중복 버튼 제거)
       <ActStack>
-        <ActNote>상대팀 응답을 기다리는 중…</ActNote>
-        <ActRow>
-          <ActGhost
-            type="button"
-            onClick={() => {
-              // 구장 위치 선택(맵 픽커)이 아니라 날짜/시간 입력 화면을 바로 띄운다.
-              // (이 화면의 "변경" 버튼으로 구장 위치도 바꿀 수 있음)
-              setEditMode(true);
-              setVenueMode("none");
-              navigate(`/match-roomdetail/${roomId}/venue`);
-            }}
-          >
-            제안 수정
-          </ActGhost>
-          <ActGhost type="button" onClick={handleCancelProposal}>
-            제안 취소
-          </ActGhost>
-        </ActRow>
+        <ActNote>✅ 제안을 수락했어요 · 위 구장 카드에서 구장비를 결제해 주세요</ActNote>
       </ActStack>
     ) : (
       <ActBar>
@@ -4124,10 +4328,10 @@ export default function MatchRoomDetailPage() {
         </ActGhost>
         <ActPrimary
           type="button"
-          onClick={partnerPay?.pb ? () => navigate(`/match-pay/${roomId}`) : handleConfirmSchedule}
+          onClick={partnerPay?.pb ? handleAcceptPartnerProposal : handleConfirmSchedule}
           disabled={!canConfirm}
         >
-          {partnerPay?.pb ? "수락하고 결제" : "수락하고 확정"}
+          {partnerPay?.pb ? "제안 수락" : "수락하고 확정"}
         </ActPrimary>
       </ActBar>
     );
@@ -4925,12 +5129,14 @@ export default function MatchRoomDetailPage() {
                   </AskLabel>
                   <GateSub>경기를 진행할 구장 방식을 선택해요.</GateSub>
 
-                  {/* 제휴구장 예약 — 인앱 예약·피지 결제 흐름으로 연결 */}
+                  {/* 제휴구장 예약 — 선택 후 하단 버튼으로 진행 */}
                   <OptCard
                     type="button"
-                    onClick={() => navigate(`/venues?match=${roomId}`)}
+                    $primary={gateChoice === "partner"}
+                    aria-pressed={gateChoice === "partner"}
+                    onClick={() => setGateChoice("partner")}
                   >
-                    <Oic>🏟️</Oic>
+                    <Oic $primary={gateChoice === "partner"}>🏟️</Oic>
                     <Ob>
                       <OptT>제휴구장 예약</OptT>
                       <OptD>앱에서 결제 · 자동 확정</OptD>
@@ -4939,12 +5145,17 @@ export default function MatchRoomDetailPage() {
                         <Pill $tone="n">바로 확정</Pill>
                       </Chips>
                     </Ob>
-                    <SelDot $on={false} />
+                    <SelDot $on={gateChoice === "partner"}>{gateChoice === "partner" ? "✓" : ""}</SelDot>
                   </OptCard>
 
-                  {/* 직접 입력 — 현재 유일하게 선택 가능 (항상 선택됨) */}
-                  <OptCard type="button" $primary aria-pressed="true">
-                    <Oic $primary><FiMapPin size={26} color="#fff" /></Oic>
+                  {/* 직접 입력 — 선택 후 하단 버튼으로 진행 */}
+                  <OptCard
+                    type="button"
+                    $primary={gateChoice === "direct"}
+                    aria-pressed={gateChoice === "direct"}
+                    onClick={() => setGateChoice("direct")}
+                  >
+                    <Oic $primary={gateChoice === "direct"}><FiMapPin size={26} /></Oic>
                     <Ob>
                       <OptT>직접 입력</OptT>
                       <OptD>현장 정산 · 결제 없음</OptD>
@@ -4952,7 +5163,7 @@ export default function MatchRoomDetailPage() {
                         <Pill $tone="n">팀끼리 직접 합의</Pill>
                       </Chips>
                     </Ob>
-                    <SelDot $on>✓</SelDot>
+                    <SelDot $on={gateChoice === "direct"}>{gateChoice === "direct" ? "✓" : ""}</SelDot>
                   </OptCard>
 
                   <GateNote>
@@ -5348,7 +5559,7 @@ export default function MatchRoomDetailPage() {
           </>
         )}
 
-        {status === "proposed" && (
+        {status === "proposed" && !showVenueGate && (
           <>
             {iAmProposer ? (
               <>
@@ -5406,11 +5617,22 @@ export default function MatchRoomDetailPage() {
         {/* 구장 방식 선택(게이트) — 하단 고정 "이 방식으로 정하기" 버튼 */}
         {isAdjusting && showVenueGate && (
           <GateBottomBar>
+            {status === "proposed" && (
+              <GateHint>
+                {iAmProposer
+                  ? "다른 일정·구장으로 제안을 수정할 수 있어요."
+                  : "다른 일정·구장으로 역제안할 수 있어요. (이 제안 수락은 채팅에서)"}
+              </GateHint>
+            )}
             <GateProceedBtn
               type="button"
+              disabled={!gateChoice}
               onClick={() => {
-                // 직접 입력 = 구장 위치 선택(맵 픽커)부터. 확정해야 날짜/시간 폼으로 이동.
-                setMapPickerOpen(true);
+                if (gateChoice === "partner") {
+                  navigate(`/venues?match=${roomId}`);
+                } else if (gateChoice === "direct") {
+                  setVenueMode("direct");
+                }
               }}
             >
               이 방식으로 정하기
@@ -5458,6 +5680,19 @@ export default function MatchRoomDetailPage() {
         onConfirm={handleMapPickerConfirm}
       />
 
+      <MatchFinalCelebration
+        open={showFinalAnim}
+        onClose={() => setShowFinalAnim(false)}
+        teams={`${toStr(myTeamView?.name) || "우리팀"} vs ${oppName}`}
+        subtitle={[
+          toStr(fieldAddress),
+          room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "",
+          "양 팀 결제 완료 · 경기장에서 만나요!",
+        ]
+          .filter(Boolean)
+          .join("\n")}
+      />
+
       <MatchConfirmCelebration
         open={showConfirmAnim}
         onClose={() => setShowConfirmAnim(false)}
@@ -5481,6 +5716,45 @@ export default function MatchRoomDetailPage() {
           setShowAcceptAnim(false);
           navigate("/matchingmanage");
         }}
+      />
+
+      {/* ✅ 양 팀 라인업 확정 축하 → 바로 구장·일정 제안하기로 이동 가능 */}
+      <MatchAcceptedCelebration
+        open={showLineupDoneAnim}
+        title="라인업 확정 완료!"
+        sub={"양 팀 라인업이 모두 확정됐어요.\n이제 구장·일정을 정해요!"}
+        primaryLabel="구장·일정 제안하기  ›"
+        laterLabel="나중에 하기"
+        myName={toStr(myTeamView?.name) || "우리팀"}
+        myLogoUrl={teamLogoSrc(myTeamView?.logoUrl)}
+        oppName={oppName}
+        oppLogoUrl={teamLogoSrc(oppTeamView?.logoUrl)}
+        onStart={() => {
+          setShowLineupDoneAnim(false);
+          setVenueMode("none");
+          navigate(`/match-roomdetail/${roomId}/venue`);
+        }}
+        onLater={() => setShowLineupDoneAnim(false)}
+        onClose={() => setShowLineupDoneAnim(false)}
+      />
+
+      {/* ✅ 제휴구장 제안 수락 → 결제 안내 축하(양 팀). 매칭 수락 화면과 동일 톤 */}
+      <MatchAcceptedCelebration
+        open={showPayPromptAnim}
+        title="제안 수락 완료!"
+        sub={"구장·일정 제안이 수락됐어요.\n이제 구장비를 결제해 주세요!"}
+        primaryLabel="결제 바로가기  ›"
+        laterLabel="나중에 하기"
+        myName={toStr(myTeamView?.name) || "우리팀"}
+        myLogoUrl={teamLogoSrc(myTeamView?.logoUrl)}
+        oppName={oppName}
+        oppLogoUrl={teamLogoSrc(oppTeamView?.logoUrl)}
+        onStart={() => {
+          setShowPayPromptAnim(false);
+          navigate(`/match-pay/${roomId}`);
+        }}
+        onLater={() => setShowPayPromptAnim(false)}
+        onClose={() => setShowPayPromptAnim(false)}
       />
 
       {/* 라인업 보기 모달 — 우리/상대 라인업을 한 창에서 확인. X 또는 바깥 클릭으로 닫힘 */}

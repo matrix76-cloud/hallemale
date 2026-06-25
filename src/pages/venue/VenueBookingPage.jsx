@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/pages/venue/VenueBookingPage.jsx
 // 구장 예약 — 코트/날짜/빈 슬롯 선택 → 원(가짜) 결제 → 예약 확정 + 구장주 푸시
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
@@ -18,11 +18,12 @@ import {
   calcSlotPrice,
   splitPrice,
   dowToKey,
+  FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
 import { getFizzBalance, chargeFizz } from "../../services/fizzService";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
-import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle } from "react-icons/fi";
+import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome } from "react-icons/fi";
 import { FacilityIcon } from "./facilityIcons";
 
 /* ---------- time helpers ---------- */
@@ -48,6 +49,28 @@ function ymd(d) {
 }
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 
+/* 운영 시간 요약: 코트 hours(mon~sun)를 평일/토/일로 묶어서 표시 */
+function hoursText(h) {
+  return !h || h.closed ? "휴무" : `${h.open} ~ ${h.close}`;
+}
+function buildHoursSummary(court) {
+  const hrs = court?.hours;
+  if (!hrs) return [];
+  const wk = ["mon", "tue", "wed", "thu", "fri"].map((k) => hoursText(hrs[k]));
+  const allWeekdaySame = wk.every((x) => x === wk[0]);
+  const sat = hoursText(hrs.sat);
+  const sun = hoursText(hrs.sun);
+  const rows = [];
+  if (allWeekdaySame) rows.push(["평일", wk[0]]);
+  else ["월", "화", "수", "목", "금"].forEach((d, i) => rows.push([d, wk[i]]));
+  if (sat === sun) rows.push(["주말", sat]);
+  else {
+    rows.push(["토", sat]);
+    rows.push(["일", sun]);
+  }
+  return rows;
+}
+
 export default function VenueBookingPage() {
   const { id } = useParams();
   const [params] = useSearchParams();
@@ -57,6 +80,8 @@ export default function VenueBookingPage() {
   const { showToast } = useUI() || {};
   const toast = (message) => { if (showToast) showToast({ message }); };
   const uid = firebaseUser?.uid || "";
+  const suffix = matchId ? `?match=${matchId}` : "";
+  const goCourt = (c) => navigate(`/venue-book/${id}/court/${c.id}${suffix}`);
 
   const [venue, setVenue] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -70,6 +95,14 @@ export default function VenueBookingPage() {
   const [payOpen, setPayOpen] = useState(false);
   const [paying, setPaying] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null); // 매칭 두 팀 정보
+  const [photosOpen, setPhotosOpen] = useState(false); // 시설 사진 전체보기 모달
+  const heroRef = useRef(null);
+  const [heroIdx, setHeroIdx] = useState(0); // 상단 구장 사진 캐러셀 현재 인덱스
+  const onHeroScroll = (e) => {
+    const el = e.currentTarget;
+    const w = el.clientWidth || 1;
+    setHeroIdx(Math.round(el.scrollLeft / w));
+  };
 
   // 매칭룸에서 들어온 경우: 두 팀 정보 로드(제안 시 상대팀 식별용)
   useEffect(() => {
@@ -159,6 +192,17 @@ export default function VenueBookingPage() {
     } catch (e) { toast(e?.message || "충전 실패"); }
   };
 
+  const copyAddress = async () => {
+    const full = `${venue?.address || ""}${venue?.addressDetail ? ` ${venue.addressDetail}` : ""}`.trim();
+    if (!full) return;
+    try {
+      await navigator.clipboard.writeText(full);
+      toast("주소를 복사했어요.");
+    } catch {
+      toast("주소 복사에 실패했어요.");
+    }
+  };
+
   const handlePay = async () => {
     if (!uid) return toast("로그인이 필요해요.");
     if (!selected || !court) return;
@@ -197,6 +241,12 @@ export default function VenueBookingPage() {
     const myTeamName = isActor ? matchInfo.fromName : matchInfo.toName;
     const oppTeamName = isActor ? matchInfo.toName : matchInfo.fromName;
 
+    // ✅ 제안 전 확인창
+    const ok = window.confirm(
+      `${venue.name}\n${date} ${selected.start}~${selected.end}\n\n이 구장·일정으로 ${oppTeamName || "상대팀"}에게 제안할까요?`
+    );
+    if (!ok) return;
+
     setPaying(true);
     try {
       await proposeMatchSchedule({
@@ -226,96 +276,135 @@ export default function VenueBookingPage() {
 
   const photos = (venue.photos?.length ? venue.photos : venue.imageUrl ? [venue.imageUrl] : []).filter(Boolean);
   const hasLatLng = venue.lat != null && venue.lng != null;
+  const hoursSummary = buildHoursSummary(court);
+  const venuePhone = venue.phone || venue.contactPhone || "";
 
   return (
     <Wrap>
       {photos.length > 0 && (
-        <Gallery>
-          {photos.map((u, i) => <GImg key={i} src={u} alt={`구장 사진 ${i + 1}`} />)}
-        </Gallery>
+        <Hero>
+          <HeroTrack ref={heroRef} onScroll={onHeroScroll}>
+            {photos.map((u, i) => (
+              <HeroSlide key={i} src={u} alt={`구장 사진 ${i + 1}`} />
+            ))}
+          </HeroTrack>
+          {photos.length > 1 && <HeroCount>{heroIdx + 1}/{photos.length}</HeroCount>}
+        </Hero>
       )}
 
       <Head>
         <VName>{venue.name}</VName>
+        <MetaRow>
+          {venue.rating ? (
+            <RatingChip>
+              <FiStar size={12} /> {Number(venue.rating).toFixed(1)}
+              {venue.reviewCount ? <em> ({venue.reviewCount})</em> : null}
+            </RatingChip>
+          ) : null}
+          <TagChip>{venue.type === "outdoor" ? "실외" : "실내"}</TagChip>
+          <TagChip>{venue.cost === "free" ? "무료" : "유료"}</TagChip>
+          {venue.region ? <TagChip $muted>{venue.region}</TagChip> : null}
+        </MetaRow>
         <VAddr>{venue.address} {venue.addressDetail}</VAddr>
       </Head>
 
-      {hasLatLng && (
-        <Section>
-          <SecTitle><FiMapPin size={17} />위치</SecTitle>
-          <VenueMiniMap latLng={{ lat: venue.lat, lng: venue.lng }} height={170} />
-          <VAddr><FiMapPin size={13} style={{ verticalAlign: -2 }} /> {venue.address} {venue.addressDetail}</VAddr>
-        </Section>
-      )}
-
-      {venue.facilities?.length > 0 && (
-        <Section>
-          <SecTitle><FiCheckCircle size={17} />편의시설</SecTitle>
-          <FacWrap>{venue.facilities.map((f) => <Fac key={f}><FacilityIcon name={f} size={15} /> {f}</Fac>)}</FacWrap>
-        </Section>
-      )}
-
-      <Section>
-        <SecTitle><FiGrid size={17} />코트 선택</SecTitle>
-        <Chips>
-          {venue.courts.map((c) => (
-            <Chip key={c.id} $on={c.id === court?.id} onClick={() => setCourtId(c.id)}>
-              {c.name}
-              <small>{(Number(c.pricePerHour) || 0).toLocaleString()}원/시간</small>
-            </Chip>
-          ))}
-        </Chips>
-      </Section>
-
-      <Section>
-        <SecTitle><FiCalendar size={17} />날짜 선택</SecTitle>
-        <DateStrip>
-          {dates.map((d) => (
-            <DateCell key={d.date} $on={d.date === date} $dow={d.dow} onClick={() => setDate(d.date)}>
-              <small>{d.wd}</small><b>{d.day}</b>
-            </DateCell>
-          ))}
-        </DateStrip>
-      </Section>
-
-      <Section>
-        <SecTitle><FiClock size={17} />시간 선택</SecTitle>
-        <Legend>
-          <span className="open">예약 가능</span>
-          <span className="reserved">예약완료</span>
-          <span className="blocked">사용 불가</span>
-        </Legend>
-        {isClosed ? (
-          <Empty>이 요일은 휴무예요.</Empty>
-        ) : slots.length === 0 ? (
-          <Empty>운영 시간이 없어요.</Empty>
-        ) : (
-          <SlotGrid>
-            {slots.map((s, i) => {
-              const st = slotState(s);
-              const on = selected && selected.start === s.start;
-              return (
-                <Slot key={i} $st={st} $on={on} disabled={st !== "open"} onClick={() => st === "open" && setSelected(s)}>
-                  <b>{s.start}~{s.end}</b>
-                  <span className={st === "open" ? "price" : ""}>
-                    {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감" : `${calcSlotPrice(court, s.start, s.end).toLocaleString()}원`}
-                  </span>
-                </Slot>
-              );
-            })}
-          </SlotGrid>
-        )}
-      </Section>
+      <Notice>
+        <FiInfo size={15} />
+        <span>
+          예약 전 <b>운영 시간·환불 정책</b>을 확인해주세요. 결제 후 노쇼 시 환불
+          규정이 적용될 수 있어요.
+        </span>
+      </Notice>
 
       {venue.description && (
         <Section>
-          <SecTitle><FiInfo size={17} />구장 소개</SecTitle>
+          <SecTitle><FiInfo size={17} />코트 소개</SecTitle>
           <InfoPre>{venue.description}</InfoPre>
         </Section>
       )}
+
+      <Section>
+        <SecTitle><FiCheckCircle size={17} />편의시설</SecTitle>
+        <FacGrid>
+          {FACILITY_OPTIONS.map((f) => {
+            const on = (venue.facilities || []).includes(f);
+            return (
+              <FacCell key={f} $on={on}>
+                <FacIconWrap $on={on}><FacilityIcon name={f} size={22} /></FacIconWrap>
+                <FacLabel>{f}</FacLabel>
+              </FacCell>
+            );
+          })}
+        </FacGrid>
+      </Section>
+
+      <Section>
+        <SecTitle><FiGrid size={17} />코트 선택</SecTitle>
+        <CourtList>
+          {venue.courts.map((c) => (
+            <CourtCard key={c.id} type="button" onClick={() => goCourt(c)}>
+              <CourtThumb>
+                {venue.imageUrl ? <CourtThumbImg src={venue.imageUrl} alt={c.name} /> : <FiGrid size={24} />}
+              </CourtThumb>
+              <CourtBody>
+                <CourtCName>{c.name}</CourtCName>
+                <CourtCSub>{c.type === "outdoor" ? "실외" : "실내"} 코트</CourtCSub>
+                <CourtCPrice>{(Number(c.pricePerHour) || 0).toLocaleString()}원<small> / 시간</small></CourtCPrice>
+              </CourtBody>
+              <CourtBadge>예약 가능 ›</CourtBadge>
+            </CourtCard>
+          ))}
+        </CourtList>
+      </Section>
+
+      {photos.length > 0 && (
+        <Section>
+          <SecTitleRow>
+            <SecTitle><FiImage size={17} />시설 사진</SecTitle>
+            <SeeAll type="button" onClick={() => setPhotosOpen(true)}>전체보기</SeeAll>
+          </SecTitleRow>
+          <PhotoGrid>
+            {photos.map((u, i) => (
+              <PhotoThumb key={i} src={u} alt={`시설 사진 ${i + 1}`} onClick={() => setPhotosOpen(true)} />
+            ))}
+          </PhotoGrid>
+        </Section>
+      )}
+
+      <Section>
+        <SecTitle><FiMapPin size={17} />위치·교통</SecTitle>
+        {hasLatLng && <VenueMiniMap latLng={{ lat: venue.lat, lng: venue.lng }} height={170} />}
+        <AddrRow>
+          <VAddr style={{ flex: 1 }}>
+            <FiMapPin size={13} style={{ verticalAlign: -2 }} /> {venue.address} {venue.addressDetail}
+          </VAddr>
+          <CopyBtn type="button" onClick={copyAddress}><FiCopy size={12} /> 주소복사</CopyBtn>
+        </AddrRow>
+        {venuePhone ? (
+          <PhoneLink href={`tel:${venuePhone}`}><FiPhone size={13} /> {venuePhone}</PhoneLink>
+        ) : null}
+      </Section>
+
+      {hoursSummary.length > 0 && (
+        <Section>
+          <SecTitle>
+            <FiClock size={17} />운영 시간
+            {venue.courts?.length > 1 && court?.name ? <SecSub>· {court.name}</SecSub> : null}
+          </SecTitle>
+          <HoursTable>
+            {hoursSummary.map(([label, val]) => (
+              <HoursRow key={label} $off={val === "휴무"}>
+                <span>{label}</span>
+                <b>{val}</b>
+              </HoursRow>
+            ))}
+          </HoursTable>
+        </Section>
+      )}
+
       {venue.rules && (
         <Section>
-          <SecTitle><FiFileText size={17} />이용 규칙</SecTitle>
+          <SecTitle><FiFileText size={17} />이용 안내</SecTitle>
           <InfoPre>{venue.rules}</InfoPre>
         </Section>
       )}
@@ -326,53 +415,37 @@ export default function VenueBookingPage() {
         </Section>
       )}
 
+      {(venue.bizName || venue.ownerName || venuePhone) && (
+        <Section>
+          <SecTitle><FiHome size={17} />호스트 정보</SecTitle>
+          <HostCard>
+            <HostName>{venue.bizName || venue.ownerName}</HostName>
+            {venue.bizName && venue.ownerName ? <HostSub>{venue.ownerName}</HostSub> : null}
+            {venuePhone ? (
+              <PhoneLink href={`tel:${venuePhone}`}><FiPhone size={13} /> {venuePhone}</PhoneLink>
+            ) : null}
+          </HostCard>
+        </Section>
+      )}
+
       <div style={{ height: 90 }} />
 
-      {selected && (
-        <BottomBar>
-          <div>
-            <BbDate>{date} {selected.start}~{selected.end}</BbDate>
-            <BbPrice>
-              {price.toLocaleString()}원
-              {matchId ? <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}> · 두 팀 반반</span> : null}
-            </BbPrice>
-          </div>
-          {matchId ? (
-            <BookBtn onClick={handlePropose} disabled={paying}>구장·일정 제안하기</BookBtn>
-          ) : (
-            <BookBtn onClick={() => setPayOpen(true)}>예약하기</BookBtn>
-          )}
-        </BottomBar>
-      )}
-
-      {payOpen && selected && (
-        <Sheet onClick={(e) => { if (e.target === e.currentTarget) setPayOpen(false); }}>
-          <SheetCard onClick={(e) => e.stopPropagation()}>
-            <SheetTitle>결제</SheetTitle>
-            <PayRow><span>{venue.name} · {court.name}</span></PayRow>
-            <PayRow><span>{date} {selected.start}~{selected.end}</span></PayRow>
-            <Divider />
-            <PayRow $big><span>결제 금액</span><b>{price.toLocaleString()} 원</b></PayRow>
-            <PayRow><span>보유 금액</span><b style={{ color: balance >= price ? "inherit" : "#dc2626" }}>{balance.toLocaleString()} 원</b></PayRow>
-
-            {need > 0 && (
-              <ChargeBox>
-                <small>금액이 {need.toLocaleString()}원 부족해요. 충전해주세요.</small>
-                <ChargeBtns>
-                  <Cb onClick={() => handleCharge(10000)}>+1만</Cb>
-                  <Cb onClick={() => handleCharge(50000)}>+5만</Cb>
-                  <Cb onClick={() => handleCharge(need)}>필요한 만큼 (+{need.toLocaleString()})</Cb>
-                </ChargeBtns>
-              </ChargeBox>
-            )}
-
-            <PayBtn disabled={paying || balance < price} onClick={handlePay}>
-              {paying ? "결제 중…" : `${price.toLocaleString()} 원 결제하고 예약`}
-            </PayBtn>
-            <CancelBtn onClick={() => setPayOpen(false)} disabled={paying}>취소</CancelBtn>
-          </SheetCard>
+      {photosOpen && (
+        <Sheet onClick={(e) => { if (e.target === e.currentTarget) setPhotosOpen(false); }}>
+          <PhotosModal onClick={(e) => e.stopPropagation()}>
+            <PhotosHead>
+              <SheetTitle style={{ margin: 0 }}>시설 사진 ({photos.length})</SheetTitle>
+              <CloseX type="button" onClick={() => setPhotosOpen(false)}>×</CloseX>
+            </PhotosHead>
+            <PhotosScroll>
+              {photos.map((u, i) => (
+                <PhotoFull key={i} src={u} alt={`시설 사진 ${i + 1}`} />
+              ))}
+            </PhotosScroll>
+          </PhotosModal>
         </Sheet>
       )}
+
     </Wrap>
   );
 }
@@ -381,33 +454,180 @@ export default function VenueBookingPage() {
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 22px; padding-bottom: 8px;`;
 const Center = styled.div`min-height: 40vh; display: flex; align-items: center; justify-content: center; color: ${({ theme }) => theme.colors.textWeak}; font-size: 14px;`;
 const Cover = styled.img`width: 100%; height: 180px; object-fit: cover; border-radius: 14px;`;
-const Gallery = styled.div`
-  display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+/* 상단 구장 사진 히어로 캐러셀 (풀블리드 + 스와이프 + N/N 인디케이터) */
+const Hero = styled.div`
+  position: relative;
+  margin: -16px -16px 0;
+`;
+const HeroTrack = styled.div`
+  display: flex;
+  overflow-x: auto;
   scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none; -ms-overflow-style: none;
   &::-webkit-scrollbar { display: none; }
 `;
-const GImg = styled.img`
-  width: 100%; max-width: 100%; flex: 0 0 100%; scroll-snap-align: center;
-  aspect-ratio: 3 / 2; object-fit: cover; object-position: center;
-  border-radius: 14px; display: block;
+const HeroSlide = styled.img`
+  flex: 0 0 100%;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  scroll-snap-align: center;
+  display: block;
 `;
-const FacWrap = styled.div`display: flex; flex-wrap: wrap; gap: 8px;`;
-const Fac = styled.span`
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 7px 13px; border-radius: 999px; font-size: 13px;
+const HeroCount = styled.div`
+  position: absolute;
+  right: 12px; bottom: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px; font-weight: 700;
+  padding: 3px 10px; border-radius: 999px;
+`;
+
+/* 섹션 제목 + 우측 전체보기 */
+const SecTitleRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 10px;`;
+const SeeAll = styled.button`
+  border: none; background: transparent; cursor: pointer;
+  font-size: 12.5px; font-weight: 700;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+/* 시설 사진: 2행 가로 스크롤 그리드 (한 화면 2열×2행=4개, 오른쪽으로 계속 스와이프) */
+const PhotoGrid = styled.div`
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, 1fr);
+  grid-auto-columns: calc((100% - 8px) / 2);
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+`;
+const PhotoThumb = styled.img`
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  cursor: pointer;
+  scroll-snap-align: start;
   background: ${({ theme }) => theme.colors.surface};
+`;
+
+/* 전체보기 모달 */
+const PhotosModal = styled.div`
+  width: 100%; max-width: ${({ theme }) => theme.layout.maxWidth}px;
+  max-height: 88vh;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 18px 18px 0 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 12px;
+`;
+const PhotosHead = styled.div`display: flex; align-items: center; justify-content: space-between;`;
+const CloseX = styled.button`
+  border: none; background: transparent; cursor: pointer;
+  font-size: 24px; line-height: 1; color: ${({ theme }) => theme.colors.textWeak};
+`;
+const PhotosScroll = styled.div`
+  overflow-y: auto;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+  scrollbar-width: none; -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+`;
+const PhotoFull = styled.img`
+  width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px;
+  background: ${({ theme }) => theme.colors.surface};
+`;
+/* 편의시설: 전체 카테고리 그리드 (보유=활성, 미보유=흐림). 아이콘은 기존 FacilityIcon 유지 */
+const FacGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px 8px;
+`;
+const FacCell = styled.div`
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  opacity: ${({ $on }) => ($on ? 1 : 0.38)};
+`;
+const FacIconWrap = styled.div`
+  width: 46px; height: 46px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
   border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ $on, theme }) =>
+    $on ? (theme.mode === "dark" ? "rgba(124,92,201,0.18)" : "#f3efff") : theme.colors.surface};
+  color: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.textWeak)};
+`;
+const FacLabel = styled.div`
+  font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.2;
   color: ${({ theme }) => theme.colors.textNormal};
-  & > svg { color: ${({ theme }) => theme.colors.primary}; }
 `;
 const InfoPre = styled.div`
   font-size: 13.5px; line-height: 1.65; white-space: pre-wrap;
   color: ${({ theme }) => theme.colors.textNormal};
 `;
-const Head = styled.div`display: flex; flex-direction: column; gap: 4px;`;
+const Head = styled.div`display: flex; flex-direction: column; gap: 7px;`;
 const VName = styled.div`font-size: 19px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
 const VAddr = styled.div`font-size: 13px; color: ${({ theme }) => theme.colors.textWeak};`;
+
+const MetaRow = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
+const RatingChip = styled.span`
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 12.5px; font-weight: 800; color: #f59e0b;
+  & em { font-style: normal; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; }
+`;
+const TagChip = styled.span`
+  display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ $muted, theme }) => ($muted ? theme.colors.textWeak : theme.colors.textNormal)};
+`;
+const Notice = styled.div`
+  display: flex; align-items: flex-start; gap: 8px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px; padding: 11px 13px;
+  font-size: 12.5px; line-height: 1.55; color: ${({ theme }) => theme.colors.textNormal};
+  & > svg { color: ${({ theme }) => theme.colors.primary}; flex-shrink: 0; margin-top: 1px; }
+  & b { font-weight: 700; color: ${({ theme }) => theme.colors.textStrong}; }
+`;
+const AddrRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const CopyBtn = styled.button`
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 11px; border-radius: 9px; cursor: pointer;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal}; font-size: 12px; font-weight: 700;
+  &:active { transform: translateY(1px); }
+`;
+const PhoneLink = styled.a`
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13.5px; font-weight: 700; text-decoration: none;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+const SecSub = styled.span`font-size: 13px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak};`;
+const HostCard = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px; border-radius: 12px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+const HostName = styled.div`font-size: 14.5px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
+const HostSub = styled.div`font-size: 12.5px; color: ${({ theme }) => theme.colors.textWeak};`;
+const HoursTable = styled.div`
+  display: flex; flex-direction: column;
+  border: 1px solid ${({ theme }) => theme.colors.border}; border-radius: 12px; overflow: hidden;
+`;
+const HoursRow = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px; font-size: 13.5px;
+  & + & { border-top: 1px solid ${({ theme }) => theme.colors.border}; }
+  & > span { color: ${({ theme }) => theme.colors.textNormal}; font-weight: 600; }
+  & > b {
+    font-weight: 700;
+    color: ${({ $off, theme }) => ($off ? "#dc2626" : theme.colors.textStrong)};
+  }
+`;
 const Section = styled.div`display: flex; flex-direction: column; gap: 13px;`;
 const SecTitle = styled.div`
   font-size: 16px; font-weight: 800; letter-spacing: -0.01em;
@@ -428,6 +648,30 @@ const Chip = styled.button`
   color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textNormal)};
   font-size: 13.5px; font-weight: 700;
   & small { font-size: 11px; font-weight: 600; opacity: 0.85; }
+`;
+/* 코트 선택 카드 (목업 디자인) */
+const CourtList = styled.div`display: flex; flex-direction: column; gap: 10px;`;
+const CourtCard = styled.button`
+  width: 100%; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 12px; padding: 10px;
+  border-radius: 14px; border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  &:active { transform: translateY(1px); }
+`;
+const CourtThumb = styled.div`
+  width: 64px; height: 64px; flex-shrink: 0; border-radius: 12px; overflow: hidden;
+  background: #1b1f27; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.45);
+`;
+const CourtThumbImg = styled.img`width: 100%; height: 100%; object-fit: cover;`;
+const CourtBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
+const CourtCName = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
+const CourtCSub = styled.div`font-size: 12px; color: ${({ theme }) => theme.colors.textWeak};`;
+const CourtCPrice = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.primary}; & small { font-size: 11.5px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; }`;
+const CourtBadge = styled.span`
+  flex-shrink: 0; align-self: center; padding: 7px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 800; white-space: nowrap;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff")};
+  color: ${({ theme }) => theme.colors.primary};
 `;
 const DateStrip = styled.div`
   display: flex; gap: 8px; overflow-x: auto;

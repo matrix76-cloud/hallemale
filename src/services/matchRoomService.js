@@ -24,6 +24,7 @@ import {
   startAfter,
   documentId,
   addDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import { uploadCompressedImageMedia } from "./mediaService";
 import { getUserProfileByUid } from "./userService";
@@ -496,6 +497,20 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
       proposedByClubId: toStr(mr?.proposedByClubId),
       confirmedByClubId: toStr(mr?.confirmedByClubId),
 
+      // ✅ 제휴구장 예약(분할결제) 상태/정보 — 조율중·확정 카드 표시용
+      partnerBooking: mr?.partnerBooking
+        ? {
+            accepted: mr.partnerBooking.accepted === true,
+            payState: toStr(mr.partnerBooking.payState),
+            finalized: mr.partnerBooking.finalized === true,
+            paidByA: mr.partnerBooking.paidByA === true,
+            paidByB: mr.partnerBooking.paidByB === true,
+            venueName: toStr(mr.partnerBooking.venueName),
+            courtName: toStr(mr.partnerBooking.courtName),
+            totalPrice: Number.isFinite(Number(mr.partnerBooking.totalPrice)) ? Number(mr.partnerBooking.totalPrice) : null,
+          }
+        : null,
+
       field: mr?.field || null,
       fieldAddress: toStr(mr?.field?.address || mr?.fieldAddress || ""),
       fieldLat:
@@ -740,6 +755,43 @@ async function hydrateLineupPlayers(lineup) {
   return { ...lineup, players, memberCount: lineup.memberCount || players.length };
 }
 
+/**
+ * ✅ 매칭룸 실시간 구독
+ * - match_requests/{id} 문서를 onSnapshot 으로 구독.
+ * - 라인업 확정(from/toLineupSnapshot.confirmed)·상태·일정 등 핵심 필드가 바뀌면
+ *   onChange(signature) 호출 → 페이지에서 loadMatchRoomDetail 재조회.
+ * - 반환값: unsubscribe 함수
+ */
+export function subscribeMatchRoom(matchRequestId, onChange) {
+  const id = toStr(matchRequestId);
+  if (!id || typeof onChange !== "function") return () => {};
+
+  const ref = doc(db, "match_requests", id);
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (!snap.exists()) {
+        onChange(null);
+        return;
+      }
+      const d = snap.data() || {};
+      onChange({
+        status: toStr(d.status),
+        resultState: toStr(d.resultState),
+        proposedByClubId: toStr(d.proposedByClubId),
+        confirmedByClubId: toStr(d.confirmedByClubId),
+        scheduledAtMs: tsMs(d.scheduledAt) || 0,
+        updatedAtMs: tsMs(d.updatedAt) || 0,
+        fromLineupConfirmed: !!d?.fromLineupSnapshot?.confirmed,
+        toLineupConfirmed: !!d?.toLineupSnapshot?.confirmed,
+      });
+    },
+    (err) => {
+      console.warn("[matchRoomService] subscribeMatchRoom error:", err?.message || err);
+    }
+  );
+}
+
 export async function loadMatchRoomDetail(matchRequestId) {
   const id = toStr(matchRequestId);
   if (!id) return { room: null };
@@ -811,7 +863,7 @@ export async function loadMatchRoomDetail(matchRequestId) {
 
 /* ───── 매칭룸 이벤트 푸시 알림 (상대 팀장에게) ─────
    sendPushTick은 targetIds(uid)로 발송하므로 수신 팀의 ownerUid를 명시한다. */
-async function notifyMatchRoomEvent({ matchId, recipientClubId, subType, type, title, body }) {
+async function notifyMatchRoomEvent({ matchId, recipientClubId, subType, type, title, body, deepLink }) {
   try {
     const rid = toStr(recipientClubId);
     if (!rid || !toStr(matchId)) return;
@@ -829,7 +881,7 @@ async function notifyMatchRoomEvent({ matchId, recipientClubId, subType, type, t
       targetIds: [ownerUid],
       linkType: "match",
       linkTargetId: toStr(matchId),
-      meta: { matchId: toStr(matchId), deepLink: `/match-roomdetail/${toStr(matchId)}` },
+      meta: { matchId: toStr(matchId), deepLink: toStr(deepLink) || `/match-roomdetail/${toStr(matchId)}` },
       push: { enabled: true, status: "queued", sentAt: null, failReason: null },
       prefsCategory: "match",
       createdAt: serverTimestamp(),
@@ -886,6 +938,38 @@ export async function sendLineupReminder({ matchRequestId, fromClubId } = {}) {
     });
   } catch (e) {
     console.warn("[sendLineupReminder] system message failed:", e?.message || e);
+  }
+
+  return { ok: true };
+}
+
+// 제휴구장 분할결제: 한 팀이 먼저 결제한 뒤, 미결제 상대팀에게 결제 독촉 푸시
+export async function sendPaymentReminder({ matchRequestId, fromClubId } = {}) {
+  const id = toStr(matchRequestId);
+  const from = toStr(fromClubId);
+  if (!id) throw new Error("sendPaymentReminder: matchRequestId is required");
+
+  const oppClubId = await getOpponentClubId(id, from);
+  if (!oppClubId) throw new Error("상대 팀을 찾을 수 없습니다.");
+
+  await notifyMatchRoomEvent({
+    matchId: id,
+    recipientClubId: oppClubId,
+    subType: "matchPaymentReminder",
+    type: "match_payment_reminder",
+    title: "구장비 결제 요청",
+    body: "상대팀이 결제를 완료했어요. 구장비 결제를 진행해 경기를 확정해 주세요.",
+    deepLink: `/match-pay/${id}`,
+  });
+
+  try {
+    await sendSystemMessage({
+      chatId: `match_${id}`,
+      text: "상대팀에 구장비 결제를 요청했어요.",
+      meta: { type: "payment_reminder", clubId: from },
+    });
+  } catch (e) {
+    console.warn("[sendPaymentReminder] system message failed:", e?.message || e);
   }
 
   return { ok: true };

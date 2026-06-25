@@ -501,6 +501,13 @@ export default function MatchRoomChat({
           value={text}
           onChange={(e) => setText(e.target.value)}
           disabled={sending || disabled}
+          onFocus={() => {
+            // 키보드가 올라온 뒤(애니메이션 후) 최신 메시지가 보이도록 맨 아래로 스크롤
+            setTimeout(() => {
+              const el = scrollRef.current;
+              if (el) el.scrollTop = el.scrollHeight;
+            }, 300);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();

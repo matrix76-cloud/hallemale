@@ -17,6 +17,10 @@ export default function MatchAcceptedCelebration({
   myLogoUrl = "",
   oppName = "상대팀",
   oppLogoUrl = "",
+  title = "매칭 성사!", // 제목 (재사용 시 커스텀 가능)
+  sub = null, // 본문 텍스트(문자열). null이면 기본 "매칭 성사" 문구 사용
+  primaryLabel = "조율 시작하기  ›", // 기본 버튼 라벨
+  laterLabel = "나중에 하기", // 보조 버튼 라벨
 }) {
   if (!open) return null;
 
@@ -81,10 +85,16 @@ export default function MatchAcceptedCelebration({
           </CheckCircle>
         </CheckWrap>
 
-        <Title>매칭 성사!</Title>
+        <Title>{title}</Title>
         <Sub>
-          <strong>{oppName}</strong> 팀과 매칭이 성사됐어요.
-          {"\n"}이제 경기를 조율해요!
+          {sub != null ? (
+            sub
+          ) : (
+            <>
+              <strong>{oppName}</strong> 팀과 매칭이 성사됐어요.
+              {"\n"}이제 경기를 조율해요!
+            </>
+          )}
         </Sub>
 
         <Teams>
@@ -108,10 +118,10 @@ export default function MatchAcceptedCelebration({
         </Teams>
 
         <PrimaryBtn type="button" onClick={onStart || close}>
-          조율 시작하기 &nbsp;›
+          {primaryLabel}
         </PrimaryBtn>
         <LaterBtn type="button" onClick={onLater || close}>
-          나중에 하기
+          {laterLabel}
         </LaterBtn>
       </Card>
     </Overlay>

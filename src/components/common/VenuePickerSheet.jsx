@@ -65,7 +65,7 @@ export default function VenuePickerSheet({
 
   const handleViewDetail = (v) => {
     onClose?.();
-    navigate(`/venues/${v.id}`);
+    navigate(`/venue-book/${v.id}`);
   };
 
   if (!open) return null;

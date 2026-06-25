@@ -10,6 +10,7 @@ import { useUI } from "../hooks/useUI";
 import { useClub } from "../hooks/useClub";
 import useMatchBadgeCount from "../hooks/useMatchBadgeCount";
 import useAutoReadNotifications from "../hooks/useAutoReadNotifications";
+import useMatchAcceptWatcher from "../hooks/useMatchAcceptWatcher";
 
 const Wrap = styled.div`
   min-height: 100vh;
@@ -122,6 +123,9 @@ export default function MainLayout({ hideHeader = false }) {
   // ✅ 알림창을 거치지 않고 해당 화면에 직접 들어가면 관련 알림 자동 읽음
   useAutoReadNotifications();
 
+  // ✅ 보낸 매칭 요청이 상대팀에 수락되면 실시간으로 "매칭 성사" 축하 화면 자동 표시
+  useMatchAcceptWatcher();
+
   const path = location.pathname || "/";
   const p = path.toLowerCase();
 
@@ -215,6 +219,7 @@ export default function MainLayout({ hideHeader = false }) {
     p === "/matches/finished";
 
   const isFullScreenPage =
+    p === "/venues" ||
     p === "/community" ||
     p.startsWith("/communitypost") ||
     p.startsWith("/team") ||
@@ -243,7 +248,7 @@ export default function MainLayout({ hideHeader = false }) {
 
   return (
     <Wrap>
-      {!hideHeader && <TopHeader title={title} showBack={showBack} />}
+      {!hideHeader && p !== "/venues" && <TopHeader title={title} showBack={showBack} />}
 
       <Main>
         {isFullScreenPage ? (

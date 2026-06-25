@@ -663,6 +663,7 @@ export async function writePartnerBooking({ matchId, venue, court, date, startTi
     partnerBooking: {
       venueId: safeStr(venue.id),
       venueName: safeStr(venue.name),
+      venueImageUrl: safeStr(venue.imageUrl) || safeStr(arr(venue.photos)[0]) || "",
       ownerUid: safeStr(venue.ownerUid),
       courtId: safeStr(court.id),
       courtName: safeStr(court.name),
@@ -682,6 +683,30 @@ export async function writePartnerBooking({ matchId, venue, court, date, startTi
     updatedAt: serverTimestamp(),
   });
   return { total, shareA, shareB };
+}
+
+/**
+ * 제휴구장 제안 수락 (결제 전 단계).
+ * - partnerBooking.accepted=true 로 표시 → 양 팀 결제 버튼 잠금 해제 + 수락 축하창 트리거.
+ * - 매칭 status 는 proposed 유지 (양 팀 결제 완료 시 confirmed).
+ */
+export async function acceptPartnerProposal({ matchId, acceptedByClubId } = {}) {
+  const id = safeStr(matchId);
+  const by = safeStr(acceptedByClubId);
+  if (!id) throw new Error("matchId가 필요합니다.");
+
+  const snap = await getDoc(doc(db, "match_requests", id));
+  const pb = snap.exists() ? snap.data()?.partnerBooking : null;
+  if (!pb) throw new Error("제안된 구장 정보가 없습니다.");
+  if (pb.accepted) return true; // 이미 수락됨
+
+  await updateDoc(doc(db, "match_requests", id), {
+    "partnerBooking.accepted": true,
+    "partnerBooking.acceptedByClubId": by,
+    "partnerBooking.acceptedAt": serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return true;
 }
 
 // 분할결제 마감 시간 (한 팀 결제 후 2시간)

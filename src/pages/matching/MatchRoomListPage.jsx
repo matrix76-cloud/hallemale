@@ -85,12 +85,23 @@ const formatMatchedTime = (v) => {
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 };
 
-// 조율 진행 단계 (라인업 확정 → 구장·일정 제안 → 수락/확정)
+// 조율 진행 단계 (라인업 확정 → 구장·일정 제안 → [제휴구장은 결제] → 확정)
 const buildAdjustSteps = (room) => {
   const lineupDone = !!room?.myLineupConfirmed && !!room?.oppLineupConfirmed;
   // 구장·일정은 제안 시 함께 설정됨(proposeMatchSchedule) → proposed/confirmed면 완료
   const proposeDone = !!toStr(room?.fieldAddress) && !!room?.scheduledAt;
   const confirmDone = toStr(room?.status) === "confirmed";
+  const pb = room?.partnerBooking || null;
+  // ✅ 제휴구장 예약이면 '결제' 단계 추가
+  if (pb) {
+    const payDone = pb.payState === "paid" || pb.finalized === true || confirmDone;
+    return [
+      { label: "라인업", done: lineupDone },
+      { label: "구장·일정", done: proposeDone },
+      { label: "결제", done: payDone },
+      { label: "확정", done: confirmDone },
+    ];
+  }
   return [
     { label: "라인업", done: lineupDone },
     { label: "구장·일정", done: proposeDone },
@@ -100,9 +111,26 @@ const buildAdjustSteps = (room) => {
 
 const getVsStatus = (room) => {
   const { status, scheduledAt, myScore, oppScore } = room || {};
+  const pb = room?.partnerBooking || null;
+  const lineupsDone = !!room?.myLineupConfirmed && !!room?.oppLineupConfirmed;
 
-  if (status === "accepted") return { text: "제안 필요", tone: "accepted" };
-  if (status === "proposed") return { text: "확정 대기", tone: "proposed" };
+  // 조율중: 단계별 대기 라벨
+  if (status === "accepted") {
+    return lineupsDone
+      ? { text: "구장·일정 제안 대기", tone: "accepted" }
+      : { text: "라인업 확정 대기", tone: "accepted" };
+  }
+  if (status === "proposed") {
+    if (pb) {
+      // 제휴구장 예약: 수락 → 결제 흐름
+      if (!pb.accepted) return { text: "상대 수락 대기", tone: "proposed" };
+      if (pb.payState !== "paid" && !pb.finalized) {
+        return { text: pb.payState === "half" ? "결제 대기 (1/2)" : "결제 대기", tone: "accepted" };
+      }
+      return { text: "확정 대기", tone: "proposed" };
+    }
+    return { text: "확정 대기", tone: "proposed" };
+  }
 
   if (status === "confirmed") {
     if (scheduledAt) {
@@ -335,6 +363,36 @@ const StepLine = styled.span`
   border-radius: 2px;
   background: ${({ $done, theme }) =>
     $done ? theme.colors.primary : theme.mode === "dark" ? "rgba(255,255,255,0.12)" : "#e5e7eb"};
+`;
+
+/* 확정 카드: 예약 유형 행 (제휴구장 결제 vs 직접입력) */
+const VenueRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+`;
+const VenueBadge = styled.span`
+  flex-shrink: 0;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: ${({ $partner, theme }) =>
+    $partner ? (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff") : theme.colors.surface};
+  color: ${({ $partner, theme }) => ($partner ? "#7c5cc9" : theme.colors.textWeak)};
+  border: 1px solid ${({ $partner, theme }) => ($partner ? "transparent" : theme.colors.border)};
+`;
+const VenueName = styled.span`
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 /* 마지막 메시지 + 안 읽은 수 행 */
@@ -950,6 +1008,26 @@ export default function MatchRoomListPage() {
           <VsSep>VS</VsSep>
           {renderTeamCol({ team: oppTeam, fallbackName: "상대팀" })}
         </TeamsRow>
+
+        {/* ✅ 확정 경기 카드: 예약 유형 (제휴구장 결제 vs 직접입력) */}
+        {room?.status === "confirmed" && !isPast && (
+          room?.partnerBooking ? (
+            <VenueRow $partner>
+              <VenueBadge $partner>
+                🏟️ 제휴구장{room.partnerBooking.payState === "paid" || room.partnerBooking.finalized ? " · 결제완료" : ""}
+              </VenueBadge>
+              <VenueName>
+                {toStr(room.partnerBooking.venueName) || toStr(room.fieldAddress) || "예약 완료"}
+                {toStr(room.partnerBooking.courtName) ? ` · ${toStr(room.partnerBooking.courtName)}` : ""}
+              </VenueName>
+            </VenueRow>
+          ) : toStr(room?.fieldAddress) ? (
+            <VenueRow>
+              <VenueBadge>📍 직접입력 · 현장정산</VenueBadge>
+              <VenueName>{toStr(room.fieldAddress)}</VenueName>
+            </VenueRow>
+          ) : null
+        )}
 
         {/* ✅ 확정 경기 카드: 메시지 미리보기 (팀장 전용) */}
         {isTeamLeader && room?.status === "confirmed" && !isPast && (() => {

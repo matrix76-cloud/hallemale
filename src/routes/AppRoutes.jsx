@@ -111,9 +111,9 @@ import FinishedMatchesPage from "../pages/matching/FinishedMatchesPage";
 import MyTeamMatchesPage from "../pages/matching/MyTeamMatchesPage";
 import EventPage from "../pages/event/EventPage";
 import AdminEventPopupsPage from "../pages/admin/AdminEventPopupsPage";
-import VenueDetailPage from "../pages/venue/VenueDetailPage";
 import VenueListPage from "../pages/venue/VenueListPage";
 import VenueBookingPage from "../pages/venue/VenueBookingPage";
+import CourtBookingPage from "../pages/venue/CourtBookingPage";
 
 // ✅ 구장 관리자(구장주) 워크스페이스
 import OwnerLayout from "../layouts/OwnerLayout";
@@ -385,7 +385,7 @@ export default function AppRoutes() {
 
           <Route path="/venues" element={<VenueListPage />} />
           <Route path="/venue-book/:id" element={<VenueBookingPage />} />
-          <Route path="/venues/:id" element={<VenueDetailPage />} />
+          <Route path="/venue-book/:id/court/:courtId" element={<CourtBookingPage />} />
 
           <Route path="/matches/finished" element={<FinishedMatchesPage />} />
           <Route path="/event/:id" element={<EventPage />} />

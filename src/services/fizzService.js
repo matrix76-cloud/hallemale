@@ -10,6 +10,10 @@
 import { db } from "./firebase";
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 
+// ⚠️ 테스트 단계: 잔액이 부족해도 결제를 통과시킴 (실결제 연동 전 임시).
+//    운영 배포 전 반드시 false 로 되돌릴 것.
+const TEST_ALWAYS_PASS = true;
+
 function n(v) {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
@@ -54,10 +58,15 @@ export async function payFizz(uid, amount) {
     const snap = await tx.get(ref);
     const cur = n(snap.exists() ? snap.data()?.fizzBalance : 0);
     if (cur < amt) {
-      const err = new Error("잔액이 부족합니다.");
-      err.code = "insufficient_fizz";
-      err.balance = cur;
-      throw err;
+      if (!TEST_ALWAYS_PASS) {
+        const err = new Error("잔액이 부족합니다.");
+        err.code = "insufficient_fizz";
+        err.balance = cur;
+        throw err;
+      }
+      // 테스트: 잔액 부족 시 0으로 처리하고 결제 통과
+      tx.set(ref, { fizzBalance: 0, fizzUpdatedAt: serverTimestamp() }, { merge: true });
+      return 0;
     }
     const after = cur - amt;
     tx.set(ref, { fizzBalance: after, fizzUpdatedAt: serverTimestamp() }, { merge: true });

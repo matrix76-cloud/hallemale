@@ -175,6 +175,7 @@ export default function TopHeader({
           </TitleCol>
         </LeftArea>
         <RightArea>
+          {headerConfig?.titleExtra}
           {rightActions.map((act) => (
             <IconButton key={act.key} type="button" onClick={act.onClick}>
               {act.icon}
