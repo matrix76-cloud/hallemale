@@ -316,7 +316,8 @@ export default function TeamOpponentListSection({
                       <SummaryRow>
                         <RecentLabel>최근 경기기록</RecentLabel>
                         <RecentDots>
-                          {recentResults.map((r, idx2) => {
+                          {/* 최신 전적이 오른쪽 끝에 오도록 역순 렌더 (recentResults는 최신이 index 0) */}
+                          {[...recentResults].reverse().map((r, idx2) => {
                             if (r === "W")
                               return <WinChip key={`${team.clubId}-r${idx2}`} size="sm" />;
                             if (r === "D")

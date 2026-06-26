@@ -10,8 +10,41 @@ import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from "fir
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
 import { MIN_TEAM_MEMBERS } from "../utils/constants";
+import { listClubMemberUidsExceptOwner } from "./clubManageService";
 
 const toStr = (v) => String(v || "").trim();
+
+// 매칭 성사 시 한 팀의 팀원(팀장 제외)에게 "매칭 성사 → 조율 시작" 알림.
+// 팀장은 위의 createNoti(팀장 전용)로 이미 받으므로 여기선 팀원만 대상으로 한다.
+async function notifyClubMembersAccepted({ matchId, clubId, opponentName }) {
+  const mid = toStr(matchId);
+  const cid = toStr(clubId);
+  if (!mid || !cid) return;
+
+  let uids = [];
+  try {
+    uids = await listClubMemberUidsExceptOwner(cid);
+  } catch (e) {}
+  if (!uids.length) return;
+
+  await addDoc(collection(db, "notifications"), {
+    kind: "match",
+    subType: "matchAccepted",
+    type: "match_accepted",
+    title: "매칭 성사 🎉",
+    body: `${toStr(opponentName) || "상대 팀"}과(와) 경기 조율을 시작했어요.`,
+    targetType: "USER",
+    targetIds: uids,
+    linkType: "match",
+    linkTargetId: mid,
+    meta: { matchId: mid, deepLink: `/match-roomdetail/${mid}` },
+    push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+    prefsCategory: "match",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    readBy: {},
+  });
+}
 
 const teamMemberCount = (team) =>
   Array.isArray(team?.members) ? team.members.length : 0;
@@ -330,6 +363,26 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
       body,
       pushEnabled: false,
     });
+  }
+
+  // 양 팀 팀원에게도 "매칭 성사" 알림 (팀장 제외 — 팀장은 위에서 받음)
+  // - 신청팀(actorClubId) 팀원 → 상대는 수락팀(toTeamSnapshot)
+  // - 수락팀(myId) 팀원 → 상대는 신청팀(fromTeamSnapshot)
+  try {
+    await Promise.all([
+      notifyClubMembersAccepted({
+        matchId,
+        clubId: actorClubId,
+        opponentName: toTeamSnapshot?.name,
+      }),
+      notifyClubMembersAccepted({
+        matchId,
+        clubId: myId,
+        opponentName: fromTeamSnapshot?.name,
+      }),
+    ]);
+  } catch (e) {
+    console.warn("[acceptMatchRequest] member notify failed:", e?.message || e);
   }
 
   return true;

@@ -28,7 +28,7 @@ import {
 } from "firebase/firestore";
 import { uploadCompressedImageMedia } from "./mediaService";
 import { getUserProfileByUid } from "./userService";
-import { listClubMembers } from "./clubManageService";
+import { listClubMembers, listClubMemberUidsExceptOwner } from "./clubManageService";
 import { fetchLineupRosterProfiles } from "./lineupRosterService";
 import { sendSystemMessage } from "./chatService";
 import { chargeFizz } from "./fizzService";
@@ -92,36 +92,25 @@ async function refundPartnerReservationIfPaid(matchId, reasonStr) {
   return { status: refundStatus, amount: total, breakdown };
 }
 
-// 경기 종료(결과 입력) 후 팀원들에게 "상대 팀 리뷰 작성" 알림 (팀장 제외)
-async function notifyClubMembersToReview(matchId, clubId) {
+// 한 팀의 팀원(팀장 제외)에게 매치 라이프사이클 알림 발송.
+// 팀장은 별도 알림(notifyMatchRoomEvent 등)으로 이미 받으므로 여기선 팀원만 대상으로 한다.
+async function notifyClubMembersEvent({ matchId, clubId, subType, type, title, body }) {
   const mid = toStr(matchId);
   const cid = toStr(clubId);
   if (!mid || !cid) return;
 
-  // 팀장(ownerUid)은 결과 입력 담당 → 리뷰 알림에서 제외
-  let ownerUid = "";
+  let uids = [];
   try {
-    const cs = await getDoc(doc(db, "clubs", cid));
-    ownerUid = toStr(cs.exists() ? cs.data()?.ownerUid : "");
+    uids = await listClubMemberUidsExceptOwner(cid);
   } catch (e) {}
-
-  let members = [];
-  try {
-    members = await listClubMembers({ clubId: cid, limitCount: 100 });
-  } catch (e) {}
-
-  const uids = members
-    .map((m) => toStr(m?.uid || m?.id))
-    .filter(Boolean)
-    .filter((u) => u !== ownerUid);
   if (!uids.length) return;
 
   await addDoc(collection(db, "notifications"), {
     kind: "match",
-    subType: "matchReviewRequest",
-    type: "match_review_request",
-    title: "경기 후기를 남겨주세요",
-    body: "경기가 끝났어요! 상대 팀에 대한 평점·후기를 남겨주세요.",
+    subType,
+    type,
+    title,
+    body,
     targetType: "USER",
     targetIds: uids,
     linkType: "match",
@@ -132,6 +121,18 @@ async function notifyClubMembersToReview(matchId, clubId) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     readBy: {},
+  });
+}
+
+// 경기 종료(결과 입력) 후 팀원들에게 "상대 팀 리뷰 작성" 알림 (팀장 제외)
+async function notifyClubMembersToReview(matchId, clubId) {
+  await notifyClubMembersEvent({
+    matchId,
+    clubId,
+    subType: "matchReviewRequest",
+    type: "match_review_request",
+    title: "경기 후기를 남겨주세요",
+    body: "경기가 끝났어요! 상대 팀에 대한 평점·후기를 남겨주세요.",
   });
 }
 
@@ -803,6 +804,13 @@ export function adaptMatchRequestToRoom(docId, data) {
     confirmedByClubId: toStr(d.confirmedByClubId),
     cancelledByClubId: toStr(d.cancelledByClubId),
 
+    // 취소 사유/환불 — 취소된 경기 카드(사유·정산) 표시용
+    cancelReason: toStr(d.cancelReason),
+    cancelReasonKey: toStr(d.cancelReasonKey),
+    cancelReasonText: toStr(d.cancelReasonText),
+    cancelledAt: d.cancelledAt || null,
+    refund: d.refund && typeof d.refund === "object" ? d.refund : null,
+
     field,
     fieldAddress: toStr(field?.address || d.fieldAddress || ""),
     fieldLat: field?.lat != null ? Number(field.lat) : null,
@@ -1222,6 +1230,33 @@ export async function confirmProposedSchedule({ matchRequestId, confirmedByClubI
     });
   }
 
+  // 양 팀 팀원에게도 "경기 확정" 알림 (팀장 제외 — 팀장은 위에서 받음)
+  try {
+    const confirmBody = "구장 결제까지 끝나 경기가 확정됐어요! 일정을 확인하세요.";
+    await Promise.all([
+      notifyClubMembersEvent({
+        matchId: id,
+        clubId: confirmer,
+        subType: "matchConfirmed",
+        type: "match_confirmed",
+        title: "경기 확정 🎉",
+        body: confirmBody,
+      }),
+      oppForConfirm
+        ? notifyClubMembersEvent({
+            matchId: id,
+            clubId: oppForConfirm,
+            subType: "matchConfirmed",
+            type: "match_confirmed",
+            title: "경기 확정 🎉",
+            body: confirmBody,
+          })
+        : Promise.resolve(),
+    ]);
+  } catch (e) {
+    console.warn("[confirmProposedSchedule] member notify failed:", e?.message || e);
+  }
+
   return true;
 }
 
@@ -1405,6 +1440,16 @@ export async function submitMatchResultWithMedia({
       type: "match_result_submitted",
       title: "경기 결과 입력됨",
       body: `상대팀이 경기 결과(${as} : ${ts})를 입력했어요. 확인하고 인정해 주세요.`,
+    });
+
+    // 상대팀 팀원들에게도 "상대팀이 결과/후기 입력함" 알림 (팀장 제외)
+    await notifyClubMembersEvent({
+      matchId: id,
+      clubId: oppForResult,
+      subType: "matchResultSubmitted",
+      type: "match_result_submitted",
+      title: "상대팀이 경기 결과를 남겼어요",
+      body: `상대팀이 경기 결과(${as} : ${ts})와 후기를 남겼어요.`,
     });
   }
 

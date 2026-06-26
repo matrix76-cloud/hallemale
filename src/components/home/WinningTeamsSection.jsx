@@ -32,7 +32,7 @@ const SlideRow = styled.div`
   gap: 10px;
   overflow-x: auto;
   /* 상단 여백 확보: 1~3위 왕관이 제목과 겹치거나 잘리지 않게 */
-  padding: 22px 2px 4px;
+  padding: 30px 2px 4px;
   scroll-snap-type: x mandatory;
 
   scrollbar-width: none;
@@ -68,14 +68,14 @@ const ImageArea = styled.div`
   border-radius: 8px 8px 0 0; /* Card에서 overflow 제거 → 이미지 상단 모서리는 여기서 라운딩 */
 `;
 
-/* 전체 1~3위: 이미지 위에 왕관 로고 (프로필 사진 크기에 비례) */
+/* 전체 1~3위: 이미지 위로 튀어나와 머리에 쓴 듯 배치 (프로필 사진 크기에 비례) */
 const CrownImg = styled.img`
   position: absolute;
-  top: -12px;
+  top: -28px;
   left: 50%;
   transform: translateX(-50%);
-  width: 30%;
-  max-width: 40px;
+  width: 36%;
+  max-width: 48px;
   aspect-ratio: 1 / 1;
   height: auto;
   object-fit: contain;

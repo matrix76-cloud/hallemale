@@ -288,18 +288,45 @@ async function notifyChatRecipients({ chatId, fromUid, preview } = {}) {
     const targets = participants.filter((u) => String(u || "") && String(u) !== String(fromUid));
     if (!targets.length) return;
 
+    // 발신자 팀 정보로 알림 보강: 팀 프로필 사진 + 팀명 + 팀장명(매치룸 채팅의 발신자=팀장)
+    let actorTeamName = "";
+    let actorLeaderName = "";
+    let actorTeamLogoUrl = "";
+    try {
+      const uSnap = await getDoc(doc(db, "users", String(fromUid)));
+      const u = uSnap.exists() ? uSnap.data() : null;
+      if (u) {
+        actorLeaderName = String(u.nickname || u.name || "");
+        actorTeamName = String(u.activeTeamName || u.teamName || "");
+        const teamId = String(u.activeTeamId || u.clubId || "");
+        if (teamId) {
+          const cSnap = await getDoc(doc(db, "clubs", teamId));
+          if (cSnap.exists()) {
+            const c = cSnap.data() || {};
+            actorTeamLogoUrl = String(c.logoUrl || "");
+            if (!actorTeamName) actorTeamName = String(c.name || "");
+          }
+        }
+      }
+    } catch (e) {
+      // 보강 실패 시 기본 제목으로 폴백
+    }
+    const actorTitle = actorTeamName
+      ? (actorLeaderName ? `${actorTeamName} · ${actorLeaderName}` : actorTeamName)
+      : "새 메시지";
+
     await addDoc(collection(db, "notifications"), {
       kind: "chat",
       subType: "chatMessage",
       type: "chat_message",
-      title: "새 메시지",
+      title: actorTitle,
       body: String(preview || "메시지가 도착했어요").slice(0, 140),
       targetType: "USER",
       targetIds: targets,
       actorUid: String(fromUid || ""),
       linkType: "chat",
       linkTargetId: chatId,
-      meta: { chatId, fromUid, deepLink: `/chats/${chatId}` },
+      meta: { chatId, fromUid, deepLink: `/chats/${chatId}`, actorTeamName, actorLeaderName, actorTeamLogoUrl },
       push: { enabled: true, status: "queued", sentAt: null, failReason: null },
       prefsCategory: "chat",
       createdAt: serverTimestamp(),

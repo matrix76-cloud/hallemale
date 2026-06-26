@@ -15,8 +15,10 @@ export default function MatchAcceptedCelebration({
   onClose, // X
   myName = "우리팀",
   myLogoUrl = "",
+  myRank = 0, // 우리팀 전역 랭킹 (1~3위면 왕관 표시)
   oppName = "상대팀",
   oppLogoUrl = "",
+  oppRank = 0, // 상대팀 전역 랭킹 (1~3위면 왕관 표시)
   title = "매칭 성사!", // 제목 (재사용 시 커스텀 가능)
   sub = null, // 본문 텍스트(문자열). null이면 기본 "매칭 성사" 문구 사용
   primaryLabel = "조율 시작하기  ›", // 기본 버튼 라벨
@@ -100,7 +102,12 @@ export default function MatchAcceptedCelebration({
         <Teams>
           <TeamCol $side="left">
             <LogoBob style={{ animationDelay: "1.0s" }}>
-              <TeamLogo src={myLogoUrl || images.logo} alt={myName} />
+              <LogoWrap>
+                {myRank >= 1 && myRank <= 3 ? (
+                  <CrownImg src={images.logo} alt={`${myRank}위`} />
+                ) : null}
+                <TeamLogo src={myLogoUrl || images.logo} alt={myName} />
+              </LogoWrap>
             </LogoBob>
             <TeamNm>{myName}</TeamNm>
             <MyBadge>우리팀</MyBadge>
@@ -110,7 +117,12 @@ export default function MatchAcceptedCelebration({
 
           <TeamCol $side="right">
             <LogoBob style={{ animationDelay: "1.12s" }}>
-              <TeamLogo src={oppLogoUrl || images.logo} alt={oppName} />
+              <LogoWrap>
+                {oppRank >= 1 && oppRank <= 3 ? (
+                  <CrownImg src={images.logo} alt={`${oppRank}위`} />
+                ) : null}
+                <TeamLogo src={oppLogoUrl || images.logo} alt={oppName} />
+              </LogoWrap>
             </LogoBob>
             <TeamNm>{oppName}</TeamNm>
             <BadgeSpacer />
@@ -320,6 +332,23 @@ const TeamCol = styled.div`
 `;
 const LogoBob = styled.div`
   animation: ${bob} 1.1s ease-in-out infinite;
+`;
+/* 1~3위 팀: 로고 위에 얹는 왕관 (앱 전체 공통 비율 — 사진의 약 59%, 위로 ~38% 돌출) */
+const LogoWrap = styled.div`
+  position: relative;
+  display: inline-flex;
+`;
+const CrownImg = styled.img`
+  position: absolute;
+  top: -21px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 33px;
+  height: 33px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.25));
 `;
 const TeamLogo = styled.img`
   width: 56px;

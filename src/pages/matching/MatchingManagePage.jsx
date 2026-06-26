@@ -16,6 +16,7 @@ import {
   cancelMatchRequest,
 } from "../../services/matchingService";
 import { fetchLineupRosterProfiles } from "../../services/lineupRosterService";
+import { getTeamRankMap } from "../../services/teamRankingService";
 import PositionChip from "../../components/common/PositionChip";
 import EmptyState from "../../components/common/EmptyState";
 import { FiInfo } from "react-icons/fi";
@@ -365,6 +366,29 @@ const TeamInfoCell = styled.button`
   text-align: left;
   cursor: pointer;
   width: 100%;
+  /* 1~3위 왕관이 위로 튀어나오므로 상단 여백 확보 */
+  margin-top: ${({ $crowned }) => ($crowned ? "14px" : "0")};
+`;
+
+/* 로고 + 왕관 오버레이 래퍼 (LogoWrap은 overflow:hidden이라 왕관을 밖에서 얹음) */
+const LogoCrownWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+`;
+
+/* 1~3위: 팀 로고 위에 얹는 왕관 (앱 전체 공통 비율 — 사진의 약 59%, 위로 ~38% 돌출) */
+const CrownImg = styled.img`
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 31px;
+  height: 31px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.22));
 `;
 
 const LogoWrap = styled.div`
@@ -744,6 +768,16 @@ export default function MatchingManagePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myClubId]);
 
+  // ✅ 전역 팀 랭킹 맵 — 카드 상대팀이 1~3위면 로고 위 왕관 표시(현재 순위 기준, 변동 자동 반영)
+  const [rankMap, setRankMap] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    getTeamRankMap()
+      .then((m) => { if (alive) setRankMap(m); })
+      .catch(() => { if (alive) setRankMap(null); });
+    return () => { alive = false; };
+  }, []);
+
   const pendingItems = useMemo(() => {
     if (!Array.isArray(items)) return [];
     return items.filter((x) => isPendingOnlyRow(x));
@@ -945,6 +979,8 @@ export default function MatchingManagePage() {
               const oppName = toStr(opp?.name) || "상대 팀";
               const oppRegion = toStr(opp?.region);
               const logoSrc = teamLogoSrc(toStr(opp?.logoUrl));
+              const oppRank = rankMap?.get(toStr(row.opponentClubId)) || 0;
+              const hasCrown = oppRank >= 1 && oppRank <= 3;
 
               const ts = row.timestamp ? formatDateTime(row.timestamp) : "";
               const badgeMeta = getMatchBadgeMeta(row);
@@ -970,10 +1006,15 @@ export default function MatchingManagePage() {
                       <HeaderLeft>
                         <HeaderTitle title={headerTitle}>{headerTitle}</HeaderTitle>
 
-                        <TeamInfoCell onClick={() => handleTeamClick(row.opponentClubId)}>
-                          <LogoWrap>
-                            <LogoImg src={logoSrc} alt={oppName} />
-                          </LogoWrap>
+                        <TeamInfoCell $crowned={hasCrown} onClick={() => handleTeamClick(row.opponentClubId)}>
+                          <LogoCrownWrap>
+                            {hasCrown ? (
+                              <CrownImg src={images.logo} alt={`${oppRank}위`} />
+                            ) : null}
+                            <LogoWrap>
+                              <LogoImg src={logoSrc} alt={oppName} />
+                            </LogoWrap>
+                          </LogoCrownWrap>
                           <TeamTexts>
                             <TeamName>{oppName}</TeamName>
                             <TeamRegion>{oppRegion || "지역 미등록"}</TeamRegion>

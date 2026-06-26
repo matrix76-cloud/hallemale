@@ -800,6 +800,27 @@ export async function listClubMembers({ clubId, limitCount = 100 }) {
   return rows;
 }
 
+// ✅ 매치 라이프사이클 알림 fan-out용: 팀원 uid 목록 (팀장=ownerUid 제외)
+// - 팀장은 기존 알림으로 이미 받으므로 중복 방지를 위해 제외
+export async function listClubMemberUidsExceptOwner(clubId) {
+  const cid = String(clubId || "").trim();
+  if (!cid) return [];
+
+  const { ownerUid } = await resolveClubMetaSafe(cid);
+
+  let members = [];
+  try {
+    members = await listClubMembers({ clubId: cid, limitCount: 100 });
+  } catch (e) {
+    members = [];
+  }
+
+  return members
+    .map((m) => String(m?.uid || "").trim())
+    .filter(Boolean)
+    .filter((u) => u !== ownerUid);
+}
+
 /**
  * 팀 멤버 강제 탈퇴
  * @param {Object} params

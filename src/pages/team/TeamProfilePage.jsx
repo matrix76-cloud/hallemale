@@ -168,7 +168,8 @@ const HeroWrap = styled.div`
 const HeroInner = styled.div`
   display: flex;
   align-items: center;
-  padding: 20px 16px 10px;
+  /* 상단 패딩 확보: 1~3위 왕관이 HeroWrap(overflow:hidden) 밖으로 잘리지 않도록 */
+  padding: 34px 16px 10px;
   gap: 12px;
 `;
 
@@ -198,14 +199,14 @@ const HeroLogoBox = styled.div`
   flex-shrink: 0;
 `;
 
-/* 선수 프로필(AvatarCrown)과 동일하게 로고 위에 살짝 겹쳐 배치(로고 PNG 하단 여백 보정) */
+/* 홈 팀 랭킹(TeamRankingSection) 왕관과 동일 비율로 통일 — 사진 위로 ~38% 튀어나오게 배치 */
 const HeroCrown = styled.img`
   position: absolute;
   top: -32px;
   left: 50%;
   transform: translateX(-50%);
-  width: 50px;
-  height: 50px;
+  width: 49px;
+  height: 49px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;

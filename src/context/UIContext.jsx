@@ -10,6 +10,8 @@ const UIContext = createContext(null);
 export function UIProvider({ children }) {
   const [globalLoading, setGlobalLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  // 상단 인앱 알림 배너 (인스타처럼 새 알림 오면 화면 상단에 슬라이드로 표시)
+  const [banner, setBanner] = useState(null);
   const [modal, setModal] = useState(null);
   const [bottomSheet, setBottomSheet] = useState(null);
   // 상단 헤더 부제 (예: 구장 정하기 페이지의 "리바운드5 vs 패스트브레이")
@@ -22,6 +24,21 @@ export function UIProvider({ children }) {
     setToast({ message: opts.message, type: opts.type || "info" });
     setTimeout(() => setToast(null), 2000);
   }, []);
+
+  // 상단 알림 배너 표시 — 자동 사라짐/슬라이드 아웃은 배너 컴포넌트가 직접 처리
+  const showBanner = useCallback((opts) => {
+    setBanner({
+      id: opts.id || null,
+      title: opts.title || "새 알림",
+      body: opts.body || "",
+      deepLink: opts.deepLink || "",
+      kind: opts.kind || "",
+      avatarUrl: opts.avatarUrl || "",
+      ts: Date.now(),
+    });
+  }, []);
+
+  const hideBanner = useCallback(() => setBanner(null), []);
 
   const showModal = useCallback((opts) => {
     setModal({
@@ -45,6 +62,9 @@ export function UIProvider({ children }) {
     setGlobalLoading,
     toast,
     showToast,
+    banner,
+    showBanner,
+    hideBanner,
     modal,
     showModal,
     hideModal,

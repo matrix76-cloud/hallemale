@@ -6,11 +6,13 @@ import styled from "styled-components";
 import TopHeader from "./components/TopHeader";
 import BottomTabBar from "./components/BottomTabBar";
 import PageContainer from "./components/PageContainer";
+import NotificationBanner from "./components/NotificationBanner";
 import { useUI } from "../hooks/useUI";
 import { useClub } from "../hooks/useClub";
 import useMatchBadgeCount from "../hooks/useMatchBadgeCount";
 import useAutoReadNotifications from "../hooks/useAutoReadNotifications";
 import useMatchAcceptWatcher from "../hooks/useMatchAcceptWatcher";
+import useNotificationBanner from "../hooks/useNotificationBanner";
 
 const Wrap = styled.div`
   min-height: 100vh;
@@ -115,13 +117,16 @@ const SheetWrap = styled.div`
 export default function MainLayout({ hideHeader = false }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { toast, modal, hideModal, bottomSheet, hideBottomSheet, globalLoading } = useUI();
+  const { toast, banner, hideBanner, modal, hideModal, bottomSheet, hideBottomSheet, globalLoading } = useUI();
 
   const { count: matchingCount, refresh: refreshMatchBadge, uid, clubId } = useMatchBadgeCount();
   const { isTeamLeader } = useClub();
 
   // ✅ 알림창을 거치지 않고 해당 화면에 직접 들어가면 관련 알림 자동 읽음
   useAutoReadNotifications();
+
+  // ✅ 새 알림이 오면 화면 상단에 인앱 배너 표시 (인스타식)
+  useNotificationBanner({ uid, clubId });
 
   // ✅ 보낸 매칭 요청이 상대팀에 수락되면 실시간으로 "매칭 성사" 축하 화면 자동 표시
   useMatchAcceptWatcher();
@@ -265,6 +270,17 @@ export default function MainLayout({ hideHeader = false }) {
       )}
 
       {toast && <ToastWrap>{toast.message}</ToastWrap>}
+
+      {banner && (
+        <NotificationBanner
+          banner={banner}
+          onClose={hideBanner}
+          onOpen={(link) => {
+            hideBanner();
+            navigate(link || "/notifications");
+          }}
+        />
+      )}
 
       {modal && (
         <ModalOverlay onClick={hideModal}>

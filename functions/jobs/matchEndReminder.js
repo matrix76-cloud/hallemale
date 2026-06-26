@@ -10,6 +10,22 @@ const { getDb, getAdmin } = require("../firebaseAdmin");
 
 const DEFAULT_DUR_MIN = 120; // 일정 시간 미지정 시 기본 2시간
 
+// 한 팀의 팀원 uid 목록 (users.activeTeamId == clubId). 팀장 포함 — 호출부에서 Set으로 중복 제거.
+async function clubMemberUids(db, clubId) {
+  const cid = String(clubId || "").trim();
+  if (!cid) return [];
+  try {
+    const snap = await db
+      .collection("users")
+      .where("activeTeamId", "==", cid)
+      .limit(100)
+      .get();
+    return snap.docs.map((d) => d.id);
+  } catch (e) {
+    return [];
+  }
+}
+
 const matchEndReminderTick = onSchedule("*/5 * * * *", async () => {
   const db = getDb();
   const FieldValue = getAdmin().firestore.FieldValue;
@@ -61,7 +77,15 @@ const matchEndReminderTick = onSchedule("*/5 * * * *", async () => {
 
       const baseMeta = { matchId: docSnap.id, deepLink: `/match-roomdetail/${docSnap.id}` };
 
-      // 1) 경기 종료 알림
+      // 팀장 + 양 팀 팀원 모두에게 발송 (Set으로 중복 제거)
+      const recipientSet = new Set(owners);
+      for (const cid of clubIds) {
+        const us = await clubMemberUids(db, cid);
+        us.forEach((u) => recipientSet.add(u));
+      }
+      const recipients = Array.from(recipientSet);
+
+      // 1) 경기 종료 알림 — 팀장 + 팀원 전원
       await db.collection("notifications").add({
         kind: "match",
         subType: "matchEnded",
@@ -69,7 +93,7 @@ const matchEndReminderTick = onSchedule("*/5 * * * *", async () => {
         title: "경기가 종료됐어요",
         body: "경기 수고하셨어요! 결과를 확인해 주세요.",
         targetType: "USER",
-        targetIds: owners,
+        targetIds: recipients,
         linkType: "match",
         linkTargetId: docSnap.id,
         meta: baseMeta,

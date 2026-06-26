@@ -122,6 +122,34 @@ export default function CourtBookingPage() {
     return "open";
   };
 
+  // 연속된 빈 슬롯을 눌러 최대 MAX_SLOT_HOURS시간까지 범위 선택
+  const MAX_SLOT_HOURS = 3;
+  const onSlotClick = (s) => {
+    if (slotState(s) !== "open") return;
+    const sS = toMin(s.start), sE = toMin(s.end);
+    if (!selected) { setSelected({ start: s.start, end: s.end }); return; }
+    const selS = toMin(selected.start), selE = toMin(selected.end);
+    // 범위 바로 뒤에 인접 → 뒤로 확장
+    if (sS === selE) {
+      if (sE - selS > MAX_SLOT_HOURS * 60) return toast(`최대 ${MAX_SLOT_HOURS}시간까지 선택할 수 있어요.`);
+      return setSelected({ start: selected.start, end: s.end });
+    }
+    // 범위 바로 앞에 인접 → 앞으로 확장
+    if (sE === selS) {
+      if (selE - sS > MAX_SLOT_HOURS * 60) return toast(`최대 ${MAX_SLOT_HOURS}시간까지 선택할 수 있어요.`);
+      return setSelected({ start: s.start, end: selected.end });
+    }
+    // 이미 선택된 범위 안의 슬롯
+    if (sS >= selS && sE <= selE) {
+      if (selE - selS <= sE - sS) return setSelected(null);                          // 단일 슬롯 → 선택 해제
+      if (sE === selE) return setSelected({ start: selected.start, end: s.start });  // 마지막 슬롯 → 뒤에서 한 칸 축소
+      if (sS === selS) return setSelected({ start: s.end, end: selected.end });      // 첫 슬롯 → 앞에서 한 칸 축소
+      return setSelected({ start: s.start, end: s.end });                            // 가운데 → 그 슬롯만 선택
+    }
+    // 떨어진 슬롯 → 새 범위 시작
+    setSelected({ start: s.start, end: s.end });
+  };
+
   const price = selected && court ? calcSlotPrice(court, selected.start, selected.end) : 0;
   const need = Math.max(0, price - balance);
   const handleCharge = async (amount) => {
@@ -210,6 +238,7 @@ export default function CourtBookingPage() {
           <span className="reserved">예약완료</span>
           <span className="blocked">사용 불가</span>
         </Legend>
+        <SlotHint>연속된 시간대를 눌러 최대 {MAX_SLOT_HOURS}시간까지 선택할 수 있어요.</SlotHint>
         {isClosed ? (
           <Empty>이 요일은 휴무예요.</Empty>
         ) : slots.length === 0 ? (
@@ -218,9 +247,9 @@ export default function CourtBookingPage() {
           <SlotGrid>
             {slots.map((s, i) => {
               const st = slotState(s);
-              const on = selected && selected.start === s.start;
+              const on = selected && toMin(s.start) >= toMin(selected.start) && toMin(s.end) <= toMin(selected.end);
               return (
-                <Slot key={i} $st={st} $on={on} disabled={st !== "open"} onClick={() => st === "open" && setSelected(s)}>
+                <Slot key={i} $st={st} $on={on} disabled={st !== "open"} onClick={() => onSlotClick(s)}>
                   <b>{s.start}~{s.end}</b>
                   <span className={st === "open" ? "price" : ""}>
                     {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감" : `${calcSlotPrice(court, s.start, s.end).toLocaleString()}원`}
@@ -320,6 +349,9 @@ const Legend = styled.div`
   & span::before { content: ""; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; border: 1px solid ${({ theme }) => theme.colors.border}; }
   & .open::before { background: ${({ theme }) => theme.colors.card}; }
   & .reserved::before, & .blocked::before { background: ${({ theme }) => theme.colors.surface}; }
+`;
+const SlotHint = styled.div`
+  margin-top: 8px; font-size: 11.5px; color: ${({ theme }) => theme.colors.textWeak};
 `;
 const BottomBar = styled.div`
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 0;

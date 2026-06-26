@@ -5,6 +5,22 @@
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { getDb, getAdmin } = require("../firebaseAdmin");
 
+// 한 팀의 팀원 uid 목록 (users.activeTeamId == clubId). 팀장 포함 — 호출부에서 Set으로 중복 제거.
+async function clubMemberUids(db, clubId) {
+  const cid = String(clubId || "").trim();
+  if (!cid) return [];
+  try {
+    const snap = await db
+      .collection("users")
+      .where("activeTeamId", "==", cid)
+      .limit(100)
+      .get();
+    return snap.docs.map((d) => d.id);
+  } catch (e) {
+    return [];
+  }
+}
+
 const matchStartReminderTick = onSchedule("*/5 * * * *", async () => {
   const db = getDb();
   const FieldValue = getAdmin().firestore.FieldValue;
@@ -51,6 +67,14 @@ const matchStartReminderTick = onSchedule("*/5 * * * *", async () => {
         continue;
       }
 
+      // 팀장 + 양 팀 팀원 모두에게 발송 (Set으로 중복 제거)
+      const recipientSet = new Set(owners);
+      for (const cid of clubIds) {
+        const us = await clubMemberUids(db, cid);
+        us.forEach((u) => recipientSet.add(u));
+      }
+      const recipients = Array.from(recipientSet);
+
       await db.collection("notifications").add({
         kind: "match",
         subType: "matchStarted",
@@ -58,7 +82,7 @@ const matchStartReminderTick = onSchedule("*/5 * * * *", async () => {
         title: "경기 시작 시간이에요 🏀",
         body: "매칭한 경기 시작 시간입니다. 즐겁게 경기하세요!",
         targetType: "USER",
-        targetIds: owners,
+        targetIds: recipients,
         linkType: "match",
         linkTargetId: docSnap.id,
         meta: { matchId: docSnap.id, deepLink: `/match-roomdetail/${docSnap.id}` },

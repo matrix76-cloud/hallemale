@@ -20,7 +20,6 @@ import {
   sendLineupReminder,
   subscribeMatchRoom,
 } from "../../services/matchRoomService";
-import PositionChip from "../../components/common/PositionChip";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
 import { payPartnerShare, getMatchReservationStatus, acceptPartnerProposal } from "../../services/ownerVenueService";
@@ -33,7 +32,6 @@ import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import MatchRoomChat from "../../components/matchRoom/MatchRoomChat";
 import MapLocationPicker from "../../components/matchRoom/MapLocationPicker";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
-import MatchConfirmCelebration from "../../components/matchRoom/MatchConfirmCelebration";
 import MatchAcceptedCelebration from "../../components/matchRoom/MatchAcceptedCelebration";
 import MatchFinalCelebration from "../../components/matchRoom/MatchFinalCelebration";
 import CancelReasonSheet from "../../components/matchRoom/CancelReasonSheet";
@@ -44,6 +42,7 @@ import { getOrCreateMatchRoomChat } from "../../services/chatService";
 import { getClubById } from "../../services/clubManageService";
 import { getUserDoc } from "../../services/userService";
 import { getTeamRankMap } from "../../services/teamRankingService";
+import { getPlayerRankMap } from "../../services/rankingService";
 import { createTeamReport } from "../../services/teamReportService";
 import { mrp } from "../../components/matchRoom/matchRoomPalette";
 
@@ -373,6 +372,25 @@ const PlayerAvatar = styled.img`
   flex-shrink: 0;
 `;
 
+/* 라인업: 1~3위 선수 프로필 사진 위 왕관 */
+const PlayerAvatarWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+`;
+const PlayerCrown = styled.img`
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.18));
+`;
+
 const PlayerText = styled.div`
   display: flex;
   flex-direction: column;
@@ -401,19 +419,22 @@ const PlayerBodyMeta = styled.div`
   white-space: nowrap;
 `;
 
-/* 선수 실력 배지 (입문/아마추어/중급/상급) */
-const SkillBadge = styled.span`
+/* 라인업: 포지션 — 배경 칩 없이 깔끔한 텍스트 */
+const PositionText = styled.span`
   flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
-  border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
-  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+/* 라인업: 선수 실력(입문/아마추어/중급/상급) — 배경 배지 없이 텍스트 */
+const SkillBadge = styled.span`
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const VsDivider = styled.div`
@@ -859,6 +880,20 @@ const DirBtn = styled.button`
   color: ${({ theme }) => mrp(theme.mode).t2};
   cursor: pointer;
 `;
+/* 구장 타입 구분 뱃지: 제휴구장(보라) / 직접입력(중립) */
+const VenueTypeTag = styled.span`
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  vertical-align: middle;
+  background: ${({ theme, $partner }) =>
+    $partner ? mrp(theme.mode).puBg : mrp(theme.mode).surface2};
+  color: ${({ theme, $partner }) =>
+    $partner ? mrp(theme.mode).pu : mrp(theme.mode).t2};
+`;
 const LineupMiniBtn = styled.button`
   margin-top: 8px;
   display: inline-flex;
@@ -965,6 +1000,21 @@ const ConfBannerSub = styled.div`
   opacity: 0.92;
   line-height: 1.5;
 `;
+/* 확정 배너 우측 D-day 뱃지 */
+const ConfBannerDday = styled.div`
+  flex-shrink: 0;
+  margin-left: auto;
+  position: relative;
+  z-index: 1;
+  padding: 8px 13px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+`;
 
 /* ───── 확정 경기 취소 버튼 ───── */
 const ConfCancelBtn = styled.button`
@@ -1035,15 +1085,23 @@ const ConfMsgSub = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
 `;
-const ConfMsgDot = styled.span`
+const ConfMsgBadge = styled.span`
   position: absolute;
   top: 50%;
-  right: 18px;
+  right: 16px;
   transform: translateY(-50%);
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #3b82f6;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: 0 0 0 3px ${({ theme }) => mrp(theme.mode).surface};
 `;
 
@@ -1090,20 +1148,13 @@ const VenueNote = styled.div`
 `;
 
 /* ───── 제휴구장 확정: 예약완료 카드 ───── */
-const ResvCard = styled.div`
-  width: 100%;
-  max-width: 360px;
-  margin: 14px 0 0;
-  border-radius: 16px;
-  overflow: hidden;
-  background: ${({ theme }) => mrp(theme.mode).surface};
-  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
-`;
-const ResvThumb = styled.div`
+/* 매치 티켓 안에 풀블리드로 들어가는 구장 사진(TicketBody 좌우 패딩 16px 상쇄) */
+const TicketVenuePhoto = styled.div`
   position: relative;
-  width: 100%;
+  margin: 18px -16px 0;
   aspect-ratio: 2 / 1;
   background: #1b1f27;
+  overflow: hidden;
   display: flex; align-items: center; justify-content: center;
   color: rgba(255, 255, 255, 0.4);
 `;
@@ -1114,9 +1165,20 @@ const ResvBadge = styled.span`
   font-size: 11.5px; font-weight: 800;
   background: rgba(34, 197, 94, 0.92); color: #fff;
 `;
-const ResvInfo = styled.div`padding: 12px 14px 14px;`;
-const ResvName = styled.div`font-size: 16px; font-weight: 800; color: ${({ theme }) => mrp(theme.mode).t1};`;
-const ResvSub = styled.div`margin-top: 3px; font-size: 12.5px; color: ${({ theme }) => mrp(theme.mode).t3};`;
+/* 히어로 이미지 위에 구장명·코트정보 오버레이 (목업 배치) */
+const ResvThumbOverlay = styled.div`
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 14px 14px 11px;
+  background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.30) 55%, rgba(0,0,0,0) 100%);
+`;
+const ResvNameOv = styled.div`
+  font-size: 17px; font-weight: 800; color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.35);
+`;
+const ResvSubOv = styled.div`
+  margin-top: 3px; font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.88);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+`;
 
 /* ───── 제휴구장 확정: 구장 결제완료 카드 ───── */
 const PaidCard = styled.div`
@@ -2832,6 +2894,7 @@ export default function MatchRoomDetailPage() {
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rankMap, setRankMap] = useState(null); // clubId → 전체 랭킹 등수
+  const [playerRankMap, setPlayerRankMap] = useState(null); // userId → 선수 전체 랭킹 등수
 
   // ───── 제휴구장 분할결제 현황 로드 (room 선언 뒤 · early return 앞) ─────
   const loadPartnerPay = React.useCallback(async () => {
@@ -3130,6 +3193,22 @@ export default function MatchRoomDetailPage() {
         if (!cancelled) setRankMap(map);
       } catch (e) {
         console.error("[MatchRoomDetailPage] getTeamRankMap failed", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 선수 전체 랭킹 등수 (라인업에서 1~3위 선수 왕관 표시용)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const map = await getPlayerRankMap();
+        if (!cancelled) setPlayerRankMap(map);
+      } catch (e) {
+        console.error("[MatchRoomDetailPage] getPlayerRankMap failed", e);
       }
     })();
     return () => {
@@ -3966,17 +4045,26 @@ export default function MatchRoomDetailPage() {
     // ✅ 실력(개인 프로필) 표시 — 승패 대신
     const skillLabel = SKILL_LABEL[toStr(p.skillLevel)] || "";
 
+    // 선수 전체 랭킹 1~3위면 프로필 사진 위 왕관
+    const pRank = playerRankMap?.get(p.userId) || null;
+    const showPlayerCrown = !!pRank && pRank <= 3;
+
     return (
       <PlayerRow key={p.userId}>
         <PlayerLeft onClick={() => goPlayerDetail(p)}>
-          {avatar ? (
-            <PlayerAvatar src={avatar} alt={p.nickname} />
-          ) : (
-            <AvatarPlaceholder size={34} />
-          )}
+          <PlayerAvatarWrap>
+            {showPlayerCrown ? (
+              <PlayerCrown src={images.logo} alt={`${pRank}위`} />
+            ) : null}
+            {avatar ? (
+              <PlayerAvatar src={avatar} alt={p.nickname} />
+            ) : (
+              <AvatarPlaceholder size={34} />
+            )}
+          </PlayerAvatarWrap>
           <PlayerText>
             <PlayerTopRow>
-              <PositionChip label={formatPositionKo(posKo)} size="sm" showAbbr onlyAbbr={false} />
+              <PositionText>{formatPositionKo(posKo)}</PositionText>
               <PlayerName>{p.nickname}</PlayerName>
             </PlayerTopRow>
           </PlayerText>
@@ -4058,6 +4146,19 @@ export default function MatchRoomDetailPage() {
     const e = new Date(d.getTime() + dur * 60 * 1000);
     const hm = (x) => `${pad2(x.getHours())}:${pad2(x.getMinutes())}`;
     return `${d.getMonth() + 1}.${d.getDate()}(${wk}) ${hm(d)}-${hm(e)}`;
+  })();
+
+  // 경기일까지 남은 일수(D-day) — 확정 배너 우측 표시용
+  const confDDay = (() => {
+    if (!room.scheduledAt) return null;
+    const d = new Date(room.scheduledAt);
+    if (Number.isNaN(d.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    d.setHours(0, 0, 0, 0);
+    const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+    if (diff === 0) return "D-DAY";
+    return diff > 0 ? `D-${diff}` : `D+${-diff}`;
   })();
 
   const openDirections = () => {
@@ -4978,6 +5079,9 @@ export default function MatchRoomDetailPage() {
                       : "상대 팀과 일정이 확정됐어요. 경기장에서 만나요!"}
                   </ConfBannerSub>
                 </ConfBannerText>
+                {partnerPay?.pb && confDDay ? (
+                  <ConfBannerDday>{confDDay}</ConfBannerDday>
+                ) : null}
               </ConfBanner>
             ) : null}
 
@@ -5001,7 +5105,9 @@ export default function MatchRoomDetailPage() {
                       : toStr(roomChat.lastMessageText) || "확정 후에도 메시지로 계속 대화해요"}
                   </ConfMsgSub>
                 </ConfMsgTexts>
-                {Number(roomChat.unread) > 0 ? <ConfMsgDot /> : null}
+                {Number(roomChat.unread) > 0 ? (
+                  <ConfMsgBadge>{Number(roomChat.unread) > 99 ? "99+" : roomChat.unread}</ConfMsgBadge>
+                ) : null}
               </ConfMsgCard>
             )}
 
@@ -5064,33 +5170,81 @@ export default function MatchRoomDetailPage() {
                   </LineupMiniBtn>
                 </div>
 
-                <TicketRows>
-                  <TicketRow>
-                    <RowIconChip><FiCalendar size={17} /></RowIconChip>
-                    <RowKV>
-                      <RowK>일시</RowK>
-                      <RowV>{confDateLabel}</RowV>
-                    </RowKV>
-                  </TicketRow>
-                  <TicketRow>
-                    <RowIconChip><FiMapPin size={17} /></RowIconChip>
-                    <RowKV>
-                      <RowK>구장</RowK>
-                      <RowV>{toStr(fieldAddress) || "직접 입력 구장"}</RowV>
-                    </RowKV>
+                {/* 구장 정보(사진·일시·위치·지도)를 매치 티켓 한 카드로 묶어 표시.
+                    제휴구장: 구장 사진 + 일시 + 위치 + 지도 / 직접입력: 일시 + 위치 + 지도 */}
+                {partnerPay?.pb ? (
+                  <>
+                    <TicketVenuePhoto>
+                      {toStr(partnerPay.pb.venueImageUrl)
+                        ? <ResvThumbImg src={partnerPay.pb.venueImageUrl} alt={toStr(partnerPay.pb.venueName)} />
+                        : <FiMapPin size={26} />}
+                      <ResvBadge>✓ 예약 완료</ResvBadge>
+                      <ResvThumbOverlay>
+                        <ResvNameOv>{toStr(partnerPay.pb.venueName) || "제휴구장"}</ResvNameOv>
+                        {toStr(partnerPay.pb.courtName) ? <ResvSubOv>{toStr(partnerPay.pb.courtName)}</ResvSubOv> : null}
+                      </ResvThumbOverlay>
+                    </TicketVenuePhoto>
+                    <TicketRows>
+                      <TicketRow>
+                        <RowIconChip><FiCalendar size={17} /></RowIconChip>
+                        <RowKV>
+                          <RowK>일시</RowK>
+                          <RowV>{confDateLabel}</RowV>
+                        </RowKV>
+                      </TicketRow>
+                      <TicketRow>
+                        <RowIconChip><FiMapPin size={17} /></RowIconChip>
+                        <RowKV>
+                          <RowK>
+                            구장
+                            <VenueTypeTag $partner={true}>제휴구장</VenueTypeTag>
+                          </RowK>
+                          <RowV>{toStr(fieldAddress) || toStr(partnerPay.pb.venueName) || "제휴구장"}</RowV>
+                        </RowKV>
+                        {fieldLatLng?.lat && fieldLatLng?.lng ? (
+                          <DirBtn type="button" onClick={openDirections}>
+                            길찾기
+                          </DirBtn>
+                        ) : null}
+                      </TicketRow>
+                      {fieldLatLng?.lat && fieldLatLng?.lng ? (
+                        <FieldMapWrap>
+                          <VenueMiniMap latLng={fieldLatLng} height={140} />
+                        </FieldMapWrap>
+                      ) : null}
+                    </TicketRows>
+                  </>
+                ) : (
+                  <TicketRows>
+                    <TicketRow>
+                      <RowIconChip><FiCalendar size={17} /></RowIconChip>
+                      <RowKV>
+                        <RowK>일시</RowK>
+                        <RowV>{confDateLabel}</RowV>
+                      </RowKV>
+                    </TicketRow>
+                    <TicketRow>
+                      <RowIconChip><FiMapPin size={17} /></RowIconChip>
+                      <RowKV>
+                        <RowK>
+                          구장
+                          <VenueTypeTag $partner={false}>직접입력</VenueTypeTag>
+                        </RowK>
+                        <RowV>{toStr(fieldAddress) || "직접 입력 구장"}</RowV>
+                      </RowKV>
+                      {fieldLatLng?.lat && fieldLatLng?.lng ? (
+                        <DirBtn type="button" onClick={openDirections}>
+                          길찾기
+                        </DirBtn>
+                      ) : null}
+                    </TicketRow>
                     {fieldLatLng?.lat && fieldLatLng?.lng ? (
-                      <DirBtn type="button" onClick={openDirections}>
-                        길찾기
-                      </DirBtn>
+                      <FieldMapWrap>
+                        <VenueMiniMap latLng={fieldLatLng} height={140} />
+                      </FieldMapWrap>
                     ) : null}
-                  </TicketRow>
-
-                  {fieldLatLng?.lat && fieldLatLng?.lng ? (
-                    <FieldMapWrap>
-                      <VenueMiniMap latLng={fieldLatLng} height={140} />
-                    </FieldMapWrap>
-                  ) : null}
-                </TicketRows>
+                  </TicketRows>
+                )}
               </TicketBody>
             </Ticket>
 
@@ -5104,19 +5258,6 @@ export default function MatchRoomDetailPage() {
               const bPaid = pb.finalized || resv?.paidByB;
               return (
                 <>
-                  <ResvCard>
-                    <ResvThumb>
-                      {toStr(pb.venueImageUrl)
-                        ? <ResvThumbImg src={pb.venueImageUrl} alt={toStr(pb.venueName)} />
-                        : <FiMapPin size={26} />}
-                      <ResvBadge>✓ 예약 완료</ResvBadge>
-                    </ResvThumb>
-                    <ResvInfo>
-                      <ResvName>{toStr(pb.venueName) || "제휴구장"}</ResvName>
-                      <ResvSub>{toStr(pb.courtName)}</ResvSub>
-                    </ResvInfo>
-                  </ResvCard>
-
                   <PaidCard>
                     <PaidHead>
                       <PaidTitle>🧾 구장 결제 완료</PaidTitle>
@@ -5769,7 +5910,10 @@ export default function MatchRoomDetailPage() {
                 if (gateChoice === "partner") {
                   navigate(`/venues?match=${roomId}`);
                 } else if (gateChoice === "direct") {
+                  // 직접입력: 구장 위치 선택(지도 피커)을 먼저 연다.
+                  // (effect 자동오픈은 once-ref라 재선택 시 안 열려서, 여기서 명시적으로 오픈)
                   setVenueMode("direct");
+                  setMapPickerOpen(true);
                 }
               }}
             >
@@ -5848,12 +5992,15 @@ export default function MatchRoomDetailPage() {
           .join("\n")}
       />
 
-      <MatchConfirmCelebration
+      {/* 직접입력 구장 확정도 제휴구장과 동일한 '경기 확정' 축하로 통일 */}
+      <MatchFinalCelebration
         open={showConfirmAnim}
         onClose={() => setShowConfirmAnim(false)}
+        teams={`${toStr(myTeamView?.name) || "우리팀"} vs ${oppName}`}
         subtitle={[
           toStr(fieldAddress),
           room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "",
+          "상대 팀과 일정이 확정됐어요 · 경기장에서 만나요!",
         ]
           .filter(Boolean)
           .join("\n")}
@@ -5863,8 +6010,10 @@ export default function MatchRoomDetailPage() {
         open={showAcceptAnim}
         myName={toStr(myTeamView?.name) || "우리팀"}
         myLogoUrl={teamLogoSrc(myTeamView?.logoUrl)}
+        myRank={myRank}
         oppName={oppName}
         oppLogoUrl={teamLogoSrc(oppTeamView?.logoUrl)}
+        oppRank={oppRank}
         onStart={() => setShowAcceptAnim(false)}
         onClose={() => setShowAcceptAnim(false)}
         onLater={() => {
@@ -5882,8 +6031,10 @@ export default function MatchRoomDetailPage() {
         laterLabel="나중에 하기"
         myName={toStr(myTeamView?.name) || "우리팀"}
         myLogoUrl={teamLogoSrc(myTeamView?.logoUrl)}
+        myRank={myRank}
         oppName={oppName}
         oppLogoUrl={teamLogoSrc(oppTeamView?.logoUrl)}
+        oppRank={oppRank}
         onStart={() => {
           setShowLineupDoneAnim(false);
           setVenueMode("none");
@@ -5902,8 +6053,10 @@ export default function MatchRoomDetailPage() {
         laterLabel="나중에 하기"
         myName={toStr(myTeamView?.name) || "우리팀"}
         myLogoUrl={teamLogoSrc(myTeamView?.logoUrl)}
+        myRank={myRank}
         oppName={oppName}
         oppLogoUrl={teamLogoSrc(oppTeamView?.logoUrl)}
+        oppRank={oppRank}
         onStart={() => {
           setShowPayPromptAnim(false);
           navigate(`/match-pay/${roomId}`);
