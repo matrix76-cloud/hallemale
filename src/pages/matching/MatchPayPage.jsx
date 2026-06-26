@@ -13,8 +13,9 @@ import { useClub } from "../../hooks/useClub";
 import { useUI } from "../../hooks/useUI";
 import { payPartnerShare, getMatchReservationStatus, expireMatchReservationIfNeeded, getVenue } from "../../services/ownerVenueService";
 import { sendPaymentReminder, subscribeMatchRoom } from "../../services/matchRoomService";
+import { requestTossPayment } from "../../services/tossPay";
 import Spinner from "../../components/common/Spinner";
-import { FiCreditCard, FiMapPin, FiClock, FiBell } from "react-icons/fi";
+import { FiMapPin, FiClock, FiBell } from "react-icons/fi";
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 function fmtWhen(pb) {
@@ -25,12 +26,7 @@ function fmtWhen(pb) {
   return [dateLabel, time].filter(Boolean).join(" ");
 }
 
-const PAY_METHODS = [
-  { key: "kakao", name: "카카오페이", desc: "간편결제", bg: "#FEE500", fg: "#3C1E1E", label: "pay" },
-  { key: "naver", name: "네이버페이", desc: "간편결제", bg: "#03C75A", fg: "#ffffff", label: "N" },
-  { key: "toss", name: "토스페이", desc: "간편결제", bg: "#3182F6", fg: "#ffffff", label: "toss" },
-  { key: "card", name: "신용·체크카드", desc: "국내 모든 카드", bg: "", fg: "", label: "" },
-];
+const TOSS_PENDING_KEY = "halle.toss.pending";
 
 export default function MatchPayPage() {
   const { id } = useParams();
@@ -48,10 +44,10 @@ export default function MatchPayPage() {
   const [venueAddr, setVenueAddr] = useState("");
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
-  const [payMethod, setPayMethod] = useState("kakao");
   const [reminderBusy, setReminderBusy] = useState(false);
   const [reminderSent, setReminderSent] = useState(false);
   const navedRef = useRef(false);
+  const tossHandledRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +87,54 @@ export default function MatchPayPage() {
     return () => unsub && unsub();
   }, [id, navigate]);
 
+  // 토스 결제창에서 돌아왔을 때 처리 (?toss=success | ?toss=fail)
+  // ⚠️ 프론트 전용 테스트: 서버 승인 검증 없이 성공 redirect만으로 결제 처리.
+  useEffect(() => {
+    if (tossHandledRef.current) return;
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("toss");
+    if (!t) return;
+    const stripUrl = () => navigate(`/match-pay/${id}`, { replace: true });
+
+    if (t === "fail") {
+      tossHandledRef.current = true;
+      try { sessionStorage.removeItem(TOSS_PENDING_KEY); } catch {}
+      toast("결제가 취소되었어요.");
+      stripUrl();
+      return;
+    }
+    if (t === "success") {
+      if (!uid) return; // 인증 복원 대기
+      tossHandledRef.current = true;
+      let pend = null;
+      try { pend = JSON.parse(sessionStorage.getItem(TOSS_PENDING_KEY) || "null"); } catch {}
+      try { sessionStorage.removeItem(TOSS_PENDING_KEY); } catch {}
+      if (!pend || pend.matchId !== id) { stripUrl(); return; }
+      (async () => {
+        setPaying(true);
+        try {
+          const res = await payPartnerShare({
+            matchId: id, side: pend.side, payerUid: uid, payerTeamName: pend.payerTeamName,
+            payerName: pend.payerName, payerPhone: pend.payerPhone,
+          });
+          if (res?.state === "confirmed") {
+            navedRef.current = true;
+            navigate(`/match-roomdetail/${id}`, { replace: true, state: { celebrateConfirmed: true } });
+            return;
+          }
+          await load();
+          toast("결제 완료! 상대팀 결제를 기다리는 중이에요.");
+        } catch (e) {
+          toast(e?.message || "결제 처리에 실패했어요.");
+        } finally {
+          setPaying(false);
+          stripUrl();
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, uid]);
+
   if (loading) return <Center><Spinner size="lg" /></Center>;
   if (!pb) return <Center>결제할 구장 정보가 없어요.</Center>;
 
@@ -108,6 +152,38 @@ export default function MatchPayPage() {
     if (paying || myPaid) return;
     setPaying(true);
     try {
+      // 결제 의도를 저장 → 토스 결제창 성공 redirect 복귀 시 사용
+      const pending = {
+        matchId: id, side, payerTeamName: myTeam,
+        payerName: userDoc?.nickname || "",
+        payerPhone: userDoc?.phoneE164 || userDoc?.phone || "",
+      };
+      try { sessionStorage.setItem(TOSS_PENDING_KEY, JSON.stringify(pending)); } catch {}
+
+      const origin = window.location.origin;
+      const orderId = `m${id}-${side}-${Date.now()}`;
+      await requestTossPayment({
+        method: "card",
+        amount: myShare,
+        orderId,
+        orderName: `${pb.venueName || "구장"} 대관료 (${myTeam} 부담분)`,
+        customerName: userDoc?.nickname || myTeam || "사용자",
+        successUrl: `${origin}/match-pay/${id}?toss=success`,
+        failUrl: `${origin}/match-pay/${id}?toss=fail`,
+      });
+      // 정상 호출 시 토스로 페이지가 리다이렉트되므로 이 아래는 실행되지 않음
+    } catch (e) {
+      try { sessionStorage.removeItem(TOSS_PENDING_KEY); } catch {}
+      toast(e?.message || "결제창을 열지 못했어요.");
+      setPaying(false);
+    }
+  };
+
+  // 가상결제 (PC 테스트용) — 토스 결제창을 거치지 않고 바로 결제 처리
+  const handleVirtualPay = async () => {
+    if (paying || myPaid) return;
+    setPaying(true);
+    try {
       const res = await payPartnerShare({
         matchId: id, side, payerUid: uid, payerTeamName: myTeam,
         payerName: userDoc?.nickname || "",
@@ -118,10 +194,10 @@ export default function MatchPayPage() {
         navigate(`/match-roomdetail/${id}`, { replace: true, state: { celebrateConfirmed: true } });
       } else {
         await load();
-        toast("결제 완료! 상대팀 결제를 기다리는 중이에요.");
+        toast("가상결제 완료! 상대팀 결제를 기다리는 중이에요.");
       }
     } catch (e) {
-      toast(e?.message || "결제에 실패했어요.");
+      toast(e?.message || "가상결제에 실패했어요.");
     } finally { setPaying(false); }
   };
 
@@ -160,30 +236,6 @@ export default function MatchPayPage() {
         <Line $big><span>결제 금액</span><Strong>{myShare.toLocaleString()}원</Strong></Line>
       </Card>
 
-      {/* 결제수단 */}
-      <Card>
-        <CardTitle>결제수단</CardTitle>
-        <Methods>
-          {PAY_METHODS.map((m) => {
-            const on = payMethod === m.key;
-            return (
-              <Method key={m.key} type="button" $on={on} onClick={() => setPayMethod(m.key)} disabled={myPaid || confirmed}>
-                {m.key === "card" ? (
-                  <MIconCard><FiCreditCard size={18} /></MIconCard>
-                ) : (
-                  <MIcon style={{ background: m.bg, color: m.fg }}>{m.label}</MIcon>
-                )}
-                <MText>
-                  <MName>{m.name}</MName>
-                  <MDesc>{m.desc}</MDesc>
-                </MText>
-                <Radio $on={on}>{on ? "✓" : ""}</Radio>
-              </Method>
-            );
-          })}
-        </Methods>
-      </Card>
-
       {/* 양 팀 결제 현황 */}
       <Card>
         <CardTitle>양 팀 결제 현황</CardTitle>
@@ -211,9 +263,14 @@ export default function MatchPayPage() {
       ) : myPaid ? (
         <DoneBtn disabled>우리 팀 결제 완료 · 상대팀 대기</DoneBtn>
       ) : (
-        <PrimaryBtn type="button" onClick={handlePay} disabled={paying}>
-          {paying ? "결제 중…" : `${myShare.toLocaleString()}원 결제하기`}
-        </PrimaryBtn>
+        <PayRow>
+          <PrimaryBtn type="button" onClick={handlePay} disabled={paying}>
+            {paying ? "결제 중…" : `${myShare.toLocaleString()}원 결제하기`}
+          </PrimaryBtn>
+          <VirtualBtn type="button" onClick={handleVirtualPay} disabled={paying}>
+            가상결제
+          </VirtualBtn>
+        </PayRow>
       )}
       <BtnNote>내 몫만 결제돼요. 양 팀 모두 결제하면 예약이 확정됩니다.</BtnNote>
     </Wrap>
@@ -252,37 +309,6 @@ const Line = styled.div`display: flex; align-items: center; justify-content: spa
 const Strong = styled.b`font-size: 20px; font-weight: 800; color: ${VIO} !important;`;
 const Divider = styled.div`height: 1px; background: ${({ theme }) => theme.colors.border}; margin: 2px 0;`;
 
-/* 결제수단 */
-const Methods = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const Method = styled.button`
-  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
-  padding: 13px 14px; border-radius: 12px;
-  border: 1.5px solid ${({ $on, theme }) => ($on ? VIO : theme.colors.border)};
-  background: ${({ $on, theme }) => ($on ? (theme.mode === "dark" ? "rgba(124,58,237,0.12)" : "#f5f3ff") : theme.colors.card)};
-  &:disabled { opacity: 0.55; cursor: default; }
-  &:active:not(:disabled) { transform: translateY(1px); }
-`;
-const MIcon = styled.div`
-  width: 34px; height: 34px; flex-shrink: 0; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 800;
-`;
-const MIconCard = styled.div`
-  width: 34px; height: 34px; flex-shrink: 0; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  background: ${({ theme }) => theme.colors.surface}; color: ${({ theme }) => theme.colors.textNormal};
-`;
-const MText = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
-const MName = styled.div`font-size: 14px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong};`;
-const MDesc = styled.div`font-size: 11.5px; color: ${({ theme }) => theme.colors.textWeak};`;
-const Radio = styled.span`
-  width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 800; color: #fff;
-  border: 1.5px solid ${({ $on, theme }) => ($on ? VIO : theme.colors.border)};
-  background: ${({ $on }) => ($on ? VIO : "transparent")};
-`;
-
 const TeamRow = styled.div`display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: ${({ theme }) => theme.colors.textStrong}; font-weight: 600;`;
 const Stat = styled.span`font-size: 13px; font-weight: 700; color: ${({ $on }) => ($on ? "#16A34A" : "#94A3B8")};`;
 const Note = styled.div`font-size: 12px; color: ${({ theme }) => theme.colors.textWeak}; line-height: 1.5;`;
@@ -300,4 +326,15 @@ const NoteOk = styled.div`font-size: 13px; font-weight: 700; color: #16A34A;`;
 const Spacer = styled.div`flex: 1; min-height: 8px;`;
 const PrimaryBtn = styled.button`width: 100%; height: 52px; border: none; border-radius: 14px; background: ${VIO}; color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; &:hover { filter: brightness(0.96); } &:active { transform: translateY(1px); } &:disabled { opacity: 0.5; }`;
 const DoneBtn = styled(PrimaryBtn)`background: ${({ theme }) => theme.colors.surface}; color: ${({ theme }) => theme.colors.textWeak}; cursor: default;`;
+/* 결제하기 + 가상결제 나란히 */
+const PayRow = styled.div`display: flex; gap: 8px; & > button:first-child { flex: 1; }`;
+/* 가상결제(테스트) 버튼 — 토스 안 거치고 바로 결제 처리 */
+const VirtualBtn = styled.button`
+  flex-shrink: 0; width: 96px; height: 52px; border-radius: 14px; cursor: pointer;
+  border: 1.5px dashed ${VIO};
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,58,237,0.12)" : "#f5f3ff")};
+  color: ${VIO}; font-size: 14px; font-weight: 800;
+  &:active:not(:disabled) { transform: translateY(1px); }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
 const BtnNote = styled.div`text-align: center; font-size: 11.5px; color: ${({ theme }) => theme.colors.textWeak};`;
