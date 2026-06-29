@@ -20,7 +20,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "copy-landing": "mkdir -p public/landing && cp -R web/. public/landing/",
+    "copy-landing": "node scripts/copy-landing.mjs",
     "prestart": "npm run copy-landing",
     "prebuild": "npm run copy-landing",
     "start": "react-scripts start",

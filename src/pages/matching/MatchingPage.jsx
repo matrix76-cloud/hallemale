@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 
 import { useClubContext } from "../../context/ClubContext";
 
+import QuickMatchHero from "./components/QuickMatchHero";
 import AiRecommendedTeamsSection from "./components/AiRecommendedTeamsSection";
 import TeamOpponentListSection from "./components/TeamOpponentListSection";
 import Spinner from "../../components/common/Spinner";
@@ -186,6 +187,8 @@ export default function MatchingPage() {
   return (
     <Wrap>
       <Inner>
+        <QuickMatchHero onStart={() => navigate("/matching/region")} />
+
         <AiRecommendedTeamsSection
           myTeam={myTeam}
           opponentTeams={opponentTeams}

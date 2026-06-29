@@ -39,6 +39,9 @@ import InquiryPage from "../pages/my/InquiryPage";
 import PlayerProfilePage from "../pages/player/PlayerProfilePage";
 import TeamProfilePage from "../pages/team/TeamProfilePage";
 import MatchingPage from "../pages/matching/MatchingPage";
+import MatchRegionSelectPage from "../pages/matching/MatchRegionSelectPage";
+import MatchSearchingPage from "../pages/matching/MatchSearchingPage";
+import MatchOpponentRevealPage from "../pages/matching/MatchOpponentRevealPage";
 import MatchingManagePage from "../pages/matching/MatchingManagePage";
 
 import NotificationsPage from "../pages/notifications/NotificationsPage";
@@ -380,6 +383,9 @@ export default function AppRoutes() {
           <Route path="/my" element={<MyProfilePage />} />
 
           <Route path="/matching" element={<MatchingPage />} />
+          <Route path="/matching/region" element={<MatchRegionSelectPage />} />
+          <Route path="/matching/searching" element={<MatchSearchingPage />} />
+          <Route path="/matching/opponent" element={<MatchOpponentRevealPage />} />
           <Route path="/match-roomlist" element={<MatchRoomListPage />} />
           <Route path="/match-roomdetail/:roomId" element={<MatchRoomDetailPage />} />
           <Route path="/match-pay/:id" element={<MatchPayPage />} />

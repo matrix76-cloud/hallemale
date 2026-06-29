@@ -141,6 +141,8 @@ export default function MainLayout({ hideHeader = false }) {
     if (p === "/venues") return "구장 예약";
     if (p.startsWith("/venue-book")) return "구장 예약";
     if (p.startsWith("/match-pay")) return "구장비 결제";
+    if (p === "/matching/region") return "지역 선택";
+    if (p === "/matching/opponent") return "매칭 상대";
     if (p === "/matching") return "매칭하기";
     if (p === "/match-roomlist") return "매칭룸";
     if (p.endsWith("/venue")) return "구장 정하기";
@@ -191,8 +193,13 @@ export default function MainLayout({ hideHeader = false }) {
     return "할래말래";
   };
 
+  // 빠른 매칭 로딩(광고) 화면: 헤더/탭바 없이 전체 몰입
+  const isMatchSearching = p === "/matching/searching";
+
   const showBack =
     p === "/matching" ||
+    p === "/matching/region" ||
+    p === "/matching/opponent" ||
     p === "/venues" ||
     p.startsWith("/venue-book") ||
     p.startsWith("/match-pay") ||
@@ -231,6 +238,9 @@ export default function MainLayout({ hideHeader = false }) {
     p.startsWith("/player") ||
     p.startsWith("/notification") ||
     p === "/matching" ||
+    p === "/matching/region" ||
+    p === "/matching/opponent" ||
+    isMatchSearching ||
     p.startsWith("/matching/analysis") ||
     p.startsWith("/match-roomdetail") ||
     p.startsWith("/chats") ||
@@ -253,7 +263,7 @@ export default function MainLayout({ hideHeader = false }) {
 
   return (
     <Wrap>
-      {!hideHeader && p !== "/venues" && <TopHeader title={title} showBack={showBack} />}
+      {!hideHeader && p !== "/venues" && !isMatchSearching && <TopHeader title={title} showBack={showBack} />}
 
       <Main>
         {isFullScreenPage ? (
@@ -265,7 +275,7 @@ export default function MainLayout({ hideHeader = false }) {
         )}
       </Main>
 
-      {!hideHeader && !showBack && (
+      {!hideHeader && !showBack && !isMatchSearching && (
         <BottomTabBar currentPath={location.pathname} onNavigate={navigate} matchingCount={matchingCount} isTeamLeader={isTeamLeader} />
       )}
 
