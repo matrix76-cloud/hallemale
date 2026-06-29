@@ -16,6 +16,7 @@ import {
 } from "../../services/ownerVenueService";
 import { getFizzBalance, chargeFizz } from "../../services/fizzService";
 import Spinner from "../../components/common/Spinner";
+import CourtNotices from "./CourtNotices";
 import { FiCalendar, FiClock, FiMapPin } from "react-icons/fi";
 
 function toMin(hhmm) { const [h, m] = String(hhmm || "0:0").split(":").map((x) => parseInt(x, 10) || 0); return h * 60 + m; }
@@ -218,6 +219,8 @@ export default function CourtBookingPage() {
         <CourtMeta>{court.type === "outdoor" ? "실외" : "실내"} · {(Number(court.pricePerHour) || 0).toLocaleString()}원/시간</CourtMeta>
         <VenueRow><FiMapPin size={13} /> {venue.name} · {venue.address}</VenueRow>
       </Head>
+
+      <CourtNotices court={court} />
 
       <Section>
         <SecTitle><FiCalendar size={17} />날짜 선택</SecTitle>

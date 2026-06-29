@@ -174,6 +174,7 @@ export default function MyProfilePage() {
 
     if (key === "privacy") nav("/privacy");
     if (key === "terms") nav("/terms");
+    if (key === "operation") nav("/operation");
 
     if (key === "cs") nav("/my/inquiry");
 
@@ -671,6 +672,13 @@ export default function MyProfilePage() {
               <MenuItemButton onClick={() => handleSettingMenuClick("terms")}>
                 <MenuTextWrap>
                   <MenuTitle>이용약관</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
+              <MenuItemButton onClick={() => handleSettingMenuClick("operation")}>
+                <MenuTextWrap>
+                  <MenuTitle>운영정책</MenuTitle>
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>

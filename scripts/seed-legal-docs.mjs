@@ -29,7 +29,7 @@ const APPLY = process.argv.includes("--apply");
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const TYPES = ["privacy", "terms"];
+const TYPES = ["privacy", "terms", "operation"];
 
 async function run() {
   console.log(APPLY ? "=== APPLY 모드: 실제 덮어쓰기 ===" : "=== DRY-RUN: 계획만 출력 (적용하려면 --apply) ===");

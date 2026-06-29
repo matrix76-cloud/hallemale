@@ -75,6 +75,7 @@ import TeamJoinRequestDetailPage from "../components/team/TeamJoinRequestDetailP
 
 import TermsPage from "../pages/legal/TermsPage";
 import PrivacyPage from "../pages/legal/PrivacyPage";
+import OperationPage from "../pages/legal/OperationPage";
 import PlayerRankingFullPage from "../pages/player/PlayerRankingFullPage";
 import TeamRankingFullPage from "../pages/team/TeamRankingFullPage";
 import ImpactCampaignPage from "../pages/home/ImpactCampaignPage";
@@ -302,6 +303,7 @@ export default function AppRoutes() {
         <Route element={<MainLayout />}>
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/operation" element={<OperationPage />} />
         </Route>
 
         <Route path="/admin/login" element={<AdminLoginPage />} />

@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/services/legalService.js
-// 약관/정책 (개인정보 처리지침 / 이용약관) 관리
-// Firestore 컬렉션: legal_documents (문서 ID: 'privacy' | 'terms')
+// 약관/정책 (개인정보 처리지침 / 이용약관 / 운영정책) 관리
+// Firestore 컬렉션: legal_documents (문서 ID: 'privacy' | 'terms' | 'operation')
 
 import { db } from "./firebase";
 import {
@@ -11,7 +11,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-const VALID_TYPES = new Set(["privacy", "terms"]);
+const VALID_TYPES = new Set(["privacy", "terms", "operation"]);
 
 function safeStr(v) {
   return String(v || "").trim();

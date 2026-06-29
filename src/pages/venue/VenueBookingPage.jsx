@@ -25,6 +25,7 @@ import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome } from "react-icons/fi";
 import { FacilityIcon } from "./facilityIcons";
+import CourtNotices from "./CourtNotices";
 
 /* ---------- time helpers ---------- */
 function toMin(hhmm) {
@@ -308,6 +309,8 @@ export default function VenueBookingPage() {
         </MetaRow>
         <VAddr>{venue.address} {venue.addressDetail}</VAddr>
       </Head>
+
+      <CourtNotices court={court} />
 
       <Notice>
         <FiInfo size={15} />

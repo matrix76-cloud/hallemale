@@ -1,14 +1,16 @@
 /* eslint-disable */
 // src/pages/owner/OwnerVenuePage.jsx
 // 구장정보 — 코트별 기본정보/운영시간/요금(3단계)/공지/주의 + 편의시설·노출모드 (명세서 4,5,6)
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import {
   LuPlus, LuTrash2, LuPin, LuMegaphone, LuTriangleAlert, LuCoins, LuClock, LuLayoutGrid, LuBuilding2, LuLogOut,
+  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo,
 } from "react-icons/lu";
 import { useNavigate } from "react-router-dom";
 import { useOwner } from "../../context/OwnerContext";
 import { updateMyVenue, defaultCourtHours, FACILITY_OPTIONS, DAY_KEYS, DAY_LABELS } from "../../services/ownerVenueService";
+import { uploadVenueImage } from "../../services/venuesService";
 import CourtHoursEditor from "./components/CourtHoursEditor";
 import PriceBandsEditor from "./components/PriceBandsEditor";
 import BusinessSection from "./components/BusinessSection";
@@ -19,8 +21,6 @@ import {
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerSpinner from "./components/OwnerSpinner";
 
-const Cover = styled.div`width:100%;height:150px;border-radius:16px;overflow:hidden;background:${C.slate100};`;
-const CoverImg = styled.img`width:100%;height:100%;object-fit:cover;`;
 const VName = styled.div`font-size:18px;font-weight:800;color:${C.slate800};`;
 const VAddr = styled.div`font-size:13px;color:${C.slate500};`;
 const ChipRow = styled.div`display:flex;gap:8px;overflow-x:auto;&::-webkit-scrollbar{display:none;}`;
@@ -43,6 +43,12 @@ const Fac = styled.button`display:inline-flex;align-items:center;gap:5px;border:
 const Dates = styled.div`display:flex;gap:6px;flex-wrap:wrap;`;
 const DateTag = styled.button`border:1px solid ${({$on})=>$on?C.violet600:C.slate200};background:${({$on})=>$on?C.violet50:"#fff"};color:${({$on})=>$on?C.violet600:C.slate500};border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;`;
 const LogoutRow = styled.button`display:flex;align-items:center;justify-content:center;gap:6px;width:100%;border:1px solid ${C.slate200};background:#fff;border-radius:12px;padding:12px;color:${C.red500};font-size:13.5px;font-weight:700;cursor:pointer;`;
+const PhotoStrip = styled.div`display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;&::-webkit-scrollbar{display:none;}`;
+const PhotoBox = styled.div`position:relative;flex:0 0 auto;width:110px;height:84px;border-radius:10px;overflow:hidden;background:${C.slate100};border:1px solid ${C.slate200};`;
+const PhotoImg = styled.img`width:100%;height:100%;object-fit:cover;`;
+const RemovePhoto = styled.button`position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:999px;border:none;background:rgba(0,0,0,0.6);color:#fff;font-size:13px;cursor:pointer;line-height:1;`;
+const AddPhoto = styled.button`flex:0 0 auto;width:110px;height:84px;border-radius:10px;border:1.5px dashed ${C.slate200};background:${C.slate100};color:${C.slate500};font-size:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;`;
+const HiddenFile = styled.input`display:none;`;
 
 function courtForm(c, i) {
   return {
@@ -58,6 +64,7 @@ function makeCourt(i) { return courtForm({ name: `${i + 1}코트` }, i); }
 export default function OwnerVenuePage() {
   const navigate = useNavigate();
   const { venue, loading, refresh, signOut } = useOwner();
+  const fileRef = useRef(null);
   const [courts, setCourts] = useState([]);
   const [sel, setSel] = useState(0);
   const [facilities, setFacilities] = useState([]);
@@ -67,6 +74,13 @@ export default function OwnerVenuePage() {
   const [priceTab, setPriceTab] = useState("base"); // base | weekday | date
   const [dow, setDow] = useState("mon");
   const [pdate, setPdate] = useState("");
+  // 사용자 화면 노출 정보 (사진/소개/연락처/이용안내/환불정책)
+  const [photos, setPhotos] = useState([]); // [{url, storagePath}]
+  const [description, setDescription] = useState("");
+  const [phone, setPhone] = useState("");
+  const [rules, setRules] = useState("");
+  const [refundPolicy, setRefundPolicy] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!venue) return;
@@ -74,6 +88,11 @@ export default function OwnerVenuePage() {
     setFacilities(venue.facilities || []);
     setDisplayMode(venue.displayMode || "grouped");
     setDisplayName(venue.displayName || venue.name || "");
+    setPhotos((venue.photos || []).map((url, i) => ({ url, storagePath: venue.storagePaths?.[i] || "" })));
+    setDescription(venue.description || "");
+    setPhone(venue.phone || "");
+    setRules(venue.rules || "");
+    setRefundPolicy(venue.refundPolicy || "");
   }, [venue?.id]); // eslint-disable-line
 
   if (loading) return <OwnerSpinner label="불러오는 중…" />;
@@ -94,11 +113,32 @@ export default function OwnerVenuePage() {
   const setCaution = (i, v) => setCourt({ cautions: court.cautions.map((c, idx) => idx === i ? v : c) });
   const delCaution = (i) => setCourt({ cautions: court.cautions.filter((_, idx) => idx !== i) });
 
+  // 사진 업로드/삭제 (등록 페이지와 동일한 흐름 — uploadVenueImage 재사용)
+  const pickPhoto = () => { if (!uploading && !saving) fileRef.current?.click(); };
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploading(true);
+    try {
+      const { imageUrl, storagePath } = await uploadVenueImage(file);
+      setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
+    } catch (err) {
+      window.alert(err?.message || "사진 업로드에 실패했어요.");
+    } finally { setUploading(false); }
+  };
+  const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+
   const save = async () => {
     if (courts.some((c) => !c.name.trim())) return window.alert && null;
     setSaving(true);
     try {
-      await updateMyVenue(venue.id, { courts, facilities, displayMode, displayName });
+      await updateMyVenue(venue.id, {
+        courts, facilities, displayMode, displayName,
+        photos: photos.map((p) => p.url),
+        storagePaths: photos.map((p) => p.storagePath),
+        description, phone, rules, refundPolicy,
+      });
       await refresh();
     } catch (e) {
       // 토스트 대신 조용히
@@ -113,11 +153,35 @@ export default function OwnerVenuePage() {
     <Page>
       <ScreenTitle>구장정보</ScreenTitle>
 
-      {venue.imageUrl && <Cover><CoverImg src={venue.imageUrl} alt={venue.name} /></Cover>}
+      {/* 구장 사진 — 사용자 예약화면 상단 캐러셀/시설사진에 노출 */}
+      <Card>
+        <SecTitle><LuImage size={16} /> 구장 사진</SecTitle>
+        <Caption>구장 전경·코트·시설 사진. 첫 사진이 대표 이미지로 쓰여요. (여러 장 가능)</Caption>
+        <PhotoStrip>
+          {photos.map((p, i) => (
+            <PhotoBox key={i}>
+              <PhotoImg src={p.url} alt={`구장 사진 ${i + 1}`} />
+              <RemovePhoto type="button" onClick={() => removePhoto(i)}>×</RemovePhoto>
+            </PhotoBox>
+          ))}
+          <AddPhoto type="button" onClick={pickPhoto} disabled={uploading}>
+            {uploading ? "업로드 중…" : <><span style={{ fontSize: 20 }}>＋</span><span>사진 추가</span></>}
+          </AddPhoto>
+        </PhotoStrip>
+        <HiddenFile ref={fileRef} type="file" accept="image/*" onChange={handleFile} />
+      </Card>
+
       <Card>
         <VName>{venue.name}</VName>
         <VAddr>{venue.address} {venue.addressDetail}</VAddr>
-        {venue.description && <Caption style={{ whiteSpace: "pre-wrap" }}>{venue.description}</Caption>}
+      </Card>
+
+      {/* 구장 소개·연락처 — 사용자 예약화면 '코트 소개'/'호스트 정보'에 노출 */}
+      <Card>
+        <SecTitle><LuInfo size={16} /> 구장 소개</SecTitle>
+        <Caption>사용자 예약화면에 그대로 노출돼요. (특징·바닥 재질·주차 안내 등)</Caption>
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="구장 특징, 바닥 재질, 주차 안내 등" />
+        <Field><Lbl><LuPhone size={13} style={{ verticalAlign: -2, marginRight: 4 }} />구장 연락처</Lbl><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="예: 02-1234-5678" /></Field>
       </Card>
 
       {/* 코트 전환 */}
@@ -221,6 +285,18 @@ export default function OwnerVenuePage() {
       <Card>
         <SecTitle>편의시설</SecTitle>
         <FacWrap>{FACILITY_OPTIONS.map((f) => <Fac key={f} $on={facilities.includes(f)} onClick={() => toggleFac(f)}><FacilityIcon name={f} size={15} /> {f}</Fac>)}</FacWrap>
+      </Card>
+
+      {/* 이용 안내·환불 정책 — 사용자 예약화면 '이용 안내'/'환불 정책'에 노출 */}
+      <Card>
+        <SecTitle><LuFileText size={16} /> 이용 안내</SecTitle>
+        <Caption>상시 이용 규칙 (예: 실내화 필수, 음식물 반입 금지).</Caption>
+        <Textarea value={rules} onChange={(e) => setRules(e.target.value)} placeholder="예: 실내화 필수, 음식물 반입 금지 등" />
+      </Card>
+      <Card>
+        <SecTitle><LuReceipt size={16} /> 환불 정책</SecTitle>
+        <Caption>예약 취소·노쇼 시 적용되는 환불 규정.</Caption>
+        <Textarea value={refundPolicy} onChange={(e) => setRefundPolicy(e.target.value)} placeholder={"• 이용 7일 전: 100% 환불\n• 이용 1일 전~당일: 환불 불가"} />
       </Card>
 
       {/* 노출 모드 */}

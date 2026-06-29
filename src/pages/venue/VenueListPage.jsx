@@ -93,6 +93,9 @@ export default function VenueListPage() {
   const carouselRef = useRef(null);
   const cardRefs = useRef({});
   const progScrollRef = useRef(false);
+  const myLocRef = useRef(null); // 내 위치 마커(CustomOverlay)
+  const geoWatchRef = useRef(null); // navigator.geolocation.watchPosition id
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,10 +239,26 @@ export default function VenueListPage() {
       cancelled = true;
       overlaysRef.current = [];
       mapRef.current = null;
+      // 지도 재생성 시 내 위치 마커는 옛 지도에서 분리(다음 위치 갱신 때 새 지도에 다시 붙음)
+      if (myLocRef.current) myLocRef.current.setMap(null);
       if (hostRef.current) hostRef.current.innerHTML = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, loading, geoVenues]);
+
+  // 지도 화면을 벗어나거나 언마운트되면 위치 추적 중지
+  useEffect(() => {
+    if (view !== "map") stopLocate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  useEffect(() => {
+    return () => {
+      if (geoWatchRef.current != null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(geoWatchRef.current);
+      }
+    };
+  }, []);
 
   // 선택 핀 강조 + 지도 센터 이동
   useEffect(() => {
@@ -288,13 +307,72 @@ export default function VenueListPage() {
     if (bestId && bestId !== selectedId) setSelectedId(bestId);
   };
 
-  const recenter = () => {
+  // ───── 내 위치(실시간) ─────
+  const stopLocate = () => {
+    if (geoWatchRef.current != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(geoWatchRef.current);
+    }
+    geoWatchRef.current = null;
+    if (myLocRef.current) {
+      myLocRef.current.setMap(null);
+      myLocRef.current = null;
+    }
+    setLocating(false);
+  };
+
+  const showMyLocation = (lat, lng, recenterMap) => {
     const kakao = window.kakao;
     const map = mapRef.current;
-    if (!kakao || !map || !geoVenues.length) return;
-    const bounds = new kakao.maps.LatLngBounds();
-    geoVenues.forEach((v) => bounds.extend(new kakao.maps.LatLng(Number(v.lat), Number(v.lng))));
-    map.setBounds(bounds);
+    if (!kakao || !map) return;
+    const pos = new kakao.maps.LatLng(lat, lng);
+    if (!myLocRef.current) {
+      const el = document.createElement("div");
+      el.style.cssText =
+        "width:18px;height:18px;border-radius:50%;background:#4f46e5;border:3px solid #fff;box-shadow:0 0 0 5px rgba(79,70,229,0.22);";
+      myLocRef.current = new kakao.maps.CustomOverlay({
+        position: pos,
+        content: el,
+        xAnchor: 0.5,
+        yAnchor: 0.5,
+        zIndex: 5,
+      });
+    } else {
+      myLocRef.current.setPosition(pos);
+    }
+    myLocRef.current.setMap(map);
+    if (recenterMap) {
+      map.setLevel(4);
+      map.panTo(pos);
+    }
+  };
+
+  // 클릭 시 GPS 추적 시작/중지(토글). 추적 중에는 위치가 바뀌면 실시간으로 마커가 따라옴.
+  const locateMe = () => {
+    if (geoWatchRef.current != null) {
+      stopLocate();
+      return;
+    }
+    if (!navigator.geolocation) {
+      window.alert("이 기기에서는 위치 정보를 사용할 수 없어요.");
+      return;
+    }
+    setLocating(true);
+    let first = true;
+    geoWatchRef.current = navigator.geolocation.watchPosition(
+      (p) => {
+        showMyLocation(p.coords.latitude, p.coords.longitude, first);
+        first = false;
+      },
+      (err) => {
+        stopLocate();
+        window.alert(
+          err && err.code === 1
+            ? "위치 권한이 거부됐어요. 기기/브라우저 설정에서 위치 권한을 허용해 주세요."
+            : "현재 위치를 가져오지 못했어요. 잠시 후 다시 시도해 주세요."
+        );
+      },
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+    );
   };
 
   const goBook = (v) => navigate(`/venue-book/${v.id}${suffix}`);
@@ -325,7 +403,7 @@ export default function VenueListPage() {
           ) : (
             <>
               <MapHost ref={hostRef} />
-              <LocBtn type="button" onClick={recenter} aria-label="전체 보기"><FiCrosshair size={18} /></LocBtn>
+              <LocBtn type="button" $on={locating} onClick={locateMe} aria-label="내 위치" title="내 위치"><FiCrosshair size={18} /></LocBtn>
             </>
           )}
 
@@ -496,9 +574,9 @@ const MapHost = styled.div`width: 100%; height: 100%;`;
 const LocBtn = styled.button`
   position: absolute; right: 14px; bottom: 278px; z-index: 6;
   width: 40px; height: 40px; border-radius: 50%;
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
   background: ${({ theme }) => theme.colors.card};
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.textStrong)};
   display: flex; align-items: center; justify-content: center; cursor: pointer;
   box-shadow: 0 4px 12px -4px rgba(0,0,0,0.35);
 `;

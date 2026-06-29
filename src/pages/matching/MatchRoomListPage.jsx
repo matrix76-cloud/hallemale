@@ -6,7 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { FiMessageSquare } from "react-icons/fi";
 import { images } from "../../utils/imageAssets";
 import Spinner from "../../components/common/Spinner";
-import { loadMatchRoomListPageData, listMyReviewedMatchIds, MATCH_CANCEL_REASONS } from "../../services/matchRoomService";
+import { loadMatchRoomListPageData, listMyReviewedMatchIds } from "../../services/matchRoomService";
 import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import { listAllTeamsForRanking } from "../../services/teamRankingService";
 import { useClub } from "../../hooks/useClub";
@@ -17,12 +17,6 @@ import EmptyState from "../../components/common/EmptyState";
 /* ==================== 헬퍼 ==================== */
 
 const toStr = (v) => String(v || "").trim();
-
-// 취소 사유 key → 라벨 (취소된 경기 카드 표시용)
-const CANCEL_REASON_LABELS = (MATCH_CANCEL_REASONS || []).reduce((m, r) => {
-  m[r.key] = r.label;
-  return m;
-}, {});
 
 const formatKoreanDateTime = (iso) => {
   if (!iso) return "";
@@ -1467,19 +1461,17 @@ export default function MatchRoomListPage() {
       ? formatKoreanDateTime(room.scheduledAt)
       : formatMatchedTime(room?.cancelledAt);
 
-    const reasonKey = toStr(room?.cancelReasonKey);
-    const reasonText = toStr(room?.cancelReasonText);
-    const reasonLabel = CANCEL_REASON_LABELS[reasonKey] || "";
-    const isVenueReason = reasonKey === "venue";
-    const byMe = !!myClubId && toStr(room?.cancelledByClubId) === myClubId;
+    // 상세페이지와 동일 기준으로 표시: 취소 주체(우리팀/상대팀 취소) + 저장된 전체 사유 문자열
+    const cancelledBy = toStr(room?.cancelledByClubId);
+    const byMe = !!myClubId && cancelledBy === myClubId;
 
-    const reasonBadge = isVenueReason ? "구장 사정" : byMe ? "우리팀 취소" : "상대팀 취소";
-    const reasonDesc = reasonText || reasonLabel || toStr(room?.cancelReason) || "사유 미입력";
+    const reasonBadge = !cancelledBy ? "경기 취소" : byMe ? "우리팀 취소" : "상대팀 취소";
+    const reasonDesc = toStr(room?.cancelReason) || "사유 미입력";
 
     const refund = room?.refund;
     const hasRefund = !!refund && Number(refund.amount) > 0;
     const refundDone = hasRefund && toStr(refund.status) === "refunded";
-    const refundLabel = !hasRefund ? "결제 없음" : refundDone ? "환불 완료" : "환불 예정";
+    const refundLabel = !hasRefund ? "현장 정산" : refundDone ? "환불 완료" : "환불 예정";
 
     return (
       <CancelledCard key={room.id} onClick={() => handleClickRoom(room.id)} role="button" tabIndex={0}>

@@ -3854,6 +3854,12 @@ export default function MatchRoomDetailPage() {
       finalAnimRef.current = true;
       setShowConfirmAnim(true); // (2-7) 확정 애니메이션
       await refresh();
+      // ✅ 뒤로가기 스택 정리: 확정 카드 → (뒤로) 매칭룸 목록 → (뒤로) 홈.
+      //    기존엔 조율(제안) 화면이 스택에 남아 뒤로가기가 그쪽으로 되돌아가 혼란스러웠음.
+      //    같은 카드 경로로 끝나므로 축하 애니메이션(로컬 state)은 그대로 유지된다.
+      navigate("/home", { replace: true });
+      navigate("/match-roomlist");
+      navigate(`/match-roomdetail/${roomId}`);
     } catch (e) {
       window.alert(e?.message || "일정 확정에 실패했습니다.");
     }

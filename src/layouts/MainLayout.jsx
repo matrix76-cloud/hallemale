@@ -166,6 +166,7 @@ export default function MainLayout({ hideHeader = false }) {
 
     if (p === "/terms") return "이용약관";
     if (p === "/privacy") return "개인정보처리방침";
+    if (p === "/operation") return "운영정책";
 
     if (p === "/my/profile/detail") return "나의 프로필";
     if (p === "/my/profile/edit") return "프로필 수정";
@@ -225,6 +226,7 @@ export default function MainLayout({ hideHeader = false }) {
     p.includes("/join-requests") ||
     p === "/terms" ||
     p === "/privacy" ||
+    p === "/operation" ||
     p === "/impact" ||
     p.startsWith("/settings/") ||
     // ✅ 새 페이지 back
@@ -246,6 +248,7 @@ export default function MainLayout({ hideHeader = false }) {
     p.startsWith("/chats") ||
     p === "/terms" ||
     p === "/privacy" ||
+    p === "/operation" ||
     p === "/impact" ||
     p.startsWith("/matchingmanage") ||
     p.startsWith("/records") ||

@@ -157,6 +157,7 @@ const Btn = styled.button`
 const TYPE_LABEL = {
   privacy: "개인정보 처리지침",
   terms: "이용약관",
+  operation: "운영정책",
 };
 
 function fmtYmdHm(d) {
@@ -264,7 +265,7 @@ export default function AdminSettingsPolicyPage() {
         <div>
           <Title>약관/정책</Title>
           <Sub style={{ marginTop: 4 }}>
-            개인정보 처리지침과 이용약관을 작성·수정합니다. 사용자 마이페이지에서 그대로 노출됩니다.
+            개인정보 처리지침·이용약관·운영정책을 작성·수정합니다. 사용자 마이페이지에서 그대로 노출됩니다.
           </Sub>
         </div>
 
@@ -274,6 +275,9 @@ export default function AdminSettingsPolicyPage() {
           </TabBtn>
           <TabBtn type="button" $active={type === "terms"} onClick={() => switchType("terms")}>
             이용약관
+          </TabBtn>
+          <TabBtn type="button" $active={type === "operation"} onClick={() => switchType("operation")}>
+            운영정책
           </TabBtn>
         </Tabs>
       </HeaderRow>
