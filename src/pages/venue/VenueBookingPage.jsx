@@ -76,11 +76,12 @@ export default function VenueBookingPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const matchId = params.get("match") || ""; // 매칭룸에서 들어온 경우
+  const viewOnly = params.get("view") === "1"; // 매칭 카드에서 들어온 읽기 전용
   const { firebaseUser, userDoc } = useAuth();
   const { showToast } = useUI() || {};
   const toast = (message) => { if (showToast) showToast({ message }); };
   const uid = firebaseUser?.uid || "";
-  const suffix = matchId ? `?match=${matchId}` : "";
+  const suffix = matchId ? `?match=${matchId}` : viewOnly ? "?view=1" : "";
   const goCourt = (c) => navigate(`/venue-book/${id}/court/${c.id}${suffix}`);
 
   const [venue, setVenue] = useState(null);

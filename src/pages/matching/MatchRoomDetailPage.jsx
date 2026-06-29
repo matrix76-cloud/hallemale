@@ -4249,7 +4249,9 @@ export default function MatchRoomDetailPage() {
   // 제안한 구장(제휴구장)이면 카드 클릭 시 구장 상세로 이동. 직접입력 구장은 상세가 없어 이동 안 함.
   const propVenueId = toStr(partnerPay?.pb?.venueId);
   const openVenueDetail = () => {
-    if (propVenueId) navigate(`/venue-book/${propVenueId}`);
+    // 매칭 카드(제안됨/확정/지난경기)에서 들어온 구장 상세는 읽기 전용.
+    // 예약은 매칭룸의 구장·일정 제안/결제 흐름에서만 가능하다.
+    if (propVenueId) navigate(`/venue-book/${propVenueId}?view=1`);
   };
 
   const chatPinnedCard =

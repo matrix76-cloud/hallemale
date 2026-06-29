@@ -188,7 +188,10 @@ function BarChart({ data, teamLine, color, labelColor, axisColor, lineColor, act
   const max = Math.max(...data.map((d) => d.count), teamLine, 1);
   const slot = (W - padX * 2) / data.length;
   const bw = Math.min(slot - 14, 30);
-  const lineY = H - padBottom - (teamLine / max) * (H - padTop - padBottom);
+  const plotH = H - padTop - padBottom;
+  // 막대는 점선(teamLine=최댓값) 높이의 80%까지만 그려 점선과 막대 사이 여백 확보
+  const barScale = 0.8;
+  const lineY = H - padBottom - (teamLine / max) * plotH;
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
@@ -209,7 +212,7 @@ function BarChart({ data, teamLine, color, labelColor, axisColor, lineColor, act
         </>
       )}
       {data.map((d, i) => {
-        const h = (d.count / max) * (H - padTop - padBottom);
+        const h = (d.count / max) * plotH * barScale;
         const x = padX + i * slot + (slot - bw) / 2;
         const y = H - padBottom - h;
         const isActive = d.key === activeKey;

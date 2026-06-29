@@ -174,22 +174,6 @@ const AvatarCircle = styled.img`
   object-fit: cover;
 `;
 
-/* ✅ 팀장 pill (아바타 밑) */
-const CaptainPill = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 20px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: ${({ theme }) => theme.colors.primary};
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-`;
-
 const PlayerMeta = styled.div`
   flex: 1;
   display: flex;
@@ -400,7 +384,6 @@ export default function PlayerRankingSection({ rows = [] }) {
                       <AvatarPlaceholder size={40} />
                     )}
                   </AvatarBox>
-                  {p.isTeamCaptain === true ? <CaptainPill>팀장</CaptainPill> : null}
                 </AvatarStack>
 
                 <PlayerMeta>

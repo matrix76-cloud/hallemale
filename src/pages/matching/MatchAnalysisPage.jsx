@@ -12,7 +12,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import Spinner from "../../components/common/Spinner";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 import { teamLogoSrc } from "../../utils/imageAssets";
-import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { useClubContext } from "../../context/ClubContext";
 import { getTeamProfile } from "../../services/teamService";
 import { estimateWinProbability } from "../../utils/matchAnalysis";
@@ -98,26 +97,6 @@ function countPositions(members) {
     else map.unknown += 1;
   });
   return map;
-}
-
-function pickMediaImages(team, max = 6) {
-  const media = Array.isArray(team?.media) ? team.media : [];
-  const imgs = media
-    .filter((m) => String(m?.type || "") !== "video" && String(m?.type || "") !== "youtube")
-    .map((m) => String(m?.url || m?.thumbnailUrl || "").trim())
-    .filter(Boolean);
-
-  const logo = String(team?.logoUrl || "").trim();
-  const merged = logo ? [logo, ...imgs] : imgs;
-
-  const seen = new Set();
-  const out = [];
-  merged.forEach((u) => {
-    if (seen.has(u)) return;
-    seen.add(u);
-    out.push(u);
-  });
-  return out.slice(0, max);
 }
 
 function barRatio(a, b) {
@@ -391,8 +370,8 @@ const SoonDot = styled.div`
 `;
 
 const PlayerList = styled.div`
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 `;
 
@@ -404,16 +383,6 @@ const PlayerRow = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-`;
-
-const Avatar = styled.img`
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  object-fit: cover;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  flex-shrink: 0;
 `;
 
 const PlayerCol = styled.div`
@@ -438,28 +407,6 @@ const PlayerMeta = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-`;
-
-const Gallery = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`;
-
-const MediaCard = styled.div`
-  width: 100%;
-  height: 220px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-`;
-
-const MediaImg = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
 `;
 
 const AiBox = styled.div`
@@ -752,8 +699,6 @@ export default function MatchAnalysisPage() {
     const myRecent = buildRecentResultsFromTeam(myTeam, 5);
     const oppRecent = buildRecentResultsFromTeam(oppTeam, 5);
 
-    const oppMedia = pickMediaImages(oppTeam, 6);
-
     // ✅ 내 팀 라인업: 실데이터 우선, 없으면 기본 라인업 생성
     const lineupsRaw = Array.isArray(myTeam?.lineups) ? myTeam.lineups : [];
     const lineups = lineupsRaw.length > 0 ? lineupsRaw : buildDefaultLineupsForMyTeam(myTeam);
@@ -786,7 +731,6 @@ export default function MatchAnalysisPage() {
         pos: oppPos,
         recent: oppRecent,
         members: oppMembers,
-        media: oppMedia,
         logoUrl: teamLogoSrc(String(oppTeam.logoUrl || "").trim()),
       },
     };
@@ -1040,16 +984,11 @@ export default function MatchAnalysisPage() {
               </SectionBadge>
             </SectionHead>
 
-            <Hint>내 팀 / 상대 팀 선수 정보를 한 줄씩 보여줘요.</Hint>
+            <Hint>내 팀 / 상대 팀 선수 정보를 보여줘요.</Hint>
 
             <SectionTitleStrong style={{ marginTop: 6 }}>내 팀</SectionTitleStrong>
             <PlayerList>
               {my.members.map((p) => {
-                const avatar =
-                  String(p?.avatarUrl || "").trim() ||
-                  String(p?.photoUrl || "").trim() ||
-                  "";
-
                 const pos = String(p?.mainPosition || "").trim();
                 const posKo = POSITION_LABEL[pos] || "포지션";
                 const skill = String(p?.skillLevel || "").trim();
@@ -1062,11 +1001,6 @@ export default function MatchAnalysisPage() {
 
                 return (
                   <PlayerRow key={p.userId || p.id}>
-                    {avatar ? (
-                      <Avatar src={avatar} alt={p.nickname || p.name || "player"} />
-                    ) : (
-                      <AvatarPlaceholder size={44} />
-                    )}
                     <PlayerCol>
                       <PlayerName>{p.nickname || p.name || "선수"}</PlayerName>
                       <PlayerMeta>{meta}</PlayerMeta>
@@ -1079,11 +1013,6 @@ export default function MatchAnalysisPage() {
             <SectionTitleStrong style={{ marginTop: 10 }}>상대 팀</SectionTitleStrong>
             <PlayerList>
               {opp.members.map((p) => {
-                const avatar =
-                  String(p?.avatarUrl || "").trim() ||
-                  String(p?.photoUrl || "").trim() ||
-                  "";
-
                 const pos = String(p?.mainPosition || "").trim();
                 const posKo = POSITION_LABEL[pos] || "포지션";
                 const skill = String(p?.skillLevel || "").trim();
@@ -1096,11 +1025,6 @@ export default function MatchAnalysisPage() {
 
                 return (
                   <PlayerRow key={p.userId || p.id}>
-                    {avatar ? (
-                      <Avatar src={avatar} alt={p.nickname || p.name || "player"} />
-                    ) : (
-                      <AvatarPlaceholder size={44} />
-                    )}
                     <PlayerCol>
                       <PlayerName>{p.nickname || p.name || "선수"}</PlayerName>
                       <PlayerMeta>{meta}</PlayerMeta>
@@ -1109,32 +1033,6 @@ export default function MatchAnalysisPage() {
                 );
               })}
             </PlayerList>
-          </Section>
-
-          <Section>
-            <SectionHead>
-              <SectionHeadLeft>
-                <AccentBar />
-                <SectionTitleStrong>팀 사진</SectionTitleStrong>
-              </SectionHeadLeft>
-              <SectionBadge>{opp.media.length > 0 ? `${opp.media.length}장` : "1장"}</SectionBadge>
-            </SectionHead>
-
-            <Hint>상대 팀의 미디어를 리포트 형태로 보여줘요.</Hint>
-
-            <Gallery>
-              {opp.media.length > 0 ? (
-                opp.media.map((url) => (
-                  <MediaCard key={url}>
-                    <MediaImg src={url} alt="team media" />
-                  </MediaCard>
-                ))
-              ) : (
-                <MediaCard>
-                  <MediaImg src={opp.logoUrl} alt="team logo" />
-                </MediaCard>
-              )}
-            </Gallery>
           </Section>
 
           <Section>

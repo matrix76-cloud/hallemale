@@ -38,6 +38,7 @@ export default function CourtBookingPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const matchId = params.get("match") || "";
+  const viewOnly = params.get("view") === "1"; // 매칭 카드에서 들어온 읽기 전용(예약 불가)
   const { firebaseUser, userDoc } = useAuth();
   const { showToast } = useUI() || {};
   const toast = (m) => { if (showToast) showToast({ message: m }); };
@@ -124,6 +125,7 @@ export default function CourtBookingPage() {
 
   // 연속된 빈 슬롯을 눌러 범위 선택 (시간 제한 없음 — 하루 종일 예약 가능)
   const onSlotClick = (s) => {
+    if (viewOnly) return; // 읽기 전용: 슬롯 선택 비활성
     if (slotState(s) !== "open") return;
     const sS = toMin(s.start), sE = toMin(s.end);
     if (!selected) { setSelected({ start: s.start, end: s.end }); return; }
@@ -235,7 +237,7 @@ export default function CourtBookingPage() {
           <span className="reserved">예약완료</span>
           <span className="blocked">사용 불가</span>
         </Legend>
-        <SlotHint>연속된 시간대를 눌러 원하는 만큼 선택할 수 있어요.</SlotHint>
+        <SlotHint>{viewOnly ? "예약 현황만 볼 수 있어요. 예약은 매칭룸에서 진행돼요." : "연속된 시간대를 눌러 원하는 만큼 선택할 수 있어요."}</SlotHint>
         {isClosed ? (
           <Empty>이 요일은 휴무예요.</Empty>
         ) : slots.length === 0 ? (
@@ -260,7 +262,7 @@ export default function CourtBookingPage() {
 
       <div style={{ height: 90 }} />
 
-      {selected && (
+      {!viewOnly && selected && (
         <BottomBar>
           <div>
             <BbDate>{date} {selected.start}~{selected.end}</BbDate>

@@ -3,7 +3,7 @@
 // 팀 프로필: 월별 활동 기록(최근 6개월) + 선수 참여율
 //  - games: [{ id, scheduledAt, memberIds }] (loadTeamMonthlyActivity)
 //  - members: 팀원 목록 [{ userId/id, nickname/name, avatarUrl }]
-//  - captainUid: 주장(ownerUid) — [주장] 배지 표시
+//  - captainUid: 팀장(ownerUid) — [팀장] 배지 표시
 import React, { useMemo } from "react";
 import styled, { useTheme } from "styled-components";
 import { FiBarChart2, FiCalendar, FiTrendingUp, FiPercent } from "react-icons/fi";
@@ -219,7 +219,7 @@ const EmptyHint = styled.div`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-function BarChart({ data, avg, color, labelColor, axisColor, avgColor, activeKey }) {
+function BarChart({ data, avg, color, labelColor, axisColor, avgColor, bgColor, activeKey }) {
   const W = 320;
   const H = 150;
   const padX = 16;
@@ -232,22 +232,6 @@ function BarChart({ data, avg, color, labelColor, axisColor, avgColor, activeKey
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
-      {avg > 0 && (
-        <>
-          <line
-            x1={padX}
-            x2={W - padX}
-            y1={avgY}
-            y2={avgY}
-            stroke={avgColor}
-            strokeWidth="1.4"
-            strokeDasharray="5 4"
-          />
-          <text x={W - padX} y={avgY - 5} fontSize="10" fill={avgColor} textAnchor="end" fontWeight="800">
-            평균 {avg.toFixed(1)}
-          </text>
-        </>
-      )}
       {data.map((d, i) => {
         const h = (d.count / max) * (H - padTop - padBottom);
         const x = padX + i * slot + (slot - bw) / 2;
@@ -279,6 +263,25 @@ function BarChart({ data, avg, color, labelColor, axisColor, avgColor, activeKey
           </g>
         );
       })}
+      {avg > 0 && (
+        <>
+          <line
+            x1={padX}
+            x2={W - padX}
+            y1={avgY}
+            y2={avgY}
+            stroke={avgColor}
+            strokeWidth="1.4"
+            strokeDasharray="5 4"
+          />
+          <g>
+            <rect x={padX - 2} y={avgY - 16} width={52} height={14} rx={3} fill={bgColor} />
+            <text x={padX + 3} y={avgY - 6} fontSize="10" fill={avgColor} textAnchor="start" fontWeight="800">
+              평균 {avg.toFixed(1)}
+            </text>
+          </g>
+        </>
+      )}
     </svg>
   );
 }
@@ -377,6 +380,7 @@ export default function TeamMonthlyActivitySection({ games = [], members = [], c
           labelColor={theme.colors.textStrong}
           axisColor={theme.colors.textWeak}
           avgColor={PURPLE}
+          bgColor={theme.colors.card}
           activeKey={activeKey}
         />
       </ChartWrap>
@@ -408,7 +412,7 @@ export default function TeamMonthlyActivitySection({ games = [], members = [], c
             <RowBody>
               <RowTop>
                 <PName>{p.name}</PName>
-                {p.isCaptain ? <CaptainPill>주장</CaptainPill> : null}
+                {p.isCaptain ? <CaptainPill>팀장</CaptainPill> : null}
                 <RowMeta>
                   <PCount>
                     {p.games}/{total}경기

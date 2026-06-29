@@ -182,7 +182,7 @@ export default function TeamMembersSection({ members = [], onPlayerClick, rankMa
                 </NameRow>
 
                 <SubRow>
-                  {posLabel ? <PositionChip label={posLabel} size="sm" /> : null}
+                  {posLabel ? <PositionChip label={posLabel} size="sm" tone="text" /> : null}
                   {m?.region ? <SubText>{safeString(m.region)}</SubText> : null}
                 </SubRow>
               </Meta>

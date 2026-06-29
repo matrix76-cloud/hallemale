@@ -127,3 +127,66 @@ export async function loadMatchingHomeData({
     opponentTeams,
   };
 }
+
+/* ===========================
+ * ✅ 팀별 멤버 수 집계 (clubs/{id}/members)
+ * - AI 추천: 팀원 3명 이상(3대3 한 팀 구성 가능)인 팀만 노출하기 위해 사용
+ * - getCountFromServer 집계 쿼리 우선, 미지원 시 getDocs.size 폴백
+ * =========================== */
+
+let _countApiChecked = false;
+let _getCountFromServer = null;
+
+async function ensureCountApi() {
+  if (_countApiChecked) return;
+  _countApiChecked = true;
+  try {
+    const mod = await import("firebase/firestore");
+    _getCountFromServer = mod.getCountFromServer || null;
+  } catch (e) {
+    _getCountFromServer = null;
+  }
+}
+
+async function countClubMembers(clubId) {
+  const cid = String(clubId || "").trim();
+  if (!cid) return 0;
+
+  const col = collection(db, "clubs", cid, "members");
+
+  await ensureCountApi();
+  if (_getCountFromServer) {
+    try {
+      const snap = await _getCountFromServer(col);
+      return Number(snap?.data()?.count || 0);
+    } catch (e) {
+      // 집계 실패 시 아래 폴백
+    }
+  }
+
+  const docs = await getDocs(col);
+  return docs.size;
+}
+
+/**
+ * 여러 팀의 멤버 수를 한 번에 조회
+ * @param {string[]} clubIds
+ * @returns {Promise<Map<string, number>>} clubId → 멤버 수
+ */
+export async function getClubMemberCounts(clubIds = []) {
+  const ids = Array.from(
+    new Set(
+      (Array.isArray(clubIds) ? clubIds : [])
+        .map((x) => String(x || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  const counts = await Promise.all(
+    ids.map((id) => countClubMembers(id).catch(() => 0))
+  );
+
+  const map = new Map();
+  ids.forEach((id, i) => map.set(id, counts[i]));
+  return map;
+}
