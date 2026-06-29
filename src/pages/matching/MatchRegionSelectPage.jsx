@@ -1,23 +1,17 @@
 /* eslint-disable */
 // src/pages/matching/MatchRegionSelectPage.jsx
 // 빠른 매칭 ① 지역 선택
-// - 어느 지역에서 경기할지 칩으로 선택 → "○○구 에서 상대 찾기" → 로딩 화면
+// - "내 위치로 설정": 단말 GPS → 카카오 역지오코딩으로 활동 지역(시/도·시군구) 자동 입력
+// - 직접 선택: 팀 생성과 동일한 RegionPickerSheet(시/도 · 구/군)
+// → "○○ 에서 상대 찾기" → 로딩 화면
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
+import { FiChevronRight, FiMapPin } from "react-icons/fi";
 
-const NEARBY_REGIONS = [
-  "성북구",
-  "강남구",
-  "송파구",
-  "용산구",
-  "마포구",
-  "노원구",
-  "서대문구",
-  "광진구",
-  "동대문구",
-];
+import RegionPickerSheet from "../../components/common/RegionPickerSheet";
+import { KR_AREAS } from "../../utils/constants";
 
 const Page = styled.div`
   min-height: 100%;
@@ -49,52 +43,16 @@ const Sub = styled.p`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const SearchBox = styled.div`
+/* 내 위치로 설정 */
+const MyLocBtn = styled.button`
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 52px;
-  padding: 0 16px;
-  border-radius: 14px;
-  background: ${({ theme }) => theme.colors.card};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-`;
-
-const SearchInput = styled.input`
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 15px;
-  color: ${({ theme }) => theme.colors.textStrong};
-
-  &::placeholder {
-    color: ${({ theme }) => theme.colors.textWeak};
-  }
-`;
-
-const NearbyLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-
-const ChipGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-`;
-
-const Chip = styled.button`
-  height: 56px;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
   border-radius: 16px;
-  font-size: 15px;
-  font-weight: 700;
   cursor: pointer;
-  transition: transform 0.1s ease;
+  text-align: left;
   border: 1.5px solid
     ${({ $active, theme }) =>
       $active ? theme.colors.primary : theme.colors.border};
@@ -104,12 +62,97 @@ const Chip = styled.button`
         ? "rgba(99,102,241,0.18)"
         : "#eef2ff"
       : theme.colors.card};
-  color: ${({ $active, theme }) =>
-    $active ? theme.colors.primary : theme.colors.textStrong};
+  transition: transform 0.1s ease;
 
-  &:active {
-    transform: scale(0.97);
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
   }
+  &:active:not(:disabled) {
+    transform: scale(0.99);
+  }
+`;
+
+/* 아이콘만 — 뒤 배경 박스 없음 */
+const LocIcon = styled.span`
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+const LocTexts = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const LocTitle = styled.span`
+  font-size: 15px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const LocValue = styled.span`
+  font-size: 13px;
+  color: ${({ $has, theme }) =>
+    $has ? theme.colors.primary : theme.colors.textWeak};
+  font-weight: ${({ $has }) => ($has ? 600 : 400)};
+`;
+
+/* 구분 문구 */
+const DividerRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 12px;
+
+  &::before,
+  &::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: ${({ theme }) => theme.colors.divider};
+  }
+`;
+
+/* 직접 선택 (팀 생성과 동일 패턴) */
+const LabelRow = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+`;
+
+const Label = styled.div`
+  font-size: 14px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const LabelSub = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const SelectBtn = styled.button`
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: ${({ $muted, theme }) =>
+    $muted ? theme.colors.textWeak : theme.colors.textStrong};
 `;
 
 const Footer = styled.div`
@@ -158,34 +201,126 @@ function BoltIcon({ size = 18, color = "#fff" }) {
   );
 }
 
-function PinIcon({ size = 16, color }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="10" r="2.4" stroke={color} strokeWidth="2" />
-    </svg>
-  );
+// 카카오 행정구역명(시/도) → 앱 내부 표기(KR_AREAS)로 정규화
+const SIDO_FROM_KAKAO = {
+  서울특별시: "서울",
+  부산광역시: "부산",
+  대구광역시: "대구",
+  인천광역시: "인천",
+  광주광역시: "광주",
+  대전광역시: "대전",
+  울산광역시: "울산",
+  세종특별자치시: "세종",
+  경기도: "경기",
+  강원도: "강원",
+  강원특별자치도: "강원",
+  충청북도: "충북",
+  충청남도: "충남",
+  전라북도: "전북",
+  전북특별자치도: "전북",
+  전라남도: "전남",
+  경상북도: "경북",
+  경상남도: "경남",
+  제주특별자치도: "제주",
+  제주도: "제주",
+};
+
+// 카카오 좌표→행정구역(region_1depth/region_2depth)을 앱의 { sido, gu }로 변환·검증
+function normalizeRegionFromKakao(region1, region2) {
+  const rawSido = String(region1 || "").trim();
+  const rawGu = String(region2 || "").trim();
+  const sido = SIDO_FROM_KAKAO[rawSido] || "";
+  const area = (KR_AREAS || []).find((a) => a.sido === sido);
+  if (!area) return { sido: "", gu: "" };
+
+  // 카카오 region_2depth 표기는 앱 guList와 동일(예: "남양주시", "수원시 영통구")
+  if (area.guList.includes(rawGu)) return { sido, gu: rawGu };
+
+  // "성남시 분당구"처럼 시/구가 합쳐진 경우 첫 단어(시)로 폴백
+  const firstWord = rawGu.split(/\s+/)[0];
+  const byFirst = area.guList.find((g) => g === firstWord || g.startsWith(firstWord));
+  if (byFirst) return { sido, gu: byFirst };
+
+  return { sido, gu: "" };
 }
 
 export default function MatchRegionSelectPage() {
   const navigate = useNavigate();
-  const [q, setQ] = useState("");
-  const [selected, setSelected] = useState("성북구");
 
-  const list = useMemo(() => {
-    const text = q.trim();
-    if (!text) return NEARBY_REGIONS;
-    return NEARBY_REGIONS.filter((r) => r.includes(text));
-  }, [q]);
+  const [sido, setSido] = useState("");
+  const [gu, setGu] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [detectedLabel, setDetectedLabel] = useState("");
+
+  const region = sido && gu ? `${sido} ${gu}` : "";
+  const usingMyLocation = !!detectedLabel && region === detectedLabel;
+
+  // "내 위치로 설정": 단말 GPS → 카카오 역지오코딩 → 활동 지역 자동 입력
+  const useMyLocation = () => {
+    if (locating) return;
+    if (!navigator.geolocation) {
+      alert("이 기기에서는 위치 정보를 사용할 수 없습니다. 직접 선택해 주세요.");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const kakao = window.kakao;
+
+        const run = () => {
+          try {
+            const geocoder = new kakao.maps.services.Geocoder();
+            geocoder.coord2RegionCode(lng, lat, (result, status) => {
+              setLocating(false);
+              if (status !== kakao.maps.services.Status.OK || !Array.isArray(result)) {
+                alert("현재 위치의 지역 정보를 가져오지 못했어요. 직접 선택해 주세요.");
+                return;
+              }
+              const r = result.find((x) => x.region_type === "H") || result[0];
+              const { sido: s, gu: g } = normalizeRegionFromKakao(
+                r?.region_1depth_name,
+                r?.region_2depth_name
+              );
+              if (!s || !g) {
+                alert("현재 위치를 지원 지역으로 변환하지 못했어요. 직접 선택해 주세요.");
+                return;
+              }
+              setSido(s);
+              setGu(g);
+              setDetectedLabel(`${s} ${g}`);
+            });
+          } catch (e) {
+            setLocating(false);
+            alert("위치 정보를 불러오지 못했어요. 직접 선택해 주세요.");
+          }
+        };
+
+        if (kakao && kakao.maps && typeof kakao.maps.load === "function") {
+          kakao.maps.load(run);
+        } else if (kakao && kakao.maps && kakao.maps.services) {
+          run();
+        } else {
+          setLocating(false);
+          alert("지도 서비스를 불러오지 못했어요. 직접 선택해 주세요.");
+        }
+      },
+      () => {
+        setLocating(false);
+        alert("위치 권한이 거부되었거나 위치를 가져오지 못했어요. 직접 선택해 주세요.");
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   const handleFind = () => {
-    if (!selected) return;
-    navigate("/matching/searching", { state: { region: selected } });
+    if (!region) return;
+    navigate("/matching/searching", {
+      state: { region, regionSido: sido, regionGu: gu },
+    });
   };
 
   return (
@@ -198,42 +333,61 @@ export default function MatchRegionSelectPage() {
         </Heading>
         <Sub>선택한 지역 주변에서 딱 맞는 상대를 찾아드려요.</Sub>
 
-        <SearchBox>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <circle cx="11" cy="11" r="7" stroke="#9ca3af" strokeWidth="2" />
-            <path d="m20 20-3.2-3.2" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <SearchInput
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="지역 검색 (구·동)"
-          />
-        </SearchBox>
+        <MyLocBtn
+          type="button"
+          $active={usingMyLocation}
+          disabled={locating}
+          onClick={useMyLocation}
+        >
+          <LocIcon>
+            <FiMapPin size={22} />
+          </LocIcon>
+          <LocTexts>
+            <LocTitle>내 위치로 설정</LocTitle>
+            <LocValue $has={!!detectedLabel}>
+              {locating
+                ? "현재 위치 확인 중…"
+                : detectedLabel || "탭하면 현재 위치로 지역을 설정해요"}
+            </LocValue>
+          </LocTexts>
+        </MyLocBtn>
 
-        <NearbyLabel>
-          <PinIcon color="#4f46e5" />내 주변 지역
-        </NearbyLabel>
+        <DividerRow>여기로 설정하지 않을 거라면 직접 선택해 주세요</DividerRow>
 
-        <ChipGrid>
-          {list.map((region) => (
-            <Chip
-              key={region}
-              type="button"
-              $active={selected === region}
-              onClick={() => setSelected(region)}
-            >
-              {region}
-            </Chip>
-          ))}
-        </ChipGrid>
+        <div>
+          <LabelRow>
+            <Label>활동 지역</Label>
+            <LabelSub>구 단위까지 선택하면 좋아요.</LabelSub>
+          </LabelRow>
+
+          <SelectBtn
+            type="button"
+            $muted={!region}
+            onClick={() => setSheetOpen(true)}
+          >
+            <span>{region || "지역 선택"}</span>
+            <FiChevronRight size={18} />
+          </SelectBtn>
+        </div>
       </Body>
 
       <Footer>
-        <Cta type="button" onClick={handleFind} disabled={!selected}>
+        <Cta type="button" onClick={handleFind} disabled={!region}>
           <BoltIcon />
-          {selected} 에서 상대 찾기
+          {region ? `${region} 에서 상대 찾기` : "지역을 선택해 주세요"}
         </Cta>
       </Footer>
+
+      <RegionPickerSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        value={{ sido, gu }}
+        onPick={({ sido: s, gu: g }) => {
+          setSido(s);
+          setGu(g);
+        }}
+        title="활동 지역 선택"
+      />
     </Page>
   );
 }

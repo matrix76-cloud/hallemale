@@ -78,7 +78,8 @@ const AiLogoBox = styled.div`
   position: relative;
   width: 100%;
   padding-top: 100%;
-  background: #0f172a;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
 `;
 
 const AiLogoImg = styled.img`

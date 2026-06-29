@@ -5,6 +5,7 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 
 import { useClubContext } from "../../context/ClubContext";
+import { useUI } from "../../hooks/useUI";
 
 import QuickMatchHero from "./components/QuickMatchHero";
 import AiRecommendedTeamsSection from "./components/AiRecommendedTeamsSection";
@@ -12,6 +13,7 @@ import TeamOpponentListSection from "./components/TeamOpponentListSection";
 import Spinner from "../../components/common/Spinner";
 import { useMatchingData } from "../../hooks/useMatchingData";
 import { getTeamRankMap } from "../../services/teamRankingService";
+import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
 /* ==================== 상수/헬퍼 ==================== */
 
@@ -70,6 +72,7 @@ const LoadingCenter = styled.div`
 
 export default function MatchingPage() {
   const navigate = useNavigate();
+  const { showToast } = useUI();
   const { activeTeamId, loading: clubLoading } = useClubContext();
 
   const {
@@ -187,7 +190,18 @@ export default function MatchingPage() {
   return (
     <Wrap>
       <Inner>
-        <QuickMatchHero onStart={() => navigate("/matching/region")} />
+        <QuickMatchHero
+          onStart={() => {
+            const myCount = Array.isArray(myTeam?.members) ? myTeam.members.length : 0;
+            if (myCount < MIN_TEAM_MEMBERS) {
+              showToast({
+                message: `팀원이 ${MIN_TEAM_MEMBERS}명 이상부터 매칭할 수 있어요.`,
+              });
+              return;
+            }
+            navigate("/matching/region");
+          }}
+        />
 
         <AiRecommendedTeamsSection
           myTeam={myTeam}

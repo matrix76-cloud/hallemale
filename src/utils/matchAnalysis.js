@@ -132,15 +132,24 @@ function positionBalance(pos) {
  *
  * 각 항목은 데이터가 있을 때만 가중치를 사용하고, 없으면 그 비중을 전적 항목으로 흡수한다.
  */
-export function estimateWinProbability(myTeam, oppTeam) {
+export function estimateWinProbability(myTeam, oppTeam, opts = {}) {
   const myRec = readRecord(myTeam);
   const oppRec = readRecord(oppTeam);
 
   const hasMyRecord = myRec.total > 0;
   const hasOppRecord = oppRec.total > 0;
 
+  // 상대전적(H2H) — opts.h2h = { wins, losses, draws } (내 팀 관점). 두 팀의 가장 강한 신호.
+  const h2h = opts && opts.h2h ? opts.h2h : null;
+  const h2hGames = h2h ? toNum(h2h.wins, 0) + toNum(h2h.losses, 0) + toNum(h2h.draws, 0) : 0;
+  const hasH2H = h2hGames > 0;
+  // H2H도 소표본 셰이드(가상 4판 0.5). diff = (보정승률 - 0.5)*2 → -1~+1
+  const h2hDiff = hasH2H
+    ? clamp(((toNum(h2h.wins, 0) + 2) / (h2hGames + 4) - 0.5) * 2, -1, 1)
+    : 0;
+
   // 양쪽 다 전적이 전혀 없으면 추정 불가 → 데이터 부족
-  if (!hasMyRecord && !hasOppRecord) {
+  if (!hasMyRecord && !hasOppRecord && !hasH2H) {
     return {
       prob: 50,
       confidence: "데이터 부족",
@@ -150,7 +159,12 @@ export function estimateWinProbability(myTeam, oppTeam) {
   }
 
   // --- 항목별 정규화된 우위값(-1 ~ +1, 내 팀 기준) ---
-  const winRateDiff = myRec.winRate - oppRec.winRate; // -1 ~ +1
+  // 소표본 보정(베이지안 셰이드): 가상 경기 PSEUDO판(무승부 가정)을 더해
+  // 표본이 적을수록 승률을 50%로 끌어당긴다. (1승 0패가 100%로 들어와 prob이
+  // 크게 흔들리는 과잉반응을 막는다. 표본이 쌓이면 자동으로 실제값에 수렴.)
+  const PSEUDO = 4;
+  const shrunkWinRate = (rec) => (rec.wins + PSEUDO * 0.5) / (rec.total + PSEUDO);
+  const winRateDiff = shrunkWinRate(myRec) - shrunkWinRate(oppRec); // -1 ~ +1 (보정됨)
 
   // 평균 득점력 (stats.avgScore 또는 avgPointsFor 가 있을 때만)
   const myAvgScore = toNum(myTeam?.stats?.avgScore ?? myTeam?.stats?.avgPointsFor, NaN);
@@ -188,17 +202,30 @@ export function estimateWinProbability(myTeam, oppTeam) {
   const hasBalance = myBal != null && oppBal != null;
   const balanceDiff = hasBalance ? clamp(myBal - oppBal, -1, 1) : 0;
 
+  // 리그 랭킹(전역 등수) 우위 — opts.myRank/oppRank(1=최상위), opts.totalRanked(전체 팀 수).
+  // 등수는 절대값보다 "백분위"로 정규화(1위 vs 100위 = 큰 격차, 1위 vs 3위 = 작은 격차).
+  const myRank = toNum(opts?.myRank, 0);
+  const oppRank = toNum(opts?.oppRank, 0);
+  const totalRanked = toNum(opts?.totalRanked, 0);
+  const hasRank = myRank > 0 && oppRank > 0 && totalRanked >= 5;
+  const rankPct = (r) => (totalRanked > 1 ? (totalRanked - r) / (totalRanked - 1) : 0.5);
+  const rankDiff = hasRank ? clamp(rankPct(myRank) - rankPct(oppRank), -1, 1) : 0;
+
   // --- 가중치: 데이터 없는 항목 비중은 전적으로 흡수 ---
-  let wWin = 0.45;
+  // H2H는 경기 수가 쌓일수록 비중↑(3전 이상 0.22, 1~2전 0.12).
+  let wH2H = hasH2H ? (h2hGames >= 3 ? 0.22 : 0.12) : 0;
+  let wRank = hasRank ? 0.15 : 0; // 리그 등수(전역 강함 지표)
   let wForm = hasForm ? 0.18 : 0;
   let wScore = hasScore ? 0.14 : 0;
   let wHeight = hasHeight ? 0.12 : 0;
   let wCount = hasCount ? 0.07 : 0;
   let wBalance = hasBalance ? 0.04 : 0;
-  wWin = 1 - (wForm + wScore + wHeight + wCount + wBalance); // 나머지 전부 전적에
+  let wWin = 1 - (wH2H + wRank + wForm + wScore + wHeight + wCount + wBalance); // 나머지 전부 전적에
 
   const score =
     wWin * winRateDiff +
+    wH2H * h2hDiff +
+    wRank * rankDiff +
     wForm * formDiff +
     wScore * scoreDiff +
     wHeight * heightDiff +
@@ -215,12 +242,33 @@ export function estimateWinProbability(myTeam, oppTeam) {
   else if (minTotal < 8) confidence = "중간";
   else confidence = "높음";
 
+  // 직접 맞대결 기록은 두 팀에 특화된 강한 근거 → 신뢰도를 한 단계 보정
+  if (hasH2H && h2hGames >= 3 && confidence === "중간") confidence = "높음";
+  else if (hasH2H && h2hGames >= 2 && confidence === "낮음") confidence = "중간";
+
+  // --- 불확실성 폭(margin): 신뢰도가 낮을수록 넓게. 단일 숫자의 과신을 범위로 누른다. ---
+  const margin = confidence === "낮음" ? 12 : confidence === "중간" ? 7 : 4;
+
   return {
     prob,
     confidence,
+    margin,
+    probLow: clamp(prob - margin, 5, 95),
+    probHigh: clamp(prob + margin, 5, 95),
     insufficient: false,
+    // ✅ 표본이 얇으면(신뢰도 낮음) 확률을 앞세우지 말고 "분석 제한적"으로 안내
+    limited: confidence === "낮음",
+    sample: { my: myRec.total, opp: oppRec.total, h2h: h2hGames },
     reasons: buildReasons({
       winRateDiff,
+      hasH2H,
+      h2h,
+      h2hGames,
+      h2hDiff,
+      hasRank,
+      myRank,
+      oppRank,
+      rankDiff,
       hasForm,
       formDiff,
       hasScore,
@@ -233,6 +281,56 @@ export function estimateWinProbability(myTeam, oppTeam) {
       oppRec,
     }),
   };
+}
+
+/**
+ * ✅ 전적(stats)만으로 즉석 승부 예측 — 결과 검증(예측 적중률)용.
+ * estimateWinProbability와 같은 가족(소표본 셰이드 + 최근폼)이되, 키/포지션 없이
+ * stats만 쓴다(결과 확정 트랜잭션에는 club stats만 있으므로). actor 관점 prob 반환.
+ *
+ * 반환 { prob(0~100), favored: "actor"|"target"|"even", confident }
+ * - confident=false: 표본 부족 또는 50%에 너무 가까워 "찍을 수 없는" 경기 → 적중률 집계 제외(push)
+ */
+export function predictFromStats(aStats, tStats) {
+  const rec = (s) => {
+    const wins = toNum(s?.wins, 0);
+    const losses = toNum(s?.losses, 0);
+    const draws = toNum(s?.draws, 0);
+    const total = toNum(s?.totalMatches, 0) || wins + losses + draws;
+    return { wins, total };
+  };
+  const a = rec(aStats);
+  const t = rec(tStats);
+  const hasA = a.total > 0;
+  const hasT = t.total > 0;
+
+  const PSEUDO = 4;
+  const shrink = (r) => (r.wins + PSEUDO * 0.5) / (r.total + PSEUDO);
+
+  const formScore = (s) => {
+    const recent = normalizeRecent({ stats: s }).slice(0, 5);
+    if (!recent.length) return 0;
+    let num = 0;
+    let den = 0;
+    recent.forEach((rr, i) => {
+      const w = 1 / (i + 1);
+      num += (rr === "W" ? 1 : rr === "L" ? -1 : 0) * w;
+      den += w;
+    });
+    return den > 0 ? num / den : 0;
+  };
+
+  const winDiff = shrink(a) - shrink(t); // -1 ~ +1
+  const formDiff = clamp(formScore(aStats) - formScore(tStats), -1, 1);
+  const score = 0.8 * winDiff + 0.2 * formDiff;
+  const prob = clamp(Math.round(50 + score * 50), 5, 95);
+
+  // 양쪽 다 기록 있고(최소 2경기) + 50%에서 충분히 벗어날 때만 "찍었다"고 본다
+  const minTotal = Math.min(hasA ? a.total : 0, hasT ? t.total : 0);
+  const confident = hasA && hasT && minTotal >= 2 && Math.abs(prob - 50) >= 6;
+  const favored = !confident ? "even" : prob > 50 ? "actor" : "target";
+
+  return { prob, favored, confident };
 }
 
 /**
@@ -290,6 +388,14 @@ function pct(x) {
 
 function buildReasons({
   winRateDiff,
+  hasH2H,
+  h2h,
+  h2hGames,
+  h2hDiff,
+  hasRank,
+  myRank,
+  oppRank,
+  rankDiff,
   hasForm,
   formDiff,
   hasScore,
@@ -303,57 +409,88 @@ function buildReasons({
 }) {
   const reasons = [];
 
-  // 전적
+  // 상대전적(H2H) — 두 팀에 특화된 가장 강한 근거이므로 최상단에 배치
+  if (hasH2H) {
+    const w = toNum(h2h?.wins, 0);
+    const d = toNum(h2h?.draws, 0);
+    const l = toNum(h2h?.losses, 0);
+    const tone =
+      Math.abs(h2hDiff) < 0.12
+        ? "맞대결은 팽팽한 균형으로, 분석의 핵심 변수입니다"
+        : h2hDiff > 0
+        ? "맞대결에서 내 팀이 앞서 온 흐름이 승률 추정을 끌어올렸습니다"
+        : "맞대결에서 상대에게 밀려 온 점이 가장 큰 부담 요인입니다";
+    reasons.push(`상대전적 ${h2hGames}전 ${w}승 ${d}무 ${l}패 — ${tone}.`);
+  }
+
+  // 리그 랭킹(전역 등수) — 두 팀의 상대적 전력 위치
+  if (hasRank) {
+    const tone =
+      Math.abs(rankDiff) < 0.08
+        ? "리그 내 위치가 비슷해 전력 차가 크지 않습니다"
+        : rankDiff > 0
+        ? "리그 등수에서 앞서 전반적인 전력 우위가 예상됩니다"
+        : "리그 등수에서 밀려 전력상 열세를 감안해야 합니다";
+    reasons.push(`리그 랭킹 내 팀 ${myRank}위 · 상대 ${oppRank}위 — ${tone}.`);
+  }
+
+  // 통산 전적(승률)
   if (myRec.total > 0 || oppRec.total > 0) {
     const myW = pct(myRec.winRate);
     const oppW = pct(oppRec.winRate);
     if (Math.abs(winRateDiff) < 0.05) {
-      reasons.push(`전적상 승률이 비슷해요 (내 팀 ${myW}% vs 상대 ${oppW}%).`);
+      reasons.push(
+        `통산 승률은 내 팀 ${myW}% · 상대 ${oppW}%로 전력 차가 크지 않습니다.`
+      );
     } else if (winRateDiff > 0) {
-      reasons.push(`전적상 내 팀이 우세해요 (승률 ${myW}% vs ${oppW}%).`);
+      reasons.push(
+        `통산 승률 우위(내 팀 ${myW}% vs 상대 ${oppW}%)가 추정의 기본 축입니다.`
+      );
     } else {
-      reasons.push(`전적상 상대가 우세해요 (승률 ${myW}% vs ${oppW}%).`);
+      reasons.push(
+        `통산 승률에서 상대가 앞섭니다(내 팀 ${myW}% vs 상대 ${oppW}%) — 전력 열세를 감안해야 합니다.`
+      );
     }
   }
 
-  // 최근폼
+  // 최근폼(최신 경기 가중)
   if (hasForm && Math.abs(formDiff) > 0.15) {
     reasons.push(
       formDiff > 0
-        ? "최근 경기 흐름(폼)이 내 팀 쪽으로 올라와 있어요."
-        : "상대가 최근 상승세라 초반 기세 싸움이 중요해요."
+        ? "최근 경기 흐름(폼)이 내 팀 쪽으로 상승세라 기세에서 유리합니다."
+        : "상대가 최근 상승세라 초반 기세 싸움이 승부처가 될 수 있습니다."
     );
   }
 
-  // 평균 키
+  // 평균 신장(리바운드/골밑)
   if (hasHeight && Math.abs(heightDiff) > 0.1) {
     reasons.push(
       heightDiff > 0
-        ? "평균 신장 우위로 리바운드·골밑에서 유리해요."
-        : "상대 신장이 더 커서 골밑 매치업에 대비가 필요해요."
+        ? "평균 신장 우위로 리바운드·골밑 득점에서 이점이 예상됩니다."
+        : "상대의 평균 신장이 더 커 골밑 매치업과 리바운드 대비가 필요합니다."
     );
   }
 
-  // 인원
+  // 로테이션 인원(체력 운용)
   if (hasCount && Math.abs(countDiff) > 0.15) {
     reasons.push(
       countDiff > 0
-        ? "로테이션 인원이 많아 체력 운용에서 유리해요."
-        : "상대 로테이션이 두꺼워 후반 체력전에 주의하세요."
+        ? "로테이션 인원이 두꺼워 후반 체력 운용에서 우위가 기대됩니다."
+        : "상대 로테이션이 두꺼워 후반 체력전에 대비가 필요합니다."
     );
   }
 
-  // 득점력
+  // 평균 득점력(화력)
   if (hasScore && Math.abs(scoreDiff) > 0.1) {
     reasons.push(
       scoreDiff > 0
-        ? "평균 득점력이 높아 화력에서 앞서요."
-        : "상대 평균 득점력이 높아 수비 집중이 필요해요."
+        ? "평균 득점력이 높아 공격 화력에서 앞섭니다."
+        : "상대의 평균 득점력이 높아 수비 집중도가 관건입니다."
     );
   }
 
   if (reasons.length === 0) {
-    reasons.push("데이터를 종합하면 균형 잡힌 매치업이에요.");
+    reasons.push("주요 지표가 고르게 맞물려 균형 잡힌 매치업으로 분석됩니다.");
   }
   return reasons;
 }

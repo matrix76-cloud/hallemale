@@ -1,20 +1,26 @@
 /* eslint-disable */
 // src/pages/matching/MatchAnalysisPage.jsx
-// ✅ AI 분석 페이지 하단 "매칭 신청하기" + 내 라인업 선택 모달 추가
+// ✅ AI 분석 페이지 하단 "매칭 신청하기" + 매치 사이즈(3v3/4v4/5v5) 선택
 // - 내 팀/상대 팀 멤버 3명 미만이면 매칭 신청 막음
-// - 내 팀 lineups가 있으면 사용, 없으면 기본 라인업(3/4/5) 1개 생성
-// - 신청 시 payload 콘솔 출력 + /matchingmanage sent 탭으로 이동(목업)
+// - 라인업은 수락 후 매칭룸에서 각 팀이 확정 → 신청 시엔 사이즈만 선택
+// - createMatchRequest 호출 후 /matchingmanage sent 탭으로 이동 (TeamProfilePage와 동일 방식)
 
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 
 import Spinner from "../../components/common/Spinner";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
-import { teamLogoSrc } from "../../utils/imageAssets";
+import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useClubContext } from "../../context/ClubContext";
 import { getTeamProfile } from "../../services/teamService";
+import { getTeamRankMap } from "../../services/teamRankingService";
+import { getPlayerRankMap } from "../../services/rankingService";
 import { estimateWinProbability } from "../../utils/matchAnalysis";
+import { createMatchRequest } from "../../services/matchingService";
+import { getTeamPredictionAccuracy, getHeadToHeadRecord } from "../../services/matchRoomService";
+import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
 import AnimatedAiRing from "./components/AnimatedAiRing";
 
@@ -34,11 +40,11 @@ const POSITION_LABEL = {
   center: "센터",
 };
 
-const MATCH_SIZE_LABEL = {
-  "3v3": "3 vs 3",
-  "4v4": "4 vs 4",
-  "5v5": "5 vs 5",
-};
+const MATCH_SIZE_OPTIONS = [
+  { key: "3v3", label: "3 vs 3", desc: "한 팀당 3명" },
+  { key: "4v4", label: "4 vs 4", desc: "한 팀당 4명" },
+  { key: "5v5", label: "5 vs 5", desc: "한 팀당 5명" },
+];
 
 function toNum(n, fallback = null) {
   const v = Number(n);
@@ -61,19 +67,9 @@ function buildRecentResultsFromTeam(team, count = 5) {
     .map((x) => (x === "WIN" ? "W" : x === "LOSE" ? "L" : x === "DRAW" ? "D" : x))
     .filter((x) => x === "W" || x === "L" || x === "D");
 
-  if (norm.length > 0) return norm.slice(0, count);
-
-  const wins = toNum(team?.stats?.wins ?? team?.wins, 0) ?? 0;
-  const losses = toNum(team?.stats?.losses ?? team?.losses, 0) ?? 0;
-  const draws = toNum(team?.stats?.draws ?? team?.draws, 0) ?? 0;
-  const total = wins + losses + draws;
-  if (total <= 0) return [];
-  const winRate = wins / total;
-  const winCount = Math.round(winRate * count);
-  const arr = [];
-  for (let i = 0; i < winCount && arr.length < count; i += 1) arr.push("W");
-  while (arr.length < count) arr.push("L");
-  return arr;
+  // ✅ 실제 경기기록(recentResults)만 사용. 없으면 빈 배열 → UI는 예정점(SoonDot) 표시.
+  //    승률로 W/L을 합성하면 치르지 않은 경기를 그린 셈이라 참고용 분석의 신뢰를 깬다.
+  return norm.slice(0, count);
 }
 
 function calcAvgHeightCm(members) {
@@ -120,24 +116,6 @@ function sortMembersForList(members) {
   });
 }
 
-function buildDefaultLineupsForMyTeam(team) {
-  const members = Array.isArray(team?.members) ? team.members : [];
-  if (members.length < 3) return [];
-
-  const ids = members.map((m) => m.userId || m.id).filter(Boolean);
-  const key = members.length >= 5 ? "5v5" : members.length === 4 ? "4v4" : "3v3";
-  const need = key === "5v5" ? 5 : key === "4v4" ? 4 : 3;
-
-  return [
-    {
-      id: "default-main",
-      name: `${team.name} 기본 라인업`,
-      memberIds: ids.slice(0, need),
-      matchSizeKey: key,
-    },
-  ];
-}
-
 /* ===================== styled ===================== */
 
 const Page = styled.div`
@@ -173,6 +151,21 @@ const Sub = styled.div`
   margin-top: 4px;
   font-size: 13px;
   color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const AccuracyBadge = styled.div`
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(16,185,129,0.14)" : "rgba(16,185,129,0.10)"};
+  border: 1px solid
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(16,185,129,0.35)" : "rgba(16,185,129,0.25)")};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#6ee7b7" : "#047857")};
 `;
 
 const Divider = styled.div`
@@ -264,6 +257,13 @@ const TeamCardRow = styled.div`
   gap: 12px;
 `;
 
+const TeamLogoWrap = styled.div`
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+`;
+
 const TeamLogo = styled.img`
   width: 44px;
   height: 44px;
@@ -271,7 +271,20 @@ const TeamLogo = styled.img`
   object-fit: cover;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  flex-shrink: 0;
+  display: block;
+`;
+
+const CrownImg = styled.img`
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
 `;
 
 const TeamCardTexts = styled.div`
@@ -375,7 +388,9 @@ const PlayerList = styled.div`
   gap: 8px;
 `;
 
-const PlayerRow = styled.div`
+const PlayerRow = styled.button`
+  width: 100%;
+  min-width: 0; /* ✅ 그리드 셀이 내용보다 커지지 않게(가로 넘침 방지) */
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: 8px;
   padding: 10px 10px;
@@ -383,6 +398,42 @@ const PlayerRow = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
+  cursor: pointer;
+  text-align: left;
+
+  &:active {
+    opacity: 0.7;
+  }
+`;
+
+const PlayerAvatarWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+`;
+
+const PlayerAvatar = styled.img`
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+`;
+
+const PlayerCrown = styled.img`
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
 `;
 
 const PlayerCol = styled.div`
@@ -402,6 +453,15 @@ const PlayerName = styled.div`
 `;
 
 const PlayerMeta = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+/* 키·몸무게 — 포지션·실력 아래 두 번째 줄 */
+const PlayerSub = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
@@ -454,6 +514,19 @@ const BottomCTAWrap = styled.div`
       ? "0 -6px 20px rgba(0, 0, 0, 0.45)"
       : "0 -6px 20px rgba(15, 23, 42, 0.12)"};
   z-index: 50;
+`;
+
+/* 팀원 안내: 매칭 요청은 팀장만 가능 */
+const LeaderNotice = styled.div`
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fbbf24" : "#b45309")};
 `;
 
 const MatchApplyButton = styled.button`
@@ -621,16 +694,76 @@ const SelectButton = styled.button`
 export default function MatchAnalysisPage() {
   const nav = useNavigate();
   const { clubId } = useParams(); // 상대팀 id
-  const { activeTeamId, loading: clubLoading } = useClubContext();
+  const { activeTeamId, isTeamLeader, loading: clubLoading } = useClubContext();
 
   const [loading, setLoading] = useState(true);
   const [myTeam, setMyTeam] = useState(null);
   const [oppTeam, setOppTeam] = useState(null);
   const [error, setError] = useState("");
 
-  // ✅ 매칭 신청용
-  const [showLineupSelectModal, setShowLineupSelectModal] = useState(false);
-  const [selectedLineupIdForRequest, setSelectedLineupIdForRequest] = useState(null);
+  // ✅ 매칭 신청용 (사이즈만 선택 — 라인업은 수락 후 매칭룸에서 확정)
+  const [showSizeModal, setShowSizeModal] = useState(false);
+  const [selectedMatchSize, setSelectedMatchSize] = useState(""); // "3v3" | "4v4" | "5v5"
+  const [showMatchConfirm, setShowMatchConfirm] = useState(false);
+  const [submittingMatch, setSubmittingMatch] = useState(false);
+
+  // 랭킹(1~3위 왕관 표시용)
+  const [teamRankMap, setTeamRankMap] = useState(null);
+  const [playerRankMap, setPlayerRankMap] = useState(null);
+
+  // AI 예측 적중률(내 팀 기준) — { rate, sample } | null(로딩)
+  const [accuracy, setAccuracy] = useState(null);
+
+  // 상대전적(H2H, 내 팀 관점) — { wins, losses, draws, games, recent } | null
+  const [h2h, setH2h] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    getTeamRankMap()
+      .then((m) => alive && setTeamRankMap(m))
+      .catch(() => {});
+    getPlayerRankMap()
+      .then((m) => alive && setPlayerRankMap(m))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // AI 예측 적중률 로드(내 팀 활동 기준)
+  useEffect(() => {
+    let alive = true;
+    if (!activeTeamId) return;
+    getTeamPredictionAccuracy(String(activeTeamId))
+      .then((a) => alive && setAccuracy(a))
+      .catch(() => alive && setAccuracy({ rate: null, sample: 0 }));
+    return () => {
+      alive = false;
+    };
+  }, [activeTeamId]);
+
+  // 상대전적(H2H) 로드 — 내 팀 vs 이 상대(clubId)
+  useEffect(() => {
+    let alive = true;
+    setH2h(null);
+    if (!activeTeamId || !clubId) return;
+    getHeadToHeadRecord(String(activeTeamId), String(clubId))
+      .then((r) => alive && setH2h(r))
+      .catch(() => alive && setH2h({ wins: 0, losses: 0, draws: 0, games: 0, recent: [] }));
+    return () => {
+      alive = false;
+    };
+  }, [activeTeamId, clubId]);
+
+  const goTeam = (cid) => {
+    const id = String(cid || "").trim();
+    if (id) nav(`/team/${id}`);
+  };
+
+  const goPlayer = (uid) => {
+    const id = String(uid || "").trim();
+    if (id) nav(`/player/${id}`);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -689,24 +822,35 @@ export default function MatchAnalysisPage() {
     const myWin = calcWinRatePercent(myTeam);
     const oppWin = calcWinRatePercent(oppTeam);
 
-    // ✅ 실데이터(stats/members) 기반 승률 추정
-    const est = estimateWinProbability(myTeam, oppTeam);
+    // ✅ 실데이터(stats/members) + 상대전적(H2H) + 리그 랭킹 기반 승률 추정
+    const myClubId = String(myTeam.clubId || myTeam.id || "");
+    const oppClubId = String(oppTeam.clubId || oppTeam.id || "");
+    const est = estimateWinProbability(myTeam, oppTeam, {
+      h2h: h2h && h2h.games > 0 ? h2h : null,
+      myRank: teamRankMap?.get?.(myClubId) || 0,
+      oppRank: teamRankMap?.get?.(oppClubId) || 0,
+      totalRanked: teamRankMap?.size || 0,
+    });
     const prob = est.prob;
+    const probLow = est.probLow ?? prob;
+    const probHigh = est.probHigh ?? prob;
     const confidence = est.confidence;
     const insufficient = est.insufficient;
+    const limited = !!est.limited;
+    const sample = est.sample || { my: 0, opp: 0, h2h: 0 };
     const reasons = Array.isArray(est.reasons) ? est.reasons : [];
 
     const myRecent = buildRecentResultsFromTeam(myTeam, 5);
     const oppRecent = buildRecentResultsFromTeam(oppTeam, 5);
 
-    // ✅ 내 팀 라인업: 실데이터 우선, 없으면 기본 라인업 생성
-    const lineupsRaw = Array.isArray(myTeam?.lineups) ? myTeam.lineups : [];
-    const lineups = lineupsRaw.length > 0 ? lineupsRaw : buildDefaultLineupsForMyTeam(myTeam);
-
     return {
       prob,
+      probLow,
+      probHigh,
       confidence,
       insufficient,
+      limited,
+      sample,
       reasons,
       my: {
         clubId: myTeam.clubId || myTeam.id,
@@ -719,7 +863,6 @@ export default function MatchAnalysisPage() {
         recent: myRecent,
         members: myMembers,
         logoUrl: teamLogoSrc(String(myTeam.logoUrl || "").trim()),
-        lineups,
       },
       opp: {
         clubId: oppTeam.clubId || oppTeam.id,
@@ -734,68 +877,73 @@ export default function MatchAnalysisPage() {
         logoUrl: teamLogoSrc(String(oppTeam.logoUrl || "").trim()),
       },
     };
-  }, [myTeam, oppTeam]);
+  }, [myTeam, oppTeam, h2h, teamRankMap]);
 
   const handleMatchRequestClick = () => {
     if (!view) return;
 
+    // ✅ 팀원은 매칭 분석까지만 가능 — 요청 전송은 팀장만
+    if (!isTeamLeader) {
+      alert("매칭 요청은 팀장만 보낼 수 있어요. 이 분석 결과를 팀장에게 알려 주세요.");
+      return;
+    }
+
     const myCount = view.my.membersCount || 0;
     const oppCount = view.opp.membersCount || 0;
 
-    if (myCount < 3) {
-      alert("매칭 신청을 하려면 내 팀원이 최소 3명 이상이어야 합니다.");
+    if (myCount < MIN_TEAM_MEMBERS) {
+      alert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
       return;
     }
 
-    if (oppCount < 3) {
-      alert("매칭 신청을 하려면 상대 팀원이 최소 3명 이상이어야 합니다.");
+    if (oppCount < MIN_TEAM_MEMBERS) {
+      alert(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
       return;
     }
 
-    const lineups = Array.isArray(view.my.lineups) ? view.my.lineups : [];
-    if (lineups.length === 0) {
-      alert("먼저 라인업을 구성한 뒤 매칭을 신청할 수 있어요.");
-      return;
-    }
-
-    const firstId = lineups[0].id || lineups[0].name;
-    setSelectedLineupIdForRequest(firstId);
-    setShowLineupSelectModal(true);
+    setSelectedMatchSize("");
+    setShowSizeModal(true);
   };
 
-  const handleSubmitMatchRequest = () => {
-    if (!view) {
-      setShowLineupSelectModal(false);
+  const handleSubmitMatchRequest = async () => {
+    if (!view || !myTeam || !oppTeam) {
+      setShowSizeModal(false);
+      setShowMatchConfirm(false);
       return;
     }
 
-    const lineups = Array.isArray(view.my.lineups) ? view.my.lineups : [];
-    if (!lineups.length || !selectedLineupIdForRequest) {
-      setShowLineupSelectModal(false);
+    if (!selectedMatchSize) {
+      alert("매치 사이즈(3 vs 3 / 4 vs 4 / 5 vs 5)를 선택해 주세요.");
       return;
     }
 
-    const lineup =
-      lineups.find((lu) => (lu.id || lu.name) === selectedLineupIdForRequest) || lineups[0];
+    if (submittingMatch) return;
+    setSubmittingMatch(true);
+    try {
+      const matchId = await createMatchRequest({
+        actorClubId: String(view.my.clubId),
+        actorTeam: myTeam,
 
-    const memberIds = Array.isArray(lineup.memberIds) ? lineup.memberIds : [];
-    const matchSizeKey = String(lineup.matchSizeKey || "5v5");
+        targetClubId: String(view.opp.clubId),
+        targetTeam: oppTeam,
 
-    const payload = {
-      myClubId: String(view.my.clubId),
-      opponentClubId: String(view.opp.clubId),
-      opponentName: view.opp.name,
-      lineupId: lineup.id || "",
-      lineupName: lineup.name || "",
-      lineupMatchSizeKey: matchSizeKey,
-      lineupMemberIds: memberIds,
-      createdFrom: "analysis",
-    };
+        matchSizeKey: selectedMatchSize,
+      });
 
-    console.log("📡 매칭 신청 payload (임시):", payload);
+      console.log("[MatchAnalysis] match request created:", matchId);
 
-    setShowLineupSelectModal(false);
-    nav("/matchingmanage", { state: { initialTab: "sent", payload } });
+      setShowMatchConfirm(false);
+      setShowSizeModal(false);
+      setSelectedMatchSize("");
+      nav("/matchingmanage", { state: { initialTab: "sent" } });
+    } catch (e) {
+      console.warn("[MatchAnalysis] create match request failed:", e?.message || e);
+      alert(e?.message || "매칭 신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      setShowMatchConfirm(false);
+      setShowSizeModal(false);
+    } finally {
+      setSubmittingMatch(false);
+    }
   };
 
   if (clubLoading || loading) {
@@ -819,6 +967,9 @@ export default function MatchAnalysisPage() {
   const my = view.my;
   const opp = view.opp;
 
+  const myTeamRank = my.clubId ? teamRankMap?.get?.(String(my.clubId)) : null;
+  const oppTeamRank = opp.clubId ? teamRankMap?.get?.(String(opp.clubId)) : null;
+
   const memberPct = barRatio(my.membersCount, opp.membersCount);
   const heightPct = barRatio(my.avgHeight || 0, opp.avgHeight || 0);
   const winPct = barRatio(my.winRate, opp.winRate);
@@ -838,6 +989,16 @@ export default function MatchAnalysisPage() {
             <TitleCol>
               <Title>{opp.name} 분석 리포트</Title>
               <Sub>내 팀 vs 상대 팀 비교 · 신뢰도: {view.confidence}</Sub>
+              {accuracy != null &&
+                (accuracy.sample >= 5 && accuracy.rate != null ? (
+                  <AccuracyBadge>
+                    🎯 AI 예측 적중률 {accuracy.rate}% · 최근 {accuracy.sample}경기
+                  </AccuracyBadge>
+                ) : (
+                  <AccuracyBadge>
+                    🔬 예측 검증 중 · 누적 {accuracy.sample}경기
+                  </AccuracyBadge>
+                ))}
             </TitleCol>
           </TopRow>
 
@@ -846,8 +1007,16 @@ export default function MatchAnalysisPage() {
           <OneCol>
             <Mini>
               <MiniLabel>내 팀</MiniLabel>
-              <TeamCardRow style={{ marginTop: 10 }}>
-                <TeamLogo src={my.logoUrl} alt={my.name} />
+              <TeamCardRow
+                style={{ marginTop: 10, cursor: "pointer" }}
+                onClick={() => goTeam(my.clubId)}
+              >
+                <TeamLogoWrap>
+                  {myTeamRank && myTeamRank <= 3 ? (
+                    <CrownImg src={images.logo} alt={`${myTeamRank}위`} />
+                  ) : null}
+                  <TeamLogo src={my.logoUrl} alt={my.name} />
+                </TeamLogoWrap>
                 <TeamCardTexts>
                   <TeamCardName>{my.name}</TeamCardName>
                   <TeamCardRegion>{my.region || "지역 미지정"}</TeamCardRegion>
@@ -857,8 +1026,16 @@ export default function MatchAnalysisPage() {
 
             <Mini>
               <MiniLabel>상대 팀</MiniLabel>
-              <TeamCardRow style={{ marginTop: 10 }}>
-                <TeamLogo src={opp.logoUrl} alt={opp.name} />
+              <TeamCardRow
+                style={{ marginTop: 10, cursor: "pointer" }}
+                onClick={() => goTeam(opp.clubId)}
+              >
+                <TeamLogoWrap>
+                  {oppTeamRank && oppTeamRank <= 3 ? (
+                    <CrownImg src={images.logo} alt={`${oppTeamRank}위`} />
+                  ) : null}
+                  <TeamLogo src={opp.logoUrl} alt={opp.name} />
+                </TeamLogoWrap>
                 <TeamCardTexts>
                   <TeamCardName>{opp.name}</TeamCardName>
                   <TeamCardRegion>{opp.region || "지역 미지정"}</TeamCardRegion>
@@ -997,13 +1174,28 @@ export default function MatchAnalysisPage() {
                 const height = p.heightCm ? `${p.heightCm}cm` : "";
                 const weight = p.weightKg ? `${p.weightKg}kg` : "";
 
-                const meta = `${posKo} · ${skillKo}${height ? ` · ${height}` : ""}${weight ? ` · ${weight}` : ""}`;
+                const metaTop = `${posKo} · ${skillKo}`;
+                const metaSub = [height, weight].filter(Boolean).join(" · ");
+
+                const uid = String(p.userId || p.id || "").trim();
+                const pRank = uid ? playerRankMap?.get?.(uid) : null;
 
                 return (
-                  <PlayerRow key={p.userId || p.id}>
+                  <PlayerRow key={uid || p.id} type="button" onClick={() => goPlayer(uid)}>
+                    <PlayerAvatarWrap>
+                      {pRank && pRank <= 3 ? (
+                        <PlayerCrown src={images.logo} alt={`${pRank}위`} />
+                      ) : null}
+                      {p.avatarUrl ? (
+                        <PlayerAvatar src={p.avatarUrl} alt={p.nickname || p.name || "선수"} />
+                      ) : (
+                        <AvatarPlaceholder size={36} />
+                      )}
+                    </PlayerAvatarWrap>
                     <PlayerCol>
                       <PlayerName>{p.nickname || p.name || "선수"}</PlayerName>
-                      <PlayerMeta>{meta}</PlayerMeta>
+                      <PlayerMeta>{metaTop}</PlayerMeta>
+                      {metaSub ? <PlayerSub>{metaSub}</PlayerSub> : null}
                     </PlayerCol>
                   </PlayerRow>
                 );
@@ -1021,13 +1213,28 @@ export default function MatchAnalysisPage() {
                 const height = p.heightCm ? `${p.heightCm}cm` : "";
                 const weight = p.weightKg ? `${p.weightKg}kg` : "";
 
-                const meta = `${posKo} · ${skillKo}${height ? ` · ${height}` : ""}${weight ? ` · ${weight}` : ""}`;
+                const metaTop = `${posKo} · ${skillKo}`;
+                const metaSub = [height, weight].filter(Boolean).join(" · ");
+
+                const uid = String(p.userId || p.id || "").trim();
+                const pRank = uid ? playerRankMap?.get?.(uid) : null;
 
                 return (
-                  <PlayerRow key={p.userId || p.id}>
+                  <PlayerRow key={uid || p.id} type="button" onClick={() => goPlayer(uid)}>
+                    <PlayerAvatarWrap>
+                      {pRank && pRank <= 3 ? (
+                        <PlayerCrown src={images.logo} alt={`${pRank}위`} />
+                      ) : null}
+                      {p.avatarUrl ? (
+                        <PlayerAvatar src={p.avatarUrl} alt={p.nickname || p.name || "선수"} />
+                      ) : (
+                        <AvatarPlaceholder size={36} />
+                      )}
+                    </PlayerAvatarWrap>
                     <PlayerCol>
                       <PlayerName>{p.nickname || p.name || "선수"}</PlayerName>
-                      <PlayerMeta>{meta}</PlayerMeta>
+                      <PlayerMeta>{metaTop}</PlayerMeta>
+                      {metaSub ? <PlayerSub>{metaSub}</PlayerSub> : null}
                     </PlayerCol>
                   </PlayerRow>
                 );
@@ -1048,19 +1255,43 @@ export default function MatchAnalysisPage() {
               {view.insufficient ? (
                 <>
                   <Bullet>
-                    • 아직 경기 기록이 부족해 승률을 <b>{view.prob}%</b>(균형)으로 추정했어요.
+                    • 표본이 부족해 현재는 균형(<b>{view.prob}%</b>)을 기준으로 제시합니다.
                   </Bullet>
-                  <Bullet>• 매칭을 치르고 결과가 쌓이면 분석 정확도가 올라가요.</Bullet>
+                  <Bullet>
+                    • 경기 결과가 누적되면 추정 신뢰도가 단계적으로 올라갑니다.
+                  </Bullet>
+                </>
+              ) : view.limited ? (
+                <>
+                  <Bullet>
+                    • 아직 전적이 충분하지 않아 정밀한 분석은 어렵습니다 (내 팀 {view.sample.my}경기 · 상대{" "}
+                    {view.sample.opp}경기
+                    {view.sample.h2h > 0 ? ` · 맞대결 ${view.sample.h2h}전` : ""}).
+                  </Bullet>
+                  <Bullet>
+                    • 현재 데이터 기준으로는 <b>약 {view.probLow}~{view.probHigh}%</b> 수준이며, 참고용으로만
+                    봐주세요.
+                  </Bullet>
+                  {view.reasons.map((line, idx) => (
+                    <Bullet key={`reason-${idx}`}>• {line}</Bullet>
+                  ))}
+                  <Bullet style={{ marginTop: 6, opacity: 0.75 }}>
+                    ※ 경기 결과가 쌓이면 분석이 그에 맞춰 점점 정교해집니다.
+                  </Bullet>
                 </>
               ) : (
                 <>
                   <Bullet>
-                    • {opp.name}와의 매치업은 <b>{view.prob}%</b> 확률로 승리 가능성이 있어요. (신뢰도{" "}
+                    • {opp.name}전 승리 확률은 <b>{view.prob}%</b>로 추정됩니다. (신뢰도{" "}
                     {view.confidence})
                   </Bullet>
                   {view.reasons.map((line, idx) => (
                     <Bullet key={`reason-${idx}`}>• {line}</Bullet>
                   ))}
+                  <Bullet style={{ marginTop: 6, opacity: 0.75 }}>
+                    ※ 통산·상대전적·최근 폼 등 실데이터를 가중 합산하고 소표본은 보정(셰이드)했습니다.
+                    확정이 아닌 참고용 지표입니다.
+                  </Bullet>
                 </>
               )}
             </AiBox>
@@ -1068,45 +1299,46 @@ export default function MatchAnalysisPage() {
         </Card>
       </Page>
 
-      {/* ✅ 하단 매칭 신청하기 CTA */}
+      {/* ✅ 하단 매칭 신청하기 CTA (요청 전송은 팀장만) */}
       <BottomCTAWrap>
+        {!clubLoading && !isTeamLeader ? (
+          <LeaderNotice>
+            매칭 요청은 팀장만 보낼 수 있어요. 분석 결과를 팀장에게 알려 주세요.
+          </LeaderNotice>
+        ) : null}
         <MatchApplyButton type="button" onClick={handleMatchRequestClick}>
           🏀 매칭 신청하기
         </MatchApplyButton>
       </BottomCTAWrap>
 
-      {/* ✅ 내 라인업 선택 모달 */}
-      {showLineupSelectModal && (
-        <Overlay onClick={() => setShowLineupSelectModal(false)}>
+      {/* ✅ 매치 사이즈 선택 모달 (라인업은 수락 후 매칭룸에서 확정) */}
+      {showSizeModal && (
+        <Overlay onClick={() => setShowSizeModal(false)}>
           <SelectCard onClick={(e) => e.stopPropagation()}>
             <SelectHeader>
-              <SelectTitle>어떤 라인업으로 매칭할까요?</SelectTitle>
-              <SelectClose onClick={() => setShowLineupSelectModal(false)}>×</SelectClose>
+              <SelectTitle>매치 사이즈를 선택해 주세요</SelectTitle>
+              <SelectClose onClick={() => setShowSizeModal(false)}>×</SelectClose>
             </SelectHeader>
 
-            <SelectMeta>내 팀 라인업을 선택해 주세요.</SelectMeta>
+            <SelectMeta>
+              {opp?.name ? `${opp.name}에 매칭 신청` : "매칭 신청"} · 라인업은 수락 후 매칭룸에서 각 팀이
+              확정해요
+            </SelectMeta>
 
             <SelectBody>
               <SelectList>
-                {my.lineups.map((lu) => {
-                  const idKey = lu.id || lu.name;
-                  const selected = idKey === selectedLineupIdForRequest;
-
-                  const sizeLabel = MATCH_SIZE_LABEL[lu.matchSizeKey] || lu.matchSizeKey || "";
-                  const count = Array.isArray(lu.memberIds) ? lu.memberIds.length : 0;
-
+                {MATCH_SIZE_OPTIONS.map((optn) => {
+                  const selected = selectedMatchSize === optn.key;
                   return (
                     <SelectItem
-                      key={idKey}
+                      key={optn.key}
                       type="button"
                       $selected={selected}
-                      onClick={() => setSelectedLineupIdForRequest(idKey)}
+                      onClick={() => setSelectedMatchSize(optn.key)}
                     >
                       <SelectTexts>
-                        <SelectName>{lu.name}</SelectName>
-                        <SelectMetaText>
-                          {count}명 · {sizeLabel}
-                        </SelectMetaText>
+                        <SelectName>{optn.label}</SelectName>
+                        <SelectMetaText>{optn.desc}</SelectMetaText>
                       </SelectTexts>
                       <SelectRadio $selected={selected}>{selected ? "✓" : ""}</SelectRadio>
                     </SelectItem>
@@ -1116,11 +1348,43 @@ export default function MatchAnalysisPage() {
             </SelectBody>
 
             <SelectActions>
-              <SelectButton type="button" onClick={() => setShowLineupSelectModal(false)}>
+              <SelectButton type="button" onClick={() => setShowSizeModal(false)}>
                 취소
               </SelectButton>
-              <SelectButton type="button" $primary onClick={handleSubmitMatchRequest}>
+              <SelectButton
+                type="button"
+                $primary
+                disabled={!selectedMatchSize}
+                onClick={() => setShowMatchConfirm(true)}
+              >
                 매칭 신청
+              </SelectButton>
+            </SelectActions>
+          </SelectCard>
+        </Overlay>
+      )}
+
+      {/* ✅ 매칭 신청 최종 확인 모달 */}
+      {showMatchConfirm && (
+        <Overlay onClick={() => !submittingMatch && setShowMatchConfirm(false)}>
+          <SelectCard onClick={(e) => e.stopPropagation()}>
+            <SelectHeader>
+              <SelectTitle>매칭 신청 확인</SelectTitle>
+              <SelectClose onClick={() => !submittingMatch && setShowMatchConfirm(false)}>×</SelectClose>
+            </SelectHeader>
+
+            <SelectMeta>
+              {`${opp?.name || "상대 팀"}에 ${selectedMatchSize.replace("v", " vs ")} 경기를 신청할까요?`}
+              <br />
+              신청 후 상대 팀이 수락하면 매칭룸에서 라인업·구장·일정을 조율해요.
+            </SelectMeta>
+
+            <SelectActions>
+              <SelectButton type="button" onClick={() => setShowMatchConfirm(false)} disabled={submittingMatch}>
+                취소
+              </SelectButton>
+              <SelectButton type="button" $primary onClick={handleSubmitMatchRequest} disabled={submittingMatch}>
+                {submittingMatch ? "신청 중…" : "매칭 신청"}
               </SelectButton>
             </SelectActions>
           </SelectCard>

@@ -168,7 +168,8 @@ function PinIcon({ size = 16, color = "#6b7280" }) {
 export default function MatchSearchingPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const region = location.state?.region || "내 주변";
+  const navState = location.state || {};
+  const region = navState.region || "내 주변";
 
   const [pct, setPct] = useState(6);
 
@@ -183,14 +184,14 @@ export default function MatchSearchingPage() {
     raf = requestAnimationFrame(tick);
 
     const timer = setTimeout(() => {
-      navigate("/matching/opponent", { state: { region }, replace: true });
+      navigate("/matching/opponent", { state: navState, replace: true });
     }, SEARCH_MS);
 
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
     };
-  }, [navigate, region]);
+  }, [navigate, navState]);
 
   return (
     <Page>

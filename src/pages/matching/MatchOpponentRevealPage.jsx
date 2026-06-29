@@ -13,9 +13,13 @@ import { useClubContext } from "../../context/ClubContext";
 import { useMatchingData } from "../../hooks/useMatchingData";
 import { getTeamProfile } from "../../services/teamService";
 import { getTeamRankMap } from "../../services/teamRankingService";
+import { getPlayerRankMap } from "../../services/rankingService";
+import { getClubMemberCounts } from "../../services/matchingHomeService";
 import { estimateWinProbability } from "../../utils/matchAnalysis";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
+import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 import Spinner from "../../components/common/Spinner";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 
 const cardIn = keyframes`
   from { opacity: 0; transform: translateY(16px) scale(0.97); }
@@ -50,12 +54,23 @@ const TeamCol = styled.div`
   align-items: center;
   gap: 8px;
   min-width: 0;
+  cursor: pointer;
+
+  &:active {
+    opacity: 0.75;
+  }
 `;
 
-const LogoBox = styled.div`
+/* 왕관이 박스 밖으로 나와도 안 잘리도록 overflow 없는 래퍼 */
+const LogoWrap = styled.div`
   position: relative;
   width: 92px;
   height: 92px;
+`;
+
+const LogoBox = styled.div`
+  width: 100%;
+  height: 100%;
   border-radius: 22px;
   overflow: hidden;
   background: ${({ theme }) =>
@@ -71,13 +86,14 @@ const LogoImg = styled.img`
 
 const Crown = styled.img`
   position: absolute;
-  top: -16px;
+  top: -20px;
   left: 50%;
   transform: translateX(-50%);
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   object-fit: contain;
-  z-index: 2;
+  z-index: 3;
+  pointer-events: none;
   filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
 `;
 
@@ -158,22 +174,66 @@ const ListCard = styled.div`
   animation: ${cardIn} 0.45s ease both;
 `;
 
-const PlayerRow = styled.div`
+const PlayerRow = styled.button`
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  background: transparent;
   border-bottom: 1px solid ${({ theme }) => theme.colors.divider};
+  cursor: pointer;
+  text-align: left;
 
   &:last-child {
     border-bottom: none;
   }
+  &:active {
+    opacity: 0.7;
+  }
+`;
+
+const AvatarWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+
+const Avatar = styled.img`
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: block;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+`;
+
+const PlayerCrown = styled.img`
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
+`;
+
+const PlayerTexts = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 `;
 
 const PlayerNameWrap = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 `;
 
@@ -181,22 +241,29 @@ const PlayerName = styled.span`
   font-size: 16px;
   font-weight: 700;
   color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const CaptainTag = styled.span`
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
+  flex-shrink: 0;
+  font-size: 12px;
   font-weight: 700;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.2)" : "#eef2ff"};
   color: ${({ theme }) => theme.colors.primary};
 `;
 
 const PlayerPos = styled.span`
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const PlayerRank = styled.span`
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const CenterState = styled.div`
@@ -288,11 +355,15 @@ export default function MatchOpponentRevealPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const region = location.state?.region || "";
+  const regionGu = String(location.state?.regionGu || "").trim();
+  const regionSido = String(location.state?.regionSido || "").trim();
 
   const { activeTeamId, loading: clubLoading } = useClubContext();
   const { myTeam, opponentTeams, preloadMatchingHomeData } = useMatchingData();
 
   const [rankMap, setRankMap] = useState(null);
+  const [playerRankMap, setPlayerRankMap] = useState(null);
+  const [memberCounts, setMemberCounts] = useState(null); // Map | null(로딩 중)
   const [cycle, setCycle] = useState(0);
   const [oppDetail, setOppDetail] = useState(null); // 선택 상대 멤버 조립본
   const [loadingDetail, setLoadingDetail] = useState(true);
@@ -309,20 +380,68 @@ export default function MatchOpponentRevealPage() {
     getTeamRankMap()
       .then((m) => alive && setRankMap(m))
       .catch(() => {});
+    getPlayerRankMap()
+      .then((m) => alive && setPlayerRankMap(m))
+      .catch(() => {});
     return () => {
       alive = false;
     };
   }, []);
 
-  // 지역 우선 후보 풀(없으면 전체)
+  // 선택 지역의 팀만 보여준다(폴백 없음)
   const pool = useMemo(() => {
     const all = Array.isArray(opponentTeams) ? opponentTeams : [];
-    if (!region) return all;
-    const inRegion = all.filter((t) => String(t.regionGu || "").trim() === region);
-    return inRegion.length ? inRegion : all;
-  }, [opponentTeams, region]);
+    if (!regionGu && !regionSido) return all;
+    return all.filter((t) => {
+      const tGu = String(t.regionGu || "").trim();
+      const tSido = String(t.regionSido || "").trim();
+      if (regionGu && tGu !== regionGu) return false;
+      if (regionSido && tSido !== regionSido) return false;
+      return true;
+    });
+  }, [opponentTeams, regionGu, regionSido]);
 
-  const opponent = pool.length ? pool[cycle % pool.length] : null;
+  // 후보 팀 멤버 수 조회 → 3명 미만 팀은 제외
+  const poolIdsKey = useMemo(
+    () =>
+      pool
+        .map((t) => String(t.clubId || t.id || "").trim())
+        .filter(Boolean)
+        .join(","),
+    [pool]
+  );
+
+  useEffect(() => {
+    const ids = poolIdsKey ? poolIdsKey.split(",") : [];
+    if (ids.length === 0) {
+      setMemberCounts(new Map());
+      return;
+    }
+    let alive = true;
+    setMemberCounts(null);
+    getClubMemberCounts(ids)
+      .then((m) => alive && setMemberCounts(m))
+      .catch(() => alive && setMemberCounts(new Map()));
+    return () => {
+      alive = false;
+    };
+  }, [poolIdsKey]);
+
+  // 팀원 3명 이상인 팀만 매칭 대상
+  const eligiblePool = useMemo(() => {
+    if (!memberCounts) return null; // 멤버 수 로딩 중
+    return pool.filter(
+      (t) =>
+        (memberCounts.get(String(t.clubId || t.id || "").trim()) || 0) >=
+        MIN_TEAM_MEMBERS
+    );
+  }, [pool, memberCounts]);
+
+  const countsLoading = eligiblePool === null;
+  const opponent =
+    eligiblePool && eligiblePool.length
+      ? eligiblePool[cycle % eligiblePool.length]
+      : null;
   const oppId = opponent ? String(opponent.clubId || opponent.id || "").trim() : "";
 
   // 상대 선수단 로드
@@ -358,8 +477,10 @@ export default function MatchOpponentRevealPage() {
 
   const members = Array.isArray(oppDetail?.members) ? oppDetail.members : [];
 
+  const eligibleCount = eligiblePool ? eligiblePool.length : 0;
+
   const handleCycle = () => {
-    if (pool.length <= 1) return;
+    if (eligibleCount <= 1) return;
     setCycle((c) => c + 1);
   };
 
@@ -368,8 +489,20 @@ export default function MatchOpponentRevealPage() {
     navigate(`/matching/analysis/${oppId}`);
   };
 
-  const showInitialLoading =
-    clubLoading || (!opponentTeams?.length && loadingDetail);
+  const goTeam = (clubId) => {
+    const id = String(clubId || "").trim();
+    if (id) navigate(`/team/${id}`);
+  };
+
+  const goPlayer = (userId) => {
+    const id = String(userId || "").trim();
+    if (id) navigate(`/player/${id}`);
+  };
+
+  const ownerUid = String(oppDetail?.ownerUid || "").trim();
+  const myClubId = String(myTeam?.clubId || myTeam?.id || activeTeamId || "").trim();
+
+  const showInitialLoading = clubLoading || !myTeam || countsLoading;
 
   if (showInitialLoading) {
     return (
@@ -385,7 +518,8 @@ export default function MatchOpponentRevealPage() {
     return (
       <Page>
         <CenterState>
-          {region ? `${region} 주변에 ` : ""}매칭 가능한 상대가 아직 없어요.
+          {region ? `${region} 주변에 ` : ""}팀원 {MIN_TEAM_MEMBERS}명 이상인 매칭
+          가능한 상대가 아직 없어요.
         </CenterState>
       </Page>
     );
@@ -404,28 +538,32 @@ export default function MatchOpponentRevealPage() {
     <Page>
       <MatchupBar>
         <Matchup key={animKey}>
-          <TeamCol>
-            <LogoBox>
+          <TeamCol onClick={() => goTeam(myClubId)}>
+            <LogoWrap>
               {myRank && myRank <= 3 ? <Crown src={images.logo} alt={`${myRank}위`} /> : null}
-              <LogoImg
-                src={teamLogoSrc(myTeam?.logoUrl || images[myTeam?.logoKey])}
-                alt={myTeam?.name || "우리팀"}
-              />
-            </LogoBox>
+              <LogoBox>
+                <LogoImg
+                  src={teamLogoSrc(myTeam?.logoUrl || images[myTeam?.logoKey])}
+                  alt={myTeam?.name || "우리팀"}
+                />
+              </LogoBox>
+            </LogoWrap>
             <TeamName>{myTeam?.name || "우리팀"}</TeamName>
             <TeamMeta $mine>{myMeta}</TeamMeta>
           </TeamCol>
 
           <VsBadge>VS</VsBadge>
 
-          <TeamCol>
-            <LogoBox>
+          <TeamCol onClick={() => goTeam(oppId)}>
+            <LogoWrap>
               {oppRank && oppRank <= 3 ? <Crown src={images.logo} alt={`${oppRank}위`} /> : null}
-              <LogoImg
-                src={teamLogoSrc(opponent.logoUrl || images[opponent.logoKey])}
-                alt={opponent.name}
-              />
-            </LogoBox>
+              <LogoBox>
+                <LogoImg
+                  src={teamLogoSrc(opponent.logoUrl || images[opponent.logoKey])}
+                  alt={opponent.name}
+                />
+              </LogoBox>
+            </LogoWrap>
             <TeamName>{opponent.name}</TeamName>
             <TeamMeta>{oppMeta || "상대팀"}</TeamMeta>
           </TeamCol>
@@ -449,15 +587,43 @@ export default function MatchOpponentRevealPage() {
           <CenterState>아직 등록된 선수단 정보가 없어요.</CenterState>
         ) : (
           <ListCard key={animKey}>
-            {members.map((m, idx) => (
-              <PlayerRow key={m.id || m.userId || idx}>
-                <PlayerNameWrap>
-                  <PlayerName>{m.name || m.nickname || "선수"}</PlayerName>
-                  {idx === 0 ? <CaptainTag>주장</CaptainTag> : null}
-                </PlayerNameWrap>
-                <PlayerPos>{m.position || m.positionLabel || "미정"}</PlayerPos>
-              </PlayerRow>
-            ))}
+            {members.map((m, idx) => {
+              const uid = String(m.userId || m.id || "").trim();
+              const isLeader = ownerUid ? uid === ownerUid : idx === 0;
+              const pRank = uid && playerRankMap?.get?.(uid);
+              const showPlayerCrown = pRank && pRank <= 3;
+              return (
+                <PlayerRow
+                  key={uid || idx}
+                  type="button"
+                  onClick={() => goPlayer(uid)}
+                >
+                  <AvatarWrap>
+                    {showPlayerCrown ? (
+                      <PlayerCrown src={images.logo} alt={`${pRank}위`} />
+                    ) : null}
+                    {m.avatarUrl ? (
+                      <Avatar
+                        src={m.avatarUrl}
+                        alt={m.name || m.nickname || "선수"}
+                      />
+                    ) : (
+                      <AvatarPlaceholder size={46} />
+                    )}
+                  </AvatarWrap>
+
+                  <PlayerTexts>
+                    <PlayerNameWrap>
+                      <PlayerName>{m.name || m.nickname || "선수"}</PlayerName>
+                      {isLeader ? <CaptainTag>팀장</CaptainTag> : null}
+                    </PlayerNameWrap>
+                    <PlayerPos>{m.position || m.positionLabel || "포지션 미정"}</PlayerPos>
+                  </PlayerTexts>
+
+                  {pRank ? <PlayerRank>{pRank}위</PlayerRank> : null}
+                </PlayerRow>
+              );
+            })}
           </ListCard>
         )}
       </Body>
@@ -469,7 +635,7 @@ export default function MatchOpponentRevealPage() {
         <CycleBtn
           type="button"
           onClick={handleCycle}
-          disabled={pool.length <= 1}
+          disabled={eligibleCount <= 1}
           aria-label="다른 상대 찾기"
           title="다른 상대 찾기"
         >

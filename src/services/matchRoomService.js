@@ -32,6 +32,7 @@ import { listClubMembers, listClubMemberUidsExceptOwner } from "./clubManageServ
 import { fetchLineupRosterProfiles } from "./lineupRosterService";
 import { sendSystemMessage } from "./chatService";
 import { chargeFizz } from "./fizzService";
+import { predictFromStats } from "../utils/matchAnalysis";
 
 // 경기 취소 사유 프리셋 (상대팀에 표시)
 export const MATCH_CANCEL_REASONS = [
@@ -724,6 +725,100 @@ export async function loadTeamMonthlyActivity({ clubId } = {}) {
   });
 
   return { games, totalGames: games.length };
+}
+
+// ✅ AI 예측 적중률: 내 팀이 참여한 finished 경기 중 예측이 "찍은"(confident) 경기의 hit/miss 집계.
+//    - push(못 찍은 경기/무승부)와 무효(void)는 제외 → 정직한 적중률.
+//    - 기능 도입 이후 종료된 경기만 predictionOutcome을 가지므로, 초기엔 표본이 작다.
+export async function getTeamPredictionAccuracy(clubId) {
+  const cid = toStr(clubId);
+  if (!cid) return { rate: null, sample: 0 };
+
+  const col = collection(db, "match_requests");
+  const [snapA, snapB] = await Promise.all([
+    getDocs(query(col, where("actorClubId", "==", cid), limit(300))),
+    getDocs(query(col, where("targetClubId", "==", cid), limit(300))),
+  ]);
+
+  const merged = uniqById([
+    ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+    ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+  ]);
+
+  let hits = 0;
+  let total = 0;
+  merged.forEach((mr) => {
+    if (toStr(mr?.status) !== "finished") return;
+    if (toStr(mr?.resultState) === "void") return;
+    const r = toStr(mr?.predictionOutcome?.result);
+    if (r === "hit") {
+      hits += 1;
+      total += 1;
+    } else if (r === "miss") {
+      total += 1;
+    }
+  });
+
+  const rate = total > 0 ? Math.round((hits / total) * 100) : null;
+  return { rate, sample: total };
+}
+
+// ✅ 상대전적(H2H): 두 팀이 직접 맞붙은 finished(무효 제외) 경기를 내 팀 관점으로 집계.
+//    반환 { wins, losses, draws, games, recent:[최신순 W/L/D] } — estimateWinProbability(opts.h2h)에 주입.
+export async function getHeadToHeadRecord(myClubId, oppClubId) {
+  const me = toStr(myClubId);
+  const opp = toStr(oppClubId);
+  const empty = { wins: 0, losses: 0, draws: 0, games: 0, recent: [] };
+  if (!me || !opp || me === opp) return empty;
+
+  const col = collection(db, "match_requests");
+  const [snapA, snapB] = await Promise.all([
+    getDocs(query(col, where("actorClubId", "==", me), limit(300))),
+    getDocs(query(col, where("targetClubId", "==", me), limit(300))),
+  ]);
+
+  const merged = uniqById([
+    ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+    ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+  ]);
+
+  const games = merged.filter((mr) => {
+    if (toStr(mr?.status) !== "finished") return false;
+    if (toStr(mr?.resultState) === "void") return false;
+    const a = toStr(mr?.actorClubId);
+    const t = toStr(mr?.targetClubId);
+    return (a === me && t === opp) || (a === opp && t === me);
+  });
+
+  // 최신순 정렬(맞대결 흐름용)
+  const sorted = [...games].sort((x, y) => {
+    const tx = tsMs(x?.scheduledAt) || tsMs(x?.resultAcceptedAt) || tsMs(x?.updatedAt) || tsMs(x?.createdAt);
+    const ty = tsMs(y?.scheduledAt) || tsMs(y?.resultAcceptedAt) || tsMs(y?.updatedAt) || tsMs(y?.createdAt);
+    return ty - tx;
+  });
+
+  let wins = 0;
+  let losses = 0;
+  let draws = 0;
+  const recent = [];
+  sorted.forEach((mr) => {
+    const iAmActor = toStr(mr?.actorClubId) === me;
+    const myScore = Number(iAmActor ? mr?.myScore : mr?.oppScore);
+    const oppScore = Number(iAmActor ? mr?.oppScore : mr?.myScore);
+    if (!Number.isFinite(myScore) || !Number.isFinite(oppScore)) return;
+    if (myScore > oppScore) {
+      wins += 1;
+      recent.push("W");
+    } else if (myScore < oppScore) {
+      losses += 1;
+      recent.push("L");
+    } else {
+      draws += 1;
+      recent.push("D");
+    }
+  });
+
+  return { wins, losses, draws, games: wins + losses + draws, recent: recent.slice(0, 5) };
 }
 
 // ✅ 선수 월별 활동(팀 대비 참여율)용 데이터
@@ -1792,6 +1887,16 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
     const aRep = ratedClubId && ratedClubId === actorClubId ? buildRep(aClub) : null;
     const tRep = ratedClubId && ratedClubId === targetClubId ? buildRep(tClub) : null;
 
+    // ✅ AI 예측 검증: 경기 전(pre-match) 전적(aStats/tStats)으로 예측 → 실제 결과와 비교.
+    //    aStats/tStats는 이 경기 반영 전 값이라 "경기 전에 알 수 있던 데이터" = 공정한 예측 근거.
+    const pred = predictFromStats(aStats, tStats);
+    const favoredClubId =
+      pred.favored === "actor" ? actorClubId : pred.favored === "target" ? targetClubId : "";
+    const actualWinnerClubId = aScore > tScore ? actorClubId : aScore < tScore ? targetClubId : "";
+    let predResult;
+    if (!pred.confident || !actualWinnerClubId) predResult = "push"; // 못 찍은 경기/무승부 → 집계 제외
+    else predResult = favoredClubId === actualWinnerClubId ? "hit" : "miss";
+
     // =========================
     // 2) WRITES (여기부터는 tx.get 절대 금지)
     // =========================
@@ -1862,6 +1967,19 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
       resultAcceptedByClubId: confirmer,
       resultAcceptedAt: serverTimestamp(),
       statsAppliedAt: serverTimestamp(),
+      // ✅ AI 예측 스냅샷 + 검증 결과 (적중률 집계용)
+      prediction: {
+        favoredClubId,
+        prob: pred.prob, // actor 관점 0~100
+        confident: pred.confident,
+        basis: "stats",
+        predictedAt: serverTimestamp(),
+      },
+      predictionOutcome: {
+        result: predResult, // "hit" | "miss" | "push"
+        actualWinnerClubId,
+        evaluatedAt: serverTimestamp(),
+      },
       updatedAt: serverTimestamp(),
     });
   });
