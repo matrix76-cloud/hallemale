@@ -14,6 +14,7 @@ import { updateUserProfile, isNicknameTaken } from "../../services/userService";
 import { uploadUserAvatar } from "../../services/mediaService";
 import { getNameChangeStatus } from "../../utils/nameChange";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
+import PlayerProfilePage from "../player/PlayerProfilePage";
 
 const POSITION_LABEL = {
   guard: "가드",
@@ -51,6 +52,7 @@ export default function MyProfileEditPage() {
 
   const [didInit, setDidInit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const sidoOptions = useMemo(
     () => (Array.isArray(KR_AREAS) ? KR_AREAS.map((a) => a.sido) : []),
@@ -321,6 +323,26 @@ export default function MyProfileEditPage() {
             </TwoColRow>
           </FieldGroup>
         </Section>
+
+        {uid ? (
+          <PreviewWrap>
+            <PreviewButton
+              type="button"
+              onClick={() => setShowPreview((v) => !v)}
+              aria-expanded={showPreview}
+            >
+              👁 {showPreview ? "프로필 미리보기 닫기" : "프로필 미리보기"}
+            </PreviewButton>
+            {showPreview ? (
+              <>
+                <PreviewHint>다른 사람에게 보이는 내 프로필 화면이에요. (저장된 정보 기준)</PreviewHint>
+                <PreviewCard>
+                  <PlayerProfilePage playerId={uid} embed />
+                </PreviewCard>
+              </>
+            ) : null}
+          </PreviewWrap>
+        ) : null}
 
         <MenuList>
           <MenuRow type="button" onClick={() => nav("/my/profile/edit/skills")}>
@@ -659,4 +681,52 @@ const PrimaryButton = styled.button`
     opacity: 0.4;
     cursor: default;
   }
+`;
+
+const PreviewWrap = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  padding-bottom: 24px;
+`;
+
+const PreviewButton = styled.button`
+  width: 100%;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.14)" : "#eef2ff"};
+  color: ${({ theme }) =>
+    theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
+const PreviewHint = styled.p`
+  margin: 0;
+  text-align: center;
+  font-size: 11.5px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+// 미리보기 프레임: 흰 카드 안에 공개 프로필(embed)을 담아 한눈에 확인
+const PreviewCard = styled.div`
+  background: #ffffff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 14px;
+  overflow: hidden auto;
+  max-height: 560px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16),
+    0 2px 6px rgba(15, 23, 42, 0.08);
 `;

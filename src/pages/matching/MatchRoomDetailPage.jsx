@@ -352,6 +352,17 @@ const PlayerRow = styled.div`
   & + & {
     border-top: 1px solid ${({ theme }) => theme.colors.divider};
   }
+
+  /* 내 이름 줄: 보라색 강조 (라인업에서 본인 식별) */
+  ${({ $me, theme }) =>
+    $me &&
+    `
+    border-radius: 10px;
+    padding: 8px 8px;
+    background: ${theme.mode === "dark" ? "rgba(124,92,201,0.18)" : "#f1ecff"};
+    box-shadow: inset 0 0 0 1.5px ${theme.mode === "dark" ? "rgba(167,139,250,0.55)" : "#7c5cc9"};
+    & + & { border-top: none; }
+  `}
 `;
 
 const PlayerLeft = styled.div`
@@ -1164,6 +1175,14 @@ const ResvBadge = styled.span`
   padding: 5px 10px; border-radius: 999px;
   font-size: 11.5px; font-weight: 800;
   background: rgba(34, 197, 94, 0.92); color: #fff;
+`;
+/* 구장 사진 탭 → 구장 상세 이동 힌트 */
+const VenuePhotoHint = styled.span`
+  position: absolute; top: 10px; right: 10px;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 5px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 800;
+  background: rgba(17, 24, 39, 0.62); color: #fff;
 `;
 /* 히어로 이미지 위에 구장명·코트정보 오버레이 (목업 배치) */
 const ResvThumbOverlay = styled.div`
@@ -3140,19 +3159,22 @@ export default function MatchRoomDetailPage() {
     });
   }, [room, location.state, location.pathname, location.search, navigate]);
 
-  // 실시간: 방을 보는 중 양 팀 결제로 status가 confirmed로 전환되면 최종 확정 축하(제휴구장 결제 건)
+  // 실시간: 방을 보는 중 status가 confirmed로 전환되면 최종 확정 축하.
+  //  - 제휴구장: 양 팀 결제 완료 시
+  //  - 직접입력: 상대가 내가 보낸 일정을 수락(확정)했을 때 → 제안자(보낸 사람)도 실시간으로 축하
+  // 확정 액션 당사자는 handleConfirmSchedule에서 finalAnimRef를 세워 중복 축하를 막는다.
   useEffect(() => {
     if (!room) return;
     const isConfirmedNow = toStr(room.status) === "confirmed";
     const prev = confirmedRef.current;
     confirmedRef.current = isConfirmedNow;
     if (prev === null) return; // 첫 로드: 기준값만 기록(이미 확정된 방 재방문 시 축하 안 함)
-    if (!prev && isConfirmedNow && partnerPay?.pb && !finalAnimRef.current) {
+    if (!prev && isConfirmedNow && !finalAnimRef.current) {
       setShowPayPromptAnim(false); // 확정되면 '제안 수락 완료' 창은 닫고 경기 확정 축하만
       finalAnimRef.current = true;
       setShowFinalAnim(true);
     }
-  }, [room, partnerPay?.pb]);
+  }, [room]);
 
   // 결과 자동 확정: waiting_accept 상태에서 경기 종료일 + 3일이 지나면 제출값으로 확정
   useEffect(() => {
@@ -3660,6 +3682,7 @@ export default function MatchRoomDetailPage() {
   const isConfirmed = status === "confirmed";
   const isFinished = status === "finished";
   const isCancelled = status === "cancelled";
+  const isVoided = toStr(room?.resultState) === "void"; // 결과 미입력 무효 종결
 
   // 팀원(비팀장)은 "조율중"(accepted/proposed) 경기의 상세를 볼 수 없음 → 안내 화면으로 대체.
   // 확정/지난경기(finished)/취소는 팀원도 열람 가능.
@@ -3700,6 +3723,7 @@ export default function MatchRoomDetailPage() {
 
   // 진행 단계 요약 배지 ("1/3 · 라인업 확정 중")
   const stepSummary = (() => {
+    if (isVoided) return "무효 처리";
     if (status === "finished") return "경기 종료";
     if (status === "cancelled") return "취소된 매칭";
     if (status === "confirmed") return "3/3 · 확정 완료";
@@ -3723,6 +3747,8 @@ export default function MatchRoomDetailPage() {
       ? "구장·일정이 제안됐어요 · 채팅으로 조율하세요"
       : status === "confirmed"
       ? "경기가 확정됐어요 🎉"
+      : isVoided
+      ? "양 팀 결과 미입력으로 무효 처리됐어요 · 전적 미반영"
       : status === "finished"
       ? "경기가 종료됐어요 · 수고하셨습니다"
       : status === "cancelled"
@@ -3766,9 +3792,11 @@ export default function MatchRoomDetailPage() {
     ? "lose"
     : "draw";
 
-  // 상단 배너(종료 경기): 승/패/무 → 경기 종료 폴백
+  // 상단 배너(종료 경기): 무효 → 승/패/무 → 경기 종료 폴백
   const pastBanner =
-    outcome === "win"
+    isVoided
+      ? { icon: "🚫", title: "무효 처리", sub: "양 팀 결과 미입력 · 전적에 반영되지 않아요", tone: "slate" }
+      : outcome === "win"
       ? { icon: "🏆", title: "경기 승리", sub: "멋진 승리예요 · 수고하셨습니다", tone: "green" }
       : outcome === "lose"
       ? { icon: "😞", title: "경기 패배", sub: "아쉬운 경기였어요 · 다음을 기약해요", tone: "red" }
@@ -3822,6 +3850,8 @@ export default function MatchRoomDetailPage() {
     if (!myClubId) return;
     try {
       await confirmProposedSchedule({ matchRequestId: room.id, confirmedByClubId: myClubId });
+      // 확정 당사자는 여기서 축하창을 띄우고, 실시간 워처가 다시 띄우지 않도록 가드를 세운다.
+      finalAnimRef.current = true;
       setShowConfirmAnim(true); // (2-7) 확정 애니메이션
       await refresh();
     } catch (e) {
@@ -3867,6 +3897,11 @@ export default function MatchRoomDetailPage() {
   // 취소 사유 선택 시트에서 확정 → 사유/환불(구조)와 함께 취소
   const handleCancelMatch = async (reasonKey, reasonText) => {
     if (cancelBusy) return;
+    // 경기/매칭 취소는 팀장만 가능
+    if (!isTeamLeader) {
+      window.alert("경기 취소는 팀장만 할 수 있어요.");
+      return;
+    }
     setCancelBusy(true);
     try {
       await cancelMatchRequest({
@@ -3903,8 +3938,12 @@ export default function MatchRoomDetailPage() {
     }
   };
 
-  // 확정 경기 취소 — 사유 선택 시트 오픈(결제건이면 환불 안내 포함)
+  // 확정 경기 취소 — 사유 선택 시트 오픈(결제건이면 환불 안내 포함). 팀장만 가능.
   const handleCancelConfirmedMatch = () => {
+    if (!isTeamLeader) {
+      window.alert("경기 취소는 팀장만 할 수 있어요.");
+      return;
+    }
     setCancelSheetOpen(true);
   };
 
@@ -4049,8 +4088,11 @@ export default function MatchRoomDetailPage() {
     const pRank = playerRankMap?.get(p.userId) || null;
     const showPlayerCrown = !!pRank && pRank <= 3;
 
+    // 내 이름 줄 강조
+    const isMe = !!myUid && toStr(p.userId) === myUid;
+
     return (
-      <PlayerRow key={p.userId}>
+      <PlayerRow key={p.userId} $me={isMe}>
         <PlayerLeft onClick={() => goPlayerDetail(p)}>
           <PlayerAvatarWrap>
             {showPlayerCrown ? (
@@ -4065,7 +4107,7 @@ export default function MatchRoomDetailPage() {
           <PlayerText>
             <PlayerTopRow>
               <PositionText>{formatPositionKo(posKo)}</PositionText>
-              <PlayerName>{p.nickname}</PlayerName>
+              <PlayerName>{p.nickname}{isMe ? " (나)" : ""}</PlayerName>
             </PlayerTopRow>
           </PlayerText>
         </PlayerLeft>
@@ -4707,7 +4749,22 @@ export default function MatchRoomDetailPage() {
   );
 
   // 경기 결과 입력/제출/인정 섹션 (확정 화면·결과 화면에서 공용)
-  const resultSection = canInputResult ? (
+  const resultSection = isVoided ? (
+    <SectionCard>
+      <SectionTitleRow>
+        <SectionTitleLeft>
+          <SectionIcon>🚫</SectionIcon>
+          <span>경기 결과</span>
+        </SectionTitleLeft>
+        <SectionTitleActions />
+      </SectionTitleRow>
+      <ResultInfoBox>
+        양 팀 모두 결과를 입력하지 않아 <strong>무효 처리</strong>된 경기예요.
+        <br />
+        전적에 반영되지 않습니다.
+      </ResultInfoBox>
+    </SectionCard>
+  ) : canInputResult ? (
     resultInputCards
   ) : isResultView ? (
     resultConfirmedCards
@@ -5174,11 +5231,16 @@ export default function MatchRoomDetailPage() {
                     제휴구장: 구장 사진 + 일시 + 위치 + 지도 / 직접입력: 일시 + 위치 + 지도 */}
                 {partnerPay?.pb ? (
                   <>
-                    <TicketVenuePhoto>
+                    <TicketVenuePhoto
+                      onClick={propVenueId ? openVenueDetail : undefined}
+                      role={propVenueId ? "button" : undefined}
+                      style={{ cursor: propVenueId ? "pointer" : "default" }}
+                    >
                       {toStr(partnerPay.pb.venueImageUrl)
                         ? <ResvThumbImg src={partnerPay.pb.venueImageUrl} alt={toStr(partnerPay.pb.venueName)} />
                         : <FiMapPin size={26} />}
                       <ResvBadge>✓ 예약 완료</ResvBadge>
+                      {propVenueId ? <VenuePhotoHint>구장 상세 ›</VenuePhotoHint> : null}
                       <ResvThumbOverlay>
                         <ResvNameOv>{toStr(partnerPay.pb.venueName) || "제휴구장"}</ResvNameOv>
                         {toStr(partnerPay.pb.courtName) ? <ResvSubOv>{toStr(partnerPay.pb.courtName)}</ResvSubOv> : null}
@@ -5290,7 +5352,8 @@ export default function MatchRoomDetailPage() {
             {/* 경기 결과 입력/제출/인정 — 확정 화면에서 바로 (별도 채팅 없음) */}
             {!isPast && resultSection}
 
-            {isConfirmed && !isEnded && (
+            {/* 경기 취소는 팀장만 가능 — 팀원에겐 버튼 미표시 */}
+            {isConfirmed && !isEnded && isTeamLeader && (
               <ConfCancelBtn type="button" onClick={handleCancelConfirmedMatch}>
                 경기 취소하기
               </ConfCancelBtn>
@@ -5982,28 +6045,24 @@ export default function MatchRoomDetailPage() {
       <MatchFinalCelebration
         open={showFinalAnim}
         onClose={() => setShowFinalAnim(false)}
-        teams={`${toStr(myTeamView?.name) || "우리팀"} vs ${oppName}`}
-        subtitle={[
-          toStr(fieldAddress),
-          room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "",
-          "양 팀 결제 완료 · 경기장에서 만나요!",
-        ]
-          .filter(Boolean)
-          .join("\n")}
+        myName={toStr(myTeamView?.name) || "우리팀"}
+        myLogoUrl={toStr(myTeamView?.logoUrl)}
+        myRank={myRank}
+        oppName={oppName}
+        oppLogoUrl={toStr(oppTeamView?.logoUrl)}
+        oppRank={oppRank}
       />
 
       {/* 직접입력 구장 확정도 제휴구장과 동일한 '경기 확정' 축하로 통일 */}
       <MatchFinalCelebration
         open={showConfirmAnim}
         onClose={() => setShowConfirmAnim(false)}
-        teams={`${toStr(myTeamView?.name) || "우리팀"} vs ${oppName}`}
-        subtitle={[
-          toStr(fieldAddress),
-          room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "",
-          "상대 팀과 일정이 확정됐어요 · 경기장에서 만나요!",
-        ]
-          .filter(Boolean)
-          .join("\n")}
+        myName={toStr(myTeamView?.name) || "우리팀"}
+        myLogoUrl={toStr(myTeamView?.logoUrl)}
+        myRank={myRank}
+        oppName={oppName}
+        oppLogoUrl={toStr(oppTeamView?.logoUrl)}
+        oppRank={oppRank}
       />
 
       <MatchAcceptedCelebration

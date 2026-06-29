@@ -11,20 +11,12 @@ import { useNavigate } from "react-router-dom";
 import { loadCommunityList } from "../../services/communityService";
 import { useAuth } from "../../hooks/useAuth";
 import FilterSearchBar from "../../components/common/FilterSearchBar";
-import { FiHeart, FiMessageCircle, FiEdit3, FiUsers, FiAward } from "react-icons/fi";
+import { FiHeart, FiMessageCircle, FiEdit3 } from "react-icons/fi";
 import EmptyState from "../../components/common/EmptyState";
 import HomeHeroBanner from "../../components/home/HomeHeroBanner";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 // 커뮤니티 배너는 어드민 등록분만 노출 (기본 fallback 없음)
 const COMMUNITY_BANNER_FALLBACK = [];
-
-const CATEGORIES = [
-  { key: "free", label: "자유", Icon: FiMessageCircle },
-  { key: "recruit", label: "상대모집", Icon: FiUsers },
-  { key: "review", label: "경기후기", Icon: FiAward },
-];
 
 /* =============== 레이아웃 =============== */
 
@@ -106,62 +98,6 @@ const HotBadge = styled.span`
   font-weight: 800;
   letter-spacing: 0.3px;
   color: ${({ theme }) => theme.colors.danger || "#ef4444"};
-`;
-
-/* =============== 카테고리 탭 =============== */
-
-const TabBar = styled.div`
-  display: flex;
-  gap: 8px;
-  padding: 4px 12px 4px;
-  max-width: 480px;
-  margin: 14px auto 0;
-`;
-
-const TabButton = styled.button`
-  position: relative;
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 999px;
-  padding: 9px 14px;
-  font-size: 14px;
-  font-weight: ${({ $active }) => ($active ? 700 : 500)};
-  cursor: pointer;
-  white-space: nowrap;
-  border: 1px solid
-    ${({ theme, $active }) =>
-      $active
-        ? theme.colors.primary
-        : theme.mode === "dark"
-        ? theme.colors.border
-        : "rgba(0,0,0,0.10)"};
-  background: ${({ theme, $active }) =>
-    $active
-      ? theme.mode === "dark"
-        ? "rgba(124,92,255,0.18)"
-        : "#eef2ff"
-      : theme.mode === "dark"
-      ? theme.colors.surface
-      : "#ffffff"};
-  color: ${({ theme, $active }) =>
-    $active ? theme.colors.primary : theme.colors.textNormal};
-
-  &:active {
-    transform: translateY(1px);
-  }
-`;
-
-const TabBadge = styled.span`
-  position: absolute;
-  top: 4px;
-  right: 8px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: ${({ theme }) => theme.colors.danger || "#ef4444"};
 `;
 
 /* =============== 상태 =============== */
@@ -338,7 +274,6 @@ export default function CommunityListPage() {
   const [loading, setLoading] = useState(true);
   const [errText, setErrText] = useState("");
   const [q, setQ] = useState("");
-  const [activeCat, setActiveCat] = useState("free");
   const [sortMode, setSortMode] = useState("latest"); // "latest" | "popular"
 
   useEffect(() => {
@@ -376,22 +311,10 @@ export default function CommunityListPage() {
     };
   }, [myUid]);
 
-  // 상대모집 탭: 최근 24시간 내 새 글 존재 여부 → N 뱃지
-  const recruitHasNew = useMemo(() => {
-    const now = Date.now();
-    return (posts || []).some(
-      (p) =>
-        String(p.category || "free") === "recruit" &&
-        p.createdAtMs &&
-        now - p.createdAtMs < DAY_MS
-    );
-  }, [posts]);
-
   const filteredPosts = useMemo(() => {
     const key = String(q || "").trim().toLowerCase();
 
     return (posts || [])
-      .filter((p) => String(p.category || "free") === activeCat)
       .filter((p) => {
         if (!key) return true;
         const title = String(p.title || "").toLowerCase();
@@ -399,7 +322,7 @@ export default function CommunityListPage() {
         const author = String(p.authorName || "").toLowerCase();
         return title.includes(key) || content.includes(key) || author.includes(key);
       });
-  }, [posts, q, activeCat]);
+  }, [posts, q]);
 
   // 정렬: 최신순 | 인기순(좋아요+댓글)
   const sortedPosts = useMemo(() => {
@@ -468,21 +391,6 @@ export default function CommunityListPage() {
         fallback={COMMUNITY_BANNER_FALLBACK}
         slideHeight="84px"
       />
-
-      <TabBar>
-        {CATEGORIES.map(({ key, label, Icon }) => (
-          <TabButton
-            key={key}
-            type="button"
-            $active={activeCat === key}
-            onClick={() => setActiveCat(key)}
-          >
-            <Icon />
-            {label}
-            {key === "recruit" && recruitHasNew && <TabBadge />}
-          </TabButton>
-        ))}
-      </TabBar>
 
       <Inner>
         <SearchWrap>

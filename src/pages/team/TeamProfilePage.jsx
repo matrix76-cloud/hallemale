@@ -27,7 +27,8 @@ import { useClub } from "../../hooks/useClub";
 import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
 import TeamMatchHistorySection from "../../components/team/TeamMatchHistorySection";
-import { loadMatchRoomListPageData, listTeamReviews } from "../../services/matchRoomService";
+import TeamMonthlyActivitySection from "../../components/team/TeamMonthlyActivitySection";
+import { loadMatchRoomListPageData, listTeamReviews, loadTeamMonthlyActivity } from "../../services/matchRoomService";
 import { createTeamReport } from "../../services/teamReportService";
 import BlockedOverlay from "../../components/common/BlockedOverlay";
 
@@ -1016,6 +1017,7 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
 
   const [pastMatches, setPastMatches] = useState([]);
   const [pastMatchesLoading, setPastMatchesLoading] = useState(false);
+  const [teamGames, setTeamGames] = useState([]); // 월별 활동/참여율용 (경기별 라인업 memberIds)
 
   // 팀 리뷰(상대 팀이 남긴 평점·후기)
   const [teamReviews, setTeamReviews] = useState({ reviews: [], avg: 0, count: 0 });
@@ -1091,6 +1093,14 @@ useEffect(() => {
       const past = rooms.filter((r) => r?.status === "finished");
 
       setPastMatches(past);
+
+      // 월별 활동 + 선수 참여율용 데이터(경기별 라인업 memberIds)
+      try {
+        const act = await loadTeamMonthlyActivity({ clubId });
+        if (!cancelled) setTeamGames(Array.isArray(act?.games) ? act.games : []);
+      } catch (e2) {
+        if (!cancelled) setTeamGames([]);
+      }
     } catch (e) {
       console.warn("[TeamProfile] load past matches failed:", e?.message || e);
       if (!cancelled) setPastMatches([]);
@@ -1594,6 +1604,13 @@ useEffect(() => {
                   />
                 )}
               </Section>
+
+              {/* 월별 활동 기록 + 선수 참여율 (자체 카드 — 별도 Section 헤더 불필요) */}
+              <TeamMonthlyActivitySection
+                games={teamGames}
+                members={Array.isArray(team?.members) ? team.members : []}
+                captainUid={String(team?.ownerUid || "").trim()}
+              />
 
               <Section>
                 <SectionHeaderRow>

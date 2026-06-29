@@ -1,10 +1,12 @@
 /* eslint-disable */
 // src/components/player/PlayerMonthlyStatsSection.jsx
-// 월간 활동 집계 — 막대그래프 + 요약 숫자
+// 월별 활동 기록 — 선수가 라인업으로 뛴 경기를 월별로 집계.
+//  - 막대그래프: 월별 경기 수 (최근 6개월, 데이터 있는 달 기준)
+//  - 요약: 총 경기 수 / 월 평균 경기 수
 
 import React, { useMemo } from "react";
 import styled, { useTheme } from "styled-components";
-import { FiCalendar, FiZap, FiClock, FiTrendingUp } from "react-icons/fi";
+import { FiCalendar, FiBarChart2 } from "react-icons/fi";
 import EmptyState from "../common/EmptyState";
 
 const Section = styled.section`
@@ -32,18 +34,9 @@ const Title = styled.h2`
   gap: 8px;
 `;
 
-const MockBadge = styled.span`
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(245,158,11,0.16)" : "#fef3c7"};
-  color: ${({ theme }) => (theme.mode === "dark" ? "#fbbf24" : "#92400e")};
-  font-size: 10px;
-  padding: 3px 8px;
-  border-radius: 999px;
-`;
-
 const SummaryGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin-bottom: 14px;
 `;
@@ -51,19 +44,19 @@ const SummaryGrid = styled.div`
 const SumCard = styled.div`
   background: ${({ $bg }) => $bg};
   border-radius: 8px;
-  padding: 10px 8px;
+  padding: 12px 10px;
   text-align: center;
   color: ${({ $color }) => $color};
 `;
 
 const SumVal = styled.div`
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   margin-top: 2px;
 `;
 
 const SumLbl = styled.div`
-  font-size: 10px;
+  font-size: 11px;
   opacity: 0.85;
   margin-top: 2px;
 `;
@@ -78,39 +71,47 @@ const ChartLbl = styled.div`
   margin-bottom: 6px;
 `;
 
-function BarChart({ data, field, color, labelColor, axisColor }) {
+function BarChart({ data, color, avg, labelColor, axisColor, avgColor }) {
   const W = 300;
-  const H = 110;
-  const pad = 20;
-  const max = Math.max(...data.map((d) => d[field])) || 1;
-  const bw = (W - pad * 2) / data.length - 8;
+  const H = 120;
+  const pad = 22;
+  const max = Math.max(...data.map((d) => d.count), 1);
+  const slot = (W - pad * 2) / data.length;
+  const bw = Math.min(slot - 8, 34);
+
+  // 월 평균 점선 y좌표
+  const avgY = H - pad - (avg / max) * (H - pad * 2);
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`}>
+      {/* 월 평균 점선 */}
+      {avg > 0 && (
+        <>
+          <line
+            x1={pad}
+            x2={W - pad}
+            y1={avgY}
+            y2={avgY}
+            stroke={avgColor}
+            strokeWidth="1.2"
+            strokeDasharray="4 4"
+          />
+          <text x={W - pad} y={avgY - 4} fontSize="9.5" fill={avgColor} textAnchor="end" fontWeight="700">
+            월 평균 {avg.toFixed(1)}
+          </text>
+        </>
+      )}
       {data.map((d, i) => {
-        const h = ((d[field] / max) * (H - pad * 2));
-        const x = pad + i * ((W - pad * 2) / data.length) + 4;
+        const h = (d.count / max) * (H - pad * 2);
+        const x = pad + i * slot + (slot - bw) / 2;
         const y = H - pad - h;
         return (
-          <g key={d.month}>
-            <rect x={x} y={y} width={bw} height={h} fill={color} rx="4" />
-            <text
-              x={x + bw / 2}
-              y={y - 4}
-              fontSize="10"
-              fill={labelColor}
-              fontWeight="700"
-              textAnchor="middle"
-            >
-              {d[field]}
+          <g key={d.key}>
+            <rect x={x} y={y} width={bw} height={Math.max(h, d.count > 0 ? 2 : 0)} fill={color} rx="4" />
+            <text x={x + bw / 2} y={y - 4} fontSize="10" fill={labelColor} fontWeight="700" textAnchor="middle">
+              {d.count}
             </text>
-            <text
-              x={x + bw / 2}
-              y={H - 6}
-              fontSize="10"
-              fill={axisColor}
-              textAnchor="middle"
-            >
+            <text x={x + bw / 2} y={H - 6} fontSize="10" fill={axisColor} textAnchor="middle">
               {d.month}
             </text>
           </g>
@@ -120,39 +121,44 @@ function BarChart({ data, field, color, labelColor, axisColor }) {
   );
 }
 
-export default function PlayerMonthlyStatsSection({ sessions = [] }) {
+export default function PlayerMonthlyStatsSection({ matches = [] }) {
   const theme = useTheme();
   const isDark = theme?.mode === "dark";
+
   const monthly = useMemo(() => {
-    const map = new Map();
-    for (const s of sessions) {
-      if (!s.startedAt) continue;
-      const d = new Date(s.startedAt);
-      const key = `${d.getMonth() + 1}월`;
-      const cur = map.get(key) || { month: key, sessions: 0, minutes: 0, calories: 0 };
-      cur.sessions += 1;
-      if (s.endedAt) cur.minutes += (new Date(s.endedAt) - new Date(s.startedAt)) / 60000;
-      cur.calories += s.totalCalories || 0;
+    const map = new Map(); // "YYYY-M" → { key, month, count, ts }
+    for (const m of matches || []) {
+      const iso = m?.scheduledAt;
+      if (!iso) continue;
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+      const cur = map.get(key) || { key, month: `${d.getMonth() + 1}월`, count: 0, ts: 0 };
+      cur.count += 1;
+      cur.ts = Math.max(cur.ts, d.getTime());
       map.set(key, cur);
     }
-    return Array.from(map.values()).slice(-5);
-  }, [sessions]);
+    return Array.from(map.values())
+      .sort((a, b) => a.ts - b.ts)
+      .slice(-6); // 최근 6개월(데이터 있는 달)
+  }, [matches]);
 
-  const current = monthly[monthly.length - 1] || { sessions: 0, minutes: 0, calories: 0 };
-  const prev = monthly[monthly.length - 2];
-  const growth =
-    prev && prev.sessions ? Math.round(((current.sessions - prev.sessions) / prev.sessions) * 100) : 0;
+  const totalGames = useMemo(
+    () => monthly.reduce((sum, m) => sum + m.count, 0),
+    [monthly]
+  );
+  const avg = monthly.length ? totalGames / monthly.length : 0;
 
   if (monthly.length === 0) {
     return (
       <Section>
         <HeaderRow>
           <Title>
-            <FiCalendar size={16} color="#0f766e" />
-            이번 달 활동
+            <FiBarChart2 size={16} color="#0f766e" />
+            월별 활동 기록
           </Title>
         </HeaderRow>
-        <EmptyState compact text="기록된 활동이 없습니다." />
+        <EmptyState compact text="기록된 경기가 없습니다." />
       </Section>
     );
   }
@@ -161,8 +167,8 @@ export default function PlayerMonthlyStatsSection({ sessions = [] }) {
     <Section>
       <HeaderRow>
         <Title>
-          <FiCalendar size={16} color="#0f766e" />
-          이번 달 활동
+          <FiBarChart2 size={16} color="#0f766e" />
+          월별 활동 기록
         </Title>
       </HeaderRow>
 
@@ -171,36 +177,17 @@ export default function PlayerMonthlyStatsSection({ sessions = [] }) {
           $bg={isDark ? "rgba(34,211,238,0.16)" : "#ecfeff"}
           $color={isDark ? "#67e8f9" : "#0e7490"}
         >
-          <FiCalendar size={14} />
-          <SumVal>{current.sessions}</SumVal>
-          <SumLbl>경기 수</SumLbl>
+          <FiCalendar size={15} />
+          <SumVal>{totalGames}</SumVal>
+          <SumLbl>총 경기 수</SumLbl>
         </SumCard>
         <SumCard
-          $bg={isDark ? "rgba(245,158,11,0.16)" : "#fef3c7"}
-          $color={isDark ? "#fbbf24" : "#92400e"}
+          $bg={isDark ? "rgba(20,184,166,0.16)" : "#ccfbf1"}
+          $color={isDark ? "#5eead4" : "#0f766e"}
         >
-          <FiClock size={14} />
-          <SumVal>{Math.round(current.minutes / 60)}h</SumVal>
-          <SumLbl>총 시간</SumLbl>
-        </SumCard>
-        <SumCard
-          $bg={isDark ? "rgba(248,113,113,0.16)" : "#fee2e2"}
-          $color={isDark ? "#fca5a5" : "#b91c1c"}
-        >
-          <FiZap size={14} />
-          <SumVal>{(current.calories / 1000).toFixed(1)}k</SumVal>
-          <SumLbl>kcal</SumLbl>
-        </SumCard>
-        <SumCard
-          $bg={isDark ? "rgba(34,197,94,0.16)" : "#dcfce7"}
-          $color={isDark ? "#86efac" : "#166534"}
-        >
-          <FiTrendingUp size={14} />
-          <SumVal>
-            {growth >= 0 ? "+" : ""}
-            {growth}%
-          </SumVal>
-          <SumLbl>전월비</SumLbl>
+          <FiBarChart2 size={15} />
+          <SumVal>{avg.toFixed(1)}</SumVal>
+          <SumLbl>월 평균 경기</SumLbl>
         </SumCard>
       </SummaryGrid>
 
@@ -208,10 +195,11 @@ export default function PlayerMonthlyStatsSection({ sessions = [] }) {
         <ChartLbl>월별 경기 수</ChartLbl>
         <BarChart
           data={monthly}
-          field="sessions"
+          avg={avg}
           color="#14b8a6"
           labelColor={theme.colors.textStrong}
           axisColor={theme.colors.textWeak}
+          avgColor={isDark ? "#fbbf24" : "#d97706"}
         />
       </Chart>
     </Section>

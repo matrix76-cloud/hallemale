@@ -29,6 +29,7 @@ import {
 } from "../../services/clubManageService";
 import { isClubNameTaken } from "../../services/teamService";
 import { getNameChangeStatus } from "../../utils/nameChange";
+import { TEAM_TAG_PRESETS } from "../../utils/constants";
 
 import {
   uploadCompressedImageMedia,
@@ -60,6 +61,7 @@ export default function TeamManagePage() {
   const [description, setDescription] = useState("");
   const [usePromoText, setUsePromoText] = useState(false);
   const [promoText, setPromoText] = useState("");
+  const [tags, setTags] = useState([]); // 팀 태그 (생성 시 입력 → 관리에서 수정)
 
   // ✅ 활동 요일/시간 (팀 활동 패턴)
   const [activityDays, setActivityDays] = useState("ANY"); // WEEKDAY | WEEKEND | ANY
@@ -289,9 +291,12 @@ export default function TeamManagePage() {
         const nextUsePromo = !!view.club?.promo?.usePromoText;
         const nextPromo = String(view.club?.promo?.promoText || "");
 
+        const nextTags = Array.isArray(view.club?.tags) ? view.club.tags : [];
+
         setDescription(nextDesc);
         setUsePromoText(nextUsePromo);
         setPromoText(nextPromo);
+        setTags(nextTags);
 
         setMediaItems(Array.isArray(view.club?.media) ? view.club.media : []);
 
@@ -332,6 +337,7 @@ export default function TeamManagePage() {
           promoText: nextPromo,
           activityDays: nextDays,
           activityTime: nextTime,
+          tags: nextTags,
         };
         nameServerRef.current = String(nextName || "").trim();
         logoServerRef.current = {
@@ -372,9 +378,12 @@ export default function TeamManagePage() {
     const nextUsePromo = !!c.club?.promo?.usePromoText;
     const nextPromo = String(c.club?.promo?.promoText || "");
 
+    const nextTags = Array.isArray(c.club?.tags) ? c.club.tags : [];
+
     setDescription(nextDesc);
     setUsePromoText(nextUsePromo);
     setPromoText(nextPromo);
+    setTags(nextTags);
 
     const nextName = String(c.club?.name || "");
     setNameDraft(nextName);
@@ -386,6 +395,7 @@ export default function TeamManagePage() {
       promoText: nextPromo,
       activityDays: nextDays,
       activityTime: nextTime,
+      tags: nextTags,
     };
     nameServerRef.current = String(nextName || "").trim();
     logoServerRef.current = {
@@ -651,14 +661,19 @@ export default function TeamManagePage() {
    * - description / promo / activity 변경 시 자동 저장
    * ====================== */
 
+  const toggleTag = (tag) => {
+    setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  };
+
   const buildIntroPayload = () => {
     const desc = String(description || "").trim();
     const use = !!usePromoText;
     const promo = use ? String(promoText || "").trim() : "";
     const days = String(activityDays || "ANY");
     const time = String(activityTime || "ANY");
+    const tagList = Array.isArray(tags) ? tags.map((t) => String(t || "").trim()).filter(Boolean) : [];
 
-    return { desc, use, promo, days, time };
+    return { desc, use, promo, days, time, tags: tagList };
   };
 
   const isIntroChangedFromServer = () => {
@@ -670,12 +685,14 @@ export default function TeamManagePage() {
     const sPromo = sUse ? String(s.promoText || "").trim() : "";
     const sDays = String(s.activityDays || "ANY");
     const sTime = String(s.activityTime || "ANY");
+    const sTags = Array.isArray(s.tags) ? s.tags : [];
 
     if (cur.desc !== sDesc) return true;
     if (cur.use !== sUse) return true;
     if (cur.promo !== sPromo) return true;
     if (cur.days !== sDays) return true;
     if (cur.time !== sTime) return true;
+    if (cur.tags.join("|") !== sTags.join("|")) return true;
     return false;
   };
 
@@ -700,7 +717,7 @@ export default function TeamManagePage() {
       const cur = buildIntroPayload();
 
       try {
-        // 1) 소개/홍보 저장
+        // 1) 소개/홍보/태그 저장
         await updateClubIntroPromo({
           clubId,
           description: cur.desc,
@@ -708,6 +725,7 @@ export default function TeamManagePage() {
             usePromoText: cur.use,
             promoText: cur.promo,
           },
+          tags: cur.tags,
         });
 
         // 2) 활동 요일/시간 저장
@@ -726,6 +744,7 @@ export default function TeamManagePage() {
           promoText: cur.promo,
           activityDays: cur.days,
           activityTime: cur.time,
+          tags: cur.tags,
         };
 
         setIntroSaveState("saved");
@@ -739,6 +758,7 @@ export default function TeamManagePage() {
             description: cur.desc,
             promo: { usePromoText: cur.use, promoText: cur.promo },
             activity: { days: cur.days, time: cur.time },
+            tags: cur.tags,
           };
         });
       } catch (e) {
@@ -749,7 +769,7 @@ export default function TeamManagePage() {
     }, 900);
 
     return () => clearTimer(introTimerRef);
-  }, [clubId, isOwner, club, description, usePromoText, promoText, activityDays, activityTime]);
+  }, [clubId, isOwner, club, description, usePromoText, promoText, activityDays, activityTime, tags]);
 
   /* ======================
    * 멤버 초대/미디어 등 (기존 그대로)
@@ -1229,6 +1249,22 @@ export default function TeamManagePage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="예) 전술 맞춰서 뛰는 팀으로 주말 위주 친선 경기와 리그 참여를 목표로 합니다."
             />
+          </Field>
+
+          <Field>
+            <Label>태그</Label>
+            <TagRow>
+              {TEAM_TAG_PRESETS.map((tag) => (
+                <TagChip
+                  key={tag}
+                  type="button"
+                  $selected={tags.includes(tag)}
+                  onClick={() => toggleTag(tag)}
+                >
+                  {tag}
+                </TagChip>
+              ))}
+            </TagRow>
           </Field>
 
           <Field>
@@ -1779,6 +1815,34 @@ const Field = styled.div`
 const Label = styled.div`
   font-size: 13px;
   color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+/* 태그 선택 (팀 생성 화면과 동일) */
+const TagRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const TagChip = styled.button`
+  border-radius: 999px;
+  border: 1px solid
+    ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.border)};
+  background: ${({ $selected, theme }) =>
+    $selected
+      ? theme.mode === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "#eef2ff"
+      : theme.colors.card};
+  padding: 5px 11px;
+  font-size: 12px;
+  color: ${({ $selected, theme }) =>
+    $selected
+      ? theme.mode === "dark"
+        ? "#a5b4fc"
+        : theme.colors.primary
+      : theme.colors.textNormal};
+  cursor: pointer;
 `;
 
 const TwoColRow = styled.div`

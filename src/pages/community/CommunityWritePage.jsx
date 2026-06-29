@@ -32,43 +32,6 @@ const Form = styled.form`
   gap: 12px;
 `;
 
-const CategoryRow = styled.div`
-  display: flex;
-  gap: 8px;
-`;
-
-const CategoryChip = styled.button`
-  flex: 1;
-  border-radius: 999px;
-  padding: 9px 10px;
-  font-size: 13px;
-  font-weight: ${({ $active }) => ($active ? 700 : 500)};
-  cursor: pointer;
-  border: 1px solid
-    ${({ theme, $active }) =>
-      $active
-        ? theme.colors?.primary || "#4f46e5"
-        : theme.mode === "dark"
-        ? theme.colors?.border
-        : "rgba(0,0,0,0.10)"};
-  background: ${({ theme, $active }) =>
-    $active
-      ? theme.mode === "dark"
-        ? "rgba(124,92,255,0.18)"
-        : "#eef2ff"
-      : theme.mode === "dark"
-      ? theme.colors?.surface
-      : "#ffffff"};
-  color: ${({ theme, $active }) =>
-    $active
-      ? theme.colors?.primary || "#4f46e5"
-      : theme.colors?.textNormal || "#374151"};
-
-  &:active {
-    transform: translateY(1px);
-  }
-`;
-
 const Field = styled.div`
   display: flex;
   flex-direction: column;
@@ -269,7 +232,6 @@ export default function CommunityWritePage() {
 
   const fileRef = useRef(null);
 
-  const [category, setCategory] = useState("free");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
 
@@ -352,7 +314,6 @@ export default function CommunityWritePage() {
         myUid,
         title,
         content,
-        category,
         imageFiles: images.map((x) => x.file), // ✅ 여러 장
       });
 
@@ -369,29 +330,6 @@ export default function CommunityWritePage() {
     <PageWrap>
       <Inner>
         <Form id="community-write-form" onSubmit={handleSubmit}>
-          <Field>
-            <LabelRow>
-              <Label>카테고리</Label>
-            </LabelRow>
-            <CategoryRow>
-              {[
-                { key: "free", label: "자유" },
-                { key: "recruit", label: "상대모집" },
-                { key: "review", label: "경기후기" },
-              ].map((c) => (
-                <CategoryChip
-                  key={c.key}
-                  type="button"
-                  $active={category === c.key}
-                  onClick={() => !busy && setCategory(c.key)}
-                  disabled={busy}
-                >
-                  {c.label}
-                </CategoryChip>
-              ))}
-            </CategoryRow>
-          </Field>
-
           <Field>
             <LabelRow>
               <Label htmlFor="title">제목</Label>

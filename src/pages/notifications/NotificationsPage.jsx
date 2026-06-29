@@ -16,6 +16,7 @@ import {
 } from "../../services/notificationService";
 import { subscribePublishedNotices } from "../../services/noticesService";
 import { resolveNotiRoute } from "../../utils/notiRoute";
+import { isLeaderOnlyMatchNoti } from "../../utils/notificationDefinitions";
 import EmptyState from "../../components/common/EmptyState";
 
 // 관리자 공지(notices)는 서버 readBy가 없어 읽음 표시를 로컬에 보관
@@ -162,6 +163,7 @@ function toDateSafe(v) {
   return d;
 }
 
+
 function formatTimeAny(v) {
   const d = toDateSafe(v);
   if (!d) return "";
@@ -175,7 +177,7 @@ function formatTimeAny(v) {
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { userDoc } = useAuth();
-  const { club } = useClub();
+  const { club, isTeamLeader } = useClub();
 
   const uid = userDoc?.uid || userDoc?.id || "";
   const myClubId = club?.clubId || club?.id || userDoc?.clubId || userDoc?.activeTeamId || "";
@@ -217,7 +219,11 @@ export default function NotificationsPage() {
   }, []);
 
   const itemsWithRead = useMemo(() => {
-    const real = computeReadForUi({ items: realItems, uid });
+    // 현재 팀장이 아니면 팀장 전용 매칭 알림(요청 등)은 숨김 → 강등 시 옛 팀장 알림 자동 리셋
+    const visibleReal = isTeamLeader
+      ? realItems
+      : (realItems || []).filter((n) => !isLeaderOnlyMatchNoti(n));
+    const real = computeReadForUi({ items: visibleReal, uid });
 
     const noticeItems = (notices || []).map((n) => ({
       id: n.id,
@@ -235,7 +241,7 @@ export default function NotificationsPage() {
       const tb = toDateSafe(b.createdAt)?.getTime() || 0;
       return tb - ta;
     });
-  }, [realItems, uid, notices, noticeRead]);
+  }, [realItems, uid, notices, noticeRead, isTeamLeader]);
 
   const unreadList = itemsWithRead.filter((n) => !n.read);
   const readList = itemsWithRead.filter((n) => n.read);

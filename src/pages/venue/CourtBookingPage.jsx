@@ -122,8 +122,7 @@ export default function CourtBookingPage() {
     return "open";
   };
 
-  // 연속된 빈 슬롯을 눌러 최대 MAX_SLOT_HOURS시간까지 범위 선택
-  const MAX_SLOT_HOURS = 3;
+  // 연속된 빈 슬롯을 눌러 범위 선택 (시간 제한 없음 — 하루 종일 예약 가능)
   const onSlotClick = (s) => {
     if (slotState(s) !== "open") return;
     const sS = toMin(s.start), sE = toMin(s.end);
@@ -131,12 +130,10 @@ export default function CourtBookingPage() {
     const selS = toMin(selected.start), selE = toMin(selected.end);
     // 범위 바로 뒤에 인접 → 뒤로 확장
     if (sS === selE) {
-      if (sE - selS > MAX_SLOT_HOURS * 60) return toast(`최대 ${MAX_SLOT_HOURS}시간까지 선택할 수 있어요.`);
       return setSelected({ start: selected.start, end: s.end });
     }
     // 범위 바로 앞에 인접 → 앞으로 확장
     if (sE === selS) {
-      if (selE - sS > MAX_SLOT_HOURS * 60) return toast(`최대 ${MAX_SLOT_HOURS}시간까지 선택할 수 있어요.`);
       return setSelected({ start: s.start, end: selected.end });
     }
     // 이미 선택된 범위 안의 슬롯
@@ -238,7 +235,7 @@ export default function CourtBookingPage() {
           <span className="reserved">예약완료</span>
           <span className="blocked">사용 불가</span>
         </Legend>
-        <SlotHint>연속된 시간대를 눌러 최대 {MAX_SLOT_HOURS}시간까지 선택할 수 있어요.</SlotHint>
+        <SlotHint>연속된 시간대를 눌러 원하는 만큼 선택할 수 있어요.</SlotHint>
         {isClosed ? (
           <Empty>이 요일은 휴무예요.</Empty>
         ) : slots.length === 0 ? (

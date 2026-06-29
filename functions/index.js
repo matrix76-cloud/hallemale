@@ -26,6 +26,14 @@ exports.matchStartReminderTick = matchStartReminderTick;
 const { matchEndReminderTick } = require("./jobs/matchEndReminder");
 exports.matchEndReminderTick = matchEndReminderTick;
 
+// ✅ 결과 미입력 무효 처리 스케줄러 (매시간): 종료+3일까지 양 팀 다 미입력이면 무효 종결
+const { matchAutoVoidTick } = require("./jobs/matchAutoVoid");
+exports.matchAutoVoidTick = matchAutoVoidTick;
+
+// ✅ 결과 자동 승인 스케줄러 (매시간): 한 팀이 제출했는데 종료+3일까지 상대 미승인이면 제출값으로 자동 확정
+const { matchAutoConfirmTick } = require("./jobs/matchAutoConfirm");
+exports.matchAutoConfirmTick = matchAutoConfirmTick;
+
 // ✅ 카카오 소셜 로그인 (accessToken → Firebase Custom Token)
 const { kakaoCustomToken } = require("./auth/kakaoCustomToken");
 exports.kakaoCustomToken = kakaoCustomToken;

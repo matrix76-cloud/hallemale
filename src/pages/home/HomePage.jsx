@@ -199,9 +199,9 @@ export default function HomePage() {
             matchRoomAttention={matchRoomAttention}
             matchRoomUnread={matchRoomUnread}
           />
-          <WinningTeamsSection items={winningTeamsHighlight} />
           <TeamRankingSection rows={teamRankingTop5} />
           <PlayerRankingSection rows={playerRankingTop5} />
+          <WinningTeamsSection items={winningTeamsHighlight} />
           <FavoriteTeamsSection items={favoriteTeams} />
           <FavoritePlayersSection items={favoritePlayers} />
         </Inner>

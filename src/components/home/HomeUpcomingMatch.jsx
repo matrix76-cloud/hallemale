@@ -9,6 +9,8 @@ import { loadMatchRoomListPageData } from "../../services/matchRoomService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import TeamAvatarPlaceholder from "../common/TeamAvatarPlaceholder";
 import { images } from "../../utils/imageAssets";
+import { useAuth } from "../../hooks/useAuth";
+import { useClub } from "../../hooks/useClub";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -54,13 +56,14 @@ const SectionTitle = styled.h2`
 /* 가로 스와이프 (경기 2개 이상) */
 const SlideRow = styled.div`
   display: flex;
+  align-items: stretch; /* 카드 높이 통일 */
   gap: 10px;
   overflow-x: ${({ $multi }) => ($multi ? "auto" : "visible")};
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
-  /* 카드 그림자가 잘리지 않도록 살짝 여백 */
-  margin: 0 -2px;
-  padding: 2px;
+  /* 음수 마진 제거 → 카드가 좌우 동일 여백(컨테이너 폭)으로 정렬 */
+  margin: 0;
+  padding: 6px 0 10px;
 
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -70,15 +73,27 @@ const SlideRow = styled.div`
 `;
 
 const Slide = styled.div`
-  flex: 0 0 ${({ $multi }) => ($multi ? "88%" : "100%")};
+  /* 카드 크기 통일: 개수와 무관하게 항상 100% 폭(한 장씩 스냅 스와이프, peek 없음) */
+  flex: 0 0 100%;
+  /* 콘텐츠(긴 주소)로 카드 폭이 늘어나지 않도록 고정 */
+  min-width: 0;
+  max-width: 100%;
   scroll-snap-align: start;
+  display: flex; /* Card가 높이를 꽉 채우도록 */
 `;
 
+/* 배경 없이 그림자로만 떠 있는 카드 (높이 통일) */
 const Card = styled.div`
-  background: ${({ theme }) => theme.colors.card};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 12px;
-  box-shadow: ${({ theme }) => theme.shadows.card};
+  width: 100%;
+  min-width: 0; /* 긴 주소가 카드 폭을 밀어내지 못하게 */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.22),
+    0 2px 6px -2px rgba(15, 23, 42, 0.1);
   cursor: pointer;
   overflow: hidden;
 
@@ -107,6 +122,7 @@ const TopTime = styled.span`
 `;
 
 const TeamsRow = styled.div`
+  flex: 1; /* 카드 높이를 채워 카드 간 높이 통일 */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -200,10 +216,35 @@ const VenueRow = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0; /* 주소 ellipsis가 동작하도록 */
   padding: 11px 14px;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   color: ${({ theme }) => theme.colors.textNormal};
   font-size: 12.5px;
+`;
+
+/* 구장 방식 구분 태그: 제휴구장(보라) / 직접입력(중립) */
+const VenueTag = styled.span`
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  background: ${({ $partner, theme }) =>
+    $partner
+      ? theme.mode === "dark"
+        ? "rgba(124, 92, 201, 0.22)"
+        : "#efe9ff"
+      : theme.mode === "dark"
+      ? theme.colors.surface
+      : "#f3f4f6"};
+  color: ${({ $partner, theme }) =>
+    $partner
+      ? theme.mode === "dark"
+        ? "#c4b5fd"
+        : "#7c5cc9"
+      : theme.colors.textWeak};
 `;
 
 const VenueText = styled.span`
@@ -222,6 +263,9 @@ const Chevron = styled.span`
 
 export default function HomeUpcomingMatch({ clubId }) {
   const nav = useNavigate();
+  const { firebaseUser, userDoc } = useAuth();
+  const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
+  const { isTeamLeader } = useClub();
   const [matches, setMatches] = useState([]);
   const [rankMap, setRankMap] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -272,6 +316,12 @@ export default function HomeUpcomingMatch({ clubId }) {
             // 아직 끝나지 않은 확정 경기(시작 + 경기시간 > 현재)
             return Number.isFinite(r._t) && r._t + dur * 60000 > now;
           })
+          // ✅ 팀원: 내가 라인업(주전+후보)에 포함된 경기만. 팀장은 팀 전체 경기 표시.
+          .filter((r) =>
+            isTeamLeader || !myUid
+              ? true
+              : (Array.isArray(r?.myLineupUids) ? r.myLineupUids : []).includes(myUid)
+          )
           .sort((a, b) => a._t - b._t);
 
         setMatches(upcoming);
@@ -286,7 +336,7 @@ export default function HomeUpcomingMatch({ clubId }) {
     return () => {
       alive = false;
     };
-  }, [clubId]);
+  }, [clubId, myUid, isTeamLeader]);
 
   if (!matches.length) return null;
 
@@ -303,7 +353,10 @@ export default function HomeUpcomingMatch({ clubId }) {
     const myRank = rankMap ? rankMap.get(toStr(myTeam.clubId || myTeam.id)) : null;
     const oppRank = rankMap ? rankMap.get(toStr(oppTeam.clubId || oppTeam.id)) : null;
 
-    const address = toStr(match.fieldAddress);
+    // 제휴구장 예약(partnerBooking 존재) vs 직접입력 구분
+    const isPartner = !!match.partnerBooking;
+    const venueLabel =
+      toStr(match.fieldAddress) || toStr(match.partnerBooking?.venueName);
 
     return (
       <Card
@@ -345,15 +398,17 @@ export default function HomeUpcomingMatch({ clubId }) {
           </TeamSide>
         </TeamsRow>
 
-        {address ? (
-          <VenueRow>
-            <FiMapPin size={14} />
-            <VenueText>{address}</VenueText>
-            <Chevron>
-              <FiChevronRight size={16} />
-            </Chevron>
-          </VenueRow>
-        ) : null}
+        {/* 구장 행 항상 표시 → 카드 구조/높이 통일 */}
+        <VenueRow>
+          <FiMapPin size={14} />
+          <VenueTag $partner={isPartner}>
+            {isPartner ? "제휴구장" : "직접입력"}
+          </VenueTag>
+          <VenueText>{venueLabel || "구장 미정"}</VenueText>
+          <Chevron>
+            <FiChevronRight size={16} />
+          </Chevron>
+        </VenueRow>
       </Card>
     );
   };

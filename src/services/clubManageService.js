@@ -108,7 +108,7 @@ export async function getClubManageView({ clubId, uid }) {
  * ✅ 소개/홍보 수정 (허용 필드만)
  * - 팀명/로고/지역은 절대 수정 안 함
  */
-export async function updateClubIntroPromo({ clubId, description, promo }) {
+export async function updateClubIntroPromo({ clubId, description, promo, tags }) {
   if (!clubId) throw new Error("updateClubIntroPromo: clubId is required");
 
   const ref = doc(db, "clubs", clubId);
@@ -123,6 +123,14 @@ export async function updateClubIntroPromo({ clubId, description, promo }) {
       usePromoText: !!promo.usePromoText,
       promoText: promo.usePromoText ? String(promo.promoText || "") : "",
     };
+  }
+
+  // ✅ 태그(생성 시 입력 → 관리에서 수정). 배열일 때만 갱신.
+  if (Array.isArray(tags)) {
+    payload.tags = tags
+      .map((t) => String(t || "").trim())
+      .filter(Boolean)
+      .slice(0, 12);
   }
 
   await updateDoc(ref, payload);

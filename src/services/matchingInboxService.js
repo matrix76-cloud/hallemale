@@ -85,6 +85,13 @@ function normalizeInboxRow(matchId, req, myClubId) {
     matchId,
     status: statusRaw || phase,
 
+    // 경기 형식(3v3/4v4/5v5) — 매칭관리 카드에 "몇대몇" 표시용
+    matchSizeKey:
+      toStr(d.matchSizeKey) ||
+      toStr(d.actorLineupSnapshot?.matchSizeKey) ||
+      toStr(d.targetLineupSnapshot?.matchSizeKey) ||
+      "",
+
     actorClubId,
     targetClubId,
 

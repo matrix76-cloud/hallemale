@@ -65,6 +65,44 @@ const CardDate = styled.span`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
+const TopLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`;
+
+/* 무효 처리된 경기 배지 */
+const VoidBadge = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+/* 구장 방식 구분: 제휴구장(보라) / 직접입력(중립) */
+const VenueTypeBadge = styled.span`
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: ${({ $partner, theme }) =>
+    $partner
+      ? theme.mode === "dark"
+        ? "rgba(124, 92, 201, 0.22)"
+        : "#efe9ff"
+      : theme.mode === "dark"
+      ? theme.colors.surface
+      : "#f3f4f6"};
+  color: ${({ $partner, theme }) =>
+    $partner
+      ? theme.mode === "dark"
+        ? "#c4b5fd"
+        : "#7c5cc9"
+      : theme.colors.textWeak};
+`;
+
 const ResultBadge = styled.span`
   font-size: 11px;
   font-weight: 700;
@@ -275,7 +313,15 @@ export default function FinishedMatchesPage() {
   }, []);
 
   const viewRows = useMemo(() => {
-    return (rows || []).map((r) => {
+    const tsOf = (v) => {
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+    // 최신 경기(경기일 기준)가 위로
+    const sorted = [...(rows || [])].sort(
+      (a, b) => tsOf(b?.scheduledAt) - tsOf(a?.scheduledAt)
+    );
+    return sorted.map((r) => {
       // 내 팀이 왼쪽에 오도록 정렬(완료된 경기 카드와 동일 관점) + 승/패 판정
       const iAmActor = !myClubId || toStr(r?.actorClubId) === toStr(myClubId);
       const myTeam = iAmActor ? r?.actorTeam : r?.targetTeam;
@@ -308,6 +354,8 @@ export default function FinishedMatchesPage() {
 
       return {
         ...r,
+        isPartner: !!r?.partnerBooking,
+        isVoid: toStr(r?.resultState) === "void",
         myLogo,
         oppLogo,
         myName,
@@ -351,12 +399,19 @@ export default function FinishedMatchesPage() {
             tabIndex={0}
           >
             <CardTopRow>
-              {r.when ? <CardDate>{r.when}</CardDate> : <span />}
-              {r.outcome && (
+              <TopLeft>
+                {r.when ? <CardDate>{r.when}</CardDate> : null}
+                <VenueTypeBadge $partner={r.isPartner}>
+                  {r.isPartner ? "제휴구장" : "직접입력"}
+                </VenueTypeBadge>
+              </TopLeft>
+              {r.isVoid ? (
+                <VoidBadge>무효 · 전적 미반영</VoidBadge>
+              ) : r.outcome ? (
                 <ResultBadge $outcome={r.outcome}>
                   {r.outcome === "win" ? "승리" : r.outcome === "lose" ? "패배" : "무승부"}
                 </ResultBadge>
-              )}
+              ) : null}
             </CardTopRow>
 
             <TeamsMini>
@@ -371,13 +426,19 @@ export default function FinishedMatchesPage() {
               </MiniTeam>
 
               <ScoreMid>
-                <ScoreNum
-                  $tone={r.outcome === "win" ? "win" : r.outcome === "lose" ? "lose" : "neutral"}
-                >
-                  {r.myScore}
-                </ScoreNum>
-                <ScoreColon>:</ScoreColon>
-                <ScoreNum $tone="neutral">{r.oppScore}</ScoreNum>
+                {r.isVoid ? (
+                  <ScoreNum $tone="neutral">무효</ScoreNum>
+                ) : (
+                  <>
+                    <ScoreNum
+                      $tone={r.outcome === "win" ? "win" : r.outcome === "lose" ? "lose" : "neutral"}
+                    >
+                      {r.myScore}
+                    </ScoreNum>
+                    <ScoreColon>:</ScoreColon>
+                    <ScoreNum $tone="neutral">{r.oppScore}</ScoreNum>
+                  </>
+                )}
               </ScoreMid>
 
               <MiniTeam>

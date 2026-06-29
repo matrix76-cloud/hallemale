@@ -15,6 +15,7 @@ import TeamAvatarPlaceholder from "../../components/common/TeamAvatarPlaceholder
 import { useAuth } from "../../hooks/useAuth";
 import { createClub, isClubNameTaken } from "../../services/teamService";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
+import { TEAM_TAG_PRESETS } from "../../utils/constants";
 
 /* ===== 레이아웃 ===== */
 
@@ -421,7 +422,7 @@ const SummaryText = styled.div`
 
 /* ===== 상수 ===== */
 
-const TAG_PRESETS = ["#20대", "#30대", "#직장인팀", "#대학생팀", "#주말모임", "#야간연습"];
+const TAG_PRESETS = TEAM_TAG_PRESETS;
 
 /* ===== 컴포넌트 ===== */
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "./useAuth";
 import { useClub } from "./useClub";
 import { subscribeNotificationsForUser } from "../services/notificationService";
+import { isLeaderOnlyMatchNoti } from "../utils/notificationDefinitions";
 
 /**
  * ✅ 안읽은 알림 개수 (앱 우측 상단 벨 배지용)
@@ -13,7 +14,7 @@ import { subscribeNotificationsForUser } from "../services/notificationService";
  */
 export default function useUnreadNotiCount() {
   const { firebaseUser, userDoc } = useAuth();
-  const { club } = useClub();
+  const { club, isTeamLeader } = useClub();
 
   const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
   const myClubId =
@@ -30,9 +31,11 @@ export default function useUnreadNotiCount() {
     const unsub = subscribeNotificationsForUser(
       { uid, clubId: myClubId || "", limitCount: 60 },
       (rows) => {
-        const c = (rows || []).filter(
-          (n) => !(n?.readBy && typeof n.readBy === "object" && n.readBy[uid])
-        ).length;
+        const c = (rows || [])
+          // 팀장 아니면 팀장 전용 매칭 알림은 카운트 제외(알림창과 동일 기준)
+          .filter((n) => isTeamLeader || !isLeaderOnlyMatchNoti(n))
+          .filter((n) => !(n?.readBy && typeof n.readBy === "object" && n.readBy[uid]))
+          .length;
         setCount(c);
       }
     );
@@ -40,7 +43,7 @@ export default function useUnreadNotiCount() {
     return () => {
       if (typeof unsub === "function") unsub();
     };
-  }, [uid, myClubId]);
+  }, [uid, myClubId, isTeamLeader]);
 
   return useMemo(() => Math.max(0, Number(count) || 0), [count]);
 }

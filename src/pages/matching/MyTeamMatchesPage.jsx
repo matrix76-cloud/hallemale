@@ -329,7 +329,8 @@ export default function MyTeamMatchesPage() {
     const need = [];
     const fin = [];
     for (const r of rooms || []) {
-      if (reviewedSet.has(toStr(r.id))) fin.push(r);
+      // 무효 경기는 리뷰 대상이 아니므로 항상 '완료된 경기'로 분류
+      if (toStr(r?.resultState) === "void" || reviewedSet.has(toStr(r.id))) fin.push(r);
       else need.push(r);
     }
     return { needReview: need, done: fin };
@@ -354,9 +355,10 @@ export default function MyTeamMatchesPage() {
     const my = r?.myTeam || {};
     const opp = r?.oppTeam || {};
     const when = r?.scheduledAt ? formatKoreanDateTime(r.scheduledAt) : "";
+    const voided = toStr(r?.resultState) === "void";
     const myNum = r?.myScore != null && r?.myScore !== "" ? Number(r.myScore) : null;
     const oppNum = r?.oppScore != null && r?.oppScore !== "" ? Number(r.oppScore) : null;
-    const hasScore = Number.isFinite(myNum) && Number.isFinite(oppNum);
+    const hasScore = !voided && Number.isFinite(myNum) && Number.isFinite(oppNum);
     const outcome = !hasScore
       ? null
       : myNum > oppNum
@@ -369,10 +371,14 @@ export default function MyTeamMatchesPage() {
       <PastCard key={r.id} onClick={() => openDetail(r.id)} role="button" tabIndex={0}>
         <PastTopRow>
           {when ? <PastDate>{when}</PastDate> : <span />}
-          {outcome && (
-            <ResultBadge $outcome={outcome}>
-              {outcome === "win" ? "승리" : outcome === "lose" ? "패배" : "무승부"}
-            </ResultBadge>
+          {voided ? (
+            <ResultBadge $outcome="lose">무효</ResultBadge>
+          ) : (
+            outcome && (
+              <ResultBadge $outcome={outcome}>
+                {outcome === "win" ? "승리" : outcome === "lose" ? "패배" : "무승부"}
+              </ResultBadge>
+            )
           )}
         </PastTopRow>
         <PastMid>
@@ -396,7 +402,9 @@ export default function MyTeamMatchesPage() {
             </Logo>
           </TeamCell>
         </PastMid>
-        {reviewed ? (
+        {voided ? (
+          <ReviewedTag>무효 처리된 경기 · 전적 미반영</ReviewedTag>
+        ) : reviewed ? (
           <ReviewedTag>✓ 리뷰 완료 · 다시 보기</ReviewedTag>
         ) : (
           <ReviewCTA>★ 상대 팀 리뷰 남기기 →</ReviewCTA>

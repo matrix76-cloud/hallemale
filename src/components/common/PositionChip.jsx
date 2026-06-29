@@ -11,7 +11,9 @@ const Wrap = styled.span`
   gap: 6px;
   font-size: ${({ $size }) => ($size === "sm" ? "11px" : "12px")};
   line-height: 1;
-  color: ${({ $color }) => $color};
+  /* tone="text"면 포지션별 색 대신 본문 색(검정 계열)으로 통일 */
+  color: ${({ $tone, $color, theme }) =>
+    $tone === "text" ? theme.colors.textStrong : $color};
 `;
 
 /* ✅ 내부 배경 제거(두 겹 배경 문제 해결) */
@@ -50,6 +52,7 @@ export default function PositionChip({
   size = "sm",
   showAbbr = true,
   onlyAbbr = false,
+  tone = "pos", // "pos"=포지션별 색(기본), "text"=본문 색(검정 계열)으로 통일
 }) {
   const posKo = useMemo(() => normalizeKo(label), [label]);
   const style = useMemo(() => mapStyle(posKo), [posKo]);
@@ -57,7 +60,7 @@ export default function PositionChip({
   if (!posKo) return null;
 
   return (
-    <Wrap $size={size} $color={style.color}>
+    <Wrap $size={size} $color={style.color} $tone={tone}>
       {showAbbr && <Abbr>{style.abbr}</Abbr>}
       {!onlyAbbr && <span>{posKo}</span>}
     </Wrap>

@@ -138,6 +138,44 @@ export async function getChatRoom({ chatId } = {}) {
   return { id: snap.id, ...snap.data() };
 }
 
+// ✅ 매치 채팅이 종료(닫힘)됐는지: 경기가 완료(finished)거나 취소(cancelled)면 더 이상 메시지 불가.
+//    chatId가 match_{matchId} 인 경우에만 검사. 일반 채팅(DM 등)은 항상 열림.
+//    경기 종료 후 상대팀과 연락할 수 없도록 채팅을 막는 데 사용(서비스/화면 공용).
+export async function isMatchChatClosed({ chatId } = {}) {
+  const cid = String(chatId || "").trim();
+  if (!cid.startsWith("match_")) return { closed: false, reason: "" };
+  const matchId = cid.slice("match_".length);
+  if (!matchId) return { closed: false, reason: "" };
+  try {
+    const s = await getDoc(doc(db, "match_requests", matchId));
+    if (!s.exists()) return { closed: false, reason: "" };
+    const data = s.data() || {};
+    const st = String(data.status || "").trim();
+
+    if (st === "finished")
+      return { closed: true, reason: "이미 종료된 경기예요. 더 이상 메시지를 보낼 수 없어요." };
+    if (st === "cancelled")
+      return { closed: true, reason: "취소된 경기예요. 더 이상 메시지를 보낼 수 없어요." };
+
+    // 확정 경기가 경기 종료시각(예정시각 + 경기시간)을 지났으면 닫힘
+    // (앱이 isPast로 매칭룸 채팅 진입을 숨기는 것과 동일 기준)
+    if (st === "confirmed") {
+      const schedMs = data.scheduledAt ? new Date(data.scheduledAt).getTime() : NaN;
+      if (Number.isFinite(schedMs)) {
+        const durMin = Number(data.durationMin) > 0 ? Number(data.durationMin) : 120;
+        if (Date.now() >= schedMs + durMin * 60 * 1000) {
+          return { closed: true, reason: "경기가 끝나 더 이상 메시지를 보낼 수 없어요." };
+        }
+      }
+    }
+
+    return { closed: false, reason: "" };
+  } catch (e) {
+    // 조회 실패 시에는 차단하지 않음(오탐 방지)
+    return { closed: false, reason: "" };
+  }
+}
+
 export async function enterChat({ chatId, myUid } = {}) {
   if (!chatId) throw new Error("enterChat: chatId is required");
   if (!myUid) throw new Error("enterChat: myUid is required");
@@ -350,6 +388,12 @@ export async function sendTextMessage({ chatId, fromUid, text } = {}) {
     throw new Error("관리자가 잠근 채팅방입니다. 메시지를 보낼 수 없습니다.");
   }
 
+  // 종료(완료/취소)된 경기 채팅은 송신 차단 — 경기 끝나면 상대팀과 연락 불가
+  const closedT = await isMatchChatClosed({ chatId });
+  if (closedT.closed) {
+    throw new Error(closedT.reason || "종료된 경기라 메시지를 보낼 수 없습니다.");
+  }
+
   await addDoc(collection(db, "chatRooms", chatId, "messages"), {
     chatId,
     fromUid,
@@ -468,6 +512,12 @@ export async function sendImagesMessage({
   const room = await getChatRoom({ chatId });
   if (room?.locked) {
     throw new Error("관리자가 잠근 채팅방입니다. 메시지를 보낼 수 없습니다.");
+  }
+
+  // 종료(완료/취소)된 경기 채팅은 송신 차단
+  const closedI = await isMatchChatClosed({ chatId });
+  if (closedI.closed) {
+    throw new Error(closedI.reason || "종료된 경기라 메시지를 보낼 수 없습니다.");
   }
 
   const images = [];

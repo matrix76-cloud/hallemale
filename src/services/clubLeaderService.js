@@ -17,6 +17,7 @@ import {
   writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
+import { clearNotificationsForUser } from "./notificationService";
 
 function safeStr(v) {
   return String(v ?? "").trim();
@@ -153,6 +154,15 @@ export async function transferTeamLeader({ clubId, fromUid, toUid }) {
   );
 
   await batch.commit();
+
+  // 팀장→팀원 전환: 기존 팀장 시절 알림(라인업 확정 요청·매칭룸 메시지 등)이 남아
+  // 클릭 시 팀장 전용 경로로 이동해 오작동하는 문제 방지 → 기존 팀장 알림창 리셋.
+  try {
+    await clearNotificationsForUser({ uid: from });
+  } catch (e) {
+    console.warn("[transferTeamLeader] clear notifications failed:", e?.message || e);
+  }
+
   return true;
 }
 

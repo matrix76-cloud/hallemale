@@ -129,6 +129,8 @@ export async function loadCommunityList({
       authorId: authorUid,
       authorName: meta.name || "상대",
       authorAvatar: meta.avatar || "",
+      authorTeamName: meta.teamName || "",
+      authorClubId: meta.clubId || "",
       canChat: !!(myUid && authorUid && String(myUid) !== String(authorUid)),
       category: String(p.category || "free"),
       title: String(p.title || "").trim(),
@@ -190,6 +192,8 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
     authorId: authorUid,
     authorName: authorMeta.name || "상대",
     authorAvatar: authorMeta.avatar || "",
+    authorTeamName: authorMeta.teamName || "",
+    authorClubId: authorMeta.clubId || "",
     canChat: !!(myUid && authorUid && String(myUid) !== String(authorUid)),
 
     title: String(data.title || "").trim(),
@@ -244,6 +248,8 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
       authorId: cAuthorUid,
       authorName: cm.name || "상대",
       authorAvatar: cm.avatar || "",
+      authorTeamName: cm.teamName || "",
+      authorClubId: cm.clubId || "",
       content: String(c.content || "").trim(),
       createdAt: formatKST(c.createdAt || null),
       createdAtMs: (() => {

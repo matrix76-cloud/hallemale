@@ -8,6 +8,7 @@
 
 import { db } from "./firebase";
 import {
+  arrayRemove,
   collection,
   doc,
   getDocs,
@@ -200,6 +201,42 @@ export async function markNotificationsRead({ ids, uid }) {
       await batch.commit();
     } catch (e) {
       console.warn("[noti] markNotificationsRead chunk failed:", e?.message || e);
+    }
+  }
+}
+
+// ✅ 알림창 리셋 — 해당 uid를 모든 알림의 targetIds에서 제거해 그 사람 알림 패널을 비운다.
+//    (팀장→팀원 전환 시, 예전 팀장 시절 알림이 남아 클릭 시 팀장 경로로 가 깨지는 문제 방지)
+//    targetIds에서 본인 uid만 빼므로 다른 대상자에겐 영향 없음.
+export async function clearNotificationsForUser({ uid } = {}) {
+  const id = String(uid || "").trim();
+  if (!id) return;
+
+  const col = collection(db, "notifications");
+  let snap = null;
+  try {
+    snap = await getDocs(query(col, where("targetIds", "array-contains", id)));
+  } catch (e) {
+    console.warn("[noti] clearNotificationsForUser query failed:", e?.message || e);
+    return;
+  }
+
+  const ids = (snap?.docs || []).map((d) => d.id);
+  if (ids.length === 0) return;
+
+  const CHUNK = 400; // writeBatch 1회 500건 제한 → 안전하게 분할
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    ids.slice(i, i + CHUNK).forEach((nid) => {
+      batch.update(doc(db, "notifications", nid), {
+        targetIds: arrayRemove(id),
+        updatedAt: serverTimestamp(),
+      });
+    });
+    try {
+      await batch.commit();
+    } catch (e) {
+      console.warn("[noti] clearNotificationsForUser chunk failed:", e?.message || e);
     }
   }
 }

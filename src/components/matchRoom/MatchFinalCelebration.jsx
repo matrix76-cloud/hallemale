@@ -1,34 +1,55 @@
 /* eslint-disable */
 // src/components/matchRoom/MatchFinalCelebration.jsx
-// 최종 "경기 확정!" 축하 — 양 팀 결제 완료 시 웅장/화려하게 1회 표시.
-// (제안 수락/라인업 확정 축하보다 강한 연출: 회전 광선 + 트로피 글로우 + 대량 컨페티)
-// open=true 시 표시, 약 4.6초 뒤 자동 닫힘 / 탭하면 즉시 닫힘.
+// 최종 "경기 확정!" 축하 — 양 팀 vs 원형 프로필 + 컨페티 + 다크 글로우 (목업: matchconfirmed)
+// - 직접입력/제휴구장 확정 공통. 1~3위 팀은 프로필 위 왕관.
+// - open=true 시 표시, 약 4.6초 뒤 자동 닫힘 / 탭·X로 즉시 닫힘.
 import React, { useEffect } from "react";
 import styled, { keyframes } from "styled-components";
+import { images } from "../../utils/imageAssets";
 
 export default function MatchFinalCelebration({
   open,
   onClose,
-  title = "경기 확정!",
-  subtitle = "양 팀 결제 완료 · 경기장에서 만나요!",
-  teams = "", // "우리팀 vs 상대팀"
+  myName = "우리팀",
+  myLogoUrl = "",
+  myRank = 0,
+  oppName = "상대팀",
+  oppLogoUrl = "",
+  oppRank = 0,
+  autoMs = 4600,
 }) {
   useEffect(() => {
     if (!open) return;
-    const t = setTimeout(() => onClose && onClose(), 4600);
+    const t = setTimeout(() => onClose && onClose(), autoMs);
     return () => clearTimeout(t);
-  }, [open, onClose]);
+  }, [open, onClose, autoMs]);
 
   if (!open) return null;
 
   const confetti = Array.from({ length: 40 });
   const colors = ["#fbbf24", "#f59e0b", "#6c5ce7", "#22c55e", "#ef4444", "#3b82f6", "#ec4899", "#ffffff"];
-  const sparkles = Array.from({ length: 14 });
+
+  const renderTeam = (name, logoUrl, rank, side) => {
+    const hasLogo = logoUrl && logoUrl !== images.logo;
+    const crowned = rank >= 1 && rank <= 3;
+    return (
+      <TeamCol $side={side}>
+        <CircleWrap $side={side} style={{ animationDelay: side === "right" ? "0.42s" : "0.3s" }}>
+          {crowned ? <Crown src={images.logo} alt={`${rank}위`} /> : null}
+          <Circle $side={side} $crowned={crowned}>
+            {hasLogo ? <CircleImg src={logoUrl} alt={name} /> : <CircleInitial>{String(name || "").trim().slice(0, 1) || "팀"}</CircleInitial>}
+          </Circle>
+        </CircleWrap>
+        <Name>{name}</Name>
+        {rank ? <Rank $top={crowned}>랭킹 {rank}위</Rank> : <RankSpacer />}
+      </TeamCol>
+    );
+  };
 
   return (
     <Overlay onClick={() => onClose && onClose()}>
-      <Rays />
       <Glow />
+      <RingGlow />
 
       {confetti.map((_, i) => (
         <Confetti
@@ -43,61 +64,53 @@ export default function MatchFinalCelebration({
         />
       ))}
 
-      <Card onClick={(e) => e.stopPropagation()}>
-        <TrophyWrap>
-          {sparkles.map((_, i) => (
-            <Sparkle
-              key={i}
-              style={{
-                transform: `rotate(${i * (360 / 14)}deg) translateY(-62px)`,
-                animationDelay: `${(i % 7) * 0.1}s`,
-              }}
-            />
-          ))}
-          <TrophyRing>
-            <Trophy>🏆</Trophy>
-          </TrophyRing>
-        </TrophyWrap>
+      <CloseBtn type="button" aria-label="닫기" onClick={(e) => { e.stopPropagation(); onClose && onClose(); }}>
+        ×
+      </CloseBtn>
 
-        <Badge>MATCH CONFIRMED</Badge>
-        <Title>{title}</Title>
-        {teams ? <Teams>{teams}</Teams> : null}
-        {subtitle ? <Sub>{subtitle}</Sub> : null}
-        <Hint>화면을 탭하면 닫혀요</Hint>
-      </Card>
+      <Hero onClick={(e) => e.stopPropagation()}>
+        {renderTeam(myName, myLogoUrl, myRank, "left")}
+        <Vs>VS</Vs>
+        {renderTeam(oppName, oppLogoUrl, oppRank, "right")}
+      </Hero>
     </Overlay>
   );
 }
 
 const fadeIn = keyframes`from{opacity:0}to{opacity:1}`;
-const spin = keyframes`from{transform:rotate(0deg)}to{transform:rotate(360deg)}`;
 const pulse = keyframes`
-  0%,100% { opacity: 0.55; transform: scale(1); }
-  50% { opacity: 0.9; transform: scale(1.08); }
+  0%,100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.85; transform: translate(-50%, -50%) scale(1.08); }
+`;
+const ringPulse = keyframes`
+  0%,100% { opacity: 0.25; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.5; transform: translate(-50%, -50%) scale(1.06); }
 `;
 const fall = keyframes`
   0% { transform: translateY(-15vh) rotate(0deg); opacity: 0; }
   10% { opacity: 1; }
   100% { transform: translateY(115vh) rotate(720deg); opacity: 0.95; }
 `;
-const pop = keyframes`
-  0% { transform: scale(0) rotate(-25deg); }
-  55% { transform: scale(1.25) rotate(8deg); }
-  75% { transform: scale(0.92) rotate(-3deg); }
-  100% { transform: scale(1) rotate(0deg); }
+const bounceInLeft = keyframes`
+  0%   { transform: translateX(-70px) scale(0.4); opacity: 0; }
+  55%  { transform: translateX(8px) scale(1.12); opacity: 1; }
+  72%  { transform: translateX(-4px) scale(0.97); }
+  100% { transform: translateX(0) scale(1); opacity: 1; }
 `;
-const floaty = keyframes`
-  0%,100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+const bounceInRight = keyframes`
+  0%   { transform: translateX(70px) scale(0.4); opacity: 0; }
+  55%  { transform: translateX(-8px) scale(1.12); opacity: 1; }
+  72%  { transform: translateX(4px) scale(0.97); }
+  100% { transform: translateX(0) scale(1); opacity: 1; }
 `;
-const rise = keyframes`from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}`;
-const shine = keyframes`
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
+const bob = keyframes`
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
 `;
-const twinkle = keyframes`
-  0%,100% { opacity: 0; transform-origin: center; }
-  50% { opacity: 1; }
+const popVs = keyframes`
+  0% { transform: scale(0) rotate(-12deg); opacity: 0; }
+  60% { transform: scale(1.25) rotate(6deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
 `;
 
 const Overlay = styled.div`
@@ -108,32 +121,35 @@ const Overlay = styled.div`
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 42%, rgba(45, 32, 90, 0.78), rgba(10, 12, 24, 0.92));
-  backdrop-filter: blur(4px);
+  background: radial-gradient(circle at 50% 40%, #2b2e3b 0%, #15161d 46%, #0a0b10 100%);
   animation: ${fadeIn} 0.25s ease;
 `;
 
-const Rays = styled.div`
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 170vmax; height: 170vmax;
-  transform: translate(-50%, -50%);
-  background: repeating-conic-gradient(
-    from 0deg,
-    rgba(255, 215, 130, 0.16) 0deg 9deg,
-    transparent 9deg 18deg
-  );
-  animation: ${spin} 14s linear infinite;
-  pointer-events: none;
-`;
+/* 중앙 소프트 화이트 글로우 */
 const Glow = styled.div`
   position: absolute;
-  top: 42%; left: 50%;
-  width: 60vmax; height: 60vmax;
+  top: 42%;
+  left: 50%;
+  width: 70vmin;
+  height: 70vmin;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(124, 92, 231, 0.5), transparent 60%);
-  filter: blur(8px);
-  animation: ${pulse} 2.4s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 62%);
+  filter: blur(6px);
+  animation: ${pulse} 2.6s ease-in-out infinite;
+  pointer-events: none;
+`;
+/* VS 뒤 옅은 원형 링 */
+const RingGlow = styled.div`
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 60px rgba(255, 255, 255, 0.12) inset;
+  animation: ${ringPulse} 2.6s ease-in-out infinite;
   pointer-events: none;
 `;
 
@@ -147,89 +163,108 @@ const Confetti = styled.span`
   pointer-events: none;
 `;
 
-const Card = styled.div`
+const CloseBtn = styled.button`
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  right: 16px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+`;
+
+const Hero = styled.div`
   position: relative;
   z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 26px;
+`;
+
+const TeamCol = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 34px 30px 24px;
-  border-radius: 26px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,243,255,0.98));
-  box-shadow: 0 24px 70px -16px rgba(108, 92, 231, 0.65), 0 0 0 1px rgba(255,255,255,0.4) inset;
-  animation: ${rise} 0.4s ease both;
+  width: 92px;
 `;
-
-const TrophyWrap = styled.div`
+const CircleWrap = styled.div`
   position: relative;
-  width: 124px;
-  height: 124px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
+  animation: ${({ $side }) => ($side === "right" ? bounceInRight : bounceInLeft)}
+      0.7s cubic-bezier(0.18, 0.89, 0.32, 1.28) both,
+    ${bob} 1.15s ease-in-out infinite;
 `;
-const TrophyRing = styled.div`
-  width: 96px;
-  height: 96px;
+const Circle = styled.div`
+  width: 86px;
+  height: 86px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ffd86b, #f59e0b);
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 14px 34px -8px rgba(245, 158, 11, 0.75), 0 0 0 6px rgba(255, 216, 107, 0.28);
-  animation: ${pop} 0.7s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+  background: ${({ $side }) => ($side === "left" ? "#e9e8ff" : "#ffeede")};
+  border: ${({ $crowned }) => ($crowned ? "2px solid rgba(167,139,250,0.9)" : "2px solid rgba(255,255,255,0.5)")};
+  box-shadow: ${({ $crowned }) =>
+    $crowned
+      ? "0 0 0 5px rgba(124,92,231,0.28), 0 10px 26px -8px rgba(0,0,0,0.55)"
+      : "0 10px 26px -8px rgba(0,0,0,0.55)"};
 `;
-const Trophy = styled.div`
-  font-size: 52px;
-  line-height: 1;
-  animation: ${floaty} 2.2s ease-in-out infinite;
+const CircleImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 `;
-const Sparkle = styled.span`
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 8px; height: 8px;
-  margin: -4px 0 0 -4px;
-  background: #fff7d6;
-  clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
-  animation: ${twinkle} 1.4s ease-in-out infinite;
-`;
-
-const Badge = styled.div`
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: #b45309;
-  background: #fef3c7;
-  padding: 4px 12px;
-  border-radius: 999px;
-`;
-const Title = styled.div`
-  margin-top: 4px;
+const CircleInitial = styled.span`
   font-size: 30px;
   font-weight: 900;
-  letter-spacing: -0.01em;
-  background: linear-gradient(90deg, #6c5ce7, #ec4899, #f59e0b, #6c5ce7);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: ${shine} 3s linear infinite;
+  color: ${({ theme }) => "#4b3fae"};
 `;
-const Teams = styled.div`
+/* 1~3위: 원형 프로필 위 왕관 (앱 공통 비율 — 사진의 ~58%, 위로 ~37% 돌출) */
+const Crown = styled.img`
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+`;
+const Name = styled.div`
   font-size: 14px;
   font-weight: 800;
-  color: #111827;
-`;
-const Sub = styled.div`
-  font-size: 13px;
-  color: #4b5563;
+  color: #ffffff;
+  max-width: 92px;
   text-align: center;
-  white-space: pre-line;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
-const Hint = styled.div`
-  margin-top: 6px;
-  font-size: 11px;
-  color: #9ca3af;
+const Rank = styled.div`
+  font-size: 11.5px;
+  font-weight: 700;
+  color: ${({ $top }) => ($top ? "#b9a7ff" : "rgba(255,255,255,0.6)")};
+`;
+const RankSpacer = styled.div`
+  height: 15px;
+`;
+const Vs = styled.div`
+  margin-top: 22px;
+  font-size: 34px;
+  font-weight: 900;
+  font-style: italic;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  animation: ${popVs} 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+  animation-delay: 0.5s;
 `;

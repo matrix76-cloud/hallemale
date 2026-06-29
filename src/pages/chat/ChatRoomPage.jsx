@@ -11,6 +11,7 @@ import {
   getChatRoom,
   sendTextMessage,
   sendImagesMessage,
+  isMatchChatClosed,
 } from "../../services/chatService";
 import { getUserPublicMeta, getOtherUidFromRoom } from "../../services/counterpartService";
 
@@ -228,6 +229,18 @@ const HiddenFile = styled.input`
   display: none;
 `;
 
+/* 종료된 경기 채팅 안내 바 (입력창 대체) */
+const ClosedBar = styled.div`
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid ${({ theme }) => theme.colors.border || "#e5e7eb"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.card : "#f9fafb"};
+  color: ${({ theme }) => theme.colors.textWeak || "#6b7280"};
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: center;
+`;
+
 const formatDate = (isoOrTs) => {
   const d =
     typeof isoOrTs === "string"
@@ -271,6 +284,9 @@ export default function ChatRoomPage() {
 
   const [otherUid, setOtherUid] = useState("");
   const [opponentMeta, setOpponentMeta] = useState({ name: "상대", avatar: "" });
+
+  // 종료(완료/취소)된 경기 채팅이면 메시지 차단 — 경기 끝나면 상대팀과 연락 불가
+  const [closedInfo, setClosedInfo] = useState({ closed: false, reason: "" });
 
   useEffect(() => {
     let alive = true;
@@ -335,6 +351,20 @@ export default function ChatRoomPage() {
     enterChat({ chatId, myUid }).catch(() => {});
   }, [chatId, myUid]);
 
+  // 종료(완료/취소)된 경기 채팅 여부 확인 → 입력창 차단
+  useEffect(() => {
+    if (!chatId) return;
+    let alive = true;
+    isMatchChatClosed({ chatId })
+      .then((info) => {
+        if (alive) setClosedInfo(info || { closed: false, reason: "" });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [chatId]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -363,6 +393,11 @@ export default function ChatRoomPage() {
       return;
     }
 
+    if (closedInfo.closed) {
+      alert(closedInfo.reason || "종료된 경기라 메시지를 보낼 수 없습니다.");
+      return;
+    }
+
     const v = String(text || "").trim();
     if (!v) return;
 
@@ -383,6 +418,11 @@ export default function ChatRoomPage() {
 
     if (!myUid) {
       alert("로그인이 필요합니다.");
+      return;
+    }
+
+    if (closedInfo.closed) {
+      alert(closedInfo.reason || "종료된 경기라 메시지를 보낼 수 없습니다.");
       return;
     }
 
@@ -517,27 +557,31 @@ export default function ChatRoomPage() {
         )}
       </MessagesWrap>
 
-      <InputBar>
-        <HiddenFile ref={fileRef} type="file" accept="image/*" multiple onChange={handleFilesSelected} />
-        <PlusButton type="button" onClick={handlePickImages} disabled={sending}>
-          +
-        </PlusButton>
-        <Input
-          placeholder="메시지 입력"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          disabled={sending}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSendText();
-            }
-          }}
-        />
-        <SendButton type="button" onClick={handleSendText} disabled={sending || !String(text || "").trim()}>
-          전송
-        </SendButton>
-      </InputBar>
+      {closedInfo.closed ? (
+        <ClosedBar>🔒 {closedInfo.reason || "종료된 경기라 메시지를 보낼 수 없어요."}</ClosedBar>
+      ) : (
+        <InputBar>
+          <HiddenFile ref={fileRef} type="file" accept="image/*" multiple onChange={handleFilesSelected} />
+          <PlusButton type="button" onClick={handlePickImages} disabled={sending}>
+            +
+          </PlusButton>
+          <Input
+            placeholder="메시지 입력"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            disabled={sending}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendText();
+              }
+            }}
+          />
+          <SendButton type="button" onClick={handleSendText} disabled={sending || !String(text || "").trim()}>
+            전송
+          </SendButton>
+        </InputBar>
+      )}
     </PageWrap>
   );
 }

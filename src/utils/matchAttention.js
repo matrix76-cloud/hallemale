@@ -35,10 +35,16 @@ export function categorizeRoom(r) {
   return "";
 }
 
+// 결과 미입력으로 무효 처리된 경기 (status=finished + resultState="void")
+export function isVoidedRoom(r) {
+  return toStr(r?.resultState) === "void";
+}
+
 // 지난 경기: 내가 결과 입력/승인해야 하는가 (상태 기반)
 function pastNeedsMyResult(r, myClubId) {
   const st = toStr(r?.status);
   const rs = toStr(r?.resultState);
+  if (rs === "void") return false; // 무효 종결 — 입력/승인 불필요
   if (st === "finished" || rs === "confirmed") return false; // 이미 확정됨
   if (rs === "waiting_accept") {
     const submittedBy = toStr(r?.result?.submittedByClubId);

@@ -168,6 +168,22 @@ export function getNotificationDef(key) {
   return NOTIFICATION_DEFINITIONS[toStr(key)] || null;
 }
 
+// 팀장 전용(팀장만 처리 가능) 매칭 알림 subType — 매칭 요청/수락/거절/취소 + 라인업·결제·결과입력 독촉.
+// 팀장 → 팀원 강등 시 권한이 없으므로 알림창/배지에서 숨겨 자동 리셋한다.
+export const LEADER_ONLY_MATCH_SUBTYPES = new Set([
+  "matchrequest",
+  "matchaccepted",
+  "matchrejected",
+  "matchcancelled",
+  "matchlineupreminder",
+  "matchpaymentreminder",
+  "matchresultreminder",
+]);
+
+export function isLeaderOnlyMatchNoti(n) {
+  return LEADER_ONLY_MATCH_SUBTYPES.has(String(n?.subType || "").toLowerCase());
+}
+
 export function validateNotificationPayload(key, payload) {
   const def = getNotificationDef(key);
   if (!def) return `Unknown notification key: ${toStr(key)}`;

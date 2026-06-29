@@ -19,6 +19,7 @@ import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { images } from "../../utils/imageAssets";
+import { getPlayerRankMap } from "../../services/rankingService";
 
 /* 실제 프로필 사진만 사용 (기본 앱 로고/defaultAvatar는 '사진 없음'으로 처리) */
 const realAvatar = (url) => {
@@ -64,13 +65,6 @@ const Inner = styled.div`
   gap: 0;
 `;
 
-/* 본문 ↔ 댓글 구분 회색 띠 */
-const SectionBand = styled.div`
-  height: 8px;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(0, 0, 0, 0.35)" : "#eceef1"};
-`;
-
 /* =============== 게시글 카드 =============== */
 
 const PostCard = styled.article`
@@ -97,6 +91,26 @@ const Avatar = styled.div`
   flex-shrink: 0;
 `;
 
+/* 1~3위 선수: 프로필 사진 위 왕관 (아바타는 overflow:hidden이라 밖에서 얹음) */
+const AvatarWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+`;
+
+const CrownOver = styled.img`
+  position: absolute;
+  top: ${({ $sm }) => ($sm ? "-9px" : "-11px")};
+  left: 50%;
+  transform: translateX(-50%);
+  width: ${({ $sm }) => ($sm ? "15px" : "18px")};
+  height: ${({ $sm }) => ($sm ? "15px" : "18px")};
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.18));
+`;
+
 const AvatarImg = styled.div`
   width: 100%;
   height: 100%;
@@ -117,10 +131,30 @@ const AuthorInfo = styled.div`
   gap: 2px;
 `;
 
+/* 이름 + 팀 소속 한 줄 (이름 오른쪽에 팀명) */
+const NameLine = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  cursor: pointer;
+`;
+
 const AuthorName = styled.span`
   font-size: 13px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
+`;
+
+/* 소속 팀명 (이름 오른쪽 회색) */
+const TeamTag = styled.span`
+  font-size: 11px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors?.textWeak || "#6b7280"};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
 `;
 
 const MetaText = styled.span`
@@ -626,10 +660,19 @@ export default function CommunityDetailPage() {
   const { firebaseUser, userDoc } = useAuth();
   const myUid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
 
+  // 사용자(작성자/댓글) 클릭 → 선수 프로필 상세
+  const goPlayer = (uid) => {
+    const id = String(uid || "").trim();
+    if (id) nav(`/player/${id}`);
+  };
+
   const inputRef = useRef(null);
 
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
+
+  // 선수 전체 랭킹(userId→등수) — 1~3위면 프로필 사진 위 왕관
+  const [playerRankMap, setPlayerRankMap] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -682,6 +725,15 @@ export default function CommunityDetailPage() {
     if (!postId) return;
     incrementCommunityPostViews(postId).catch(() => {});
   }, [postId]);
+
+  // 선수 전체 랭킹 로드 (1~3위 왕관 표시용)
+  useEffect(() => {
+    let alive = true;
+    getPlayerRankMap()
+      .then((m) => { if (alive) setPlayerRankMap(m); })
+      .catch(() => { if (alive) setPlayerRankMap(null); });
+    return () => { alive = false; };
+  }, []);
 
   const handleToggleLike = async () => {
     if (!myUid) {
@@ -892,6 +944,7 @@ export default function CommunityDetailPage() {
   }
 
   const commentCount = comments.length;
+  const postRank = playerRankMap?.get(String(post.authorId || "")) || null;
 
   // 댓글 트리: 최상위 댓글 + parentId로 묶인 답글
   const rootComments = comments.filter((c) => !c.parentId);
@@ -904,17 +957,34 @@ export default function CommunityDetailPage() {
 
   const renderComment = (cmt, replyCount) => (
     <CommentItem>
-      <CommentAvatar>
-        {realAvatar(cmt.authorAvatar) ? (
-          <AvatarImg src={realAvatar(cmt.authorAvatar)} />
-        ) : (
-          <AvatarFallback />
-        )}
-      </CommentAvatar>
+      <AvatarWrap
+        onClick={() => goPlayer(cmt.authorId)}
+        style={{ cursor: "pointer" }}
+      >
+        {(() => {
+          const cRank = playerRankMap?.get(String(cmt.authorId || "")) || null;
+          return cRank && cRank <= 3 ? (
+            <CrownOver $sm src={images.logo} alt={`${cRank}위`} />
+          ) : null;
+        })()}
+        <CommentAvatar>
+          {realAvatar(cmt.authorAvatar) ? (
+            <AvatarImg src={realAvatar(cmt.authorAvatar)} />
+          ) : (
+            <AvatarFallback />
+          )}
+        </CommentAvatar>
+      </AvatarWrap>
 
       <CommentBubble>
         <CommentTopRow>
-          <CommentAuthorName>{cmt.authorName}</CommentAuthorName>
+          <CommentAuthorName
+            onClick={() => goPlayer(cmt.authorId)}
+            style={{ cursor: "pointer" }}
+          >
+            {cmt.authorName}
+          </CommentAuthorName>
+          {cmt.authorTeamName ? <TeamTag>{cmt.authorTeamName}</TeamTag> : null}
           <CommentTime>{timeAgo(cmt.createdAtMs) || cmt.createdAt}</CommentTime>
         </CommentTopRow>
 
@@ -944,16 +1014,27 @@ export default function CommunityDetailPage() {
       <Inner>
         <PostCard>
           <AuthorRow>
-            <Avatar>
-              {realAvatar(post.authorAvatar) ? (
-                <AvatarImg src={realAvatar(post.authorAvatar)} />
-              ) : (
-                <AvatarFallback />
-              )}
-            </Avatar>
+            <AvatarWrap
+              onClick={() => goPlayer(post.authorId)}
+              style={{ cursor: "pointer" }}
+            >
+              {postRank && postRank <= 3 ? (
+                <CrownOver src={images.logo} alt={`${postRank}위`} />
+              ) : null}
+              <Avatar>
+                {realAvatar(post.authorAvatar) ? (
+                  <AvatarImg src={realAvatar(post.authorAvatar)} />
+                ) : (
+                  <AvatarFallback />
+                )}
+              </Avatar>
+            </AvatarWrap>
 
             <AuthorInfo>
-              <AuthorName>{post.authorName}</AuthorName>
+              <NameLine onClick={() => goPlayer(post.authorId)}>
+                <AuthorName>{post.authorName}</AuthorName>
+                {post.authorTeamName ? <TeamTag>{post.authorTeamName}</TeamTag> : null}
+              </NameLine>
               <MetaText>{post.createdAt}</MetaText>
             </AuthorInfo>
 
@@ -1037,8 +1118,6 @@ export default function CommunityDetailPage() {
             </StatBtn>
           </PostStats>
         </PostCard>
-
-        <SectionBand />
 
         <CommentSection>
           <CommentHeaderRow>

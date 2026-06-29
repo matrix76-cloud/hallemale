@@ -6,7 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { FiMessageSquare } from "react-icons/fi";
 import { images } from "../../utils/imageAssets";
 import Spinner from "../../components/common/Spinner";
-import { loadMatchRoomListPageData } from "../../services/matchRoomService";
+import { loadMatchRoomListPageData, listMyReviewedMatchIds, MATCH_CANCEL_REASONS } from "../../services/matchRoomService";
 import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import { listAllTeamsForRanking } from "../../services/teamRankingService";
 import { useClub } from "../../hooks/useClub";
@@ -17,6 +17,12 @@ import EmptyState from "../../components/common/EmptyState";
 /* ==================== 헬퍼 ==================== */
 
 const toStr = (v) => String(v || "").trim();
+
+// 취소 사유 key → 라벨 (취소된 경기 카드 표시용)
+const CANCEL_REASON_LABELS = (MATCH_CANCEL_REASONS || []).reduce((m, r) => {
+  m[r.key] = r.label;
+  return m;
+}, {});
 
 const formatKoreanDateTime = (iso) => {
   if (!iso) return "";
@@ -111,6 +117,7 @@ const buildAdjustSteps = (room) => {
 
 const getVsStatus = (room) => {
   const { status, scheduledAt, myScore, oppScore } = room || {};
+  const resultState = toStr(room?.resultState);
   const pb = room?.partnerBooking || null;
   const lineupsDone = !!room?.myLineupConfirmed && !!room?.oppLineupConfirmed;
 
@@ -142,6 +149,9 @@ const getVsStatus = (room) => {
 
   if (status === "finished") {
     const label = scheduledAt ? formatKoreanDate(scheduledAt) : "종료";
+    if (resultState === "void") {
+      return { text: `${label} · 무효 (전적 미반영)`, tone: "cancelled" };
+    }
     if (myScore != null && oppScore != null) {
       const isWin = myScore > oppScore;
       const isDraw = myScore === oppScore;
@@ -583,6 +593,27 @@ const CardDate = styled.span`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
+/* 지난 경기 카드 상단 좌측 그룹 (구장유형 배지 + 상태/날짜) */
+const TopLeftGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`;
+
+/* 무효 처리된 경기 배지 */
+const VoidBadge = styled.span`
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "#f3f4f6"};
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
 const TeamsMini = styled.div`
   display: flex;
   align-items: center;
@@ -697,6 +728,47 @@ const ResultBadge = styled.span`
   }}
 `;
 
+/* 팀원 지난경기: 리뷰 쓰기 버튼 / 리뷰 완료 배지 */
+const ReviewBtn = styled.button`
+  width: 100%;
+  margin-top: 12px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active { opacity: 0.85; }
+`;
+const ReviewDoneBadge = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#6ee0ab" : "#1e9e70")};
+`;
+
+/* 팀원 지난경기: 정렬/필터 카테고리 바 */
+const PastFilterBar = styled.div`
+  display: flex;
+  gap: 7px;
+  margin: 12px 4px 4px;
+  flex-wrap: wrap;
+`;
+const FilterChip = styled.button`
+  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
+  background: ${({ $on, theme }) =>
+    $on ? theme.colors.primary : theme.mode === "dark" ? theme.colors.surface : "#fff"};
+  color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textNormal)};
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  &:active { transform: translateY(1px); }
+`;
+
 const ScoreMid = styled.div`
   flex-shrink: 0;
   display: flex;
@@ -720,6 +792,161 @@ const ScoreColon = styled.span`
   font-size: 12px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+/* 점수 미입력(팀장이 아직 결과 입력 안 함) — 점수 자리에 '결과 대기중' */
+const WaitingLabel = styled.span`
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: ${({ theme }) => (theme.mode === "dark" ? "#fcd34d" : "#b45309")};
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(217,119,6,0.16)" : "#fef3c7")};
+`;
+
+/* ===== 취소된 경기 카드 ===== */
+const CancelledCard = styled.div`
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 13px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+`;
+
+const CancelTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+`;
+
+const CancelTopLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+`;
+
+const CancelChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "#eef0f3")};
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const Chevron = styled.span`
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const CancelTeams = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px; /* 상위 3위 왕관이 위로 떠도 잘리지 않게 여유 */
+`;
+
+const CancelTeamCell = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: ${({ $align }) => ($align === "right" ? "flex-end" : "flex-start")};
+`;
+
+/* 왕관을 로고 위에 띄우기 위한 포지셔닝 박스 */
+const CancelLogoBox = styled.div`
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+`;
+
+const CancelTeamLogo = styled.div`
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: ${({ theme }) => (theme.mode === "dark" ? theme.colors.surface : "#f3f4f6")};
+`;
+
+const CancelTeamName = styled.span`
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const CancelRank = styled.span`
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: ${({ $top, theme }) => ($top ? theme.colors.primary : theme.colors.textWeak)};
+`;
+
+const CancelBottomRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+`;
+
+const CancelReasonGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+`;
+
+const ReasonTypeBadge = styled.span`
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "#f1f3f5")};
+  color: ${({ theme }) => theme.colors.textNormal};
+`;
+
+const ReasonText = styled.span`
+  min-width: 0;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textNormal};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const RefundBadge = styled.span`
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  ${({ $tone, theme }) => {
+    const dark = theme.mode === "dark";
+    if ($tone === "refund")
+      return `background:${dark ? "rgba(139,92,246,0.18)" : "#ede9fe"}; color:${dark ? "#c4b5fd" : "#7c3aed"};`;
+    return `background:${dark ? "rgba(255,255,255,0.06)" : "#f1f3f5"}; color:${theme.colors.textWeak};`;
+  }}
 `;
 
 const StateWrap = styled.div`
@@ -748,6 +975,9 @@ export default function MatchRoomListPage() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [rankMap, setRankMap] = useState({});
+  // 팀원 지난경기: 내가 리뷰한 경기 id 집합 + 정렬/필터 카테고리
+  const [reviewedSet, setReviewedSet] = useState(() => new Set());
+  const [pastView, setPastView] = useState("recent"); // "recent" | "oldest" | "needReview"
   // 카드 마지막 메시지 + 안 읽은 메시지 수 (실시간)
   const { byRoom: chatMeta } = useMatchRoomUnread({ clubId: myClubId, uid: myUid });
 
@@ -857,6 +1087,32 @@ export default function MatchRoomListPage() {
         .sort(byLatest),
     [rooms]
   );
+
+  // 팀원: 지난 경기 중 내가 리뷰한 경기 id 로드 (리뷰 안 쓴 카드에 '리뷰 쓰기' 버튼 노출용)
+  useEffect(() => {
+    if (isTeamLeader || !myUid) return;
+    const ids = pastRooms.map((r) => toStr(r.id)).filter(Boolean);
+    if (ids.length === 0) {
+      setReviewedSet(new Set());
+      return;
+    }
+    let alive = true;
+    listMyReviewedMatchIds({ matchIds: ids, raterUid: myUid })
+      .then((set) => { if (alive) setReviewedSet(set || new Set()); })
+      .catch(() => { if (alive) setReviewedSet(new Set()); });
+    return () => { alive = false; };
+  }, [pastRooms, myUid, isTeamLeader]);
+
+  // 팀원 지난경기 정렬/필터 적용 목록
+  const memberPastList = useMemo(() => {
+    if (pastView === "needReview") {
+      return pastRooms.filter((r) => !reviewedSet.has(toStr(r.id))); // 이미 byLatest 정렬
+    }
+    if (pastView === "oldest") {
+      return [...pastRooms].sort(bySoonest);
+    }
+    return pastRooms; // recent (byLatest)
+  }, [pastRooms, pastView, reviewedSet]);
 
   const cancelledRooms = useMemo(
     () => rooms.filter((r) => r.status === "cancelled").sort(byLatest),
@@ -1076,7 +1332,12 @@ export default function MatchRoomListPage() {
     return (
       <PendingCard key={room.id}>
         <CardTopRow>
-          <EndedBadge>{waiting ? "🕓 상대 승인 대기중" : "⏱ 경기 종료"}</EndedBadge>
+          <TopLeftGroup>
+            <VenueBadge $partner={!!room?.partnerBooking}>
+              {room?.partnerBooking ? "🏟️ 제휴구장" : "📍 직접입력"}
+            </VenueBadge>
+            <EndedBadge>{waiting ? "🕓 상대 승인 대기중" : "⏱ 경기 종료"}</EndedBadge>
+          </TopLeftGroup>
           {dateLabel ? <CardDate>{dateLabel}</CardDate> : <span />}
         </CardTopRow>
         <TeamsMini>
@@ -1092,9 +1353,14 @@ export default function MatchRoomListPage() {
   };
 
   // 결과가 확정된(완료된) 지난 경기 카드
-  const renderCompletedCard = (room) => {
+  // opts.memberReview=true 면 팀원용: 내가 리뷰 안 쓴 경기엔 '리뷰 쓰기' 버튼, 쓴 경기엔 '리뷰 완료'
+  const renderCompletedCard = (room, opts = {}) => {
     const { myTeam, oppTeam } = room || {};
     const dateLabel = room?.scheduledAt ? formatKoreanDateTime(room.scheduledAt) : "";
+    const reviewed = reviewedSet.has(toStr(room?.id));
+
+    // 무효 처리된 경기(양 팀 결과 미입력 → 자동 무효): 점수 없음 · 전적 미반영
+    const isVoid = toStr(room?.resultState) === "void";
 
     // myTeam=뷰어, oppTeam=상대. 점수는 서비스에서 이미 조회 팀 관점(myScore=우리팀)으로 정렬됨
     const leftScore = room?.myScore;
@@ -1116,27 +1382,129 @@ export default function MatchRoomListPage() {
         tabIndex={0}
       >
         <CardTopRow>
-          {dateLabel ? <CardDate>{dateLabel}</CardDate> : <span />}
-          {outcome && (
+          <TopLeftGroup>
+            <VenueBadge $partner={!!room?.partnerBooking}>
+              {room?.partnerBooking ? "🏟️ 제휴구장" : "📍 직접입력"}
+            </VenueBadge>
+            {dateLabel ? <CardDate>{dateLabel}</CardDate> : null}
+          </TopLeftGroup>
+          {isVoid ? (
+            <VoidBadge>무효 · 전적 미반영</VoidBadge>
+          ) : opts.memberReview && reviewed ? (
+            <ReviewDoneBadge>✓ 리뷰 완료</ReviewDoneBadge>
+          ) : outcome ? (
             <ResultBadge $outcome={outcome}>
               {outcome === "win" ? "승리" : outcome === "lose" ? "패배" : "무승부"}
             </ResultBadge>
-          )}
+          ) : null}
         </CardTopRow>
         <TeamsMini>
           {renderMiniTeam(myTeam, "우리팀")}
           <ScoreMid>
-            <ScoreNum $tone={outcome === "win" ? "win" : outcome === "lose" ? "lose" : "neutral"}>
-              {hasScore ? leftScore : "-"}
-            </ScoreNum>
-            <ScoreColon>:</ScoreColon>
-            <ScoreNum $tone="neutral">
-              {hasScore ? rightScore : "-"}
-            </ScoreNum>
+            {isVoid ? (
+              <WaitingLabel>무효</WaitingLabel>
+            ) : hasScore ? (
+              <>
+                <ScoreNum $tone={outcome === "win" ? "win" : outcome === "lose" ? "lose" : "neutral"}>
+                  {leftScore}
+                </ScoreNum>
+                <ScoreColon>:</ScoreColon>
+                <ScoreNum $tone="neutral">{rightScore}</ScoreNum>
+              </>
+            ) : toStr(room?.status) !== "finished" ? (
+              // 팀장이 아직 결과를 입력하지 않음
+              <WaitingLabel>결과 대기중</WaitingLabel>
+            ) : (
+              <>
+                <ScoreNum $tone="neutral">-</ScoreNum>
+                <ScoreColon>:</ScoreColon>
+                <ScoreNum $tone="neutral">-</ScoreNum>
+              </>
+            )}
           </ScoreMid>
           {renderMiniTeam(oppTeam, "상대팀")}
         </TeamsMini>
+        {opts.memberReview && !reviewed && (
+          <ReviewBtn
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleClickRoom(room.id); }}
+          >
+            ✏️ 상대 팀 리뷰 쓰기
+          </ReviewBtn>
+        )}
       </CompletedCard>
+    );
+  };
+
+  // 취소된 경기 카드용 인라인 팀 (왕관 + 로고 + 팀명 + 순위)
+  const renderCancelTeam = (team, fallbackName, align) => {
+    const name = toStr(team?.name) || fallbackName;
+    const logoSrc = resolveLogoSrc(team);
+    const rank = rankMap[toStr(team?.clubId || team?.id)];
+    const isTop = rank >= 1 && rank <= 3;
+    const logo = (
+      <CancelLogoBox>
+        {isTop ? <CrownImg $sm src={images.logo} alt={`${rank}위`} /> : null}
+        <CancelTeamLogo>
+          <MiniLogoImg src={logoSrc} alt={name} />
+        </CancelTeamLogo>
+      </CancelLogoBox>
+    );
+    return (
+      <CancelTeamCell $align={align}>
+        {align === "left" && logo}
+        <CancelTeamName title={name}>{name}</CancelTeamName>
+        {rank ? <CancelRank $top={isTop}>{rank}위</CancelRank> : null}
+        {align === "right" && logo}
+      </CancelTeamCell>
+    );
+  };
+
+  // 취소된 경기 카드 (취소됨 배지 + 날짜 · 팀 vs 팀 · 취소사유 + 환불상태)
+  const renderCancelledCard = (room) => {
+    const { myTeam, oppTeam } = room || {};
+    const dateLabel = room?.scheduledAt
+      ? formatKoreanDateTime(room.scheduledAt)
+      : formatMatchedTime(room?.cancelledAt);
+
+    const reasonKey = toStr(room?.cancelReasonKey);
+    const reasonText = toStr(room?.cancelReasonText);
+    const reasonLabel = CANCEL_REASON_LABELS[reasonKey] || "";
+    const isVenueReason = reasonKey === "venue";
+    const byMe = !!myClubId && toStr(room?.cancelledByClubId) === myClubId;
+
+    const reasonBadge = isVenueReason ? "구장 사정" : byMe ? "우리팀 취소" : "상대팀 취소";
+    const reasonDesc = reasonText || reasonLabel || toStr(room?.cancelReason) || "사유 미입력";
+
+    const refund = room?.refund;
+    const hasRefund = !!refund && Number(refund.amount) > 0;
+    const refundDone = hasRefund && toStr(refund.status) === "refunded";
+    const refundLabel = !hasRefund ? "결제 없음" : refundDone ? "환불 완료" : "환불 예정";
+
+    return (
+      <CancelledCard key={room.id} onClick={() => handleClickRoom(room.id)} role="button" tabIndex={0}>
+        <CancelTopRow>
+          <CancelTopLeft>
+            <CancelChip>✕ 취소됨</CancelChip>
+            {dateLabel ? <CardDate>{dateLabel}</CardDate> : null}
+          </CancelTopLeft>
+          <Chevron>›</Chevron>
+        </CancelTopRow>
+
+        <CancelTeams>
+          {renderCancelTeam(myTeam, "우리팀", "left")}
+          <MiniVs>vs</MiniVs>
+          {renderCancelTeam(oppTeam, "상대팀", "right")}
+        </CancelTeams>
+
+        <CancelBottomRow>
+          <CancelReasonGroup>
+            <ReasonTypeBadge>{reasonBadge}</ReasonTypeBadge>
+            <ReasonText>{reasonDesc}</ReasonText>
+          </CancelReasonGroup>
+          <RefundBadge $tone={hasRefund ? "refund" : "none"}>{refundLabel}</RefundBadge>
+        </CancelBottomRow>
+      </CancelledCard>
     );
   };
 
@@ -1206,7 +1574,7 @@ export default function MatchRoomListPage() {
                       <TitleText>취소된 경기</TitleText>
                       <SubText>{cancelledRooms.length}개</SubText>
                     </TitleCard>
-                    {cancelledRooms.map((room) => renderRoomCard(room))}
+                    {cancelledRooms.map((room) => renderCancelledCard(room))}
                   </>
                 )}
               </RoomList>
@@ -1214,6 +1582,33 @@ export default function MatchRoomListPage() {
               <RoomList>
                 {pastRooms.length === 0 ? (
                   <EmptyState text="지난 게임 기록이 아직 없습니다." />
+                ) : !isTeamLeader ? (
+                  // 팀원: 결과 입력 권한 없음 → 입력 버튼 없이 지난 경기를 카드로.
+                  // 점수 미입력 건은 '결과 대기중', 리뷰 미작성 건은 '리뷰 쓰기' 버튼. 정렬/필터 제공.
+                  <>
+                    <PastFilterBar>
+                      <FilterChip $on={pastView === "recent"} onClick={() => setPastView("recent")}>
+                        최신순
+                      </FilterChip>
+                      <FilterChip $on={pastView === "oldest"} onClick={() => setPastView("oldest")}>
+                        오래된순
+                      </FilterChip>
+                      <FilterChip $on={pastView === "needReview"} onClick={() => setPastView("needReview")}>
+                        리뷰 안 쓴 것만
+                      </FilterChip>
+                    </PastFilterBar>
+                    {memberPastList.length === 0 ? (
+                      <EmptyState
+                        text={
+                          pastView === "needReview"
+                            ? "작성하지 않은 리뷰가 없어요. 모두 작성했어요! ✅"
+                            : "지난 게임 기록이 아직 없습니다."
+                        }
+                      />
+                    ) : (
+                      memberPastList.map((room) => renderCompletedCard(room, { memberReview: true }))
+                    )}
+                  </>
                 ) : (
                   <>
                     {resultPendingRooms.length > 0 && (
@@ -1254,7 +1649,9 @@ export default function MatchRoomListPage() {
             ) : (
               <RoomList>
                 {listToRender.length > 0 ? (
-                  listToRender.map((room) => renderRoomCard(room))
+                  listToRender.map((room) =>
+                    tab === "cancelled" ? renderCancelledCard(room) : renderRoomCard(room)
+                  )
                 ) : (
                   <EmptyState
                     text={

@@ -10,6 +10,7 @@ import { FiStar, FiMapPin, FiUser, FiShield, FiBarChart2, FiClock, FiImage } fro
 import { images } from "../../utils/imageAssets";
 import { getPlayerProfile } from "../../services/playerService";
 import { getPlayerRankMap } from "../../services/rankingService";
+import { getTeamRankMap } from "../../services/teamRankingService";
 
 import { useAuth } from "../../hooks/useAuth";
 import { setFavoritePlayer } from "../../services/favoriteService";
@@ -17,12 +18,12 @@ import { createUserReport } from "../../services/userReportService";
 import BlockedOverlay from "../../components/common/BlockedOverlay";
 import PlayerActivitySection from "../../components/player/PlayerActivitySection";
 import PlayerHealthSection from "../../components/player/PlayerHealthSection";
-import PlayerMonthlyStatsSection from "../../components/player/PlayerMonthlyStatsSection";
+import PlayerMonthlyActivitySection from "../../components/player/PlayerMonthlyActivitySection";
 import EmptyState from "../../components/common/EmptyState";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import TeamStatsSection from "../../components/team/TeamStatsSection";
 import TeamMatchHistorySection from "../../components/team/TeamMatchHistorySection";
-import { loadPlayerFinishedMatches } from "../../services/matchRoomService";
+import { loadPlayerFinishedMatches, loadPlayerMonthlyActivity } from "../../services/matchRoomService";
 
 /* =============== 헬퍼: 포지션/실력 라벨 =============== */
 
@@ -60,16 +61,16 @@ const getAge = (birthYear) => {
 /* =============== 레이아웃 공통 =============== */
 
 const Page = styled.div`
-  min-height: 100vh;
-  background: ${({ theme }) => theme.colors.bg};
+  min-height: ${({ $embed }) => ($embed ? "auto" : "100vh")};
+  background: ${({ $embed, theme }) => ($embed ? "transparent" : theme.colors.bg)};
   display: flex;
   flex-direction: column;
 `;
 
 const ScrollArea = styled.div`
   flex: 1;
-  overflow-y: auto;
-  padding-bottom: 110px;
+  overflow-y: ${({ $embed }) => ($embed ? "visible" : "auto")};
+  padding-bottom: ${({ $embed }) => ($embed ? "0" : "110px")};
 `;
 
 /* =============== 상단 히어로 (선수 프로필) =============== */
@@ -390,6 +391,26 @@ const TeamBasicRow = styled.div`
   gap: 10px;
 `;
 
+/* 소속팀 1~3위: 팀 로고 위 왕관 (로고는 overflow:hidden이라 밖에서 얹음) */
+const TeamLogoWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+`;
+
+const TeamCrown = styled.img`
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 5px rgba(15, 23, 42, 0.2));
+`;
+
 const TeamLogoCircle = styled.div`
   width: 38px;
   height: 38px;
@@ -408,10 +429,26 @@ const TeamLogoImg = styled.img`
   object-fit: cover;
 `;
 
+/* 팀명 + 랭킹 칩 한 줄 */
+const TeamNameRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`;
+
 const TeamNameText = styled.div`
   font-size: 14px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+/* 소속팀 전체 랭킹 순위 */
+const TeamRankChip = styled.span`
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.primary || "#7c5cc9"};
 `;
 
 const TeamMetaText = styled.div`
@@ -422,29 +459,22 @@ const TeamMetaText = styled.div`
   gap: 4px;
 `;
 
-const MediaList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* 3열 그리드(최대 3x3 = 9개) — 팀 프로필 사진/영상과 동일 레이아웃 */
+const MediaGrid = styled.div`
   margin-top: 8px;
-`;
-
-const MediaItem = styled.div`
-  width: 100%;
-  padding: 8px 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 `;
 
-const MediaCard = styled.div`
+const MediaCell = styled.div`
+  position: relative;
   width: 100%;
-  height: 180px;
+  aspect-ratio: 1 / 1;
   border-radius: 8px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
-  position: relative;
   cursor: pointer;
 `;
 
@@ -454,10 +484,94 @@ const MediaImg = styled.img`
   object-fit: cover;
 `;
 
-const MediaTitle = styled.div`
-  font-size: 11px;
-  color: ${({ theme }) => theme.colors.textNormal};
-  line-height: 1.4;
+const MediaPlay = styled.div`
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.18);
+`;
+
+const PlayCircle = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+`;
+
+/* 전체보기 — 전체화면 뷰어 (한 장씩 좌우 스와이프) */
+const Viewer = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ViewerTop = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+`;
+
+const ViewerClose = styled.button`
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+`;
+
+const ViewerTrack = styled.div`
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+const ViewerSlide = styled.div`
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  display: grid;
+  place-items: center;
+  position: relative;
+  padding: 0 8px;
+`;
+
+const ViewerImg = styled.img`
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+`;
+
+const ViewerPlay = styled.div`
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
 `;
 
 const PlaceholderText = styled.div`
@@ -608,14 +722,19 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
   const [loading, setLoading] = useState(true);
   const [player, setPlayer] = useState(null);
   const [playerRank, setPlayerRank] = useState(null);
+  const [teamRank, setTeamRank] = useState(null); // 소속팀 전체 랭킹 등수(1~3위면 왕관)
 
   // 라인업에 참가한 종료 경기 (전적/경기 기록 카드용)
   const [playerMatches, setPlayerMatches] = useState([]);
   const [playerMatchesLoading, setPlayerMatchesLoading] = useState(false);
+  // 월별 활동(팀 대비 참여율)용 — 팀 경기 + 팀원 uid
+  const [playerActivity, setPlayerActivity] = useState({ games: [], memberUids: [] });
 
   const [fav, setFav] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
 
+  // 사진/영상 전체보기 모달
+  const [mediaModalOpen, setMediaModalOpen] = useState(false);
 
   // 신고 모달
   const [reportOpen, setReportOpen] = useState(false);
@@ -667,6 +786,17 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
         const { rooms } = await loadPlayerFinishedMatches({ clubId, uid });
         if (!alive) return;
         setPlayerMatches(Array.isArray(rooms) ? rooms : []);
+
+        // 월별 활동(팀 대비 참여율)용 데이터
+        try {
+          const act = await loadPlayerMonthlyActivity({ clubId, uid });
+          if (alive) setPlayerActivity({
+            games: Array.isArray(act?.games) ? act.games : [],
+            memberUids: Array.isArray(act?.memberUids) ? act.memberUids : [],
+          });
+        } catch (e2) {
+          if (alive) setPlayerActivity({ games: [], memberUids: [] });
+        }
       } catch (e) {
         console.warn("[PlayerProfilePage] load player matches failed:", e?.message || e);
         if (alive) setPlayerMatches([]);
@@ -693,6 +823,24 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
       alive = false;
     };
   }, [playerId]);
+
+  // 소속팀 전체 랭킹 등수 (소속 팀 로고 위 1~3위 왕관 표시용)
+  useEffect(() => {
+    let alive = true;
+    const cid = String(player?.clubId || "").trim();
+    if (!cid) {
+      setTeamRank(null);
+      return;
+    }
+    getTeamRankMap()
+      .then((map) => {
+        if (alive) setTeamRank(map?.get?.(cid) || null);
+      })
+      .catch((e) => console.warn("[PlayerProfilePage] team rank load failed:", e?.message || e));
+    return () => {
+      alive = false;
+    };
+  }, [player?.clubId]);
 
   const isSelf = useMemo(() => {
     if (!myUid || !playerId) return false;
@@ -771,7 +919,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
 
   if (loading) {
     return (
-      <Page>
+      <Page $embed={embed}>
         <StateWrap>불러오는 중...</StateWrap>
       </Page>
     );
@@ -779,7 +927,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
 
   if (!player) {
     return (
-      <Page>
+      <Page $embed={embed}>
         <StateWrap>선수 정보를 찾을 수 없습니다.</StateWrap>
       </Page>
     );
@@ -864,8 +1012,8 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
   };
 
   return (
-    <Page>
-      <ScrollArea>
+    <Page $embed={embed}>
+      <ScrollArea $embed={embed}>
         <HeroWrap>
           <HeroTeamBgCircle>
             <HeroTeamBgImg src={teamLogoSrc} alt={player.clubName || "소속 팀"} />
@@ -978,12 +1126,24 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
               </SectionHeaderRow>
 
               <TeamInfoRow>
-                <TeamBasicRow>
-                  <TeamLogoCircle>
-                    <TeamLogoImg src={teamLogoSrc} alt={player.clubName || "소속 팀"} />
-                  </TeamLogoCircle>
+                <TeamBasicRow
+                  onClick={onViewTeam}
+                  style={{ cursor: "pointer" }}
+                  role="button"
+                >
+                  <TeamLogoWrap>
+                    {teamRank && teamRank <= 3 ? (
+                      <TeamCrown src={images.logo} alt={`${teamRank}위`} />
+                    ) : null}
+                    <TeamLogoCircle>
+                      <TeamLogoImg src={teamLogoSrc} alt={player.clubName || "소속 팀"} />
+                    </TeamLogoCircle>
+                  </TeamLogoWrap>
                   <div>
-                    <TeamNameText>{player.clubName || "팀"}</TeamNameText>
+                    <TeamNameRow>
+                      <TeamNameText>{player.clubName || "팀"}</TeamNameText>
+                      {teamRank ? <TeamRankChip>랭킹 {teamRank}위</TeamRankChip> : null}
+                    </TeamNameRow>
                     <TeamMetaText>
                       <FiMapPin size={12} />
                       {player.clubRegion || "생활체육 팀"}
@@ -1038,7 +1198,14 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
           {/* 🔁 App Store 심사(Guideline 2.5.1) 대응: iOS HealthKit 제거에 따라 건강 UI 숨김.
               나중에 HealthKit 복구 시 아래 두 섹션 주석 해제 + RN react-native.config.js / Info.plist 복구. */}
           {/* <PlayerHealthSection sessions={playerSessions} userProfile={player} /> */}
-          <PlayerMonthlyStatsSection sessions={playerSessions} />
+          {/* 월별 활동 기록 — 팀 경기 대비 내 참여율/순위 + 월별 내 경기 수 */}
+          <PlayerMonthlyActivitySection
+            games={playerActivity.games}
+            memberUids={playerActivity.memberUids}
+            myUid={String(player?.uid || player?.userId || playerId || "").trim()}
+            isSelf={isSelf}
+            playerName={String(player?.nickname || player?.name || "").trim()}
+          />
           {/* <PlayerActivitySection playerId={playerId} isSelf={isSelf} /> */}
 
           <Section>
@@ -1049,23 +1216,29 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                 </SectionIconCircle>
                 <SectionTitleText>경기 사진 / 영상</SectionTitleText>
               </SectionHeaderLeft>
+              {mediaList.length > 9 ? (
+                <SectionMeta
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setMediaModalOpen(true)}
+                >
+                  전체보기
+                </SectionMeta>
+              ) : null}
             </SectionHeaderRow>
 
             {mediaList.length > 0 ? (
-              <MediaList>
-                {mediaList.map((m) => (
-                  <MediaItem key={m.id || m.url}>
-                    <MediaCard onClick={() => onMediaClick(m)}>
-                      {m.thumbnailUrl ? (
-                        <MediaImg src={m.thumbnailUrl} alt={m.title || "media"} />
-                      ) : (
-                        <MediaImg src={m.url} alt={m.title || "media"} />
-                      )}
-                    </MediaCard>
-                    {m.title ? <MediaTitle>{m.title}</MediaTitle> : null}
-                  </MediaItem>
+              <MediaGrid>
+                {mediaList.slice(0, 9).map((m) => (
+                  <MediaCell key={m.id || m.url} onClick={() => onMediaClick(m)}>
+                    <MediaImg src={m.thumbnailUrl || m.url} alt={m.title || m.caption || "media"} />
+                    {m.type === "video" && (
+                      <MediaPlay>
+                        <PlayCircle>▶</PlayCircle>
+                      </MediaPlay>
+                    )}
+                  </MediaCell>
                 ))}
-              </MediaList>
+              </MediaGrid>
             ) : (
               <EmptyState compact text="등록된 미디어가 없습니다." />
             )}
@@ -1080,6 +1253,29 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
           )}
         </ContentWrap>
       </ScrollArea>
+
+      {mediaModalOpen && (
+        <Viewer>
+          <ViewerTop>
+            <span>경기 사진 / 영상</span>
+            <ViewerClose type="button" onClick={() => setMediaModalOpen(false)}>
+              ×
+            </ViewerClose>
+          </ViewerTop>
+          <ViewerTrack>
+            {mediaList.map((m) => (
+              <ViewerSlide key={m.id || m.url}>
+                <ViewerImg src={m.thumbnailUrl || m.url} alt={m.title || m.caption || "media"} />
+                {m.type === "video" && (
+                  <ViewerPlay onClick={() => onMediaClick(m)}>
+                    <PlayCircle>▶</PlayCircle>
+                  </ViewerPlay>
+                )}
+              </ViewerSlide>
+            ))}
+          </ViewerTrack>
+        </Viewer>
+      )}
 
       {reportOpen && (
         <ReportOverlay

@@ -178,17 +178,24 @@ export default function TeamMatchHistorySection({
       const displayOppScore =
         isMyTeamOnOppSlot && !isMyTeamOnMySlot ? myScore : oppScore;
 
-      const res = normalizeResult(displayMyScore, displayOppScore);
+      const voided = toStr(room?.resultState) === "void";
+      const res = voided ? null : normalizeResult(displayMyScore, displayOppScore);
 
-      const scoreText =
-        displayMyScore != null && displayOppScore != null
-          ? `${displayMyScore} : ${displayOppScore}`
-          : "결과 입력 대기";
+      const scoreText = voided
+        ? "무효"
+        : displayMyScore != null && displayOppScore != null
+        ? `${displayMyScore} : ${displayOppScore}`
+        : "결과 입력 대기";
 
       const status = toStr(room?.status);
 
-      const statusText =
-        status === "finished" ? "종료" : status === "cancelled" ? "취소" : "기록";
+      const statusText = voided
+        ? "무효"
+        : status === "finished"
+        ? "종료"
+        : status === "cancelled"
+        ? "취소"
+        : "기록";
 
       return {
         id: room?.id,

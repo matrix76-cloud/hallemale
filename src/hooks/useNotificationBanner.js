@@ -60,7 +60,9 @@ export default function useNotificationBanner({ uid, clubId } = {}) {
       if (n.readBy && n.readBy[uid]) return; // 이미 읽음
       if (Date.now() - toMillis(n.createdAt) > MAX_AGE_MS) return; // 오래된 알림
 
-      const deepLink = n?.meta?.deepLink || "";
+      // deepLink는 알림 종류에 따라 meta.deepLink(채팅/결제독촉 등) 또는 최상위 deepLink
+      // (buildNotificationDoc 기반 매칭요청/수락/거절/취소)에 들어 있음 — 둘 다 확인
+      const deepLink = n?.meta?.deepLink || n?.deepLink || "";
       // 이미 해당 화면(예: 그 채팅방)에 있으면 배너 생략
       if (deepLink && pathRef.current.startsWith(deepLink)) return;
 

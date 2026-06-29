@@ -115,6 +115,13 @@ function formatPositionKo(pos) {
   return toStr(pos);
 }
 
+// 경기 형식(3v3/4v4/5v5) → "3 vs 3" (몇대몇 표시용)
+function formatMatchSizeKo(sizeKey) {
+  const sz = toStr(sizeKey).toLowerCase();
+  if (["3v3", "4v4", "5v5"].includes(sz)) return sz.replace("v", " vs ");
+  return "";
+}
+
 function buildBodyText(p) {
   const h = typeof p?.heightCm === "number" ? `${p.heightCm}cm` : "";
   const w = typeof p?.weightKg === "number" ? `${p.weightKg}kg` : "";
@@ -354,6 +361,21 @@ const BadgeTime = styled.div`
   font-size: 10px;
   color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
+`;
+
+/* 경기 형식(몇대몇) 배지 — 브랜드 보라 */
+const SizeBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(124, 92, 201, 0.22)" : "#efe9ff"};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#c4b5fd" : "#7c5cc9")};
 `;
 
 const TeamInfoCell = styled.button`
@@ -742,7 +764,7 @@ export default function MatchingManagePage() {
   const [toRoster, setToRoster] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
 
-  const reload = async () => {
+  const reload = async ({ silent = false } = {}) => {
     if (!myClubId) {
       setItems([]);
       setErr("팀 정보를 확인할 수 없습니다.");
@@ -751,20 +773,39 @@ export default function MatchingManagePage() {
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setErr("");
       const list = await listMatchInboxForClub({ clubId: myClubId, limitCount: 300 });
       setItems(Array.isArray(list) ? list : []);
     } catch (e) {
-      setErr("매칭 정보를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.");
-      setItems([]);
+      // 백그라운드(silent) 갱신 실패 시 기존 목록 유지
+      if (!silent) {
+        setErr("매칭 정보를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.");
+        setItems([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myClubId]);
+
+  // ✅ 화면 복귀(앱 전환·뒤로가기)·포커스 시 목록을 조용히 재조회 →
+  //    상대가 수락/거절/취소하면 pending(받은/보낸 제안)에서 즉시 빠지도록 최신 상태 반영
+  useEffect(() => {
+    if (!myClubId) return;
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") reload({ silent: true });
+    };
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myClubId]);
 
@@ -984,6 +1025,7 @@ export default function MatchingManagePage() {
 
               const ts = row.timestamp ? formatDateTime(row.timestamp) : "";
               const badgeMeta = getMatchBadgeMeta(row);
+              const fmtLabel = formatMatchSizeKo(latest?.matchSizeKey);
 
               const actions =
                 activeTab === "closed"
@@ -1024,6 +1066,7 @@ export default function MatchingManagePage() {
 
                       <HeaderRight>
                         <BadgeRow>
+                          {fmtLabel ? <SizeBadge>{fmtLabel}</SizeBadge> : null}
                           <Badge $tone={badgeMeta.tone}>
                             {badgeMeta.stateLabel}
                           </Badge>
@@ -1036,15 +1079,9 @@ export default function MatchingManagePage() {
 
                     <LineupTextRow>
                       <LineupText>
-                        {(() => {
-                          const sz = toStr(latest?.matchSizeKey);
-                          const szLabel = ["3v3", "4v4", "5v5"].includes(sz)
-                            ? sz.replace("v", " vs ")
-                            : "";
-                          return szLabel
-                            ? `${szLabel} 매칭 · 라인업은 매칭룸에서 확정해요`
-                            : "라인업은 매칭룸에서 확정해요";
-                        })()}
+                        {fmtLabel
+                          ? `${fmtLabel} 매칭 · 라인업은 매칭룸에서 확정해요`
+                          : "라인업은 매칭룸에서 확정해요"}
                       </LineupText>
                     </LineupTextRow>
 

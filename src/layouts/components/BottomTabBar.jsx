@@ -99,9 +99,8 @@ const Badge = styled.span`
     `}
 `;
 
-// 팀장: 매칭관리 탭 / 팀원: "우리 팀 경기" 탭 (아이콘은 매칭 슬롯 재사용)
+// 팀장만 매칭관리 탭 노출. 팀원은 홈/커뮤니티/내정보만(매칭·전적 탭 없음).
 const LEADER_SECOND_TAB = { key: "matchingmanage", iconKey: "matchingmanage", label: "매칭관리", path: "/matchingmanage" };
-const MEMBER_SECOND_TAB = { key: "records", iconKey: "matchingmanage", label: "전적", path: "/records" };
 
 export default function BottomTabBar({ currentPath, onNavigate, matchingCount = 0, isTeamLeader = false }) {
   const formatCount = (n) => {
@@ -112,7 +111,8 @@ export default function BottomTabBar({ currentPath, onNavigate, matchingCount = 
 
   const tabs = [
     { key: "home", iconKey: "home", label: "홈", path: "/home" },
-    isTeamLeader ? LEADER_SECOND_TAB : MEMBER_SECOND_TAB,
+    // 팀장만 매칭관리 탭. 팀원은 홈/커뮤니티/내정보 3개만.
+    ...(isTeamLeader ? [LEADER_SECOND_TAB] : []),
     { key: "community", iconKey: "community", label: "커뮤니티", path: "/community" },
     { key: "my", iconKey: "my", label: "내정보", path: "/my" },
   ];

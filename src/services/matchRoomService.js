@@ -468,6 +468,35 @@ export async function confirmMatchLineup({
 
   await updateDoc(ref, patch);
 
+  // ✅ 라인업에 포함된 우리 팀원들에게 알림 (확정한 팀장 본인은 제외)
+  try {
+    const includedUids = uniqStr([...starters, ...subs]).filter((u) => u && u !== seenUid);
+    if (includedUids.length) {
+      const sizeLabel = ["3v3", "4v4", "5v5"].includes(sizeKey)
+        ? sizeKey.replace("v", " vs ")
+        : "";
+      await addDoc(collection(db, "notifications"), {
+        kind: "match",
+        subType: "matchLineupIncluded",
+        type: "match_lineup_included",
+        title: "라인업에 포함됐어요",
+        body: `${teamName || "우리 팀"} ${sizeLabel || "경기"} 라인업에 포함됐어요. 다가오는 경기를 확인하세요!`,
+        targetType: "USER",
+        targetIds: includedUids,
+        linkType: "match",
+        linkTargetId: id,
+        meta: { matchId: id, deepLink: `/match-roomdetail/${id}` },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "match",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        readBy: {},
+      });
+    }
+  } catch (e) {
+    console.warn("[confirmMatchLineup] lineup included notify failed:", e?.message || e);
+  }
+
   // ✅ 라인업 확정을 양 팀 채팅에 시스템 메시지로 남김 (상대팀/내가 모두 볼 수 있게)
   // 채팅 id 규칙: match_{matchRequestId} (getOrCreateMatchRoomChat 참고)
   try {
@@ -589,10 +618,20 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
     const myRecent = buildRecentFromStats(myTeamResolved);
     const oppRecent = buildRecentFromStats(oppTeamResolved);
 
+    // ✅ 내 팀 라인업에 포함된 선수 uid(주전+후보) — "내가 포함된 경기" 필터용
+    const myLineupSnap = iAmActor ? mr?.fromLineupSnapshot : mr?.toLineupSnapshot;
+    const myLineupUids = [
+      ...(Array.isArray(myLineupSnap?.memberIds) ? myLineupSnap.memberIds : []),
+      ...(Array.isArray(myLineupSnap?.subMemberIds) ? myLineupSnap.subMemberIds : []),
+    ].map(toStr).filter(Boolean);
+
     return {
       id: matchId,
       myTeam: myTeamResolved,
       oppTeam: oppTeamResolved,
+
+      myLineupUids,
+      myLineupConfirmed: !!myLineupSnap?.confirmed,
 
       status: normalizeRoomStatus(mr?.status),
       scheduledAt: mr?.scheduledAt || null,
@@ -646,6 +685,73 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
   });
 
   return { rooms, myTeam };
+}
+
+// ✅ 팀 월별 활동 + 선수 참여율 데이터
+// - 팀의 finished(무효 제외) 경기들을 모아 경기별 [우리팀 라인업 memberIds + 경기일]을 반환.
+// - 월별 집계/참여율 계산은 화면(컴포넌트)에서 members와 함께 수행.
+export async function loadTeamMonthlyActivity({ clubId } = {}) {
+  const myClubId = toStr(clubId);
+  if (!myClubId) return { games: [], totalGames: 0 };
+
+  const col = collection(db, "match_requests");
+  const [snapA, snapB] = await Promise.all([
+    getDocs(query(col, where("actorClubId", "==", myClubId), limit(300))),
+    getDocs(query(col, where("targetClubId", "==", myClubId), limit(300))),
+  ]);
+
+  const merged = uniqById([
+    ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+    ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+  ]);
+
+  // 완료(finished) 경기만, 무효(void)는 제외 → 전적/활동에 반영되는 경기 기준
+  const finished = merged.filter(
+    (r) => toStr(r?.status) === "finished" && toStr(r?.resultState) !== "void"
+  );
+
+  const games = finished.map((mr) => {
+    const iAmActor = toStr(mr?.actorClubId) === myClubId;
+    const snap = iAmActor ? mr?.fromLineupSnapshot : mr?.toLineupSnapshot;
+    const memberIds = Array.isArray(snap?.memberIds)
+      ? snap.memberIds.map((x) => toStr(x)).filter(Boolean)
+      : [];
+    return {
+      id: toStr(mr?.id),
+      scheduledAt: mr?.scheduledAt || mr?.confirmedAt || mr?.updatedAt || null,
+      memberIds,
+    };
+  });
+
+  return { games, totalGames: games.length };
+}
+
+// ✅ 선수 월별 활동(팀 대비 참여율)용 데이터
+// - 팀 경기(games: 경기별 라인업 memberIds) + 팀원 uid 목록을 반환.
+// - 참여율/순위/팀평균은 화면(컴포넌트)에서 myUid와 함께 계산.
+export async function loadPlayerMonthlyActivity({ clubId, uid } = {}) {
+  const cid = toStr(clubId);
+  if (!cid) return { games: [], memberUids: [] };
+
+  const [{ games }, memberUids] = await Promise.all([
+    loadTeamMonthlyActivity({ clubId: cid }),
+    (async () => {
+      try {
+        const ms = await getDocs(collection(db, "clubs", cid, "members"));
+        const ids = (ms?.docs || [])
+          .map((d) => {
+            const data = d.data() || {};
+            return toStr(data.uid || data.userId || d.id);
+          })
+          .filter(Boolean);
+        return Array.from(new Set(ids));
+      } catch (e) {
+        return [];
+      }
+    })(),
+  ]);
+
+  return { games, memberUids };
 }
 
 /**
@@ -974,7 +1080,7 @@ export async function loadMatchRoomDetail(matchRequestId) {
 
 /* ───── 매칭룸 이벤트 푸시 알림 (상대 팀장에게) ─────
    sendPushTick은 targetIds(uid)로 발송하므로 수신 팀의 ownerUid를 명시한다. */
-async function notifyMatchRoomEvent({ matchId, recipientClubId, subType, type, title, body, deepLink }) {
+async function notifyMatchRoomEvent({ matchId, recipientClubId, subType, type, title, body, deepLink, actorTeamLogoUrl = "" }) {
   try {
     const rid = toStr(recipientClubId);
     if (!rid || !toStr(matchId)) return;
@@ -992,7 +1098,8 @@ async function notifyMatchRoomEvent({ matchId, recipientClubId, subType, type, t
       targetIds: [ownerUid],
       linkType: "match",
       linkTargetId: toStr(matchId),
-      meta: { matchId: toStr(matchId), deepLink: toStr(deepLink) || `/match-roomdetail/${toStr(matchId)}` },
+      // actorTeamLogoUrl: 상단 인앱 배너에서 요청 팀 프로필 사진으로 노출(useNotificationBanner)
+      meta: { matchId: toStr(matchId), deepLink: toStr(deepLink) || `/match-roomdetail/${toStr(matchId)}`, actorTeamLogoUrl: toStr(actorTeamLogoUrl) },
       push: { enabled: true, status: "queued", sentAt: null, failReason: null },
       prefsCategory: "match",
       createdAt: serverTimestamp(),
@@ -1063,14 +1170,26 @@ export async function sendPaymentReminder({ matchRequestId, fromClubId } = {}) {
   const oppClubId = await getOpponentClubId(id, from);
   if (!oppClubId) throw new Error("상대 팀을 찾을 수 없습니다.");
 
+  // 요청(독촉) 보낸 팀 정보 — 상단 배너에 팀 프로필 사진/이름 노출용
+  let fromTeamName = "";
+  let fromTeamLogoUrl = "";
+  try {
+    const fc = await getDoc(doc(db, "clubs", from));
+    if (fc.exists()) {
+      fromTeamName = toStr(fc.data()?.name);
+      fromTeamLogoUrl = toStr(fc.data()?.logoUrl);
+    }
+  } catch (e) {}
+
   await notifyMatchRoomEvent({
     matchId: id,
     recipientClubId: oppClubId,
     subType: "matchPaymentReminder",
     type: "match_payment_reminder",
-    title: "구장비 결제 요청",
+    title: fromTeamName ? `${fromTeamName} · 구장비 결제 요청` : "구장비 결제 요청",
     body: "상대팀이 결제를 완료했어요. 구장비 결제를 진행해 경기를 확정해 주세요.",
     deepLink: `/match-pay/${id}`,
+    actorTeamLogoUrl: fromTeamLogoUrl,
   });
 
   try {
@@ -1227,6 +1346,8 @@ export async function confirmProposedSchedule({ matchRequestId, confirmedByClubI
       type: "match_confirmed",
       title: "경기 확정 🎉",
       body: "상대팀이 수락해 경기가 확정됐어요! 일정을 확인하세요.",
+      // 보낸 사람(제안자)이 푸시를 눌러 진입하면 경기 확정 축하창을 띄운다.
+      deepLink: `/match-roomdetail/${id}?celebrate=confirmed`,
     });
   }
 
@@ -2071,6 +2192,7 @@ function mapFinishedDoc(d) {
   return {
     id: d.id,
     status: toStr(data?.status),
+    resultState: toStr(data?.resultState), // "void"면 무효 처리된 경기
 
     actorClubId: toStr(data?.actorClubId),
     targetClubId: toStr(data?.targetClubId),
@@ -2079,6 +2201,14 @@ function mapFinishedDoc(d) {
     updatedAt: data?.updatedAt || null,
 
     fieldAddress: toStr(data?.field?.address || data?.fieldAddress || ""),
+
+    // 제휴구장 예약(분할결제) 정보 — 경기기록 카드에서 직접입력/구장예약 구분용
+    partnerBooking: data?.partnerBooking
+      ? {
+          venueName: toStr(data.partnerBooking.venueName),
+          courtName: toStr(data.partnerBooking.courtName),
+        }
+      : null,
 
     actorScore: data?.myScore ?? null,
     targetScore: data?.oppScore ?? null,

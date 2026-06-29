@@ -307,7 +307,7 @@ export default function MatchLineupConfirmSheet({
                   )}
                   <Texts>
                     <NameRow>
-                      {posKo ? <PositionChip label={posKo} size="sm" /> : null}
+                      {posKo ? <PositionChip label={posKo} size="sm" tone="text" /> : null}
                       <Name>{p.nickname}</Name>
                     </NameRow>
                     {hw ? <Meta>{hw}</Meta> : null}

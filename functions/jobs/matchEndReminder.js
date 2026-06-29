@@ -26,6 +26,34 @@ async function clubMemberUids(db, clubId) {
   }
 }
 
+// 한 팀의 "팀장" uid를 견고하게 해석: clubs.ownerUid → members의 owner/captain → 첫 멤버.
+// (ownerUid가 비어 있어도 결과 입력 알림이 양 팀 모두에게 가도록 보장)
+async function clubLeaderUid(db, clubId) {
+  const cid = String(clubId || "").trim();
+  if (!cid) return "";
+  try {
+    const cs = await db.collection("clubs").doc(cid).get();
+    const ownerUid = cs.exists ? String(cs.data()?.ownerUid || "").trim() : "";
+    if (ownerUid) return ownerUid;
+
+    // 폴백: members 서브컬렉션에서 owner/captain → 없으면 첫 멤버
+    const ms = await db.collection("clubs").doc(cid).collection("members").limit(100).get();
+    let captain = "";
+    let first = "";
+    ms.forEach((m) => {
+      const d = m.data() || {};
+      const role = String(d.role || "").trim();
+      if (!first) first = m.id;
+      if (!captain && (role === "owner" || role === "captain" || d.isCaptain === true)) {
+        captain = m.id;
+      }
+    });
+    return captain || first || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 const matchEndReminderTick = onSchedule("*/5 * * * *", async () => {
   const db = getDb();
   const FieldValue = getAdmin().firestore.FieldValue;
@@ -63,11 +91,11 @@ const matchEndReminderTick = onSchedule("*/5 * * * *", async () => {
         .map((x) => String(x || "").trim())
         .filter(Boolean);
 
+      // 양 팀 팀장(견고한 해석) — 결과 입력 알림은 양 팀장 모두에게
       const owners = [];
       for (const cid of clubIds) {
-        const cs = await db.collection("clubs").doc(cid).get();
-        const uid = cs.exists ? String(cs.data()?.ownerUid || "").trim() : "";
-        if (uid) owners.push(uid);
+        const uid = await clubLeaderUid(db, cid);
+        if (uid && !owners.includes(uid)) owners.push(uid);
       }
 
       if (owners.length === 0) {
