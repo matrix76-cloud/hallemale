@@ -6059,6 +6059,10 @@ export default function MatchRoomDetailPage() {
         oppName={oppName}
         oppLogoUrl={toStr(oppTeamView?.logoUrl)}
         oppRank={oppRank}
+        dateText={confDateLabel}
+        courtName={toStr(partnerPay?.pb?.courtName)}
+        venueName={toStr(fieldAddress) || toStr(partnerPay?.pb?.venueName)}
+        payText={partnerPay?.pb ? "양 팀 완료" : ""}
       />
 
       {/* 직접입력 구장 확정도 제휴구장과 동일한 '경기 확정' 축하로 통일 */}
@@ -6071,6 +6075,10 @@ export default function MatchRoomDetailPage() {
         oppName={oppName}
         oppLogoUrl={toStr(oppTeamView?.logoUrl)}
         oppRank={oppRank}
+        dateText={confDateLabel}
+        courtName={toStr(partnerPay?.pb?.courtName)}
+        venueName={toStr(fieldAddress) || toStr(partnerPay?.pb?.venueName)}
+        payText={partnerPay?.pb ? "양 팀 완료" : ""}
       />
 
       <MatchAcceptedCelebration
