@@ -59,7 +59,7 @@ function isCancelledOrRejectedRow(row) {
 
 function getActionsByPhase({ direction, phase }) {
   if (phase === "pending" && direction === "sent") {
-    return [{ type: "cancel", label: "요청 취소" }];
+    return [{ type: "cancel", label: "요청 철회" }];
   }
   if (phase === "pending" && direction === "received") {
     return [
@@ -165,10 +165,10 @@ function getMatchBadgeMeta(row) {
     stateLabel = direction === "sent" ? "응답대기" : "요청도착";
     tone = "pending";
   } else if (phase === "rejected") {
-    stateLabel = direction === "sent" ? "상대 거부" : "내가 거부";
+    stateLabel = direction === "sent" ? "상대 거절" : "내가 거절";
     tone = "danger";
   } else if (phase === "cancelled") {
-    stateLabel = direction === "sent" ? "내가 취소" : "상대 취소";
+    stateLabel = direction === "sent" ? "내가 철회" : "상대 철회";
     tone = "muted";
   } else if (phase === "accepted") {
     stateLabel = "수락됨";
@@ -269,21 +269,148 @@ const ListCard = styled.div`
 `;
 
 const ItemCard = styled.div`
+  position: relative;
   width: 100%;
   background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
+  border-radius: 16px;
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "#eef2f7"};
   box-shadow: ${({ theme }) => theme.shadows.card};
   overflow: hidden;
-  padding: 0px 10px;
-`;
-
-const CardInner = styled.div`
-  padding: 14px 14px 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+`;
+
+/* 앱2 스타일: 좌측 상대팀 썸네일 + 우측 정보 (클릭 시 팀 프로필로 이동) */
+const CardTop = styled.button`
+  border: none;
+  background: transparent;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+
+  &:active {
+    opacity: 0.9;
+  }
+`;
+
+const Thumb = styled.div`
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  /* 1~3위 왕관이 위로 튀어나오므로 상단 여백 확보 */
+  margin-top: ${({ $crowned }) => ($crowned ? "12px" : "0")};
+`;
+
+const ThumbInner = styled.div`
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
+`;
+
+const ThumbImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+`;
+
+/* 1~3위 상대팀: 썸네일 위 왕관 */
+const ThumbCrown = styled.img`
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
+`;
+
+const Body = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+`;
+
+/* 팀명 + 상태 배지 한 줄 (배지는 우측 코너로) */
+const NameRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+/* 지역 · 몇대몇 pill */
+const MetaRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+`;
+
+const MetaText = styled.span`
+  font-size: 12.5px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+`;
+
+const MetaDot = styled.span`
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.textWeak};
+  opacity: 0.55;
+  flex-shrink: 0;
+`;
+
+/* 경기 형식(3v3/4v4/5v5) — 제안의 핵심.
+   보라 배경 없이 농구공 + 진한 글씨의 깔끔한 아웃라인 칩 */
+const FormatChip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 7px 12px 7px 8px;
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#ffffff"};
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+`;
+
+const FormatChipIcon = styled.img`
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+`;
+
+const FormatUnit = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const CardHeader = styled.div`
@@ -320,8 +447,9 @@ const BadgeRow = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: wrap;
+  margin-top: 3px;
 `;
 
 const TONE_PALETTE = {
@@ -346,9 +474,12 @@ const TONE_PALETTE = {
 const Badge = styled.span`
   display: inline-flex;
   align-items: center;
-  padding: 7px 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 5px 10px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 11.5px;
+  font-weight: 700;
   line-height: 1;
   white-space: nowrap;
   background: ${({ $tone, theme }) =>
@@ -438,7 +569,8 @@ const TeamTexts = styled.div`
 `;
 
 const TeamName = styled.div`
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 800;
   color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
@@ -464,6 +596,14 @@ const LineupTextRow = styled.div`
   align-items: center;
   gap: 8px;
   min-width: 0;
+`;
+
+/* 라인업 안내 앞 3D 농구공 액센트 (앱 농구 테마) */
+const LineupIcon = styled.img`
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
 `;
 
 const LineupText = styled.div`
@@ -517,20 +657,24 @@ const ActionGrid = styled.div`
 
 const ActionButtonSm = styled.button`
   width: 100%;
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: 12px;
+  padding: 11px 12px;
   font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ $variant, theme }) =>
     $variant === "accept"
-      ? theme.colors.primary
+      ? "linear-gradient(135deg, #6d5ae0 0%, #4f46e5 100%)"
       : theme.mode === "dark"
       ? theme.colors.surface
       : "#ffffff"};
   color: ${({ $variant, theme }) =>
     $variant === "accept" ? "#ffffff" : theme.colors.textStrong};
-  ${({ $variant }) => ($variant === "accept" ? "border-color: transparent;" : "")}
+  ${({ $variant }) =>
+    $variant === "accept"
+      ? "border-color: transparent; box-shadow: 0 6px 14px rgba(79, 70, 229, 0.28);"
+      : ""}
 
   &:active {
     transform: translateY(1px);
@@ -549,11 +693,14 @@ const CancelButton = styled.button`
   background: ${({ theme }) =>
     theme.mode === "dark" ? "rgba(251, 146, 60, 0.12)" : "#fff7ed"};
   color: ${({ theme }) => (theme.mode === "dark" ? "#fdba74" : "#c2410c")};
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 12px;
+  border-radius: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  text-align: center;
 
   &:active {
     transform: translateY(1px);
@@ -987,7 +1134,7 @@ export default function MatchingManagePage() {
             onClick={() => setActiveTab("closed")}
           >
             <TabLabel>
-              취소 제안 <TabCount>({closedCount})</TabCount>
+              철회·거절 <TabCount>({closedCount})</TabCount>
             </TabLabel>
           </TabButton>
         </TabsWrap>
@@ -1002,9 +1149,12 @@ export default function MatchingManagePage() {
 
         {!loading && !err && visibleItems.length === 0 && (
           <EmptyState
+            icon={
+              activeTab === "closed" ? "🗂️" : activeTab === "sent" ? "📨" : "📬"
+            }
             text={
               activeTab === "closed"
-                ? "취소되거나 거부된 제안이 없습니다."
+                ? "철회되거나 거절된 제안이 없습니다."
                 : "표시할 매칭이 없습니다."
             }
           />
@@ -1034,90 +1184,82 @@ export default function MatchingManagePage() {
 
               const isSentTab = activeTab === "sent";
 
-              const headerTitle =
+              const directionLabel =
                 row.direction === "received"
-                  ? `${oppName}에서 제안`
+                  ? "받은 제안"
                   : row.direction === "sent"
-                  ? `${oppName}에 제안`
-                  : `${oppName}`;
+                  ? "보낸 제안"
+                  : "제안";
 
               return (
                 <ItemCard key={row.matchId || latest?.matchId || row.opponentClubId}>
-                  <CardInner>
-                    <CardHeader>
-                      <HeaderLeft>
-                        <HeaderTitle title={headerTitle}>{headerTitle}</HeaderTitle>
+                  <CardTop type="button" onClick={() => handleTeamClick(row.opponentClubId)}>
+                    <Thumb $crowned={hasCrown}>
+                      {hasCrown ? (
+                        <ThumbCrown src={images.logo} alt={`${oppRank}위`} />
+                      ) : null}
+                      <ThumbInner>
+                        <ThumbImg src={logoSrc} alt={oppName} />
+                      </ThumbInner>
+                    </Thumb>
 
-                        <TeamInfoCell $crowned={hasCrown} onClick={() => handleTeamClick(row.opponentClubId)}>
-                          <LogoCrownWrap>
-                            {hasCrown ? (
-                              <CrownImg src={images.logo} alt={`${oppRank}위`} />
-                            ) : null}
-                            <LogoWrap>
-                              <LogoImg src={logoSrc} alt={oppName} />
-                            </LogoWrap>
-                          </LogoCrownWrap>
-                          <TeamTexts>
-                            <TeamName>{oppName}</TeamName>
-                            <TeamRegion>{oppRegion || "지역 미등록"}</TeamRegion>
-                          </TeamTexts>
-                        </TeamInfoCell>
-                      </HeaderLeft>
+                    <Body>
+                      <NameRow>
+                        <TeamName>{oppName}</TeamName>
+                        <Badge $tone={badgeMeta.tone}>{badgeMeta.stateLabel}</Badge>
+                      </NameRow>
 
-                      <HeaderRight>
-                        <BadgeRow>
-                          {fmtLabel ? <SizeBadge>{fmtLabel}</SizeBadge> : null}
-                          <Badge $tone={badgeMeta.tone}>
-                            {badgeMeta.stateLabel}
-                          </Badge>
-                        </BadgeRow>
-                        {ts ? <BadgeTime>{ts}</BadgeTime> : <div />}
-                      </HeaderRight>
-                    </CardHeader>
+                      <MetaRow>
+                        <MetaText>{oppRegion || "지역 미등록"}</MetaText>
+                        <MetaDot />
+                        <MetaText>{directionLabel}</MetaText>
+                      </MetaRow>
 
-                    <Divider />
+                      {fmtLabel ? (
+                        <FormatChip>
+                          <FormatChipIcon
+                            src={images.emoji3dBasketball}
+                            alt=""
+                            aria-hidden="true"
+                          />
+                          {fmtLabel} <FormatUnit>매칭</FormatUnit>
+                        </FormatChip>
+                      ) : null}
+                    </Body>
+                  </CardTop>
 
-                    <LineupTextRow>
-                      <LineupText>
-                        {fmtLabel
-                          ? `${fmtLabel} 매칭 · 라인업은 매칭룸에서 확정해요`
-                          : "라인업은 매칭룸에서 확정해요"}
-                      </LineupText>
-                    </LineupTextRow>
+                  {actions.length > 0 && (
+                    <ActionRow $align="stretch">
+                      {isSentTab && actions.length === 1 && actions[0].type === "cancel" ? (
+                        <CancelButton
+                          type="button"
+                          onClick={() => handleAction(row, actions[0])}
+                          disabled={busyKey === `cancel:${toStr(latest?.matchId)}`}
+                        >
+                          {busyKey === `cancel:${toStr(latest?.matchId)}` ? "처리중..." : "요청 철회"}
+                        </CancelButton>
+                      ) : (
+                        <ActionGrid>
+                          {actions.map((a) => {
+                            const matchId = toStr(latest?.matchId);
+                            const disabled = busyKey === `${a.type}:${matchId}`;
 
-                    {actions.length > 0 && (
-                      <ActionRow $align={isSentTab ? "right" : "stretch"}>
-                        {isSentTab && actions.length === 1 && actions[0].type === "cancel" ? (
-                          <CancelButton
-                            type="button"
-                            onClick={() => handleAction(row, actions[0])}
-                            disabled={busyKey === `cancel:${toStr(latest?.matchId)}`}
-                          >
-                            {busyKey === `cancel:${toStr(latest?.matchId)}` ? "처리중..." : "요청 취소"}
-                          </CancelButton>
-                        ) : (
-                          <ActionGrid>
-                            {actions.map((a) => {
-                              const matchId = toStr(latest?.matchId);
-                              const disabled = busyKey === `${a.type}:${matchId}`;
-
-                              return (
-                                <ActionButtonSm
-                                  key={a.type}
-                                  type="button"
-                                  $variant={a.type}
-                                  onClick={() => handleAction(row, a)}
-                                  disabled={disabled}
-                                >
-                                  {disabled ? "처리중..." : a.label}
-                                </ActionButtonSm>
-                              );
-                            })}
-                          </ActionGrid>
-                        )}
-                      </ActionRow>
-                    )}
-                  </CardInner>
+                            return (
+                              <ActionButtonSm
+                                key={a.type}
+                                type="button"
+                                $variant={a.type}
+                                onClick={() => handleAction(row, a)}
+                                disabled={disabled}
+                              >
+                                {disabled ? "처리중..." : a.label}
+                              </ActionButtonSm>
+                            );
+                          })}
+                        </ActionGrid>
+                      )}
+                    </ActionRow>
+                  )}
                 </ItemCard>
               );
             })}

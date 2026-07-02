@@ -1225,6 +1225,7 @@ const PaidDone = styled.span`
   color: ${({ $on, theme }) => ($on ? "#16a34a" : mrp(theme.mode).t3)};
 `;
 const PaidDivider = styled.div`height: 1px; background: ${({ theme }) => mrp(theme.mode).line}; margin: 8px 0 2px;`;
+const PaidNote = styled.div`margin-top: 4px; font-size: 12px; color: ${({ theme }) => mrp(theme.mode).t3};`;
 const ReceiptBtn = styled.button`
   width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px; cursor: pointer;
   border: 1px solid ${({ theme }) => mrp(theme.mode).line2}; background: transparent;
@@ -2547,14 +2548,16 @@ const ScoreTeamCol = styled.div`
 `;
 
 const ScoreLogoChip = styled.div`
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
   display: grid;
   place-items: center;
+  box-shadow: 0 0 0 1px ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.05)"};
 `;
 
 /* 1~3위: 로고 위에 겹쳐지는 앱 로고 왕관 */
@@ -2647,6 +2650,115 @@ const RatingSubtitle = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textWeak};
   line-height: 1.5;
+`;
+
+/* 완료 경기 결과 히어로 배너 (승리=그린 그라데이션 / 무·패 컬러) */
+const ResultBanner = styled.div`
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 2px 0 14px;
+  padding: 13px 16px;
+  border-radius: 14px;
+  background: ${({ $outcome, theme }) =>
+    $outcome === "win"
+      ? "linear-gradient(135deg,#34d399 0%,#10b981 100%)"
+      : $outcome === "lose"
+      ? theme.mode === "dark"
+        ? "rgba(220,38,38,0.16)"
+        : "#fef2f2"
+      : theme.mode === "dark"
+      ? "rgba(255,255,255,0.06)"
+      : "#f3f4f6"};
+  box-shadow: ${({ $outcome }) =>
+    $outcome === "win" ? "0 12px 22px -12px rgba(16,185,129,0.6)" : "none"};
+`;
+const ResultBannerText = styled.div`
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  color: ${({ $outcome, theme }) =>
+    $outcome === "win"
+      ? "#ffffff"
+      : $outcome === "lose"
+      ? "#dc2626"
+      : theme.colors.textStrong};
+`;
+const ResultBanner3D = styled.img`
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.25));
+`;
+
+/* 완료 경기: 가로 스코어보드 (가운데 큰 점수 · 이긴 쪽만 진하게) */
+const ScoreBoard = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 2px;
+`;
+const SbTeam = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+`;
+const SbLogoWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+const SbLogo = styled.div`
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
+  box-shadow: 0 0 0 1px ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.05)"};
+`;
+const SbName = styled.div`
+  font-size: 13.5px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+`;
+const SbSub = styled.div`
+  font-size: 11px;
+  color: ${({ $me, theme }) => ($me ? theme.colors.primary : theme.colors.textWeak)};
+  text-align: center;
+`;
+const SbScore = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 20px;
+`;
+const SbNum = styled.div`
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: ${({ $win, theme }) =>
+    $win ? theme.colors.textStrong : theme.colors.textWeak};
+`;
+const SbColon = styled.div`
+  font-size: 22px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const StarsRow = styled.div`
@@ -3180,6 +3292,10 @@ export default function MatchRoomDetailPage() {
   useEffect(() => {
     if (!room) return;
     if (toStr(room.resultState) !== "waiting_accept") return;
+
+    // ✅ 참여팀(내 팀이 이 경기의 actor/target)일 때만 자동 확정 트리거 (비참여자 뷰어가 남의 경기 전적을 쓰지 않도록)
+    const me = toStr(myClubId);
+    if (!me || (me !== toStr(room.actorClubId) && me !== toStr(room.targetClubId))) return;
 
     const schMs = room.scheduledAt ? new Date(room.scheduledAt).getTime() : NaN;
     if (!Number.isFinite(schMs)) return;
@@ -3983,7 +4099,9 @@ export default function MatchRoomDetailPage() {
         targetScore,
         opponentRating: oppRating,
         submittedByClubId: myClubId,
-        authorDisplayName,
+        authorName: authorDisplayName,
+        authorUid: myUid,
+        authorRole: isTeamLeader ? "owner" : "member",
       });
 
       setOppRating(0);
@@ -4054,13 +4172,16 @@ export default function MatchRoomDetailPage() {
       window.alert("이의 제기는 팀장만 할 수 있어요.");
       return;
     }
-    const ok = window.confirm("이의 제기할까요?");
+    const ok = window.confirm(
+      "이의를 제기하면 입력된 결과가 취소되고, 두 팀이 협의 후 결과를 다시 입력할 수 있어요. 진행할까요?"
+    );
     if (!ok) return;
 
     setResultBusy(true);
     try {
       await disputeMatchResult({ matchRequestId: room.id });
       await refresh();
+      window.alert("이의가 제기됐어요. 상대팀과 협의 후 결과를 다시 입력해 주세요.");
     } catch (e) {
       window.alert(e?.message || "이의 제기에 실패했습니다.");
     } finally {
@@ -4640,44 +4761,51 @@ export default function MatchRoomDetailPage() {
       <SectionCard>
         <SectionTitleRow>
           <SectionTitleLeft>
-            <span>최종 스코어</span>
+            <span>경기 결과</span>
           </SectionTitleLeft>
           <SectionTitleActions />
         </SectionTitleRow>
 
-        <ScoreCardRow>
-          <ScoreTeamCol>
-            <ScoreLogoWrap>
+        <ResultBanner $outcome={outcome}>
+          {outcome === "win" && <ResultBanner3D src={images.emoji3dTrophy} alt="" />}
+          <ResultBannerText $outcome={outcome}>
+            {outcome === "win" ? "승리!" : outcome === "lose" ? "패배" : "무승부"}
+          </ResultBannerText>
+        </ResultBanner>
+
+        <ScoreBoard>
+          <SbTeam>
+            <SbLogoWrap>
               {myRank && myRank <= 3 ? <ScoreCrown src={images.logo} alt={`${myRank}위`} /> : null}
-              <ScoreLogoChip>
+              <SbLogo>
                 <ScoreLogoImg src={teamLogoSrc(myTeamView?.logoUrl)} alt={myTeamView?.name} />
-              </ScoreLogoChip>
-            </ScoreLogoWrap>
-            <ScoreColName>{myTeamView?.name || "우리팀"}</ScoreColName>
-            <ScoreColSub $me>우리팀{myRank ? ` · 랭킹 ${myRank}위` : ""}</ScoreColSub>
-            <ScoreReadBox $outcome={outcome}>
+              </SbLogo>
+            </SbLogoWrap>
+            <SbName>{myTeamView?.name || "우리팀"}</SbName>
+            <SbSub $me>우리팀{myRank ? ` · ${myRank}위` : ""}</SbSub>
+          </SbTeam>
+
+          <SbScore>
+            <SbNum $win={outcome === "win" || outcome === "draw"}>
               {Number.isFinite(myScoreNum) ? myScoreNum : "-"}
-            </ScoreReadBox>
-          </ScoreTeamCol>
-
-          <ScoreColon>:</ScoreColon>
-
-          <ScoreTeamCol>
-            <ScoreLogoWrap>
-              {oppRank && oppRank <= 3 ? <ScoreCrown src={images.logo} alt={`${oppRank}위`} /> : null}
-              <ScoreLogoChip>
-                <ScoreLogoImg src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppTeamView?.name} />
-              </ScoreLogoChip>
-            </ScoreLogoWrap>
-            <ScoreColName>{oppTeamView?.name || "상대팀"}</ScoreColName>
-            <ScoreColSub>{oppRank ? `랭킹 ${oppRank}위` : "랭킹 정보 없음"}</ScoreColSub>
-            <ScoreReadBox $outcome={outcome}>
+            </SbNum>
+            <SbColon>:</SbColon>
+            <SbNum $win={outcome === "lose" || outcome === "draw"}>
               {Number.isFinite(oppScoreNum) ? oppScoreNum : "-"}
-            </ScoreReadBox>
-          </ScoreTeamCol>
-        </ScoreCardRow>
+            </SbNum>
+          </SbScore>
 
-        <ScoreHeroHint>경기 결과가 확정되었습니다.</ScoreHeroHint>
+          <SbTeam>
+            <SbLogoWrap>
+              {oppRank && oppRank <= 3 ? <ScoreCrown src={images.logo} alt={`${oppRank}위`} /> : null}
+              <SbLogo>
+                <ScoreLogoImg src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppTeamView?.name} />
+              </SbLogo>
+            </SbLogoWrap>
+            <SbName>{oppTeamView?.name || "상대팀"}</SbName>
+            <SbSub>{oppRank ? `${oppRank}위` : "랭킹 없음"}</SbSub>
+          </SbTeam>
+        </ScoreBoard>
       </SectionCard>
     </>
   );
@@ -5337,7 +5465,8 @@ export default function MatchRoomDetailPage() {
                     <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><PaidDone $on={!!aPaid}>{aPaid ? "✓ 결제완료" : "대기"}</PaidDone></PaidRow>
                     <PaidRow><span>{toStr(pb.opponentTeamName) || "B팀"}</span><PaidDone $on={!!bPaid}>{bPaid ? "✓ 결제완료" : "대기"}</PaidDone></PaidRow>
                     <PaidDivider />
-                    <PaidRow $big><span>내 결제 금액 (1/2)</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
+                    <PaidRow $big><span>{isTeamLeader ? "내 결제 금액 (1/2)" : "우리 팀 결제 금액 (1/2)"}</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
+                    {!isTeamLeader ? <PaidNote>팀장이 일괄 결제했어요.</PaidNote> : null}
                     <ReceiptBtn type="button" onClick={() => showToast && showToast({ message: "결제 영수증 기능은 준비 중이에요." })}>
                       🧾 결제 영수증 보기
                     </ReceiptBtn>

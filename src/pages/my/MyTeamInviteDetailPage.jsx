@@ -35,7 +35,7 @@ function formatTimeAny(v) {
 export default function MyTeamInviteDetailPage() {
   const nav = useNavigate();
   const { clubId, inviteId } = useParams();
-  const { userDoc } = useAuth();
+  const { userDoc, refreshUser } = useAuth();
   const uid = userDoc?.uid || userDoc?.id || "";
 
   const [loading, setLoading] = useState(true);
@@ -99,10 +99,11 @@ export default function MyTeamInviteDetailPage() {
     setSaving(true);
     try {
       await acceptClubInvite({ clubId, inviteId, uid });
+      await refreshUser?.(); // ✅ userDoc.activeTeamId 즉시 갱신 (stale 방지)
       window.alert("팀에 가입했어요.");
       nav("/my", { replace: true });
     } catch (e) {
-      window.alert("수락에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      window.alert(e?.message || "수락에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSaving(false);
     }

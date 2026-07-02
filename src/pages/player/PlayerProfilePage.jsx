@@ -331,6 +331,15 @@ const SectionIconCircle = styled.div`
   font-size: 16px;
 `;
 
+/* 섹션 헤더 3D 아이콘 */
+const Ico3D = styled.img`
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  transform: translateY(-2px);
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.16));
+`;
+
 const SectionTitleText = styled.h2`
   margin: 0;
   font-size: 15px;
@@ -1079,7 +1088,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <FiUser />
+                  <Ico3D src={images.emoji3dIdCard} alt="" />
                 </SectionIconCircle>
                 <SectionTitleText>선수 프로필</SectionTitleText>
               </SectionHeaderLeft>
@@ -1116,7 +1125,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
               <SectionHeaderRow>
                 <SectionHeaderLeft>
                   <SectionIconCircle>
-                    <FiShield />
+                    <Ico3D src={images.emoji3dShield} alt="" />
                   </SectionIconCircle>
                   <SectionTitleText>소속 팀</SectionTitleText>
                 </SectionHeaderLeft>
@@ -1159,7 +1168,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <FiBarChart2 />
+                  <Ico3D src={images.emoji3dBarchart} alt="" />
                 </SectionIconCircle>
                 <SectionTitleText>전적</SectionTitleText>
               </SectionHeaderLeft>
@@ -1173,7 +1182,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <FiClock />
+                  <Ico3D src={images.emoji3dFlag} alt="" />
                 </SectionIconCircle>
                 <SectionTitleText>경기 기록</SectionTitleText>
               </SectionHeaderLeft>
@@ -1212,7 +1221,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <FiImage />
+                  <Ico3D src={images.emoji3dPicture} alt="" />
                 </SectionIconCircle>
                 <SectionTitleText>경기 사진 / 영상</SectionTitleText>
               </SectionHeaderLeft>

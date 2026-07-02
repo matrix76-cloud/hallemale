@@ -150,7 +150,7 @@ export default function CourtBookingPage() {
     setSelected({ start: s.start, end: s.end });
   };
 
-  const price = selected && court ? calcSlotPrice(court, selected.start, selected.end) : 0;
+  const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date) : 0;
   const need = Math.max(0, price - balance);
   const handleCharge = async (amount) => {
     if (!uid) return;
@@ -189,6 +189,12 @@ export default function CourtBookingPage() {
     if (!ok) return;
     setPaying(true);
     try {
+      // ✅ 슬롯 검증이 있는 writePartnerBooking을 먼저 → 슬롯 충돌 시 스케줄이 잘못 기록되지 않음
+      await writePartnerBooking({
+        matchId, venue, court, date, startTime: selected.start, endTime: selected.end,
+        proposerUid: uid, proposerClubId: myClubId, proposerTeamName: myTeamName,
+        opponentClubId, opponentTeamName: oppTeamName,
+      });
       await proposeMatchSchedule({
         matchRequestId: matchId,
         scheduledAtISO: new Date(`${date}T${selected.start}:00`).toISOString(),
@@ -196,11 +202,6 @@ export default function CourtBookingPage() {
         fieldLatLng: { lat: venue.lat, lng: venue.lng },
         durationMin: toMin(selected.end) - toMin(selected.start),
         proposedByClubId: myClubId,
-      });
-      await writePartnerBooking({
-        matchId, venue, court, date, startTime: selected.start, endTime: selected.end,
-        proposerUid: uid, proposerClubId: myClubId, proposerTeamName: myTeamName,
-        opponentClubId, opponentTeamName: oppTeamName,
       });
       toast("상대팀에 구장·일정을 제안했어요!");
       navigate(`/match-roomdetail/${matchId}`, { replace: true });
@@ -254,7 +255,7 @@ export default function CourtBookingPage() {
                 <Slot key={i} $st={st} $on={on} disabled={st !== "open"} onClick={() => onSlotClick(s)}>
                   <b>{s.start}~{s.end}</b>
                   <span className={st === "open" ? "price" : ""}>
-                    {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감" : `${calcSlotPrice(court, s.start, s.end).toLocaleString()}원`}
+                    {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감" : `${calcSlotPrice(court, s.start, s.end, date).toLocaleString()}원`}
                   </span>
                 </Slot>
               );

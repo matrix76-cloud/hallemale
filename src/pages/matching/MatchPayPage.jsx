@@ -108,8 +108,7 @@ export default function MatchPayPage() {
       tossHandledRef.current = true;
       let pend = null;
       try { pend = JSON.parse(sessionStorage.getItem(TOSS_PENDING_KEY) || "null"); } catch {}
-      try { sessionStorage.removeItem(TOSS_PENDING_KEY); } catch {}
-      if (!pend || pend.matchId !== id) { stripUrl(); return; }
+      if (!pend || pend.matchId !== id) { try { sessionStorage.removeItem(TOSS_PENDING_KEY); } catch {} stripUrl(); return; }
       (async () => {
         setPaying(true);
         try {
@@ -117,18 +116,21 @@ export default function MatchPayPage() {
             matchId: id, side: pend.side, payerUid: uid, payerTeamName: pend.payerTeamName,
             payerName: pend.payerName, payerPhone: pend.payerPhone,
           });
+          // ✅ DB 쓰기 성공 이후에만 pending 제거 + URL 정리 (실패 시 재시도/정산 가능)
+          try { sessionStorage.removeItem(TOSS_PENDING_KEY); } catch {}
           if (res?.state === "confirmed") {
             navedRef.current = true;
             navigate(`/match-roomdetail/${id}`, { replace: true, state: { celebrateConfirmed: true } });
             return;
           }
+          stripUrl();
           await load();
           toast("결제 완료! 상대팀 결제를 기다리는 중이에요.");
         } catch (e) {
-          toast(e?.message || "결제 처리에 실패했어요.");
+          // 실패: pending 유지 + URL 유지 → 새로고침 시 재시도 가능
+          toast(e?.message || "결제 처리에 실패했어요. 잠시 후 다시 시도해 주세요.");
         } finally {
           setPaying(false);
-          stripUrl();
         }
       })();
     }
@@ -227,14 +229,14 @@ export default function MatchPayPage() {
         </VInfo>
       </VenueCard>
 
-      {/* 부담분 */}
-      <Card>
+      {/* 부담분 — 영수증형 카드 */}
+      <ReceiptCard>
         <Sub>{myTeam} 부담분</Sub>
         <Line><span>대관료 (양 팀 공동)</span><b>{total.toLocaleString()}원</b></Line>
         <Line><span>우리 팀 부담 (1/2)</span><b>{myShare.toLocaleString()}원</b></Line>
-        <Divider />
-        <Line $big><span>결제 금액</span><Strong>{myShare.toLocaleString()}원</Strong></Line>
-      </Card>
+        <ReceiptDivider />
+        <TotalRow $big><span>결제 금액</span><Strong>{myShare.toLocaleString()}원</Strong></TotalRow>
+      </ReceiptCard>
 
       {/* 양 팀 결제 현황 */}
       <Card>
@@ -307,7 +309,37 @@ const VLine = styled.div`
 
 const Line = styled.div`display: flex; align-items: center; justify-content: space-between; font-size: ${({ $big }) => ($big ? "15px" : "14px")}; color: ${({ theme }) => theme.colors.textNormal}; & b { font-weight: 700; color: ${({ theme }) => theme.colors.textStrong}; }`;
 const Strong = styled.b`font-size: 20px; font-weight: 800; color: ${VIO} !important;`;
-const Divider = styled.div`height: 1px; background: ${({ theme }) => theme.colors.border}; margin: 2px 0;`;
+
+/* ── 영수증형 카드 (앱.png 참고): 절취선 점선 + 티켓 노치 + 강조 총액 pill ── */
+const ReceiptCard = styled(Card)`
+  position: relative;
+  overflow: hidden;
+`;
+const ReceiptDivider = styled.div`
+  position: relative;
+  margin: 6px -16px;
+  height: 0;
+  border-top: 1.5px dashed ${({ theme }) => (theme.mode === "dark" ? "rgba(124,58,237,0.45)" : "rgba(124,58,237,0.35)")};
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    background: ${({ theme }) => theme.colors.bg};
+  }
+  &::before { left: -8px; }
+  &::after { right: -8px; }
+`;
+const TotalRow = styled(Line)`
+  margin-top: 2px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,58,237,0.16)" : "#f5f3ff")};
+`;
 
 const TeamRow = styled.div`display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: ${({ theme }) => theme.colors.textStrong}; font-weight: 600;`;
 const Stat = styled.span`font-size: 13px; font-weight: 700; color: ${({ $on }) => ($on ? "#16A34A" : "#94A3B8")};`;

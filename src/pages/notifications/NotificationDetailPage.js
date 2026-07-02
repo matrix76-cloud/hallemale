@@ -5,7 +5,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
 import { NOTIFICATIONS_BY_ID } from "../../mock/notificationsMock";
 import { getNotice } from "../../services/noticesService";
+import { getNotificationById } from "../../services/notificationService";
 import SubHeaderBar from "../../layouts/components/SubHeaderBar";
+import { getNotiCategory } from "../../utils/notificationDefinitions";
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
@@ -37,19 +39,7 @@ const KindBadge = styled.span`
   font-size: 10px;
   font-weight: 600;
   color: #ffffff;
-
-  ${({ kind }) => {
-    if (kind === "notice") {
-      return `background:#2563eb;`;
-    }
-    if (kind === "event") {
-      return `background:#2563eb;`;
-    }
-    if (kind === "match") {
-      return `background:#22c55e;`;
-    }
-    return `background:#6b7280;`;
-  }}
+  background: ${({ $color }) => $color || "#6b7280"};
 `;
 
 const ImportantLabel = styled.span`
@@ -104,8 +94,23 @@ export default function NotificationDetailPage() {
     }
     let alive = true;
     setLoading(true);
-    getNotice(notificationId)
-      .then((n) => {
+    // 1) 실제 알림(notifications) 문서를 id로 조회 → 있으면 제목/본문 표시
+    // 2) 없으면 관리자 공지(notices)에서 조회
+    (async () => {
+      try {
+        const noti = await getNotificationById(notificationId);
+        if (!alive) return;
+        if (noti) {
+          setData({
+            kind: noti.kind || "",
+            title: noti.title,
+            body: noti.body,
+            createdAt: noti.createdAt,
+            important: false,
+          });
+          return;
+        }
+        const n = await getNotice(notificationId);
         if (!alive) return;
         setData(
           n
@@ -118,13 +123,12 @@ export default function NotificationDetailPage() {
               }
             : null
         );
-      })
-      .catch(() => {
+      } catch (e) {
         if (alive) setData(null);
-      })
-      .finally(() => {
+      } finally {
         if (alive) setLoading(false);
-      });
+      }
+    })();
     return () => {
       alive = false;
     };
@@ -154,14 +158,7 @@ export default function NotificationDetailPage() {
     );
   }
 
-  const kindLabel =
-    data.kind === "notice"
-      ? "공지"
-      : data.kind === "event"
-      ? "이벤트"
-      : data.kind === "match"
-      ? "매칭"
-      : "시스템";
+  const cat = getNotiCategory(data.kind);
 
   return (
     <>
@@ -169,7 +166,7 @@ export default function NotificationDetailPage() {
       <PageWrap>
       
         <MetaRow>
-          <KindBadge kind={data.kind}>{kindLabel}</KindBadge>
+          <KindBadge $color={cat.color}>{cat.label}</KindBadge>
           <span>{formatTime(data.createdAt)}</span>
           {data.important && <ImportantLabel>중요</ImportantLabel>}
         </MetaRow>

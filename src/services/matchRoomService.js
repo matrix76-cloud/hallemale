@@ -25,6 +25,7 @@ import {
   documentId,
   addDoc,
   onSnapshot,
+  increment,
 } from "firebase/firestore";
 import { uploadCompressedImageMedia } from "./mediaService";
 import { getUserProfileByUid } from "./userService";
@@ -638,6 +639,12 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
       scheduledAt: mr?.scheduledAt || null,
       durationMin: Number.isFinite(Number(mr?.durationMin)) ? Number(mr.durationMin) : null,
 
+      // ✅ 경기 형식(몇대몇) — 카드 표시용
+      matchSizeKey:
+        toStr(mr?.matchSizeKey) ||
+        toStr(mr?.fromLineupSnapshot?.matchSizeKey) ||
+        toStr(mr?.toLineupSnapshot?.matchSizeKey),
+
       proposedByClubId: toStr(mr?.proposedByClubId),
       confirmedByClubId: toStr(mr?.confirmedByClubId),
 
@@ -669,6 +676,12 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
       resultState: mr?.resultState ?? null,
       result: mr?.result || null,
       iAmActor,
+
+      // ✅ 취소된 경기 카드용 — 상세페이지와 동일 정보(취소 주체·사유·환불 금액) 표시
+      cancelledByClubId: toStr(mr?.cancelledByClubId),
+      cancelReason: toStr(mr?.cancelReason),
+      cancelledAt: mr?.cancelledAt || null,
+      refund: mr?.refund && typeof mr.refund === "object" ? mr.refund : null,
 
       // 미확인 배지용
       lastActivityAt: mr?.lastActivityAt || null,
@@ -1619,31 +1632,41 @@ export async function submitMatchResultWithMedia({
     reviewAlreadyNotified = !!cur.data()?.reviewRequestSent;
   } catch (e) {}
 
-  await updateDoc(ref, {
-    // score SSOT
-    myScore: as, // actorScore
-    oppScore: ts, // targetScore
+  // ✅ 동시 입력 방지: 상대팀이 이미 결과를 제출/확정했으면 덮어쓰기 금지 (트랜잭션)
+  await runTransaction(db, async (tx) => {
+    const cur = await tx.get(ref);
+    const d = cur.exists() ? cur.data() || {} : {};
+    const rs = toStr(d.resultState);
+    const submitter = toStr(d?.result?.submittedByClubId);
+    if ((rs === "waiting_accept" || rs === "confirmed") && submitter && submitter !== by) {
+      throw new Error("상대팀이 먼저 결과를 입력했어요. 새로고침 후 확인해 주세요.");
+    }
+    tx.update(ref, {
+      // score SSOT
+      myScore: as, // actorScore
+      oppScore: ts, // targetScore
 
-    // ✅ confirmed 상태 유지(확정된 게임에서 결과 입력)
-    status: "confirmed",
-    resultState: "waiting_accept",
-    reviewRequestSent: true,
+      // ✅ confirmed 상태 유지(확정된 게임에서 결과 입력)
+      status: "confirmed",
+      resultState: "waiting_accept",
+      reviewRequestSent: true,
 
-    result: {
-      submittedByClubId: by,
+      result: {
+        submittedByClubId: by,
 
-      // ✅ 작성자 메타 (있으면 저장, 없으면 빈값)
-      authorUid: auid,
-      authorName: aname,
-      authorRole: arole,
+        // ✅ 작성자 메타 (있으면 저장, 없으면 빈값)
+        authorUid: auid,
+        authorName: aname,
+        authorRole: arole,
 
-      comment: cleanComment,
-      photoUrls: uploadedUrls,
-      opponentRating: safeNum(opponentRating, 0),
-      submittedAt: serverTimestamp(),
-    },
+        comment: cleanComment,
+        photoUrls: uploadedUrls,
+        opponentRating: safeNum(opponentRating, 0),
+        submittedAt: serverTimestamp(),
+      },
 
-    updatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   });
 
   // (1-13) 결과 입력 알림 → 상대 팀장 (확인/인정 요청)
@@ -2019,16 +2042,59 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
 }
 
 
+// 이의 제기 = 상대가 입력한 결과를 되돌려 "재입력 재오픈".
+// (예전엔 resultState:"disputed"로만 세팅되어 이를 푸는 로직이 없어 경기가 영구히 멈췄음 → 데드엔드 제거)
 export async function disputeMatchResult({ matchRequestId }) {
   const id = toStr(matchRequestId);
   if (!id) throw new Error("disputeMatchResult: matchRequestId is required");
 
   const ref = doc(db, "match_requests", id);
 
+  // 되돌리기 전, 원 제출팀/상대팀을 알림 대상으로 확보
+  let submitter = "";
+  try {
+    const snap = await getDoc(ref);
+    submitter = toStr(snap.exists() ? snap.data()?.result?.submittedByClubId : "");
+  } catch (e) {}
+
   await updateDoc(ref, {
-    resultState: "disputed",
+    // ✅ 결과 초기화 → 팀장이 다시 입력할 수 있게 재오픈
+    resultState: "",
+    myScore: null,
+    oppScore: null,
+    result: null,
+    reviewRequestSent: false,
+    disputedAt: serverTimestamp(),
+    disputeCount: increment(1),
     updatedAt: serverTimestamp(),
   });
+
+  // 양 팀에 재입력 안내
+  try {
+    const disputer = submitter ? await getOpponentClubId(id, submitter) : "";
+    if (submitter) {
+      await notifyMatchRoomEvent({
+        matchId: id,
+        recipientClubId: submitter,
+        subType: "matchResultDisputed",
+        type: "match_result_disputed",
+        title: "경기 결과 이의 제기",
+        body: "상대팀이 입력한 결과에 이의를 제기했어요. 협의 후 결과를 다시 입력해 주세요.",
+      });
+    }
+    if (disputer) {
+      await notifyMatchRoomEvent({
+        matchId: id,
+        recipientClubId: disputer,
+        subType: "matchResultDisputed",
+        type: "match_result_disputed",
+        title: "이의 제기 완료",
+        body: "결과 재입력이 필요해요. 상대팀과 협의 후 다시 입력해 주세요.",
+      });
+    }
+  } catch (e) {
+    console.warn("[disputeMatchResult] notify failed:", e?.message || e);
+  }
 
   return true;
 }

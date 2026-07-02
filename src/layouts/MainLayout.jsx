@@ -13,6 +13,7 @@ import useMatchBadgeCount from "../hooks/useMatchBadgeCount";
 import useAutoReadNotifications from "../hooks/useAutoReadNotifications";
 import useMatchAcceptWatcher from "../hooks/useMatchAcceptWatcher";
 import useNotificationBanner from "../hooks/useNotificationBanner";
+import { resolveNotiRoute } from "../utils/notiRoute";
 
 const Wrap = styled.div`
   min-height: 100vh;
@@ -144,7 +145,14 @@ export default function MainLayout({ hideHeader = false }) {
     if (p === "/matching/region") return "지역 선택";
     if (p === "/matching/opponent") return "매칭 상대";
     if (p === "/matching") return "매칭하기";
-    if (p === "/match-roomlist") return "매칭룸";
+    if (p === "/match-roomlist") {
+      const t = String(new URLSearchParams(location.search || "").get("tab") || "").toLowerCase();
+      if (t === "ongoing" || t === "adjusting") return "조율중 경기";
+      if (t === "confirmed") return "확정된 경기";
+      if (t === "past" || t === "finished") return "지난 경기";
+      if (t === "cancelled" || t === "canceled") return "취소된 경기";
+      return "매칭룸";
+    }
     if (p.endsWith("/venue")) return "구장 정하기";
     if (p.startsWith("/match-roomdetail")) return "매칭공간";
 
@@ -152,6 +160,11 @@ export default function MainLayout({ hideHeader = false }) {
     if (p === "/matches/finished") return "내 팀 경기 기록";
 
     if (p.startsWith("/matching/analysis")) return "AI 분석";
+
+    // 구체적 경로 우선 — 아래 /my·/team 캐치올보다 먼저 판정해야 타이틀이 뜬다
+    if (p === "/my/team-invites") return "받은 초대";
+    if (p.startsWith("/my/team-invites/")) return "초대 상세";
+    if (p.includes("/join-requests")) return "참여요청";
 
     if (p === "/team/create") return "팀 구성하기";
     if (p.startsWith("/team/") && p.includes("/manage")) return "팀 관리";
@@ -172,7 +185,6 @@ export default function MainLayout({ hideHeader = false }) {
     if (p === "/my/profile/edit") return "프로필 수정";
     if (p === "/my/posts") return "내가 쓴 게시글";
     if (p === "/my/personal-matches") return "개인 활동 경기";
-    if (p === "/my/matched-matches") return "내가 매칭된 경기";
     if (p === "/my/reports") return "내가 신고한 내역";
     if (p === "/my/inquiry") return "1:1 문의";
 
@@ -186,9 +198,6 @@ export default function MainLayout({ hideHeader = false }) {
     if (p.startsWith("/communitypost")) return "게시물";
     if (p.startsWith("/community")) return "커뮤니티";
 
-    if (p === "/my/team-invites") return "받은 초대";
-    if (p.startsWith("/my/team-invites/")) return "초대 상세";
-    if (p.includes("/join-requests")) return "참여요청";
     if (p === "/impact") return "할래말래 기부금 캠페인";
 
     return "할래말래";
@@ -218,7 +227,6 @@ export default function MainLayout({ hideHeader = false }) {
     p === "/community/write" ||
     p.startsWith("/communitypost") ||
     p === "/my/personal-matches" ||
-    p === "/my/matched-matches" ||
     p === "/my/reports" ||
     p === "/my/inquiry" ||
     p === "/my/team-invites" ||
@@ -288,9 +296,10 @@ export default function MainLayout({ hideHeader = false }) {
         <NotificationBanner
           banner={banner}
           onClose={hideBanner}
-          onOpen={(link) => {
+          onOpen={() => {
             hideBanner();
-            navigate(link || "/notifications");
+            const route = resolveNotiRoute(banner);
+            navigate(route || "/notifications");
           }}
         />
       )}

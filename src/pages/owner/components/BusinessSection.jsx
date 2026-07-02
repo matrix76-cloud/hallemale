@@ -5,7 +5,8 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { LuShieldCheck, LuScale, LuCreditCard, LuUpload, LuCircleCheck } from "react-icons/lu";
 import { uploadVenueImage } from "../../../services/venuesService";
-import { submitBusinessVerification, saveSalesReport, saveSettlementAccount } from "../../../services/ownerVenueService";
+import { submitBusinessVerification, saveSalesReport, saveSettlementAccount, isValidBizNo, formatBizNo, verifyBusinessOnline } from "../../../services/ownerVenueService";
+import { useUI } from "../../../hooks/useUI";
 import { Card, SecTitle, Caption, Input, PrimaryBtn, StatBadge, C } from "./od";
 
 const Field = styled.label`display:flex;flex-direction:column;gap:6px;`;
@@ -23,6 +24,8 @@ const Hidden = styled.input`display:none;`;
 const BIZ_STATUS = { none: ["미인증", "default"], pending: ["심사중", "pending"], verified: ["인증완료", "done"], rejected: ["반려", "refund"] };
 
 export default function BusinessSection({ venue, refresh }) {
+  const { showToast } = useUI() || {};
+  const toast = (m) => { if (showToast) showToast({ message: m }); };
   const b = venue.business || {};
   const sr = venue.salesReport || {};
   const st = venue.settlement || {};
@@ -47,7 +50,21 @@ export default function BusinessSection({ venue, refresh }) {
 
   const submitBiz = async () => {
     setBusy("biz");
-    try { await submitBusinessVerification(venue.id, biz); await refresh(); } catch (e) { window.alert && null; } finally { setBusy(""); }
+    try {
+      // 1) 체크섬·필수값 검증 후 pending 저장
+      await submitBusinessVerification(venue.id, biz);
+      // 2) 국세청 진위확인 시도 (키 설정 시 자동 승인/반려, 미설정 시 수동 폴백)
+      const r = await verifyBusinessOnline({
+        venueId: venue.id, bizNo: biz.bizNo, ownerName: biz.ownerName,
+        openDate: biz.openDate, bizName: biz.bizName,
+      });
+      await refresh();
+      if (r?.configured && r?.valid === true) toast("국세청 진위확인 완료! 사업자 인증이 승인됐어요.");
+      else if (r?.configured && r?.valid === false) toast(r.reason || "국세청 정보와 일치하지 않아요. 정보를 확인해주세요.");
+      else toast("사업자 인증을 제출했어요. 확인 후 승인돼요.");
+    } catch (e) {
+      toast(e?.message || "제출에 실패했어요.");
+    } finally { setBusy(""); }
   };
   const submitRep = async () => {
     setBusy("rep");
@@ -84,7 +101,14 @@ export default function BusinessSection({ venue, refresh }) {
           <Caption>제출하신 사업자 정보를 관리자가 확인 중이에요 (영업일 1일). 승인되면 정산 계좌를 등록할 수 있어요.</Caption>
         ) : (
           <>
-            <Field><Lbl>사업자등록번호</Lbl><Input value={biz.bizNo} onChange={(e) => setBiz({ ...biz, bizNo: e.target.value })} placeholder="123-45-67890" /></Field>
+            <Field><Lbl>사업자등록번호</Lbl>
+              <Input value={biz.bizNo} onChange={(e) => setBiz({ ...biz, bizNo: formatBizNo(e.target.value) })} placeholder="123-45-67890" inputMode="numeric" />
+              {biz.bizNo && (
+                isValidBizNo(biz.bizNo)
+                  ? <Done><LuCircleCheck size={15} /> 번호 형식 확인됨</Done>
+                  : <span style={{ fontSize: 12, color: C.red500, fontWeight: 600 }}>사업자등록번호 10자리를 정확히 입력해주세요.</span>
+              )}
+            </Field>
             <Row>
               <Field><Lbl>상호</Lbl><Input value={biz.bizName} onChange={(e) => setBiz({ ...biz, bizName: e.target.value })} placeholder="○○스포츠" /></Field>
               <Field><Lbl>대표자명</Lbl><Input value={biz.ownerName} onChange={(e) => setBiz({ ...biz, ownerName: e.target.value })} placeholder="홍길동" /></Field>
@@ -142,9 +166,9 @@ export default function BusinessSection({ venue, refresh }) {
               <Field><Lbl>은행</Lbl><Input value={acc.bank} onChange={(e) => setAcc({ ...acc, bank: e.target.value })} placeholder="국민은행" /></Field>
               <Field><Lbl>예금주</Lbl><Input value={acc.holder} onChange={(e) => setAcc({ ...acc, holder: e.target.value })} placeholder="○○스포츠" /></Field>
             </Row>
-            <Field><Lbl>계좌번호</Lbl><Input value={acc.account} onChange={(e) => setAcc({ ...acc, account: e.target.value })} placeholder="- 없이 숫자만" /></Field>
-            <Caption>상호와 예금주명이 일치하면 1원 인증으로 즉시 등록돼요.</Caption>
-            <PrimaryBtn type="button" disabled={busy === "acc"} onClick={submitAcc}>{busy === "acc" ? "등록 중…" : "계좌 등록 (1원 인증)"}</PrimaryBtn>
+            <Field><Lbl>계좌번호</Lbl><Input value={acc.account} onChange={(e) => setAcc({ ...acc, account: e.target.value.replace(/[^0-9]/g, "") })} placeholder="- 없이 숫자만" inputMode="numeric" /></Field>
+            <Caption>예금주명은 사업자 상호 또는 대표자명과 일치해야 정산받을 수 있어요. 정산 대금은 등록한 계좌로만 입금돼요.</Caption>
+            <PrimaryBtn type="button" disabled={busy === "acc" || !acc.bank || !acc.account || !acc.holder} onClick={submitAcc}>{busy === "acc" ? "등록 중…" : "계좌 등록"}</PrimaryBtn>
           </>
         )}
       </Card>

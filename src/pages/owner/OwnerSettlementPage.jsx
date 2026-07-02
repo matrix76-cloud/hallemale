@@ -6,10 +6,13 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { LuWallet } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
+import { useUI } from "../../hooks/useUI";
 import { listReservations } from "../../services/ownerVenueService";
 import { Page, Card, ScreenTitle, SecTitle, Caption, PrimaryBtn, StatBadge, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerSpinner from "./components/OwnerSpinner";
+import ConfirmDialog from "./components/ConfirmDialog";
+import { useConfirm } from "./components/useConfirm";
 
 // 수수료율 (명세서 7.1 예시값 — 추후 어드민/PG 계약 요율로 교체)
 const PG_RATE = 0.029;
@@ -35,14 +38,29 @@ const ItemS = styled.div`font-size: 11.5px; color: ${C.slate500};`;
 export default function OwnerSettlementPage() {
   const navigate = useNavigate();
   const { venue, loading: ownerLoading, refresh } = useOwner();
+  const { showToast } = useUI() || {};
+  const toast = (m) => { if (showToast) showToast({ message: m }); };
+  const { confirmState, ask, closeConfirm } = useConfirm();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const requestSettlement = async (amount) => {
+    const ok = await ask({
+      title: "정산 신청",
+      message: `정산 예정 금액 ${amount.toLocaleString()}원을 신청할까요?\n등록된 정산 계좌로 영업일 2일 내 입금돼요.`,
+      confirmLabel: "정산 신청",
+    });
+    if (!ok) return;
+    // PG(이노페이) 연동 전까지는 접수만 안내
+    toast("정산 신청이 접수됐어요. PG 연동 후 실제 입금이 진행돼요.");
+  };
 
   useEffect(() => {
     if (!venue?.id) return;
     setLoading(true);
     listReservations({ venueId: venue.id })
-      .then((rs) => setRows(rs.filter((r) => ["confirmed", "done"].includes(r.status))))
+      // 정산 대상은 앱 결제분만 — 구장주 현장결제(현금·카드)는 플랫폼을 거치지 않아 제외
+      .then((rs) => setRows(rs.filter((r) => ["confirmed", "done"].includes(r.status) && r.source !== "owner")))
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, [venue?.id]);
@@ -88,10 +106,10 @@ export default function OwnerSettlementPage() {
         <Line><span>할래말래 수수료 ({(HM_RATE * 100).toFixed(0)}%)</span><span>−{hmFee.toLocaleString()}원</span></Line>
       </HeroCard>
 
-      <PrimaryBtn type="button" disabled={net <= 0} onClick={() => window.alert && null}>
+      <PrimaryBtn type="button" disabled={net <= 0} onClick={() => requestSettlement(net)}>
         정산 신청 (영업일 2일 내 입금)
       </PrimaryBtn>
-      <Caption>※ 카드결제(PG)·정산 신청은 이노페이 연동 후 활성화돼요. 현재는 앱 내 결제 기준 정산 예정액이에요.</Caption>
+      <Caption>※ 카드결제(PG)·정산 신청은 이노페이 연동 후 활성화돼요. 앱 결제분만 정산 대상이며, 현장결제(현금·카드)는 매출분석에만 반영돼요.</Caption>
 
       <Card>
         <SecTitle><LuWallet size={16} /> 결제·정산 내역</SecTitle>
@@ -114,6 +132,8 @@ export default function OwnerSettlementPage() {
           ))
         )}
       </Card>
+
+      <ConfirmDialog state={confirmState} onConfirm={() => closeConfirm(true)} onCancel={() => closeConfirm(false)} />
     </Page>
   );
 }

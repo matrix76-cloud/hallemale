@@ -22,6 +22,7 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
   where,
@@ -414,11 +415,39 @@ export async function resubmitVenue(id) {
  * 사업자 인증 / 통신판매업 / 정산 계좌
  * ========================================================== */
 
+/**
+ * 사업자등록번호 진위(체크섬) 검증 — 국세청 검증 알고리즘.
+ * 형식이 유효하지 않은 가짜·오타 번호를 제출 전에 걸러낸다.
+ * (실제 사업 존재 여부는 국세청 진위확인 API로 별도 확인)
+ */
+export function isValidBizNo(v) {
+  const d = String(v || "").replace(/[^0-9]/g, "");
+  if (d.length !== 10) return false;
+  const w = [1, 3, 7, 1, 3, 7, 1, 3, 5];
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(d[i], 10) * w[i];
+  sum += Math.floor((parseInt(d[8], 10) * 5) / 10);
+  const check = (10 - (sum % 10)) % 10;
+  return check === parseInt(d[9], 10);
+}
+
+/** 사업자등록번호 자동 하이픈 포맷 (000-00-00000) */
+export function formatBizNo(v) {
+  const d = String(v || "").replace(/[^0-9]/g, "").slice(0, 10);
+  if (d.length < 4) return d;
+  if (d.length < 6) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+}
+
 /** 구장주: 사업자 인증 제출 → status=pending (어드민 승인 대기) */
 export async function submitBusinessVerification(id, { bizNo, bizName, ownerName, openDate, taxType, licenseUrl } = {}) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
   if (!safeStr(bizNo)) throw new Error("사업자등록번호를 입력해주세요.");
+  if (!isValidBizNo(bizNo)) throw new Error("올바른 사업자등록번호가 아니에요. 다시 확인해주세요.");
+  if (!safeStr(bizName)) throw new Error("상호를 입력해주세요.");
+  if (!safeStr(ownerName)) throw new Error("대표자명을 입력해주세요.");
+  if (!safeStr(openDate)) throw new Error("개업일자를 입력해주세요.");
   await updateDoc(doc(db, "venues", vid), {
     business: {
       bizNo: safeStr(bizNo), bizName: safeStr(bizName), ownerName: safeStr(ownerName),
@@ -427,6 +456,31 @@ export async function submitBusinessVerification(id, { bizNo, bizName, ownerName
     },
     updatedAt: serverTimestamp(),
   });
+}
+
+// 국세청 진위확인 Cloud Function 엔드포인트
+const VERIFY_BUSINESS_URL = "https://asia-northeast3-halle-bf789.cloudfunctions.net/verifyBusiness";
+
+/**
+ * 국세청 진위확인 요청. 성공 시 서버가 venues 문서의 business.status를 직접 갱신한다.
+ * 반환:
+ *   { configured:false }              → 서비스키 미설정/함수 미배포 → 수동 승인 폴백
+ *   { configured:true, valid:true }   → 진위확인 완료(자동 인증)
+ *   { configured:true, valid:false, reason } → 불일치(자동 반려)
+ */
+export async function verifyBusinessOnline({ venueId, bizNo, ownerName, openDate, bizName } = {}) {
+  try {
+    const res = await fetch(VERIFY_BUSINESS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ venueId, bizNo, ownerName, openDate, bizName }),
+    });
+    if (!res.ok) return { configured: true, valid: false, reason: "진위확인 요청에 실패했어요." };
+    return await res.json();
+  } catch (e) {
+    // 함수 미배포/네트워크 오류 → 자동확인 스킵(수동 승인 폴백)
+    return { configured: false, error: e?.message || "network" };
+  }
 }
 
 /** 구장주: 통신판매업 신고 정보 저장 (일반과세 필수 / 간이 면제) */
@@ -553,9 +607,14 @@ function reservationRow(d) {
     teamName: safeStr(data.teamName),
     phone: safeStr(data.phone),
     price: toNum(data.price) ?? 0,
-    status: ["requested", "pending", "confirmed", "rejected", "cancelled", "done"].includes(data.status)
+    status: ["requested", "pending", "confirmed", "rejected", "cancelled", "done", "noshow"].includes(data.status)
       ? data.status
       : "requested",
+    // 예약 출처(app=사용자앱 / owner=구장주 수동·전화) + 결제수단 + 메모 + 정기대관 묶음
+    paymentMethod: safeStr(data.paymentMethod),
+    source: safeStr(data.source) || (safeStr(data.userId) ? "app" : "owner"),
+    memo: safeStr(data.memo),
+    recurringId: safeStr(data.recurringId),
     // 두 팀 분할 결제
     matchId: safeStr(data.matchId),
     splitTotal: toNum(data.splitTotal) ?? (toNum(data.price) ?? 0),
@@ -593,17 +652,79 @@ export async function listReservations({ venueId, date = "", courtId = "" } = {}
   return rows;
 }
 
-/** 예약 상태 변경 (승인/거절/완료) */
+/** 예약 상태 변경 (승인/거절/완료/노쇼) */
 export async function setReservationStatus(reservationId, status) {
   const rid = safeStr(reservationId);
   if (!rid) throw new Error("reservationId가 비어있습니다.");
-  const next = ["requested", "confirmed", "rejected", "cancelled", "done"].includes(status)
+  const next = ["requested", "confirmed", "rejected", "cancelled", "done", "noshow"].includes(status)
     ? status
     : "requested";
   await updateDoc(doc(db, "venueReservations", rid), {
     status: next,
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * 예약을 지정 상태로 바꾸며 결제금액 환불 (구장주 반려/취소 공용).
+ * - 앱 결제(fizz)된 예약이면 결제자(들)에게 환불. 현장/현금 등 owner 수동예약은 앱 환불 없음.
+ * - 매칭 분할결제: 결제한 팀 각각 자기 몫 환불. 일반 예약: 결제자 전액 환불.
+ * - 멱등: 이미 종료(rejected/cancelled/noshow)됐거나 refunded 표시면 재환불하지 않음.
+ */
+async function refundAndSetStatus(reservationId, nextStatus) {
+  const rid = safeStr(reservationId);
+  if (!rid) throw new Error("reservationId가 비어있습니다.");
+  const dref = doc(db, "venueReservations", rid);
+  const snap = await getDoc(dref);
+  if (!snap.exists()) throw new Error("예약을 찾을 수 없습니다.");
+  const data = snap.data() || {};
+
+  // 이미 종료 처리됐거나 환불 완료된 예약이면 재처리 안 함
+  if (["rejected", "cancelled", "noshow"].includes(safeStr(data.status)) || data.refunded === true) {
+    return { refunded: 0, alreadyDone: true };
+  }
+
+  // 환불 대상 산정 (앱 결제분만)
+  const refunds = [];
+  if (safeStr(data.matchId)) {
+    // 매칭 분할결제 — 낸 팀만 각자 몫 환불
+    if (data.paidByA && safeStr(data.teamAPayerUid)) refunds.push([safeStr(data.teamAPayerUid), toNum(data.shareA) ?? 0]);
+    if (data.paidByB && safeStr(data.teamBPayerUid)) refunds.push([safeStr(data.teamBPayerUid), toNum(data.shareB) ?? 0]);
+  } else if (data.paid && safeStr(data.userId) && safeStr(data.paymentMethod) === "fizz") {
+    // 일반 앱 예약 — 결제자 전액 환불 (현장결제 owner 예약은 제외)
+    refunds.push([safeStr(data.userId), toNum(data.paidFizz) ?? (toNum(data.price) ?? 0)]);
+  }
+
+  let refunded = 0;
+  for (const [uid, amt] of refunds) {
+    if (uid && amt > 0) {
+      try { await payFizz(uid, -amt); refunded += amt; }
+      catch (e) { console.warn("[refundAndSetStatus] refund failed", e?.message || e); }
+    }
+  }
+
+  await updateDoc(dref, {
+    status: nextStatus,
+    refunded: true,
+    refundedAmount: refunded,
+    updatedAt: serverTimestamp(),
+  });
+  return { refunded };
+}
+
+/** 예약 반려 + 환불 (승인대기 예약 거절) — status=rejected */
+export async function rejectReservationWithRefund(reservationId) {
+  return refundAndSetStatus(reservationId, "rejected");
+}
+
+/** 확정 예약 취소 + 환불 (구장주 사정·우천 등) — status=cancelled */
+export async function cancelReservationWithRefund(reservationId) {
+  return refundAndSetStatus(reservationId, "cancelled");
+}
+
+/** 노쇼 처리 — 환불 없이 status=noshow (예약금 몰수) */
+export async function markReservationNoshow(reservationId) {
+  return setReservationStatus(reservationId, "noshow");
 }
 
 /**
@@ -643,6 +764,80 @@ export async function createReservation({
     updatedAt: serverTimestamp(),
   });
   return { id: ref.id };
+}
+
+/* ============================================================
+ * 구장주 수동 예약 (전화/현장) — 단건 또는 매주 정기대관
+ * ========================================================== */
+
+// 결제수단 라벨 (수동예약 폼/표시 공용)
+export const PAYMENT_METHODS = ["onsite_card", "cash", "transfer", "free"];
+export const PAYMENT_METHOD_LABELS = {
+  onsite_card: "현장카드",
+  cash: "현금",
+  transfer: "계좌이체",
+  free: "무료·기타",
+  fizz: "앱결제",
+};
+
+// "YYYY-MM-DD" + n일
+function addDaysStr(dateStr, days) {
+  const d = new Date(`${safeStr(dateStr)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return safeStr(dateStr);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * 구장주가 직접 넣는 예약(전화·현장). status=confirmed·paid로 바로 확정.
+ * repeatWeeks>1 이면 매주 같은 시간으로 정기대관 생성(같은 recurringId로 묶음).
+ * 이미 찬 주차는 건너뛰고 skipped로 반환.
+ */
+export async function createOwnerReservation({
+  venue, court, date, startTime, endTime,
+  customerName, phone, memo = "", price, paymentMethod = "onsite_card",
+  repeatWeeks = 1,
+}) {
+  const venueId = safeStr(venue?.id);
+  const courtId = safeStr(court?.id);
+  if (!venueId || !courtId) throw new Error("구장/코트 정보가 올바르지 않습니다.");
+  if (!safeStr(date) || !safeStr(startTime) || !safeStr(endTime)) throw new Error("예약 시간이 올바르지 않습니다.");
+
+  const weeks = Math.max(1, Math.min(52, toNum(repeatWeeks) || 1));
+  const ownerUid = safeStr(venue?.ownerUid);
+  const method = PAYMENT_METHODS.includes(paymentMethod) ? paymentMethod : "onsite_card";
+  const priceOverride = toNum(price);
+  const recurringId = weeks > 1
+    ? "rec_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+    : "";
+
+  const created = [];
+  const skipped = [];
+
+  for (let k = 0; k < weeks; k++) {
+    const d = addDaysStr(date, k * 7);
+    try {
+      await assertSlotFree({ venueId, courtId, date: d, startTime, endTime });
+    } catch (e) {
+      skipped.push(d);
+      continue;
+    }
+    const per = priceOverride != null ? priceOverride : calcSlotPrice(court, startTime, endTime, d);
+    const ref = await addDoc(collection(db, "venueReservations"), {
+      venueId, courtId, ownerUid,
+      courtName: safeStr(court?.name), venueName: safeStr(venue?.name),
+      date: d, startTime: safeStr(startTime), endTime: safeStr(endTime),
+      userId: "", userName: safeStr(customerName), teamName: safeStr(customerName),
+      phone: safeStr(phone), memo: safeStr(memo),
+      price: per, paid: true, paidFizz: 0, paymentMethod: method,
+      source: "owner", status: "confirmed",
+      recurringId,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+    created.push({ id: ref.id, date: d });
+  }
+
+  return { created, skipped, recurringId };
 }
 
 /* ============================================================
@@ -693,7 +888,7 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user }
     listBlocks({ venueId, date, courtId }),
   ]);
   const taken = reservations.some(
-    (r) => ["requested", "confirmed"].includes(r.status) && rangesOverlap(startTime, endTime, r.startTime, r.endTime)
+    (r) => ["requested", "pending", "confirmed"].includes(r.status) && rangesOverlap(startTime, endTime, r.startTime, r.endTime)
   );
   if (taken) {
     const err = new Error("이미 예약된 시간이에요. 다른 시간을 선택해주세요.");
@@ -926,16 +1121,25 @@ export async function payPartnerShare({ matchId, side, payerUid, payerTeamName, 
   const shareB = toNum(pb.shareB) ?? 0;
   const myShare = sd === "A" ? shareA : shareB;
 
-  const existing = await findMatchReservation(id);
+  // ✅ 결정적 예약 doc id → 두 팀이 같은 문서에 수렴 (동시 결제 레이스로 예약 2개 생성되던 버그 제거)
+  const resRef = doc(db, "venueReservations", `m_${id}`);
+  const deadlineISO = new Date(Date.now() + PARTNER_PAY_WINDOW_MS).toISOString();
 
-  // 첫 결제 → 예약 생성 (pending)
-  if (!existing) {
+  // 첫 결제일 때만 슬롯 충돌 검사(우리 예약 자신과 충돌하지 않도록 tx 밖에서 사전 판단)
+  const pre = await getDoc(resRef);
+  const preActive = pre.exists() && ["pending", "confirmed"].includes(safeStr(pre.data()?.status));
+  if (!preActive) {
     await assertSlotFree({ venueId: pb.venueId, courtId: pb.courtId, date: pb.date, startTime: pb.startTime, endTime: pb.endTime });
-    await payFizz(uid, myShare);
-    const deadlineISO = new Date(Date.now() + PARTNER_PAY_WINDOW_MS).toISOString();
-    let reservationId = "";
-    try {
-      const ref = await addDoc(collection(db, "venueReservations"), {
+  }
+
+  // ✅ 내 몫 결제 기록을 트랜잭션으로 원자화 (동시 결제 직렬화)
+  const outcome = await runTransaction(db, async (tx) => {
+    const cur = await tx.get(resRef);
+    const active = cur.exists() && ["pending", "confirmed"].includes(safeStr(cur.data()?.status));
+
+    if (!active) {
+      // 첫 결제(또는 만료/취소 후 재결제) → 새 예약(pending)
+      tx.set(resRef, {
         venueId: safeStr(pb.venueId), venueName: safeStr(pb.venueName), ownerUid: safeStr(pb.ownerUid),
         courtId: safeStr(pb.courtId), courtName: safeStr(pb.courtName),
         date: safeStr(pb.date), startTime: safeStr(pb.startTime), endTime: safeStr(pb.endTime),
@@ -948,35 +1152,60 @@ export async function payPartnerShare({ matchId, side, payerUid, payerTeamName, 
         teamAPayerUid: sd === "A" ? uid : "", teamBPayerUid: sd === "B" ? uid : "",
         teamAPayerName: sd === "A" ? safeStr(payerName) : "", teamAPayerPhone: sd === "A" ? safeStr(payerPhone) : "",
         teamBPayerName: sd === "B" ? safeStr(payerName) : "", teamBPayerPhone: sd === "B" ? safeStr(payerPhone) : "",
+        paid: false,
         paymentDeadline: deadlineISO,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
-      reservationId = ref.id;
-    } catch (e) {
-      try { await payFizz(uid, -myShare); } catch {}
-      throw e;
+      return { action: "created" };
     }
+
+    const d = cur.data() || {};
+    const iPaid = sd === "A" ? !!d.paidByA : !!d.paidByB;
+    if (iPaid) return { action: "already", status: safeStr(d.status) };
+
+    // 둘째 결제 → 확정
+    const patch = sd === "A"
+      ? { paidByA: true, teamAPayerUid: uid, teamAPayerName: safeStr(payerName), teamAPayerPhone: safeStr(payerPhone) }
+      : { paidByB: true, teamBPayerUid: uid, teamBPayerName: safeStr(payerName), teamBPayerPhone: safeStr(payerPhone) };
+    tx.update(resRef, { ...patch, status: "confirmed", paid: true, updatedAt: serverTimestamp() });
+    return { action: "confirmed" };
+  });
+
+  // 이미 낸 팀이면 청구 없이 반환
+  if (outcome.action === "already") {
+    return { state: outcome.status, already: true };
+  }
+
+  // ✅ 예약 기록 성공 후에만 fizz 청구 (이중청구 방지). 청구 실패 시 기록 롤백
+  try {
+    await payFizz(uid, myShare);
+  } catch (e) {
+    try {
+      if (outcome.action === "created") {
+        await deleteDoc(resRef);
+      } else {
+        // 둘째 결제 롤백: 내 결제 표시 되돌리고 pending 복귀
+        await updateDoc(resRef, {
+          ...(sd === "A"
+            ? { paidByA: false, teamAPayerUid: "", teamAPayerName: "", teamAPayerPhone: "" }
+            : { paidByB: false, teamBPayerUid: "", teamBPayerName: "", teamBPayerPhone: "" }),
+          status: "pending", paid: false, updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (re) { console.warn("[payPartnerShare] rollback failed", re?.message || re); }
+    throw e;
+  }
+
+  // 첫 결제 → 매칭 payState=half
+  if (outcome.action === "created") {
     await updateDoc(doc(db, "match_requests", id), {
-      "partnerBooking.payState": "half", "partnerBooking.reservationId": reservationId,
+      "partnerBooking.payState": "half", "partnerBooking.reservationId": resRef.id,
       "partnerBooking.paymentDeadline": deadlineISO, updatedAt: serverTimestamp(),
     });
-    return { state: "pending", reservationId, deadline: deadlineISO, share: myShare };
+    return { state: "pending", reservationId: resRef.id, deadline: deadlineISO, share: myShare };
   }
 
-  // 이미 이 팀이 냈으면
-  if ((sd === "A" && existing.paidByA) || (sd === "B" && existing.paidByB)) {
-    return { state: existing.status, already: true };
-  }
-
-  // 둘째 결제 → 확정
-  await payFizz(uid, myShare);
-  const patch = sd === "A"
-    ? { paidByA: true, teamAPayerUid: uid, teamAPayerName: safeStr(payerName), teamAPayerPhone: safeStr(payerPhone) }
-    : { paidByB: true, teamBPayerUid: uid, teamBPayerName: safeStr(payerName), teamBPayerPhone: safeStr(payerPhone) };
-  await updateDoc(doc(db, "venueReservations", existing.id), {
-    ...patch, status: "confirmed", paid: true, updatedAt: serverTimestamp(),
-  });
-  // 양 팀 결제 완료 → 매칭도 확정(confirmed)
+  // 둘째 결제 → 매칭 확정(confirmed)
   await updateDoc(doc(db, "match_requests", id), {
     "partnerBooking.payState": "paid",
     "partnerBooking.finalized": true,
@@ -995,13 +1224,13 @@ export async function payPartnerShare({ matchId, side, payerUid, payerTeamName, 
         body: `${pb.date} ${pb.startTime}~${pb.endTime} · ${safeStr(pb.courtName)} (${safeStr(pb.proposerTeamName)} vs ${safeStr(pb.opponentTeamName)})`,
         targetType: "USER", targetIds: [safeStr(pb.ownerUid)],
         linkType: "venue", linkTargetId: safeStr(pb.venueId),
-        meta: { venueId: pb.venueId, reservationId: existing.id, deepLink: "/owner/home" },
+        meta: { venueId: pb.venueId, reservationId: resRef.id, deepLink: "/owner/home" },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
         prefsCategory: "match", createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
     } catch (e) { console.warn("[payPartnerShare] notify failed", e?.message || e); }
   }
-  return { state: "confirmed", reservationId: existing.id, share: myShare };
+  return { state: "confirmed", reservationId: resRef.id, share: myShare };
 }
 
 /** 매칭의 분할예약 결제현황 (구장앱/매칭룸 표시용) */

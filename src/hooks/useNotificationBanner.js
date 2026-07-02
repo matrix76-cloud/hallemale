@@ -64,7 +64,9 @@ export default function useNotificationBanner({ uid, clubId } = {}) {
       // (buildNotificationDoc 기반 매칭요청/수락/거절/취소)에 들어 있음 — 둘 다 확인
       const deepLink = n?.meta?.deepLink || n?.deepLink || "";
       // 이미 해당 화면(예: 그 채팅방)에 있으면 배너 생략
-      if (deepLink && pathRef.current.startsWith(deepLink)) return;
+      // ⚠️ 단순 startsWith는 "/chat"이 "/chats"(채팅목록)까지 매칭해 오탐 → 세그먼트 단위로 비교
+      const curPath = pathRef.current || "";
+      if (deepLink && (curPath === deepLink || curPath.startsWith(deepLink + "/"))) return;
 
       showBannerRef.current({
         id: n.id,

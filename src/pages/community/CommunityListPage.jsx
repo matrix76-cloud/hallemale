@@ -90,6 +90,25 @@ const CardList = styled.div`
   padding: 0 12px 16px;
 `;
 
+const MoreButton = styled.button`
+  margin: 4px 12px 20px;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+`;
+
 /* HOT 뱃지 */
 const HotBadge = styled.span`
   display: inline-block;
@@ -275,6 +294,9 @@ export default function CommunityListPage() {
   const [errText, setErrText] = useState("");
   const [q, setQ] = useState("");
   const [sortMode, setSortMode] = useState("latest"); // "latest" | "popular"
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -284,9 +306,11 @@ export default function CommunityListPage() {
       setErrText("");
 
       try {
-        const data = await loadCommunityList({ myUid, limitCount: 50 });
+        const data = await loadCommunityList({ myUid, limitCount: 30 });
         if (!alive) return;
         setPosts(data.posts || []);
+        setCursor(data.cursor || null);
+        setHasMore(!!data.hasMore);
       } catch (e) {
         console.error("[CommunityListPage] load failed:", e?.code, e?.message, e);
         if (!alive) return;
@@ -310,6 +334,24 @@ export default function CommunityListPage() {
       alive = false;
     };
   }, [myUid]);
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || !cursor) return;
+    setLoadingMore(true);
+    try {
+      const data = await loadCommunityList({ myUid, limitCount: 30, cursor });
+      setPosts((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...(data.posts || []).filter((p) => !seen.has(p.id))];
+      });
+      setCursor(data.cursor || null);
+      setHasMore(!!data.hasMore);
+    } catch (e) {
+      console.warn("[CommunityListPage] loadMore failed:", e?.message || e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const filteredPosts = useMemo(() => {
     const key = String(q || "").trim().toLowerCase();
@@ -390,6 +432,7 @@ export default function CommunityListPage() {
         placement="community"
         fallback={COMMUNITY_BANNER_FALLBACK}
         slideHeight="84px"
+        rounded
       />
 
       <Inner>
@@ -425,7 +468,14 @@ export default function CommunityListPage() {
           ) : errText ? (
             <ErrorBox>{errText}</ErrorBox>
           ) : hasPosts ? (
-            <CardList>{sortedPosts.map((post) => renderPost(post))}</CardList>
+            <>
+              <CardList>{sortedPosts.map((post) => renderPost(post))}</CardList>
+              {!String(q || "").trim() && hasMore && (
+                <MoreButton type="button" onClick={loadMore} disabled={loadingMore}>
+                  {loadingMore ? "불러오는 중…" : "더보기"}
+                </MoreButton>
+              )}
+            </>
           ) : (
             <EmptyState text={String(q || "").trim() ? "검색 결과가 없습니다." : "아직 등록된 게시글이 없습니다."} />
           )}

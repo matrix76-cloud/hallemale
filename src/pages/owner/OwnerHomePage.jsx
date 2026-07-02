@@ -7,11 +7,17 @@ import { LuChevronLeft, LuChevronRight, LuLock, LuHourglass, LuCheck, LuPhone } 
 import { useOwner } from "../../context/OwnerContext";
 import {
   listReservations, listBlocks, addBlock, removeBlock, setReservationStatus,
+  rejectReservationWithRefund, createOwnerReservation,
+  cancelReservationWithRefund, markReservationNoshow,
+  PAYMENT_METHODS, PAYMENT_METHOD_LABELS,
   dowToKey, expireMatchReservationIfNeeded, resolveSlotPrice,
 } from "../../services/ownerVenueService";
-import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, C } from "./components/od";
+import { useUI } from "../../hooks/useUI";
+import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, Input, PrimaryBtn, GhostBtn, DangerBtn, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerSpinner from "./components/OwnerSpinner";
+import ConfirmDialog from "./components/ConfirmDialog";
+import { useConfirm } from "./components/useConfirm";
 
 function toMin(h){const[a,b]=String(h||"0:0").split(":").map(x=>parseInt(x,10)||0);return a*60+b;}
 function toHHMM(m){return `${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;}
@@ -79,9 +85,19 @@ const X=styled.button`border:none;background:transparent;color:${C.slate400};fon
 const DRow=styled.div`display:flex;justify-content:space-between;gap:10px;font-size:14px;align-items:center;& > span{color:${C.slate500};} & > b{color:${C.slate800};font-weight:700;text-align:right;}`;
 const Call=styled.a`display:flex;align-items:center;justify-content:center;gap:7px;height:48px;border-radius:12px;background:${C.violet600};color:#fff;font-size:15px;font-weight:800;text-decoration:none;margin-top:4px;`;
 const DoneBtn=styled.button`height:46px;border-radius:12px;border:1px solid ${C.slate200};background:#fff;color:${C.slate800};font-size:14px;font-weight:700;cursor:pointer;`;
+const Field=styled.label`display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:700;color:${C.slate500};`;
+const PickRow=styled.div`display:flex;gap:8px;flex-wrap:wrap;`;
+const SmallChip=styled(Chip)`padding:7px 12px;font-size:12.5px;`;
+const SheetBtns=styled.div`display:flex;gap:8px;margin-top:4px;`;
+const ChooseBtn=styled.button`flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 10px;border-radius:14px;border:1px solid ${C.slate200};background:#fff;color:${C.slate800};font-size:14px;font-weight:700;cursor:pointer;&:active{transform:translateY(1px);}& > small{font-size:11px;font-weight:600;color:${C.slate500};}`;
+const RecurBadge=styled.span`display:inline-flex;align-items:center;gap:3px;border:1px solid ${C.violet300};color:${C.violet600};border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;`;
 
 export default function OwnerHomePage(){
   const {venue,loading:ownerLoading,refresh:ownerRefresh}=useOwner();
+  const {showToast}=useUI()||{};
+  const toast=(m)=>{if(showToast)showToast({message:m});};
+  const {confirmState,ask,closeConfirm}=useConfirm();
+  const nm=(r)=>r?.teamName||r?.userName||(r?.matchId?`${r?.teamAName||"팀A"} vs ${r?.teamBName||"팀B"}`:"이");
   const courts=venue?.courts||[];
   const today=useMemo(()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate());},[]);
   const [courtId,setCourtId]=useState(courts[0]?.id||"");
@@ -92,6 +108,8 @@ export default function OwnerHomePage(){
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [detailResv,setDetailResv]=useState(null); // 예약 상세 팝업
+  const [slotSheet,setSlotSheet]=useState(null); // 빈 슬롯 탭 → 액션 선택 {s}
+  const [bookForm,setBookForm]=useState(null); // 수동예약 폼 {s,name,phone,price,method,weeks,memo}
 
   const court=courts.find(c=>c.id===courtId)||courts[0]||null;
 
@@ -115,7 +133,7 @@ export default function OwnerHomePage(){
   };
   useEffect(()=>{load();/*eslint-disable-next-line*/},[venue?.id,courtId]);
 
-  const dayKey=useMemo(()=>dowToKey(new Date(date).getDay()),[date]);
+  const dayKey=useMemo(()=>dowToKey(new Date(`${date}T00:00:00`).getDay()),[date]);
   const dayHours=court?.hours?.[dayKey];
   const isClosed=!dayHours||dayHours.closed;
   const slots=useMemo(()=>buildSlots(court,dayKey),[court,dayKey]);
@@ -141,11 +159,51 @@ export default function OwnerHomePage(){
   const onSlot=async(s,info)=>{
     if(busy)return;
     if(info.k==="confirmed"||info.k==="pending"||info.k==="done"){ if(info.r) setDetailResv(info.r); return; }
-    if(info.k==="open"){setBusy(true);try{await addBlock({venueId:venue.id,courtId:court.id,date,startTime:s.start,endTime:s.end});await load();}catch(e){}finally{setBusy(false);}}
-    else if(info.k==="blocked"){setBusy(true);try{await removeBlock(info.b.id);await load();}catch(e){}finally{setBusy(false);}}
+    if(info.k==="open"){ setSlotSheet({s}); return; }
+    if(info.k==="blocked"){setBusy(true);try{await removeBlock(info.b.id);await load();}catch(e){}finally{setBusy(false);}}
   };
-  const markDone=async(id)=>{setBusy(true);try{await setReservationStatus(id,"done");await load();setDetailResv(null);}catch(e){}finally{setBusy(false);}};
-  const changeResv=async(id,st)=>{setBusy(true);try{await setReservationStatus(id,st);await load();}catch(e){}finally{setBusy(false);}};
+  // 빈 슬롯 액션: 직접 예약 / 시간 막기
+  const doBlock=async(s)=>{setSlotSheet(null);setBusy(true);try{await addBlock({venueId:venue.id,courtId:court.id,date,startTime:s.start,endTime:s.end});await load();}catch(e){}finally{setBusy(false);}};
+  const openBookForm=(s)=>{const p=resolveSlotPrice(court,date,s.start);setSlotSheet(null);setBookForm({s,name:"",phone:"",price:String(p||0),method:"onsite_card",weeks:1,memo:""});};
+  const submitBook=async()=>{
+    const f=bookForm; if(!f)return;
+    setBusy(true);
+    try{
+      const {created,skipped}=await createOwnerReservation({
+        venue,court,date,startTime:f.s.start,endTime:f.s.end,
+        customerName:f.name,phone:f.phone,memo:f.memo,
+        price:Number(f.price)||0,paymentMethod:f.method,repeatWeeks:Number(f.weeks)||1,
+      });
+      setBookForm(null);
+      await load();
+      const msg=created.length>1
+        ? `정기대관 ${created.length}건을 등록했어요${skipped.length?` (겹쳐서 ${skipped.length}건 제외)`:""}.`
+        : (created.length?"예약을 등록했어요.":"이미 예약된 시간이라 등록하지 못했어요.");
+      toast(msg);
+    }catch(e){toast(e?.message||"예약 등록에 실패했어요.");}
+    finally{setBusy(false);}
+  };
+  const approveResv=async(r)=>{
+    if(!await ask({title:"예약 승인",message:`${nm(r)} 예약을 승인할까요?`,confirmLabel:"승인"}))return;
+    setBusy(true);try{await setReservationStatus(r.id,"confirmed");await load();toast("예약을 승인했어요.");}catch(e){toast(e?.message||"승인에 실패했어요.");}finally{setBusy(false);}
+  };
+  const rejectResv=async(r)=>{
+    if(!await ask({title:"예약 반려·환불",message:`${nm(r)} 예약을 반려할까요?\n결제된 금액은 자동으로 환불돼요.`,confirmLabel:"반려·환불",danger:true}))return;
+    setBusy(true);try{const {refunded}=await rejectReservationWithRefund(r.id);await load();toast(refunded>0?`예약을 반려하고 ${Number(refunded).toLocaleString()}피지를 환불했어요.`:"예약을 반려했어요.");}catch(e){toast(e?.message||"반려에 실패했어요.");}finally{setBusy(false);}
+  };
+  const markDone=async(r)=>{
+    if(!await ask({title:"이용 완료 처리",message:`${nm(r)} 예약을 이용 완료로 처리할까요?`,confirmLabel:"완료 처리"}))return;
+    setBusy(true);try{await setReservationStatus(r.id,"done");await load();setDetailResv(null);toast("이용 완료로 처리했어요.");}catch(e){toast(e?.message||"처리에 실패했어요.");}finally{setBusy(false);}
+  };
+  const noshowResv=async(r)=>{
+    if(!await ask({title:"노쇼 처리",message:`${nm(r)} 예약을 노쇼로 처리할까요?\n예약금은 환불되지 않아요.`,confirmLabel:"노쇼 처리",danger:true}))return;
+    setBusy(true);try{await markReservationNoshow(r.id);await load();setDetailResv(null);toast("노쇼로 처리했어요.");}catch(e){toast(e?.message||"처리에 실패했어요.");}finally{setBusy(false);}
+  };
+  const cancelResv=async(r)=>{
+    const willRefund=r.source!=="owner";
+    if(!await ask({title:"예약 취소",message:`${nm(r)} 예약을 취소할까요?${willRefund?"\n결제된 금액은 자동으로 환불돼요.":""}`,confirmLabel:"예약 취소",danger:true}))return;
+    setBusy(true);try{const {refunded}=await cancelReservationWithRefund(r.id);await load();setDetailResv(null);toast(refunded>0?`예약을 취소하고 ${Number(refunded).toLocaleString()}피지를 환불했어요.`:"예약을 취소했어요.");}catch(e){toast(e?.message||"취소에 실패했어요.");}finally{setBusy(false);}
+  };
 
   if(ownerLoading)return <Page><OwnerSpinner label="불러오는 중…"/></Page>;
   if(!venue||venue.status!=="approved")return <Page><VenueGateNotice venue={venue} refresh={ownerRefresh}/></Page>;
@@ -192,7 +250,7 @@ export default function OwnerHomePage(){
 
       <Card>
         <SecTitle>{date.slice(5).replace("-",".")} 시간대</SecTitle>
-        <Caption>빈 슬롯을 누르면 예약을 막을 수 있어요(타 채널 선점 등). 막은 슬롯을 다시 누르면 해제.</Caption>
+        <Caption>빈 슬롯을 누르면 전화·현장 예약을 직접 넣거나 시간을 막을 수 있어요. 막은 슬롯을 다시 누르면 해제.</Caption>
         {loading?<OwnerSpinner label="불러오는 중…"/>:isClosed?<Empty>이 요일은 휴무예요.</Empty>:slots.length===0?<Empty>운영시간이 없어요.</Empty>:(
           <Grid>
             {slots.map((s,i)=>{const info=slotKind(s);return(
@@ -223,8 +281,8 @@ export default function OwnerHomePage(){
             </ResvTop>
             <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원`:""}{r.phone?` · ${r.phone}`:""}</ResvMeta>
             <Acts>
-              <SBtn $primary onClick={()=>changeResv(r.id,"confirmed")} disabled={busy}>승인</SBtn>
-              <SBtn $danger onClick={()=>changeResv(r.id,"rejected")} disabled={busy}>반려·환불</SBtn>
+              <SBtn $primary onClick={()=>approveResv(r)} disabled={busy}>승인</SBtn>
+              <SBtn $danger onClick={()=>rejectResv(r)} disabled={busy}>반려·환불</SBtn>
             </Acts>
           </Resv>
         ))}
@@ -238,11 +296,16 @@ export default function OwnerHomePage(){
         return (
           <Overlay onClick={()=>setDetailResv(null)}>
             <Sheet onClick={e=>e.stopPropagation()}>
-              <SheetTitle>예약 정보 <X onClick={()=>setDetailResv(null)}>×</X></SheetTitle>
+              <SheetTitle>
+                <span style={{display:"flex",alignItems:"center",gap:8}}>예약 정보 {r.recurringId&&<RecurBadge><LuHourglass size={11}/>정기</RecurBadge>}</span>
+                <X onClick={()=>setDetailResv(null)}>×</X>
+              </SheetTitle>
               <DRow><span>상태</span><StatBadge $tone={tone}>{label}</StatBadge></DRow>
               <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
               <DRow><span>코트</span><b>{r.courtName||court?.name||"-"}</b></DRow>
               <DRow><span>금액</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원{isMatch?" (두 팀 반반)":""}</b></DRow>
+              {!isMatch&&r.source==="owner"&&<DRow><span>결제수단</span><b>{PAYMENT_METHOD_LABELS[r.paymentMethod]||"현장결제"}</b></DRow>}
+              {!isMatch&&r.memo&&<DRow><span>메모</span><b style={{fontWeight:600}}>{r.memo}</b></DRow>}
 
               {isMatch ? (
                 <>
@@ -268,11 +331,73 @@ export default function OwnerHomePage(){
                 </>
               )}
 
-              {r.status==="confirmed" && <DoneBtn onClick={()=>markDone(r.id)} disabled={busy}>이용 완료 처리</DoneBtn>}
+              {r.status==="confirmed" && (
+                <>
+                  <DoneBtn onClick={()=>markDone(r)} disabled={busy}>이용 완료 처리</DoneBtn>
+                  <SheetBtns>
+                    <GhostBtn style={{flex:1}} onClick={()=>noshowResv(r)} disabled={busy}>노쇼 처리</GhostBtn>
+                    <DangerBtn style={{flex:1}} onClick={()=>cancelResv(r)} disabled={busy}>예약 취소{!isMatch&&r.source==="owner"?"":"·환불"}</DangerBtn>
+                  </SheetBtns>
+                </>
+              )}
             </Sheet>
           </Overlay>
         );
       })()}
+
+      {slotSheet && (
+        <Overlay onClick={()=>setSlotSheet(null)}>
+          <Sheet onClick={e=>e.stopPropagation()}>
+            <SheetTitle>{slotSheet.s.start}~{slotSheet.s.end} <X onClick={()=>setSlotSheet(null)}>×</X></SheetTitle>
+            <Caption>{date.slice(5).replace("-",".")} · {court?.name} — 이 시간에 무엇을 할까요?</Caption>
+            <SheetBtns>
+              <ChooseBtn onClick={()=>openBookForm(slotSheet.s)}>📞 직접 예약<small>전화·현장 예약 등록</small></ChooseBtn>
+              <ChooseBtn onClick={()=>doBlock(slotSheet.s)} disabled={busy}>🔒 시간 막기<small>예약 불가로 잠금</small></ChooseBtn>
+            </SheetBtns>
+          </Sheet>
+        </Overlay>
+      )}
+
+      {bookForm && (
+        <Overlay onClick={()=>setBookForm(null)}>
+          <Sheet onClick={e=>e.stopPropagation()}>
+            <SheetTitle>직접 예약 추가 <X onClick={()=>setBookForm(null)}>×</X></SheetTitle>
+            <DRow><span>일시</span><b>{date} {bookForm.s.start}~{bookForm.s.end}</b></DRow>
+            <DRow><span>코트</span><b>{court?.name||"-"}</b></DRow>
+            <Field>예약자/팀 이름
+              <Input value={bookForm.name} onChange={e=>setBookForm(f=>({...f,name:e.target.value}))} placeholder="예: 번개농구팀 / 홍길동" />
+            </Field>
+            <Field>연락처
+              <Input value={bookForm.phone} onChange={e=>setBookForm(f=>({...f,phone:e.target.value}))} placeholder="010-0000-0000" inputMode="tel" />
+            </Field>
+            <Field>금액(원)
+              <Input value={bookForm.price} onChange={e=>setBookForm(f=>({...f,price:e.target.value.replace(/[^0-9]/g,"")}))} inputMode="numeric" />
+            </Field>
+            <Field>결제수단
+              <PickRow>
+                {PAYMENT_METHODS.map(m=>(
+                  <SmallChip key={m} $on={bookForm.method===m} onClick={()=>setBookForm(f=>({...f,method:m}))}>{PAYMENT_METHOD_LABELS[m]}</SmallChip>
+                ))}
+              </PickRow>
+            </Field>
+            <Field>정기대관 (매주 반복)
+              <PickRow>
+                {[1,2,4,8,12].map(w=>(
+                  <SmallChip key={w} $on={Number(bookForm.weeks)===w} onClick={()=>setBookForm(f=>({...f,weeks:w}))}>{w===1?"1회":`${w}주`}</SmallChip>
+                ))}
+              </PickRow>
+            </Field>
+            <Field>메모 (선택)
+              <Input value={bookForm.memo} onChange={e=>setBookForm(f=>({...f,memo:e.target.value}))} placeholder="예: 정기 대관, 예약금 입금 확인" />
+            </Field>
+            <PrimaryBtn onClick={submitBook} disabled={busy}>
+              {Number(bookForm.weeks)>1?`${bookForm.weeks}주 정기대관 등록`:"예약 등록"}
+            </PrimaryBtn>
+          </Sheet>
+        </Overlay>
+      )}
+
+      <ConfirmDialog state={confirmState} onConfirm={()=>closeConfirm(true)} onCancel={()=>closeConfirm(false)} />
     </Page>
   );
 }

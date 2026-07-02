@@ -154,7 +154,9 @@ export async function loadCommunityList({
     return (b.createdAtMs || 0) - (a.createdAtMs || 0);
   });
 
-  return { posts };
+  // ✅ 페이지네이션 커서 (마지막 원문서) + 더 있음 여부
+  const lastDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : null;
+  return { posts, cursor: lastDoc, hasMore: snap.size >= take };
 }
 
 export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
@@ -185,7 +187,13 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
   const createdAt = data.createdAt || null;
   const updatedAt = data.updatedAt || null;
 
-  const likedByMe = false;
+  // ✅ 내 좋아요 여부 실제 조회 (하드코딩 false 버그 수정)
+  let likedByMe = false;
+  if (myUid) {
+    try {
+      likedByMe = (await getDoc(doc(db, "community_posts", snap.id, "likes", String(myUid)))).exists();
+    } catch (e) {}
+  }
 
   const post = {
     id: snap.id,
@@ -196,6 +204,7 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
     authorClubId: authorMeta.clubId || "",
     canChat: !!(myUid && authorUid && String(myUid) !== String(authorUid)),
 
+    category: String(data.category || "free"),
     title: String(data.title || "").trim(),
     content: String(data.content || "").trim(),
     image: pickThumb(data),
@@ -237,6 +246,22 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
     })
   );
 
+  // ✅ 댓글별 내 좋아요 여부 실제 조회 (하드코딩 false 버그 수정)
+  const myCommentLikes = {};
+  if (myUid) {
+    await Promise.all(
+      commentRaws.map(async (c) => {
+        try {
+          myCommentLikes[c.id] = (
+            await getDoc(doc(db, "community_posts", snap.id, "comments", c.id, "likes", String(myUid)))
+          ).exists();
+        } catch (e) {
+          myCommentLikes[c.id] = false;
+        }
+      })
+    );
+  }
+
   const comments = commentRaws.map((c) => {
     const cAuthorUid = String(c.authorUid || c.authorId || "").trim();
     const cm = cMetaByUid[cAuthorUid] || { name: "상대", avatar: "" };
@@ -257,7 +282,7 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
         return d ? d.getTime() : 0;
       })(),
       likes: Number(c?.stats?.likes || 0) || 0,
-      likedByMe: false,
+      likedByMe: !!myCommentLikes[c.id],
       isMine: !!(myUid && cAuthorUid && String(myUid) === String(cAuthorUid)),
       canEdit: !!(myUid && cAuthorUid && String(myUid) === String(cAuthorUid)),
       canDelete: !!(myUid && cAuthorUid && String(myUid) === String(cAuthorUid)),
@@ -358,6 +383,61 @@ export async function createCommunityPost({
   }
 
   return { postId };
+}
+
+/**
+ * ✅ 게시글 수정 (본인만)
+ */
+export async function updateCommunityPost({ postId, myUid, title, content, category } = {}) {
+  const pid = String(postId || "").trim();
+  const uid = String(myUid || "").trim();
+  if (!pid) throw new Error("updateCommunityPost: postId is required");
+  if (!uid) throw new Error("updateCommunityPost: myUid is required");
+
+  const ref = doc(db, "community_posts", pid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("게시글을 찾을 수 없어요.");
+  const data = snap.data() || {};
+  const author = String(data.authorUid || data.authorId || "").trim();
+  if (author !== uid) throw new Error("본인 글만 수정할 수 있어요.");
+
+  const patch = { updatedAt: serverTimestamp() };
+  if (title != null) {
+    const t = String(title).trim();
+    if (!t) throw new Error("제목을 입력해 주세요.");
+    patch.title = t;
+  }
+  if (content != null) {
+    const c = String(content).trim();
+    if (!c) throw new Error("내용을 입력해 주세요.");
+    patch.content = c;
+  }
+  if (category != null && ["free", "recruit", "review"].includes(String(category))) {
+    patch.category = String(category);
+  }
+
+  await updateDoc(ref, patch);
+  return { ok: true, postId: pid };
+}
+
+/**
+ * ✅ 게시글 삭제 (본인만)
+ */
+export async function deleteCommunityPost({ postId, myUid } = {}) {
+  const pid = String(postId || "").trim();
+  const uid = String(myUid || "").trim();
+  if (!pid) throw new Error("deleteCommunityPost: postId is required");
+  if (!uid) throw new Error("deleteCommunityPost: myUid is required");
+
+  const ref = doc(db, "community_posts", pid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { ok: true };
+  const data = snap.data() || {};
+  const author = String(data.authorUid || data.authorId || "").trim();
+  if (author !== uid) throw new Error("본인 글만 삭제할 수 있어요.");
+
+  await deleteDoc(ref);
+  return { ok: true };
 }
 
 /* =========================

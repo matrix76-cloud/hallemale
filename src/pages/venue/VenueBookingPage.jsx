@@ -419,16 +419,31 @@ export default function VenueBookingPage() {
         </Section>
       )}
 
-      {(venue.bizName || venue.ownerName || venuePhone) && (
+      {(venue.bizName || venue.ownerName || venuePhone || venue.business?.bizNo) && (
         <Section>
-          <SecTitle><FiHome size={17} />호스트 정보</SecTitle>
+          <SecTitle><FiHome size={17} />사업자 정보</SecTitle>
           <HostCard>
-            <HostName>{venue.bizName || venue.ownerName}</HostName>
-            {venue.bizName && venue.ownerName ? <HostSub>{venue.ownerName}</HostSub> : null}
+            <HostName>{venue.business?.bizName || venue.bizName || venue.ownerName}</HostName>
+            {(venue.business?.ownerName || venue.ownerName) ? (
+              <HostSub>대표자 {venue.business?.ownerName || venue.ownerName}</HostSub>
+            ) : null}
+            {venue.business?.status === "verified" && venue.business?.bizNo ? (
+              <HostSub>사업자등록번호 {venue.business.bizNo}</HostSub>
+            ) : null}
+            {venue.salesReport?.number ? (
+              <HostSub>통신판매업 신고 {venue.salesReport.number}</HostSub>
+            ) : null}
+            {venue.address ? (
+              <HostSub>사업장 {venue.address}{venue.addressDetail ? ` ${venue.addressDetail}` : ""}</HostSub>
+            ) : null}
             {venuePhone ? (
               <PhoneLink href={`tel:${venuePhone}`}><FiPhone size={13} /> {venuePhone}</PhoneLink>
             ) : null}
           </HostCard>
+          <LegalNote>
+            할래말래는 통신판매중개자로서 통신판매의 당사자가 아니며, 구장 예약·이용 및 환불에 대한 책임은
+            판매자(구장 사업자)에게 있습니다.
+          </LegalNote>
         </Section>
       )}
 
@@ -618,6 +633,12 @@ const HostCard = styled.div`
 `;
 const HostName = styled.div`font-size: 14.5px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
 const HostSub = styled.div`font-size: 12.5px; color: ${({ theme }) => theme.colors.textWeak};`;
+const LegalNote = styled.p`
+  margin: 8px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
 const HoursTable = styled.div`
   display: flex; flex-direction: column;
   border: 1px solid ${({ theme }) => theme.colors.border}; border-radius: 12px; overflow: hidden;

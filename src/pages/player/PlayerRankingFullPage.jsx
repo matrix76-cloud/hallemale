@@ -458,7 +458,7 @@ export default function PlayerRankingFullPage() {
 
     const filtered = searched.filter((p) => {
       if (filters.position && String(p.positionLabel || "") !== filters.position) return false;
-      if (filters.skill && String(p.skillLabel || "") && String(p.skillLabel || "") !== filters.skill) return false;
+      if (filters.skill && String(p.skillLabel || "") !== filters.skill) return false;
 
       if (filters.club === "소속 있음" && !String(p.clubId || "").trim()) return false;
       if (filters.club === "소속 없음" && String(p.clubId || "").trim()) return false;
@@ -556,7 +556,8 @@ export default function PlayerRankingFullPage() {
 
             const recentForms = getRecentFormsSafe(p, 5);
 
-            const showCrown = p.rank <= 3;
+            // 0경기(무경기) 선수는 순위권 왕관 제외
+            const showCrown = p.rank <= 3 && (wins + losses + draws) > 0;
 
             return (
               <RowCard key={p.userId || index} onClick={() => handlePlayerClick(p.userId)}>

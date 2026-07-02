@@ -50,10 +50,20 @@ const BANNERS = [
 const scroll = keyframes``;
 
 const Wrap = styled.section`
-  width: 100%;
   position: relative;
   overflow: hidden;
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
+
+  ${({ $rounded }) =>
+    $rounded
+      ? `
+        margin: 8px 12px 0;
+        border-radius: 14px;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+      `
+      : `
+        width: 100%;
+      `}
 `;
 
 const Track = styled.div`
@@ -173,7 +183,7 @@ function normalizeRemoteBanner(b) {
   };
 }
 
-export default function HomeHeroBanner({ placement = "home", fallback = BANNERS, slideHeight = null }) {
+export default function HomeHeroBanner({ placement = "home", fallback = BANNERS, slideHeight = null, rounded = false }) {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const [remoteBanners, setRemoteBanners] = useState(null); // null = 로딩중, [] = 비어있음
@@ -289,7 +299,7 @@ export default function HomeHeroBanner({ placement = "home", fallback = BANNERS,
   // 로딩 중에는 옛 fallback 대신 빈 자리만 유지(레이아웃 흔들림/깜빡임 방지)
   if (isLoading) {
     return (
-      <Wrap>
+      <Wrap $rounded={rounded}>
         <LoadingSlide $height={slideHeight} />
       </Wrap>
     );
@@ -299,6 +309,7 @@ export default function HomeHeroBanner({ placement = "home", fallback = BANNERS,
 
   return (
     <Wrap
+      $rounded={rounded}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onMouseDown={handleMouseDown}

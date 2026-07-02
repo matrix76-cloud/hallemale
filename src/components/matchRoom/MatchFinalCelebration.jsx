@@ -92,6 +92,7 @@ export default function MatchFinalCelebration({
       </CloseBtn>
 
       <Content onClick={(e) => e.stopPropagation()}>
+        <Hero3D src={images.emoji3dTrophy} alt="" />
         <Headline>
           <Kicker>MATCH CONFIRMED</Kicker>
           <Title>경기 확정!</Title>
@@ -184,6 +185,12 @@ const cpUp2 = keyframes`
   0%   { opacity: 0; transform: translateY(26px); }
   100% { opacity: 1; transform: translateY(0); }
 `;
+const cpPop = keyframes`
+  0%   { opacity: 0; transform: translateY(12px) scale(0.4); }
+  60%  { opacity: 1; transform: translateY(0) scale(1.14); }
+  80%  { transform: translateY(0) scale(0.96); }
+  100% { transform: translateY(0) scale(1); }
+`;
 const cpFall = keyframes`
   0%   { transform: translateY(-14vh) rotate(0deg); opacity: 0; }
   12%  { opacity: 1; }
@@ -241,6 +248,15 @@ const Content = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
+`;
+
+const Hero3D = styled.img`
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 14px 20px rgba(60, 50, 120, 0.32));
+  animation: ${cpPop} 0.6s cubic-bezier(0.18, 0.89, 0.32, 1.4) 0.12s both;
 `;
 
 const Headline = styled.div`

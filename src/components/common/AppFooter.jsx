@@ -10,7 +10,9 @@ const Wrap = styled.footer`
   width: 100%;
   background: ${({ theme }) => theme.colors?.footerBg || "#2f3134"};
   color: ${({ theme }) => theme.colors?.footerText || "rgba(255,255,255,0.86)"};
-  padding: 14px 16px 16px;
+  /* 하단 고정 탭바(BottomTabBar)에 가려 잘리지 않도록 탭바 높이 + 안전영역만큼 여백 확보 */
+  padding: 14px 16px
+    calc(16px + ${({ theme }) => theme.layout?.bottomTabHeight || 60}px + env(safe-area-inset-bottom));
   box-sizing: border-box;
 `;
 
@@ -105,6 +107,14 @@ const CardLine = styled.div`
   word-break: keep-all;
 `;
 
+const Disclaimer = styled.div`
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.58);
+  word-break: keep-all;
+`;
+
 const Copy = styled.div`
   margin-top: 2px;
   font-size: 11px;
@@ -158,6 +168,7 @@ export default function AppFooter({
     address:
       "주소 경기도 남양주시 화도읍 마석중앙로37번길 45, 504호-N141호(별나라프라자)",
   },
+  disclaimer = "할래말래는 팀·선수 간 경기 매칭을 연결하는 중개 플랫폼 서비스입니다. 회사는 경기의 개최·진행 및 회원 간 거래·분쟁의 당사자가 아니며, 이에 대한 책임을 지지 않습니다.",
   copyright = "© 2026 할래말래. All rights reserved.",
 }) {
   return (
@@ -199,6 +210,8 @@ export default function AppFooter({
           {company?.ceo && <CardLine>{company.ceo}</CardLine>}
           {company?.commerceNo && <CardLine>{company.commerceNo}</CardLine>}
         </Card>
+
+        {disclaimer && <Disclaimer>{disclaimer}</Disclaimer>}
 
         <Copy>{copyright}</Copy>
       </Inner>

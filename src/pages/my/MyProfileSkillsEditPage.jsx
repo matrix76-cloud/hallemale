@@ -173,15 +173,12 @@ const Chip = styled.button`
     ${({ $active, theme }) =>
       $active ? theme.colors.primary : theme.colors.border};
   background: ${({ $active, theme }) =>
-    $active
-      ? theme.mode === "dark"
-        ? "rgba(99,102,241,0.18)"
-        : "#eef2ff"
-      : theme.colors.card};
+    $active ? theme.colors.primary : theme.colors.card};
   padding: 9px 14px;
   font-size: 12px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
   color: ${({ $active, theme }) =>
-    $active ? theme.colors.primary : theme.colors.textNormal};
+    $active ? "#ffffff" : theme.colors.textNormal};
   cursor: pointer;
 `;
 

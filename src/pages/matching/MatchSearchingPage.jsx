@@ -3,7 +3,7 @@
 // 빠른 매칭 ①.5 로딩(광고) — 레이더 탐색 + 광고 배너 + 진행바
 // - 약 3초 후 매칭 상대 공개 화면으로 자동 이동(replace: 뒤로가기 시 로딩 재진입 방지)
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -172,6 +172,8 @@ export default function MatchSearchingPage() {
   const region = navState.region || "내 주변";
 
   const [pct, setPct] = useState(6);
+  const navStateRef = useRef(navState);
+  navStateRef.current = navState;
 
   useEffect(() => {
     const start = performance.now();
@@ -184,14 +186,14 @@ export default function MatchSearchingPage() {
     raf = requestAnimationFrame(tick);
 
     const timer = setTimeout(() => {
-      navigate("/matching/opponent", { state: navState, replace: true });
+      navigate("/matching/opponent", { state: navStateRef.current, replace: true });
     }, SEARCH_MS);
 
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
     };
-  }, [navigate, navState]);
+  }, [navigate]);
 
   return (
     <Page>

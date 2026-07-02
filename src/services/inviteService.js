@@ -102,6 +102,12 @@ export async function acceptClubInvite({ clubId, inviteId, uid } = {}) {
   if (!inviteSnap.exists()) throw new Error("acceptClubInvite: invite not found");
 
   const inv = inviteSnap.data() || {};
+
+  // ✅ 서버측 상태 재확인: 이미 처리된 초대면 중복 수락 차단
+  if (String(inv.status || "") !== "pending") {
+    throw new Error("이미 처리된 요청이에요.");
+  }
+
   const fromUid = String(inv.fromUid || "").trim(); // ✅ 팀장(초대한 사람)
   const toUid = String(inv.toUid || "").trim();
   if (toUid && toUid !== uid) {
@@ -113,6 +119,15 @@ export async function acceptClubInvite({ clubId, inviteId, uid } = {}) {
 
   const userRef = doc(db, "users", uid);
   const memberRef = doc(db, "clubs", clubId, "members", uid);
+
+  // ✅ 이미 다른 팀 소속이면 수락 차단 (더블 멤버십/기존 팀 소유권 유실 방지)
+  const meSnap = await getDoc(userRef);
+  const myTeam = String(
+    meSnap.exists() ? meSnap.data()?.activeTeamId || meSnap.data()?.clubId || "" : ""
+  ).trim();
+  if (myTeam && myTeam !== clubId) {
+    throw new Error("이미 소속된 팀이 있어요. 먼저 팀을 탈퇴한 뒤 초대를 수락해 주세요.");
+  }
 
   // ✅ 팀장에게 보낼 알림 문서
   const notiRef = doc(collection(db, "notifications"));
@@ -247,7 +262,7 @@ export async function rejectClubInvite({ clubId, inviteId, uid } = {}) {
           inviteId,
           fromUid,
           toUid: uid,
-          deepLink: `/clubs/${clubId}/manage`,
+          deepLink: `/team/${clubId}/manage`,
         },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
         prefsCategory: "teamDecision",

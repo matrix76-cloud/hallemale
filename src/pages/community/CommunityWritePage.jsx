@@ -4,9 +4,15 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import styled from "styled-components";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { createCommunityPost } from "../../services/communityService";
+import { createCommunityPost, updateCommunityPost } from "../../services/communityService";
+
+const CATEGORIES = [
+  { key: "free", label: "자유" },
+  { key: "recruit", label: "상대모집" },
+  { key: "review", label: "경기후기" },
+];
 
 /* =============== 레이아웃 =============== */
 
@@ -223,17 +229,44 @@ const SubmitButton = styled.button`
   }
 `;
 
+const CatRow = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+const CatChip = styled.button`
+  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
+  background: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.card)};
+  color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textNormal)};
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
 /* =============== 컴포넌트 =============== */
 
 export default function CommunityWritePage() {
   const nav = useNavigate();
+  const location = useLocation();
   const { firebaseUser, userDoc } = useAuth();
   const myUid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
 
+  // ✅ 수정 모드 (상세페이지에서 state로 넘어옴)
+  const editState = location.state || {};
+  const editPostId = String(editState.editPostId || "");
+  const isEdit = !!editPostId;
+
   const fileRef = useRef(null);
 
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const [title, setTitle] = useState(editState.initTitle || "");
+  const [content, setContent] = useState(editState.initContent || "");
+  const [category, setCategory] = useState(
+    ["free", "recruit", "review"].includes(editState.initCategory) ? editState.initCategory : "free"
+  );
 
   const [images, setImages] = useState([]); // [{ file, previewUrl }]
   const [busy, setBusy] = useState(false);
@@ -310,17 +343,25 @@ export default function CommunityWritePage() {
     try {
       setBusy(true);
 
+      if (isEdit) {
+        // ✅ 수정
+        await updateCommunityPost({ postId: editPostId, myUid, title, content, category });
+        nav(`/communitypost/${editPostId}`, { replace: true });
+        return;
+      }
+
       const res = await createCommunityPost({
         myUid,
         title,
         content,
+        category, // ✅ 선택한 카테고리 반영 (기존엔 항상 free로 저장되던 버그)
         imageFiles: images.map((x) => x.file), // ✅ 여러 장
       });
 
       nav(`/communitypost/${res.postId}`);
     } catch (err) {
-      console.error("[CommunityWritePage] create failed:", err?.code, err?.message, err);
-      alert("작성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      console.error("[CommunityWritePage] submit failed:", err?.code, err?.message, err);
+      alert(err?.message || "작성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }
@@ -330,6 +371,24 @@ export default function CommunityWritePage() {
     <PageWrap>
       <Inner>
         <Form id="community-write-form" onSubmit={handleSubmit}>
+          <Field>
+            <LabelRow>
+              <Label>분류</Label>
+            </LabelRow>
+            <CatRow>
+              {CATEGORIES.map((c) => (
+                <CatChip
+                  key={c.key}
+                  type="button"
+                  $on={category === c.key}
+                  onClick={() => !busy && setCategory(c.key)}
+                >
+                  {c.label}
+                </CatChip>
+              ))}
+            </CatRow>
+          </Field>
+
           <Field>
             <LabelRow>
               <Label htmlFor="title">제목</Label>

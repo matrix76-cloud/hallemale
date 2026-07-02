@@ -7,14 +7,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 
-import { playerAvatars } from "../../utils/imageAssets";
+import { images, playerAvatars } from "../../utils/imageAssets";
 import { KR_AREAS } from "../../utils/constants";
 import { useAuth } from "../../hooks/useAuth";
 import { updateUserProfile, isNicknameTaken } from "../../services/userService";
 import { uploadUserAvatar } from "../../services/mediaService";
 import { getNameChangeStatus } from "../../utils/nameChange";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
-import PlayerProfilePage from "../player/PlayerProfilePage";
 
 const POSITION_LABEL = {
   guard: "가드",
@@ -52,7 +51,6 @@ export default function MyProfileEditPage() {
 
   const [didInit, setDidInit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
 
   const sidoOptions = useMemo(
     () => (Array.isArray(KR_AREAS) ? KR_AREAS.map((a) => a.sido) : []),
@@ -212,229 +210,222 @@ export default function MyProfileEditPage() {
     return "신청 안 함";
   })();
 
+  // 값이 "아직 안 채움" 상태인지 → 메뉴 값 색으로 한눈에 구분
+  const isEmptyValue = (v) =>
+    v === "선택 안 함" || v === "등록 안 됨" || v === "신청 안 함";
+
+  const detailMenus = [
+    { key: "skills", label: "포지션 · 실력", value: skillsPreview, to: "/my/profile/edit/skills" },
+    { key: "body", label: "키 · 몸무게", value: bodyPreview, to: "/my/profile/edit/body" },
+    { key: "intro", label: "소개 · 경력", value: introPreview, to: "/my/profile/edit/intro" },
+    { key: "media", label: "경기 소개 · 사진/동영상", value: mediaPreview, to: "/my/profile/edit/media" },
+    { key: "team", label: "팀 가입 신청", value: teamJoinPreview, to: "/my/profile/edit/team-join" },
+  ];
+
   return (
     <Page>
+      {/* ── 기본 정보 ── */}
       <Card>
-        <Section>
-          <SectionHeader>
-            <SectionTitle>프로필 기본 정보</SectionTitle>
-            <SectionSub>매칭과 팀 가입 신청에 사용되는 기본 정보입니다.</SectionSub>
-          </SectionHeader>
+        <SectionHead>
+          <SectionIcon src={images.emoji3dIdCard} alt="" />
+          <SectionHeadText>
+            <SectionTitle>기본 정보</SectionTitle>
+            <SectionSub>매칭·팀 가입 신청에 쓰이는 기본 정보예요.</SectionSub>
+          </SectionHeadText>
+        </SectionHead>
 
-          <AvatarWrap>
-            <AvatarCircle type="button" onClick={handleAvatarClick} disabled={isSaving}>
-              {avatarPreview ? (
-                <AvatarImg src={avatarPreview} alt={nickname || "avatar"} />
-              ) : (
-                <AvatarPlaceholder size={72} />
-              )}
-            </AvatarCircle>
-
-            <AvatarTextCol>
-              <SmallButton type="button" onClick={handleAvatarClick} disabled={isSaving}>
-                프로필 사진 변경
-              </SmallButton>
-              {!uid ? (
-                <ErrorText>로그인 정보가 없습니다. 다시 로그인해 주세요.</ErrorText>
-              ) : null}
-            </AvatarTextCol>
-
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={handleAvatarChange}
-            />
-          </AvatarWrap>
-
-          <FieldGroup>
-            <Label htmlFor="nickname">닉네임</Label>
-            <InputRow>
-              <Input
-                id="nickname"
-                style={{ flex: 1 }}
-                placeholder="예) 한주성"
-                value={nickname}
-                onChange={(e) => {
-                  setNickname(e.target.value);
-                  setNickStatus("idle"); // 변경 시 다시 확인 필요
-                }}
-                disabled={isSaving || nickLock.locked}
-              />
-              <CheckButton
-                type="button"
-                onClick={handleCheckNick}
-                disabled={
-                  isSaving ||
-                  nickLock.locked ||
-                  !nickname.trim() ||
-                  !nickChanged ||
-                  nickStatus === "checking"
-                }
-              >
-                {nickStatus === "checking" ? "확인 중..." : "중복체크"}
-              </CheckButton>
-            </InputRow>
-
-            {nickLock.locked ? (
-              <NameStatus>
-                닉네임은 {nickLock.remainingDays}일 후에 변경할 수 있어요.
-              </NameStatus>
+        <AvatarBlock>
+          <AvatarCircle type="button" onClick={handleAvatarClick} disabled={isSaving}>
+            {avatarPreview ? (
+              <AvatarImg src={avatarPreview} alt={nickname || "avatar"} />
             ) : (
-              <>
-                {nickChanged && nickStatus === "idle" && (
-                  <NameStatus>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatus>
-                )}
-                {nickStatus === "available" && (
-                  <NameStatus $tone="ok">사용할 수 있는 닉네임이에요.</NameStatus>
-                )}
-                {nickStatus === "taken" && (
-                  <NameStatus $tone="error">이미 사용 중인 닉네임이에요.</NameStatus>
-                )}
-                {nickStatus === "error" && (
-                  <NameStatus $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatus>
-                )}
-                <NameStatus>닉네임은 한번 정하면 90일 후에 변경할 수 있어요.</NameStatus>
-              </>
+              <AvatarPlaceholder size={104} />
             )}
-          </FieldGroup>
+            <CameraBadge aria-hidden>📷</CameraBadge>
+          </AvatarCircle>
+          <AvatarHint>탭해서 프로필 사진 변경</AvatarHint>
+          {!uid ? (
+            <ErrorText>로그인 정보가 없습니다. 다시 로그인해 주세요.</ErrorText>
+          ) : null}
 
-          <FieldGroup>
-            <Label>지역</Label>
-            <TwoColRow>
-              <Select value={regionSido || ""} onChange={(e) => setRegionSido(e.target.value)}>
-                <option value="">시/도 선택</option>
-                {sidoOptions.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </Select>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={handleAvatarChange}
+          />
+        </AvatarBlock>
 
-              <Select
-                value={regionGu || ""}
-                onChange={(e) => setRegionGu(e.target.value)}
-                disabled={!regionSido}
-              >
-                <option value="">{regionSido ? "구/군 선택" : "시/도 먼저 선택"}</option>
-                {guOptions.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </Select>
-            </TwoColRow>
-          </FieldGroup>
-        </Section>
-
-        {uid ? (
-          <PreviewWrap>
-            <PreviewButton
+        <FieldGroup>
+          <Label htmlFor="nickname">닉네임</Label>
+          <InputRow>
+            <Input
+              id="nickname"
+              style={{ flex: 1 }}
+              placeholder="예) 한주성"
+              value={nickname}
+              onChange={(e) => {
+                setNickname(e.target.value);
+                setNickStatus("idle"); // 변경 시 다시 확인 필요
+              }}
+              disabled={isSaving || nickLock.locked}
+            />
+            <CheckButton
               type="button"
-              onClick={() => setShowPreview((v) => !v)}
-              aria-expanded={showPreview}
+              onClick={handleCheckNick}
+              disabled={
+                isSaving ||
+                nickLock.locked ||
+                !nickname.trim() ||
+                !nickChanged ||
+                nickStatus === "checking"
+              }
             >
-              👁 {showPreview ? "프로필 미리보기 닫기" : "프로필 미리보기"}
-            </PreviewButton>
-            {showPreview ? (
-              <>
-                <PreviewHint>다른 사람에게 보이는 내 프로필 화면이에요. (저장된 정보 기준)</PreviewHint>
-                <PreviewCard>
-                  <PlayerProfilePage playerId={uid} embed />
-                </PreviewCard>
-              </>
-            ) : null}
-          </PreviewWrap>
-        ) : null}
+              {nickStatus === "checking" ? "확인 중..." : "중복체크"}
+            </CheckButton>
+          </InputRow>
+
+          {nickLock.locked ? (
+            <NameStatus>
+              닉네임은 {nickLock.remainingDays}일 후에 변경할 수 있어요.
+            </NameStatus>
+          ) : (
+            <>
+              {nickChanged && nickStatus === "idle" && (
+                <NameStatus>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatus>
+              )}
+              {nickStatus === "available" && (
+                <NameStatus $tone="ok">사용할 수 있는 닉네임이에요.</NameStatus>
+              )}
+              {nickStatus === "taken" && (
+                <NameStatus $tone="error">이미 사용 중인 닉네임이에요.</NameStatus>
+              )}
+              {nickStatus === "error" && (
+                <NameStatus $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatus>
+              )}
+              <NameStatus>닉네임은 한번 정하면 90일 후에 변경할 수 있어요.</NameStatus>
+            </>
+          )}
+        </FieldGroup>
+
+        <FieldGroup>
+          <Label>지역</Label>
+          <TwoColRow>
+            <Select value={regionSido || ""} onChange={(e) => { setRegionSido(e.target.value); setRegionGu(""); }}>
+              <option value="">시/도 선택</option>
+              {sidoOptions.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </Select>
+
+            <Select
+              value={regionGu || ""}
+              onChange={(e) => setRegionGu(e.target.value)}
+              disabled={!regionSido}
+            >
+              <option value="">{regionSido ? "구/군 선택" : "시/도 먼저 선택"}</option>
+              {guOptions.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </Select>
+          </TwoColRow>
+        </FieldGroup>
+      </Card>
+
+      {/* ── 상세 프로필 ── */}
+      <Card>
+        <SectionHead>
+          <SectionIcon src={images.emoji3dBasketball} alt="" />
+          <SectionHeadText>
+            <SectionTitle>상세 프로필</SectionTitle>
+            <SectionSub>항목을 눌러 채울수록 매칭이 잘 돼요.</SectionSub>
+          </SectionHeadText>
+        </SectionHead>
 
         <MenuList>
-          <MenuRow type="button" onClick={() => nav("/my/profile/edit/skills")}>
-            <MenuLabel>포지션 · 실력</MenuLabel>
-            <MenuRight>
-              <MenuValue>{skillsPreview}</MenuValue>
-              <MenuChevron>›</MenuChevron>
-            </MenuRight>
-          </MenuRow>
-
-          <MenuRow type="button" onClick={() => nav("/my/profile/edit/body")}>
-            <MenuLabel>키 · 몸무게</MenuLabel>
-            <MenuRight>
-              <MenuValue>{bodyPreview}</MenuValue>
-              <MenuChevron>›</MenuChevron>
-            </MenuRight>
-          </MenuRow>
-
-          <MenuRow type="button" onClick={() => nav("/my/profile/edit/intro")}>
-            <MenuLabel>소개 · 경력</MenuLabel>
-            <MenuRight>
-              <MenuValue>{introPreview}</MenuValue>
-              <MenuChevron>›</MenuChevron>
-            </MenuRight>
-          </MenuRow>
-
-          <MenuRow type="button" onClick={() => nav("/my/profile/edit/media")}>
-            <MenuLabel>경기 소개 · 사진/동영상</MenuLabel>
-            <MenuRight>
-              <MenuValue>{mediaPreview}</MenuValue>
-              <MenuChevron>›</MenuChevron>
-            </MenuRight>
-          </MenuRow>
-
-          <MenuRow type="button" onClick={() => nav("/my/profile/edit/team-join")}>
-            <MenuLabel>팀 가입 신청</MenuLabel>
-            <MenuRight>
-              <MenuValue>{teamJoinPreview}</MenuValue>
-              <MenuChevron>›</MenuChevron>
-            </MenuRight>
-          </MenuRow>
+          {detailMenus.map((m) => (
+            <MenuRow key={m.key} type="button" onClick={() => nav(m.to)}>
+              <MenuLabel>{m.label}</MenuLabel>
+              <MenuRight>
+                <MenuValue $empty={isEmptyValue(m.value)}>{m.value}</MenuValue>
+                <MenuChevron>›</MenuChevron>
+              </MenuRight>
+            </MenuRow>
+          ))}
         </MenuList>
-
-        <ActionsRow>
-          <GhostButton type="button" onClick={() => nav("/my")}>취소</GhostButton>
-          <PrimaryButton type="button" disabled={!canSave || isSaving} onClick={handleSave}>
-            {isSaving ? "저장 중..." : "프로필 저장"}
-          </PrimaryButton>
-        </ActionsRow>
       </Card>
+
+      {/* ── 미리보기 (전체 화면으로 이동) ── */}
+      {uid ? (
+        <Card>
+          <PreviewButton type="button" onClick={() => nav(`/player/${uid}`)}>
+            👁 내 프로필 미리보기
+          </PreviewButton>
+          <PreviewHint>다른 사람에게 보이는 내 프로필을 전체 화면으로 볼 수 있어요. (저장된 정보 기준)</PreviewHint>
+        </Card>
+      ) : null}
+
+      {/* ── 하단 고정 저장 바 ── */}
+      <SaveBar>
+        <GhostButton type="button" onClick={() => nav("/my")}>취소</GhostButton>
+        <PrimaryButton type="button" disabled={!canSave || isSaving} onClick={handleSave}>
+          {isSaving ? "저장 중..." : "프로필 저장"}
+        </PrimaryButton>
+      </SaveBar>
     </Page>
   );
 }
 
-const Page = styled.div`
-  min-height: calc(100vh - 56px);
-  background: ${({ theme }) => theme.colors.bg};
-  padding: 16px 14px 32px;
-  display: flex;
-  justify-content: center;
-`;
+/* ============================ styled ============================ */
 
-const Card = styled.div`
-  width: 100%;
-  max-width: 520px;
-  background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
-  box-shadow: ${({ theme }) => theme.shadows.card};
-  padding: 24px 20px 28px;
+const Page = styled.div`
+  min-height: 100%;
+  background: ${({ theme }) => theme.colors.bg};
+  padding: 14px 14px calc(20px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 12px;
 `;
 
-const Section = styled.section`
+const Card = styled.section`
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 18px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  padding: 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  padding-bottom: 24px;
 `;
 
-const SectionHeader = styled.div`
+/* 섹션 헤더: 3D 아이콘 + 타이틀 (앱 공통 신스킨) */
+const SectionHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const SectionIcon = styled.img`
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.16));
+`;
+
+const SectionHeadText = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
+  min-width: 0;
 `;
 
 const SectionTitle = styled.h2`
   margin: 0;
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
-  font-weight: 600;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
@@ -449,6 +440,62 @@ const ErrorText = styled.span`
   color: ${({ theme }) => theme.colors.danger};
 `;
 
+/* ── 아바타: 중앙 큰 원 + 카메라 배지 ── */
+const AvatarBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+`;
+
+const AvatarCircle = styled.button`
+  position: relative;
+  width: 104px;
+  height: 104px;
+  border-radius: 999px;
+  overflow: visible;
+  background: transparent;
+  flex-shrink: 0;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+`;
+
+const AvatarImg = styled.img`
+  width: 104px;
+  height: 104px;
+  border-radius: 999px;
+  object-fit: cover;
+  background: ${({ theme }) => theme.colors.border};
+`;
+
+const CameraBadge = styled.span`
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 2px solid ${({ theme }) => theme.colors.card};
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+`;
+
+const AvatarHint = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+/* ── 입력 필드 ── */
 const FieldGroup = styled.div`
   display: flex;
   flex-direction: column;
@@ -457,23 +504,27 @@ const FieldGroup = styled.div`
 
 const Label = styled.label`
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const Input = styled.input`
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: 11px 12px;
-  font-size: 13px;
+  padding: 13px 14px;
+  font-size: 14px;
   outline: none;
   background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
   color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
     border-color: ${({ theme }) => theme.colors.primary};
     background: ${({ theme }) => theme.colors.card};
+  }
+
+  &:disabled {
+    opacity: 0.6;
   }
 `;
 
@@ -485,15 +536,15 @@ const InputRow = styled.div`
 
 const CheckButton = styled.button`
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.primary};
   background: ${({ theme }) =>
     theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
   color: ${({ theme }) =>
     theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 0 16px;
+  font-size: 12.5px;
+  font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
 
@@ -521,12 +572,12 @@ const TwoColRow = styled.div`
 
 const Select = styled.select`
   flex: 1;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: 11px 12px;
-  font-size: 13px;
+  padding: 13px 12px;
+  font-size: 14px;
   background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
   color: ${({ theme }) => theme.colors.textStrong};
   outline: none;
 
@@ -541,56 +592,7 @@ const Select = styled.select`
   }
 `;
 
-const AvatarWrap = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-`;
-
-const AvatarCircle = styled.button`
-  width: 72px;
-  height: 72px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: ${({ theme }) => theme.colors.border};
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-`;
-
-const AvatarImg = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const AvatarTextCol = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-`;
-
-const SmallButton = styled.button`
-  align-self: flex-start;
-  border-radius: 999px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.card};
-  padding: 6px 12px;
-  font-size: 11px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.textStrong};
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-`;
-
+/* ── 상세 프로필 메뉴 ── */
 const MenuList = styled.div`
   display: flex;
   flex-direction: column;
@@ -600,7 +602,7 @@ const MenuRow = styled.button`
   width: 100%;
   border: none;
   background: transparent;
-  padding: 16px 4px;
+  padding: 15px 2px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
   display: flex;
   align-items: center;
@@ -609,8 +611,12 @@ const MenuRow = styled.button`
   cursor: pointer;
   text-align: left;
 
+  &:first-child {
+    padding-top: 4px;
+  }
   &:last-child {
     border-bottom: none;
+    padding-bottom: 2px;
   }
 
   &:active {
@@ -620,7 +626,7 @@ const MenuRow = styled.button`
 `;
 
 const MenuLabel = styled.div`
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.textStrong};
   flex-shrink: 0;
@@ -633,74 +639,33 @@ const MenuRight = styled.div`
   min-width: 0;
 `;
 
+/* 아직 안 채운 값은 흐리게, 채운 값은 진하게 → 한눈에 진행도 파악 */
 const MenuValue = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 12.5px;
+  font-weight: ${({ $empty }) => ($empty ? 500 : 700)};
+  color: ${({ $empty, theme }) =>
+    $empty ? theme.colors.textWeak : theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 220px;
+  max-width: 210px;
 `;
 
 const MenuChevron = styled.div`
-  font-size: 18px;
+  font-size: 20px;
   color: ${({ theme }) => theme.colors.textWeak};
   flex-shrink: 0;
 `;
 
-const ActionsRow = styled.div`
-  margin-top: 8px;
-  display: flex;
-  gap: 10px;
-`;
-
-const GhostButton = styled.button`
-  flex: 1;
-  height: 42px;
-  border-radius: 999px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.card};
-  font-size: 13px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.textStrong};
-  cursor: pointer;
-`;
-
-const PrimaryButton = styled.button`
-  flex: 1;
-  height: 42px;
-  border-radius: 999px;
-  border: none;
-  background: ${({ theme }) => theme.colors.primary};
-  font-size: 13px;
-  font-weight: 600;
-  color: #ffffff;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-`;
-
-const PreviewWrap = styled.section`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  padding-bottom: 24px;
-`;
-
+/* ── 미리보기 ── */
 const PreviewButton = styled.button`
   width: 100%;
-  height: 44px;
-  border-radius: 999px;
-  border: 1px solid ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.14)" : "#eef2ff"};
-  color: ${({ theme }) =>
-    theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
-  font-size: 13px;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -710,6 +675,8 @@ const PreviewButton = styled.button`
 
   &:active {
     transform: translateY(1px);
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   }
 `;
 
@@ -720,13 +687,53 @@ const PreviewHint = styled.p`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-// 미리보기 프레임: 흰 카드 안에 공개 프로필(embed)을 담아 한눈에 확인
-const PreviewCard = styled.div`
-  background: #ffffff;
-  border: 1px solid ${({ theme }) => theme.colors.border};
+/* ── 하단 고정 저장 바 ── */
+const SaveBar = styled.div`
+  position: sticky;
+  bottom: 0;
+  margin: 4px -14px 0;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+  background: ${({ theme }) => theme.colors.bg};
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const GhostButton = styled.button`
+  flex: 0 0 34%;
+  height: 50px;
   border-radius: 14px;
-  overflow: hidden auto;
-  max-height: 560px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16),
-    0 2px 6px rgba(15, 23, 42, 0.08);
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  font-size: 14px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  cursor: pointer;
+
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
+const PrimaryButton = styled.button`
+  flex: 1;
+  height: 50px;
+  border-radius: 14px;
+  border: none;
+  background: ${({ theme }) => theme.colors.primary};
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 8px 18px -8px ${({ theme }) => theme.colors.primary};
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+    box-shadow: none;
+  }
 `;

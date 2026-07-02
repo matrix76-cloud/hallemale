@@ -36,7 +36,10 @@ const Content = styled.div`
 `;
 
 const HeroRow = styled.div`
-  margin: -16px -16px 0;
+  margin: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.08);
 `;
 
 const Inner = styled.div`

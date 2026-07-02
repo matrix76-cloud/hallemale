@@ -6,7 +6,7 @@
 // ✅ 라인업 스냅샷 SSOT: actorLineup/targetLineup 자체 필드(memberIds/memberCount/previewMembers)
 
 import { db, auth } from "./firebase";
-import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
 import { MIN_TEAM_MEMBERS } from "../utils/constants";
@@ -195,6 +195,18 @@ export async function createMatchRequest({
     throw new Error(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
   if (teamMemberCount(targetTeam) < MIN_TEAM_MEMBERS)
     throw new Error(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
+
+  // ✅ 중복 매칭 요청 방지: 두 팀 사이에 이미 진행 중인 요청/경기가 있으면 차단
+  {
+    const activeStatuses = ["pending", "accepted", "proposed", "confirmed"];
+    const col = collection(db, "match_requests");
+    const [s1, s2] = await Promise.all([
+      getDocs(query(col, where("actorClubId", "==", _actorClubId), where("targetClubId", "==", _targetClubId))),
+      getDocs(query(col, where("actorClubId", "==", _targetClubId), where("targetClubId", "==", _actorClubId))),
+    ]);
+    const dup = [...s1.docs, ...s2.docs].some((d) => activeStatuses.includes(toStr(d.data()?.status)));
+    if (dup) throw new Error("이미 이 팀과 진행 중인 매칭이 있어요. 매칭룸에서 확인해 주세요.");
+  }
 
   const fromTeamSnapshot = pickTeamSnapshot(actorTeam);
   const toTeamSnapshot = pickTeamSnapshot(targetTeam);

@@ -16,7 +16,7 @@ import {
 } from "../../services/notificationService";
 import { subscribePublishedNotices } from "../../services/noticesService";
 import { resolveNotiRoute } from "../../utils/notiRoute";
-import { isLeaderOnlyMatchNoti } from "../../utils/notificationDefinitions";
+import { isLeaderOnlyMatchNoti, getNotiCategory } from "../../utils/notificationDefinitions";
 import EmptyState from "../../components/common/EmptyState";
 
 // 관리자 공지(notices)는 서버 readBy가 없어 읽음 표시를 로컬에 보관
@@ -91,14 +91,7 @@ const KindBadge = styled.span`
   font-size: 11px;
   font-weight: 600;
   color: #ffffff;
-
-  ${({ kind }) => {
-    if (kind === "notice") return `background:#2563eb;`;
-    if (kind === "event") return `background:#2563eb;`;
-    if (kind === "match") return `background:#22c55e;`;
-    if (kind === "team") return `background:#7c3aed;`;
-    return `background:#6b7280;`;
-  }}
+  background: ${({ $color }) => $color || "#6b7280"};
 `;
 
 const ItemTitle = styled.div`
@@ -146,14 +139,6 @@ const ImportantLabel = styled.span`
   font-size: 11px;
   font-weight: 600;
 `;
-
-function kindLabel(kind) {
-  if (kind === "notice") return "공지";
-  if (kind === "event") return "이벤트";
-  if (kind === "match") return "매칭";
-  if (kind === "team") return "팀";
-  return "시스템";
-}
 
 function toDateSafe(v) {
   if (!v) return null;
@@ -302,10 +287,12 @@ export default function NotificationsPage() {
             <>
               <SectionTitle>새 알림</SectionTitle>
               <List>
-                {unreadList.map((n) => (
+                {unreadList.map((n) => {
+                  const cat = getNotiCategory(n.kind);
+                  return (
                   <ItemCard key={n.id} type="button" read={n.read} onClick={() => handleClickItem(n)}>
                     <ItemTopRow>
-                      <KindBadge kind={n.kind}>{kindLabel(n.kind)}</KindBadge>
+                      <KindBadge $color={cat.color}>{cat.label}</KindBadge>
                       <ItemTitle read={n.read}>{n.title}</ItemTitle>
                       {!n.read && <NewDot />}
                     </ItemTopRow>
@@ -315,7 +302,8 @@ export default function NotificationsPage() {
                       {n.important && <ImportantLabel>중요</ImportantLabel>}
                     </ItemMetaRow>
                   </ItemCard>
-                ))}
+                  );
+                })}
               </List>
             </>
           )}
@@ -324,10 +312,12 @@ export default function NotificationsPage() {
             <>
               <SectionTitle>지난 알림</SectionTitle>
               <List>
-                {readList.map((n) => (
+                {readList.map((n) => {
+                  const cat = getNotiCategory(n.kind);
+                  return (
                   <ItemCard key={n.id} type="button" read={n.read} onClick={() => handleClickItem(n)}>
                     <ItemTopRow>
-                      <KindBadge kind={n.kind}>{kindLabel(n.kind)}</KindBadge>
+                      <KindBadge $color={cat.color}>{cat.label}</KindBadge>
                       <ItemTitle read={n.read}>{n.title}</ItemTitle>
                     </ItemTopRow>
                     <ItemBody>{n.body}</ItemBody>
@@ -336,7 +326,8 @@ export default function NotificationsPage() {
                       {n.important && <ImportantLabel>중요</ImportantLabel>}
                     </ItemMetaRow>
                   </ItemCard>
-                ))}
+                  );
+                })}
               </List>
             </>
           )}

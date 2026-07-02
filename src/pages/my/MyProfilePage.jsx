@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { playerAvatars } from "../../utils/imageAssets";
+import { playerAvatars, images } from "../../utils/imageAssets";
 import { useAuth } from "../../hooks/useAuth";
 import { useClub } from "../../hooks/useClub";
 import { useThemeMode } from "../../context/ThemeContext";
@@ -112,7 +112,6 @@ export default function MyProfilePage() {
   const handleMainMenuClick = (key) => {
     if (key === "posts") nav("/my/posts");
     if (key === "personal-matches") nav("/my/personal-matches");
-    if (key === "matched-matches") nav("/my/matched-matches");
     if (key === "my-reports") nav("/my/reports");
 
     if (key === "team-invites") nav("/my/team-invites");
@@ -501,19 +500,30 @@ export default function MyProfilePage() {
 
       <PageWrap>
         <ProfileHeader>
-          <ProfileHeaderInner>
+          <ProfileHeaderInner
+            role="button"
+            tabIndex={0}
+            onClick={handleGoEditProfile}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleGoEditProfile();
+              }
+            }}
+          >
             <ProfileLeft>
               <AvatarWrap>
                 {avatarSrc ? (
                   <Avatar src={avatarSrc} alt={nickname || "profile"} />
                 ) : (
-                  <AvatarPlaceholder size={60} />
+                  <AvatarPlaceholder size={68} />
                 )}
               </AvatarWrap>
 
               <ProfileInfo>
                 <NameRow>
                   <Name>{loading ? "불러오는 중..." : nickname ? nickname : "닉네임 미설정"}</Name>
+                  <HeaderWave src={images.emoji3dWave} alt="" />
                   {isTeamLeader ? <OwnerPill>팀장</OwnerPill> : null}
                 </NameRow>
 
@@ -525,14 +535,13 @@ export default function MyProfilePage() {
               </ProfileInfo>
             </ProfileLeft>
 
-            <ProfileSettingBtn type="button" onClick={handleGoEditProfile}>
-              내프로필 설정
-            </ProfileSettingBtn>
+            <EditChevron aria-hidden>›</EditChevron>
           </ProfileHeaderInner>
         </ProfileHeader>
 
         <Section>
           <SectionInner>
+            <SectionIcon src={images.emoji3dPeople} alt="" $nudgeUp={4} />
             <SectionTitle>팀 정보 설정</SectionTitle>
           </SectionInner>
 
@@ -581,6 +590,7 @@ export default function MyProfilePage() {
 
         <Section>
           <SectionInner>
+            <SectionIcon src={images.emoji3dIdCard} alt="" $nudgeUp={4} />
             <SectionTitle>내 정보</SectionTitle>
           </SectionInner>
           <SectionBody>
@@ -615,13 +625,6 @@ export default function MyProfilePage() {
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
 
-              <MenuItemButton onClick={() => handleMainMenuClick("matched-matches")}>
-                <MenuTextWrap>
-                  <MenuTitle>매칭된 경기</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
-              </MenuItemButton>
-
               <MenuItemButton onClick={() => handleMainMenuClick("my-reports")}>
                 <MenuTextWrap>
                   <MenuTitle>내가 신고한 내역</MenuTitle>
@@ -634,6 +637,7 @@ export default function MyProfilePage() {
 
         <Section>
           <SectionInner>
+            <SectionIcon src={images.emoji3dGear} alt="" />
             <SectionTitle>계정 · 앱 설정</SectionTitle>
           </SectionInner>
           <SectionBody>
@@ -953,25 +957,53 @@ const PageWrap = styled.div`
 `;
 
 const ProfileHeader = styled.div`
-  padding: 0 12px 18px;
+  padding: 2px 0 0;
 `;
 
 const ProfileHeaderInner = styled.div`
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 18px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  padding: 16px 16px;
+  cursor: pointer;
+  transition: transform 0.06s ease, background 0.15s ease;
+
+  &:active {
+    transform: scale(0.994);
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  }
 `;
 
 const ProfileLeft = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  min-width: 0;
 `;
 
 const AvatarWrap = styled.div`
-  width: 60px;
-  height: 60px;
+  width: 68px;
+  height: 68px;
   border-radius: 999px;
   overflow: hidden;
+  flex-shrink: 0;
   background: ${({ theme }) => theme.colors.border};
+`;
+
+/* 프로필 헤더 인사 3D (손 흔들기) */
+const HeaderWave = styled.img`
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
 `;
 
 const Avatar = styled.img`
@@ -1018,28 +1050,12 @@ const MetaRow = styled.div`
 const MetaItem = styled.span``;
 const MetaDot = styled.span``;
 
-const ProfileSettingBtn = styled.button`
-  position: absolute;
-  top: 2px;
-  right: 0px;
-
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.card};
-  color: ${({ theme }) => theme.colors.textStrong};
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  z-index: 2;
-
-  box-shadow: ${({ theme }) => theme.shadows.card};
-
-  &:active {
-    transform: translateY(1px);
-    background: ${({ theme }) =>
-      theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
-  }
+/* 카드가 클릭 가능함을 알리는 화살표 */
+const EditChevron = styled.span`
+  flex-shrink: 0;
+  font-size: 24px;
+  line-height: 1;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const SetupOverlay = styled.div`
@@ -1101,26 +1117,44 @@ const SetupCta = styled.div`
 `;
 
 const Section = styled.section`
-  margin-top: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  margin-top: 14px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 16px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  overflow: hidden;
 `;
 
 const SectionInner = styled.div`
-  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px 8px;
+`;
+
+/* 섹션 헤더 3D 아이콘 */
+/* $nudgeUp: 그림이 PNG 내부에서 아래로 쏠린 이모지(people·idcard)를 위로 올려
+   텍스트와 시각 중심을 맞추기 위한 광학 보정(px). gear는 정중앙이라 보정 없음. */
+const SectionIcon = styled.img`
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.16));
+  ${({ $nudgeUp }) => ($nudgeUp ? `transform: translateY(-${$nudgeUp}px);` : "")}
 `;
 
 const SectionTitle = styled.h2`
   margin: 0;
   font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
-  font-weight: 600;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SectionBody = styled.div`
   display: flex;
-  padding: 0 20px 0 20px;
-  margin-top: 10px;
+  padding: 0 14px 4px;
 `;
 
 const MenuList = styled.div`
@@ -1132,16 +1166,20 @@ const MenuList = styled.div`
 const MenuItemButton = styled.button`
   width: 100%;
   border: none;
-  padding: 10px 0;
+  padding: 13px 4px;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.divider};
 
   &:last-child {
     border-bottom: none;
+  }
+  &:active {
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(255,255,255,0.04)" : "rgba(15,23,42,0.03)"};
   }
 `;
 

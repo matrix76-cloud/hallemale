@@ -11,6 +11,7 @@ import {
   arrayRemove,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -238,6 +239,20 @@ export async function clearNotificationsForUser({ uid } = {}) {
     } catch (e) {
       console.warn("[noti] clearNotificationsForUser chunk failed:", e?.message || e);
     }
+  }
+}
+
+// ✅ 알림 상세 — notifications 컬렉션에서 id로 단건 조회 (상세 페이지 폴백용)
+export async function getNotificationById(notificationId) {
+  const id = String(notificationId || "").trim();
+  if (!id) return null;
+  try {
+    const snap = await getDoc(doc(db, "notifications", id));
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() };
+  } catch (e) {
+    console.warn("[noti] getNotificationById failed:", e?.message || e);
+    return null;
   }
 }
 

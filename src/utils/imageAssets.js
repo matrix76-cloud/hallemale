@@ -53,6 +53,29 @@ import homeBanner4 from "../assets/images/home-banner-4.png";
 import teamActionManage from "../assets/images/teamActionManage.png";
 import teamActionPool from "../assets/images/teamActionPool.png";
 
+/* 3D 오브젝트 (Microsoft Fluent Emoji · MIT) — 밋밋함 완화용 */
+import emoji3dBasketball from "../assets/images/emoji3d/basketball.png";
+import emoji3dTrophy from "../assets/images/emoji3d/trophy.png";
+import emoji3dParty from "../assets/images/emoji3d/party.png";
+import emoji3dClap from "../assets/images/emoji3d/clap.png";
+import emoji3dFire from "../assets/images/emoji3d/fire.png";
+import emoji3dSparkles from "../assets/images/emoji3d/sparkles.png";
+import emoji3dSpeech from "../assets/images/emoji3d/speech.png";
+import emoji3dCheck from "../assets/images/emoji3d/check.png";
+import emoji3dFlag from "../assets/images/emoji3d/flag.png";
+import emoji3dCross from "../assets/images/emoji3d/cross.png";
+import emoji3dPeople from "../assets/images/emoji3d/people.png";
+import emoji3dIdCard from "../assets/images/emoji3d/idcard.png";
+import emoji3dGear from "../assets/images/emoji3d/gear.png";
+import emoji3dWave from "../assets/images/emoji3d/wave.png";
+import emoji3dCalendar from "../assets/images/emoji3d/calendar.png";
+import emoji3dVs from "../assets/images/emoji3d/vs.png";
+import emoji3dBarchart from "../assets/images/emoji3d/barchart.png";
+import emoji3dPicture from "../assets/images/emoji3d/picture.png";
+import emoji3dStar from "../assets/images/emoji3d/star.png";
+import emoji3dShield from "../assets/images/emoji3d/shield.png";
+import emoji3dFolder from "../assets/images/emoji3d/folder.png";
+
 
 /* =========================
  * export 모음
@@ -128,6 +151,28 @@ export const images = {
   homeBanner4,
   teamActionManage,
   teamActionPool,
+  // 3D 오브젝트 (Fluent Emoji · MIT)
+  emoji3dBasketball,
+  emoji3dTrophy,
+  emoji3dParty,
+  emoji3dClap,
+  emoji3dFire,
+  emoji3dSparkles,
+  emoji3dSpeech,
+  emoji3dCheck,
+  emoji3dFlag,
+  emoji3dCross,
+  emoji3dPeople,
+  emoji3dIdCard,
+  emoji3dGear,
+  emoji3dWave,
+  emoji3dCalendar,
+  emoji3dVs,
+  emoji3dBarchart,
+  emoji3dPicture,
+  emoji3dStar,
+  emoji3dShield,
+  emoji3dFolder,
   TeamProfilePage,
   teamHeroBasket,
   teamIntroIcon,

@@ -18,6 +18,7 @@ import {
   limit,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
   writeBatch,
@@ -82,11 +83,26 @@ export async function acceptJoinRequest({ clubId, requestId, leaderUid } = {}) {
   if (!reqSnap.exists()) throw new Error("acceptJoinRequest: joinRequest not found");
 
   const req = reqSnap.data() || {};
+
+  // ✅ 서버측 상태 재확인: 이미 처리된 요청이면 중복 수락 차단
+  if (String(req.status || "") !== "pending") {
+    throw new Error("이미 처리된 요청이에요.");
+  }
+
   const playerUid = String(req.playerUid || "").trim();
   if (!playerUid) throw new Error("acceptJoinRequest: playerUid is empty");
 
   const memberRef = doc(db, "clubs", clubId, "members", playerUid);
   const userRef = doc(db, "users", playerUid);
+
+  // ✅ 신청자가 이미 다른 팀 소속이면 수락 차단 (더블 멤버십 방지)
+  const playerSnap = await getDoc(userRef);
+  const playerTeam = String(
+    playerSnap.exists() ? playerSnap.data()?.activeTeamId || playerSnap.data()?.clubId || "" : ""
+  ).trim();
+  if (playerTeam && playerTeam !== clubId) {
+    throw new Error("이 사용자는 이미 다른 팀에 소속되어 있어요. 상대가 팀을 탈퇴한 뒤 다시 수락할 수 있어요.");
+  }
 
   // ✅ 팀원에게 보낼 알림 문서(SSOT: notifications)
   const notiRef = doc(collection(db, "notifications"));
@@ -127,12 +143,13 @@ export async function acceptJoinRequest({ clubId, requestId, leaderUid } = {}) {
     { merge: true }
   );
 
-  // 3) 유저 activeTeamId 갱신
+  // 3) 유저 activeTeamId 갱신 + joinRequest 상태 정리(무한 pending 방지)
   batch.set(
     userRef,
     {
       activeTeamId: clubId,
       clubId,
+      joinRequest: { status: "accepted", updatedAt: serverTimestamp() },
       updatedAt: serverTimestamp(),
     },
     { merge: true }
@@ -203,6 +220,22 @@ export async function rejectJoinRequest({ clubId, requestId, leaderUid } = {}) {
     updatedAt: serverTimestamp(),
   });
 
+  // ✅ 신청자 users.joinRequest 상태 정리(무한 pending 방지)
+  if (playerUid) {
+    try {
+      await setDoc(
+        doc(db, "users", playerUid),
+        {
+          joinRequest: { status: "rejected", updatedAt: serverTimestamp() },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn("[joinRequest] clear joinRequest failed:", e?.message || e);
+    }
+  }
+
   // ✅ 신청자에게 거절 알림
   if (playerUid) {
     try {
@@ -224,7 +257,7 @@ export async function rejectJoinRequest({ clubId, requestId, leaderUid } = {}) {
         meta: {
           clubId,
           joinRequestId: requestId,
-          deepLink: `/clubs/${clubId}`,
+          deepLink: `/my/team-invites`,
         },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
         prefsCategory: "teamDecision",

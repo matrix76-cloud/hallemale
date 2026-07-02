@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { FiMapPin, FiChevronRight } from "react-icons/fi";
+import { FiMapPin } from "react-icons/fi";
 import { loadMatchRoomListPageData } from "../../services/matchRoomService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import TeamAvatarPlaceholder from "../common/TeamAvatarPlaceholder";
@@ -85,15 +85,17 @@ const Slide = styled.div`
 /* 배경 없이 그림자로만 떠 있는 카드 (높이 통일) */
 const Card = styled.div`
   width: 100%;
-  min-width: 0; /* 긴 주소가 카드 폭을 밀어내지 못하게 */
-  height: 100%;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  background: transparent;
-  border: none;
-  border-radius: 14px;
-  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.22),
-    0 2px 6px -2px rgba(15, 23, 42, 0.1);
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 16px;
+  box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.12),
+    0 2px 6px -2px rgba(15, 23, 42, 0.08);
   cursor: pointer;
   overflow: hidden;
 
@@ -102,22 +104,77 @@ const Card = styled.div`
   }
 `;
 
+/* 우측 정보 컬럼 */
+const Body = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 1px;
+`;
+
+const TopLine = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`;
+
+const OppName = styled.div`
+  min-width: 0;
+  font-size: 15.5px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const TimeText = styled.div`
+  font-size: 12.5px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textNormal};
+`;
+
 const TopRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 14px 4px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.divider};
 `;
 
-const Dday = styled.span`
+/* 시간 헤더 3D 캘린더 */
+const CalIcon = styled.img`
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex-shrink: 0;
+`;
+
+/* 시간 헤더 좌측 그룹 (캘린더 + 시간) */
+const TimeGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`;
+
+/* 카드 안 D-day (배경 없이 텍스트만) */
+const CardDday = styled.span`
+  flex-shrink: 0;
   color: ${({ theme }) => theme.colors.primary};
+  font-size: 13px;
   font-weight: 800;
+  letter-spacing: -0.2px;
 `;
 
 const TopTime = styled.span`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.textWeak};
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textNormal};
   white-space: nowrap;
 `;
 
@@ -141,19 +198,18 @@ const TeamSide = styled.div`
 /* 1~3위: 로고 위에 겹쳐지는 왕관 (다른 카드와 동일) */
 const LogoSlot = styled.div`
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
 `;
 
-/* LogoSlot 40px → 기준 비율 그대로 */
 const CrownImg = styled.img`
   position: absolute;
-  top: -15px;
+  top: -17px;
   left: 50%;
   transform: translateX(-50%);
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   object-fit: contain;
   z-index: 2;
   pointer-events: none;
@@ -161,17 +217,19 @@ const CrownImg = styled.img`
 `;
 
 const LogoBox = styled.div`
-  width: 40px;
-  height: 40px;
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 0 0 1px ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(15,23,42,0.06)"};
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
   font-weight: 800;
-  color: ${({ theme }) => theme.colors.textNormal};
+  color: #4b3fae;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
 `;
@@ -192,7 +250,7 @@ const TeamText = styled.div`
 
 const TeamName = styled.span`
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
@@ -205,11 +263,13 @@ const TeamSub = styled.span`
   white-space: nowrap;
 `;
 
-const VsText = styled.span`
+/* 가운데 VS 3D 배지 */
+const VsText = styled.img`
   flex-shrink: 0;
-  font-size: 13px;
-  font-weight: 800;
-  color: ${({ theme }) => theme.colors.textWeak};
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 10px rgba(15, 23, 42, 0.22));
 `;
 
 const VenueRow = styled.div`
@@ -217,10 +277,13 @@ const VenueRow = styled.div`
   align-items: center;
   gap: 6px;
   min-width: 0; /* 주소 ellipsis가 동작하도록 */
-  padding: 11px 14px;
-  border-top: 1px solid ${({ theme }) => theme.colors.border};
   color: ${({ theme }) => theme.colors.textNormal};
-  font-size: 12.5px;
+  font-size: 12px;
+
+  & > svg {
+    color: ${({ theme }) => theme.colors.textWeak};
+    flex-shrink: 0;
+  }
 `;
 
 /* 구장 방식 구분 태그: 제휴구장(보라) / 직접입력(중립) */
@@ -343,14 +406,9 @@ export default function HomeUpcomingMatch({ clubId }) {
   const multi = matches.length > 1;
 
   const renderCard = (match) => {
-    const myTeam = match.myTeam || {};
     const oppTeam = match.oppTeam || {};
-    const myName = toStr(myTeam.name) || "우리팀";
     const oppName = toStr(oppTeam.name) || "상대팀";
-    const myLogo = toStr(myTeam.logoUrl);
     const oppLogo = toStr(oppTeam.logoUrl);
-
-    const myRank = rankMap ? rankMap.get(toStr(myTeam.clubId || myTeam.id)) : null;
     const oppRank = rankMap ? rankMap.get(toStr(oppTeam.clubId || oppTeam.id)) : null;
 
     // 제휴구장 예약(partnerBooking 존재) vs 직접입력 구분
@@ -364,51 +422,27 @@ export default function HomeUpcomingMatch({ clubId }) {
         role="button"
         tabIndex={0}
       >
-        <TopRow>
-          <TopTime>{formatDateTime(match.scheduledAt)}</TopTime>
-        </TopRow>
+        <LogoSlot>
+          {oppRank && oppRank <= 3 ? <CrownImg src={images.logo} alt={`${oppRank}위`} /> : null}
+          <LogoBox>
+            {oppLogo ? <LogoImg src={oppLogo} alt={oppName} /> : <TeamAvatarPlaceholder size={56} />}
+          </LogoBox>
+        </LogoSlot>
 
-        <TeamsRow>
-          <TeamSide>
-            <LogoSlot>
-              {myRank && myRank <= 3 ? <CrownImg src={images.logo} alt={`${myRank}위`} /> : null}
-              <LogoBox>
-                {myLogo ? <LogoImg src={myLogo} alt={myName} /> : <TeamAvatarPlaceholder size={40} />}
-              </LogoBox>
-            </LogoSlot>
-            <TeamText $align="left">
-              <TeamName>{myName}</TeamName>
-              <TeamSub>우리팀{myRank ? ` · ${myRank}위` : ""}</TeamSub>
-            </TeamText>
-          </TeamSide>
-
-          <VsText>VS</VsText>
-
-          <TeamSide $reverse>
-            <TeamText $align="right">
-              <TeamName>{oppName}</TeamName>
-              <TeamSub>{oppRank ? `${oppRank}위` : "랭킹 정보 없음"}</TeamSub>
-            </TeamText>
-            <LogoSlot>
-              {oppRank && oppRank <= 3 ? <CrownImg src={images.logo} alt={`${oppRank}위`} /> : null}
-              <LogoBox>
-                {oppLogo ? <LogoImg src={oppLogo} alt={oppName} /> : <TeamAvatarPlaceholder size={40} />}
-              </LogoBox>
-            </LogoSlot>
-          </TeamSide>
-        </TeamsRow>
-
-        {/* 구장 행 항상 표시 → 카드 구조/높이 통일 */}
-        <VenueRow>
-          <FiMapPin size={14} />
-          <VenueTag $partner={isPartner}>
-            {isPartner ? "제휴구장" : "직접입력"}
-          </VenueTag>
-          <VenueText>{venueLabel || "구장 미정"}</VenueText>
-          <Chevron>
-            <FiChevronRight size={16} />
-          </Chevron>
-        </VenueRow>
+        <Body>
+          <TopLine>
+            <OppName>{oppName}{oppRank ? ` · ${oppRank}위` : ""}</OppName>
+            <CardDday>{formatDday(match.scheduledAt)}</CardDday>
+          </TopLine>
+          <TimeText>{formatDateTime(match.scheduledAt)}</TimeText>
+          <VenueRow>
+            <FiMapPin size={13} />
+            <VenueTag $partner={isPartner}>
+              {isPartner ? "제휴구장" : "직접입력"}
+            </VenueTag>
+            <VenueText>{venueLabel || "구장 미정"}</VenueText>
+          </VenueRow>
+        </Body>
       </Card>
     );
   };
@@ -417,7 +451,6 @@ export default function HomeUpcomingMatch({ clubId }) {
     <SectionWrap>
       <TitleRow>
         <SectionTitle>다가오는 경기{multi ? ` ${matches.length}` : ""}</SectionTitle>
-        <Dday>{formatDday(matches[Math.min(activeIdx, matches.length - 1)]?.scheduledAt)}</Dday>
       </TitleRow>
 
       <SlideRow $multi={multi} ref={rowRef} onScroll={multi ? handleScroll : undefined}>

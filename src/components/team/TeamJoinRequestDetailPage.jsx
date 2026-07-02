@@ -90,7 +90,7 @@ export default function TeamJoinRequestDetailPage() {
       window.alert("수락했습니다. 팀원으로 추가되었습니다.");
       nav(`/team/${clubId}/manage`, { replace: true });
     } catch (e) {
-      window.alert("수락에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      window.alert(e?.message || "수락에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSaving(false);
     }

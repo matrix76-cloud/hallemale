@@ -136,8 +136,8 @@ export default function OwnerRegisterPage() {
   const { uid, venue, loading: ownerLoading, refresh } = useOwner();
   const fileRef = useRef(null);
 
-  // 반려 후 재신청이면 기존 구장 수정 모드
-  const editingId = venue && venue.status === "rejected" ? venue.id : null;
+  // 이미 구장이 있으면(대기/승인/반려 무관) 새로 만들지 않고 기존 구장 수정 모드
+  const editingId = venue ? venue.id : null;
 
   const [form, setForm] = useState({
     name: "",

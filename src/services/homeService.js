@@ -42,8 +42,13 @@ async function applyPlayerRankingNew(players) {
       Object.keys(nextFirstSeen).some(
         (k) => Number(prev[k]) !== Number(nextFirstSeen[k])
       );
+    // ⚠️ 읽기 경로에서의 쓰기 — 규칙에 막혀도 NEW 뱃지 계산에는 영향 주지 않도록 격리
     if (changed) {
-      await setDoc(ref, { firstSeen: nextFirstSeen, updatedAt: now }, { merge: false });
+      try {
+        await setDoc(ref, { firstSeen: nextFirstSeen, updatedAt: now }, { merge: false });
+      } catch (e) {
+        console.warn("[homeService] rankings/playerTop write skipped:", e?.message || e);
+      }
     }
 
     return list.map((p) => {

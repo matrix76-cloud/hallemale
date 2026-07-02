@@ -496,6 +496,15 @@ export async function createJoinRequestToClub({
   if (!clubId) throw new Error("createJoinRequestToClub: clubId is required");
   if (!playerUid) throw new Error("createJoinRequestToClub: playerUid is required");
 
+  // ✅ 이미 팀 소속이면 신청 차단 (더블 멤버십 방지)
+  const meSnap = await getDoc(doc(db, "users", playerUid));
+  const myTeam = String(
+    meSnap.exists() ? meSnap.data()?.activeTeamId || meSnap.data()?.clubId || "" : ""
+  ).trim();
+  if (myTeam) {
+    throw new Error("이미 소속된 팀이 있어요. 새 팀에 가입 신청하려면 먼저 현재 팀을 탈퇴해 주세요.");
+  }
+
   const payload = {
     clubId,
     playerUid,
@@ -652,8 +661,7 @@ export async function createClub({
       updatedAt: serverTimestamp(),
     },
 
-    // ✅ 이름 변경 쿨다운 기준 (한번 정하면 3개월 뒤 변경 가능)
-    nameUpdatedAt: serverTimestamp(),
+    // ✅ 이름 변경 쿨다운은 최초 rename 이후에만 시작 (생성 시엔 nameUpdatedAt 미설정)
 
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

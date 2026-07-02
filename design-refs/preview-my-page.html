@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>내 정보 페이지 미리보기</title>
+<style>
+  body{margin:0;background:#f9fafb;font-family:-apple-system,'Segoe UI',Roboto,'Malgun Gothic',sans-serif;padding:16px;}
+  .frame{width:100%;max-width:412px;margin:0 auto;}
+
+  .phead{position:relative;background:#fff;border-radius:18px;box-shadow:0 6px 16px rgba(15,23,42,.08);padding:16px;}
+  .pleft{display:flex;align-items:center;gap:14px;}
+  .avatar{width:68px;height:68px;border-radius:999px;background:#e5e7eb;flex-shrink:0;display:grid;place-items:center;font-size:30px;color:#9ca3af;}
+  .prow{display:flex;align-items:center;gap:8px;}
+  .pname{font-size:18px;font-weight:700;color:#111827;}
+  .wave{width:26px;height:26px;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(15,23,42,.18));}
+  .opill{padding:4px 10px;border-radius:5px;color:#fff;background:#4f46e5;font-size:12px;font-weight:800;}
+  .pmeta{margin-top:4px;font-size:12px;color:#6b7280;}
+  .pset{position:absolute;top:14px;right:14px;border:1px solid #e5e7eb;background:#fff;color:#111827;border-radius:999px;padding:8px 12px;font-size:12px;box-shadow:0 6px 16px rgba(15,23,42,.08);}
+
+  .section{margin-top:14px;background:#fff;border-radius:16px;box-shadow:0 6px 16px rgba(15,23,42,.08);overflow:hidden;}
+  .shead{display:flex;align-items:center;gap:10px;padding:13px 14px 8px;}
+  .sicon{width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(15,23,42,.16));}
+  .stitle{margin:0;font-size:16px;font-weight:700;color:#111827;}
+  .sbody{padding:0 14px 4px;}
+  .mitem{display:flex;align-items:center;justify-content:space-between;padding:13px 4px;border-bottom:1px solid #f1f5f9;cursor:pointer;}
+  .mitem:last-child{border-bottom:none;}
+  .mtitle{font-size:15px;font-weight:600;color:#111827;display:inline-flex;align-items:center;gap:8px;}
+  .arrow{font-size:18px;color:#9ca3af;}
+  .nbadge{min-width:18px;height:18px;padding:0 6px;border-radius:999px;background:#dc2626;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;}
+  .mode{font-size:13px;font-weight:600;color:#6b7280;margin-right:8px;}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="phead">
+      <div class="pset">내프로필 설정</div>
+      <div class="pleft">
+        <div class="avatar">🙂</div>
+        <div>
+          <div class="prow">
+            <span class="pname">홍길동</span>
+            <img class="wave" src="../src/assets/images/emoji3d/wave.png" alt="">
+            <span class="opill">팀장</span>
+          </div>
+          <div class="pmeta">서울 강동구 · 청초 타이거즈</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="shead"><img class="sicon" src="../src/assets/images/emoji3d/people.png" alt=""><h2 class="stitle">팀 정보 설정</h2></div>
+      <div class="sbody">
+        <div class="mitem"><span class="mtitle">팀 관리</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">팀장 권한 이임</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">팀 탈퇴</span><span class="arrow">›</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="shead"><img class="sicon" src="../src/assets/images/emoji3d/idcard.png" alt=""><h2 class="stitle">내 정보</h2></div>
+      <div class="sbody">
+        <div class="mitem"><span class="mtitle">참여요청 <span class="nbadge">2</span></span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">내가 쓴 게시글</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">개인 활동 경기</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">매칭된 경기</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">내가 신고한 내역</span><span class="arrow">›</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="shead"><img class="sicon" src="../src/assets/images/emoji3d/gear.png" alt=""><h2 class="stitle">계정 · 앱 설정</h2></div>
+      <div class="sbody">
+        <div class="mitem"><span class="mtitle">화면 모드</span><span><span class="mode">라이트</span><span class="arrow">›</span></span></div>
+        <div class="mitem"><span class="mtitle">FAQ</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">1:1 문의</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">개인정보처리방침</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">이용약관</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">운영정책</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">로그아웃</span><span class="arrow">›</span></div>
+        <div class="mitem"><span class="mtitle">회원탈퇴</span><span class="arrow">›</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

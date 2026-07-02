@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>할래말래 카드 미리보기</title>
+<style>
+  body{margin:0;background:#f9fafb;font-family:-apple-system,'Segoe UI',Roboto,'Malgun Gothic',sans-serif;
+       display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 16px 48px;}
+  .frame{width:100%;max-width:412px;}
+  .cap{font-size:12px;color:#6b7280;margin:14px 2px 6px;font-weight:700;}
+
+  /* 팀프로필 + 매칭하기 */
+  .row{display:flex;align-items:stretch;gap:10px;}
+  .profile{position:relative;overflow:hidden;flex:1.4;min-width:0;background:#fff;border-radius:16px;padding:12px 14px;
+           box-shadow:0 6px 16px rgba(15,23,42,.08);display:flex;flex-direction:column;gap:10px;}
+  .pdeco{position:absolute;right:-4px;bottom:-4px;width:56px;height:56px;object-fit:contain;transform:rotate(8deg);
+         opacity:.95;filter:drop-shadow(0 6px 12px rgba(15,23,42,.2));}
+  .ptop{display:flex;align-items:center;gap:12px;}
+  .logo{width:66px;height:66px;border-radius:14px;background:#f4f4ff;display:grid;place-items:center;font-size:26px;flex-shrink:0;}
+  .tname{font-size:21px;font-weight:800;letter-spacing:-.3px;color:#111827;}
+  .mbadge{align-self:flex-start;padding:3px 10px;border-radius:999px;background:#f4f4f5;font-size:12.5px;font-weight:600;color:#374151;}
+
+  .cta{position:relative;overflow:hidden;flex:1;min-width:0;min-height:138px;border:none;border-radius:18px;
+       background:linear-gradient(135deg,#7c6ef2 0%,#4f46e5 100%);box-shadow:0 14px 26px -10px rgba(79,70,229,.6);
+       padding:16px 16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;}
+  .cta .t{position:relative;z-index:1;font-size:18px;color:#fff;font-weight:800;}
+  .cta .s{position:relative;z-index:1;max-width:calc(100% - 20px);font-size:12px;line-height:1.35;color:rgba(255,255,255,.82);}
+  .ball{position:absolute;right:-2px;bottom:-2px;width:70px;height:70px;object-fit:contain;transform:rotate(-8deg);filter:drop-shadow(0 8px 14px rgba(15,23,42,.3));}
+
+  /* 매칭룸 대시보드 카드 */
+  .mroom{margin-top:12px;background:#fff;border-radius:16px;box-shadow:0 6px 16px rgba(15,23,42,.08);padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .mhead{display:flex;align-items:center;justify-content:space-between;}
+  .mtitle{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:#111827;}
+  .mlink{font-size:12px;color:#9ca3af;}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;}
+  .stat{display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 4px;background:none;border:none;}
+  .scount{font-size:22px;font-weight:800;line-height:1;letter-spacing:-.6px;color:#111827;}
+  .slabel{font-size:11px;color:#6b7280;}
+  .confirm{color:#4f46e5;} .zero{color:#9ca3af;}
+
+  /* 매칭룸 리스트 (썸네일형) */
+  .tcard{position:relative;display:flex;gap:12px;width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:16px;
+         box-shadow:0 6px 16px rgba(15,23,42,.08);padding:12px;margin-top:12px;}
+  .thumb{position:relative;width:76px;height:76px;flex:0 0 auto;align-self:flex-start;}
+  .thumb .inner{width:76px;height:76px;border-radius:16px;overflow:hidden;background:#f3f4f6;}
+  .thumb .inner img{width:100%;height:100%;object-fit:cover;display:block;}
+  .crown{position:absolute;top:-15px;left:50%;transform:translateX(-50%);width:27px;height:27px;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(15,23,42,.18));}
+  .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;justify-content:center;}
+  .btop{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .opp{min-width:0;font-size:15.5px;font-weight:800;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .vs{font-size:12px;color:#6b7280;} .vs b{color:#374151;font-weight:700;}
+  .time{font-size:12px;color:#6b7280;white-space:nowrap;}
+  .pill{padding:5px 10px;border-radius:999px;background:#f3f4f6;color:#111827;font-size:12px;white-space:nowrap;}
+  .spill{padding:4px 11px;border-radius:999px;font-size:12px;font-weight:700;background:#4f46e5;color:#fff;}
+  .steps{display:flex;align-items:center;padding-top:2px;}
+  .sdot{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;background:#4f46e5;color:#fff;}
+  .sdot.off{background:#e5e7eb;color:#9ca3af;}
+  .slbl{font-size:11px;font-weight:700;margin:0 5px;color:#111827;} .slbl.off{color:#9ca3af;font-weight:500;}
+  .sline{flex:1;min-width:8px;height:2px;margin:0 3px;border-radius:2px;background:#e5e7eb;} .sline.on{background:#4f46e5;}
+  .vbadge{padding:4px 9px;border-radius:999px;font-size:11px;font-weight:700;background:#efe9ff;color:#7c5cc9;white-space:nowrap;}
+  .vname{font-size:12px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .score{font-size:18px;font-weight:800;} .score.win{color:#1e9e70;}
+  .colon{font-size:12px;color:#6b7280;} .scap{margin-left:4px;font-size:11px;color:#6b7280;}
+  .rbadge{font-size:11px;font-weight:700;color:#1e9e70;}
+  .cchip{padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:#eef0f3;color:#6b7280;white-space:nowrap;}
+  .rtype{padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:#f1f3f5;color:#374151;}
+  .rtext{font-size:12px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .refund{padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;background:#ede9fe;color:#7c3aed;}
+  .drow{display:flex;align-items:center;gap:6px;min-width:0;}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="cap">다가오는 경기 — 심플: 상대팀·언제·어디서만 (우리팀/VS/3D 제거)</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div style="font-size:16px;font-weight:700;color:#111827;">다가오는 경기</div>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:13px 14px;background:#fff;border:1px solid transparent;border-radius:16px;box-shadow:0 8px 20px -8px rgba(15,23,42,.12),0 2px 6px -2px rgba(15,23,42,.08);">
+      <div style="width:56px;height:56px;border-radius:14px;overflow:hidden;box-shadow:0 0 0 1px rgba(15,23,42,.06);background:#f3f4f6;flex-shrink:0;"><img src="../src/assets/teams/logo_shinchon_sharks.png" style="width:100%;height:100%;object-fit:cover;"></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;padding-top:1px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div style="font-size:15.5px;font-weight:800;color:#111827;">신촌 샤크스 · 2위</div>
+          <span style="flex-shrink:0;padding:3px 10px;border-radius:999px;background:#f0eeff;color:#4f46e5;font-size:12px;font-weight:800;">D-3</span>
+        </div>
+        <div style="font-size:12.5px;font-weight:600;color:#374151;">7.5 (토) 19:00</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;">
+          📍 <span style="flex-shrink:0;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;background:#efe9ff;color:#7c5cc9;">제휴구장</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">한강 풋살파크 · A코트</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cap" style="margin-top:22px;">홈 · 팀 프로필 + 매칭하기 (3D 축소 · 원형광택 제거)</div>
+    <div class="row">
+      <div class="profile">
+        <img class="pdeco" src="../src/assets/images/emoji3d/trophy.png" alt="">
+        <div class="ptop">
+          <div class="logo">🛡️</div>
+          <div><div class="tname">청초 타이거즈</div><div class="mbadge">👥 12명</div></div>
+        </div>
+      </div>
+      <button class="cta">
+        <div class="t">매칭하기</div>
+        <div class="s">원하는 팀과 경기 잡기</div>
+        <img class="ball" src="../src/assets/images/emoji3d/basketball.png" alt="">
+      </button>
+    </div>
+
+    <div class="cap">홈 · 매칭룸 (매칭하기 버튼처럼 코너 3D · 라벨 왼쪽 아이콘 · 카드 키워 겹침 방지)</div>
+    <div class="mroom" style="position:relative;overflow:hidden;padding:14px 12px 54px;">
+      <div class="mhead" style="margin-bottom:2px;">
+        <div class="mtitle" style="font-size:16px;font-weight:700;">매칭룸</div>
+        <div class="mlink">내 팀 경기 기록 보기</div>
+      </div>
+      <div class="stats" style="position:relative;z-index:1;">
+        <button class="stat">
+          <span style="display:inline-flex;align-items:center;gap:4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="slabel">조율중</span></span>
+          <div class="scount">2</div>
+        </button>
+        <button class="stat">
+          <span style="display:inline-flex;align-items:center;gap:4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="slabel">확정</span></span>
+          <div class="scount confirm">3</div>
+        </button>
+        <button class="stat">
+          <span style="display:inline-flex;align-items:center;gap:4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg><span class="slabel">지난</span></span>
+          <div class="scount">8</div>
+        </button>
+        <button class="stat">
+          <span style="display:inline-flex;align-items:center;gap:4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><span class="slabel">취소</span></span>
+          <div class="scount zero">0</div>
+        </button>
+      </div>
+      <img src="../src/assets/images/emoji3d/folder.png" alt="" style="position:absolute;right:2px;bottom:4px;width:60px;height:60px;object-fit:contain;transform:rotate(-6deg);filter:drop-shadow(0 8px 14px rgba(15,23,42,.22));z-index:0;">
+    </div>
+
+    <div class="cap">매칭룸 리스트 · 조율중 (상대팀 썸네일)</div>
+    <div class="tcard">
+      <div class="thumb"><img class="crown" src="../src/assets/images/logo.png" alt=""><div class="inner"><img src="../src/assets/teams/logo_shinchon_sharks.png" alt=""></div></div>
+      <div class="body">
+        <div class="btop"><div class="opp">신촌 샤크스 · 2위</div><div class="time">오후 3:20</div></div>
+        <div class="vs">vs <b>청초 타이거즈</b></div>
+        <div class="drow"><span class="spill">라인업 확정 대기</span></div>
+        <div class="steps"><span class="sdot">✓</span><span class="slbl">라인업</span><span class="sline on"></span><span class="sdot">2</span><span class="slbl">구장·일정</span><span class="sline"></span><span class="sdot off">3</span><span class="slbl off">확정</span></div>
+      </div>
+    </div>
+
+    <div class="cap">매칭룸 리스트 · 확정</div>
+    <div class="tcard">
+      <div class="thumb"><div class="inner"><img src="../src/assets/teams/logo_deokso_eagles.png" alt=""></div></div>
+      <div class="body">
+        <div class="btop"><div class="opp">덕소 이글스</div><div class="pill">7.5 (토) 19:00</div></div>
+        <div class="vs">vs <b>청초 타이거즈</b> · D-3</div>
+        <div class="drow"><span class="vbadge">🏟️ 제휴구장 · 결제완료</span><span class="vname">한강 풋살파크 · A코트</span></div>
+      </div>
+    </div>
+
+    <div class="cap">매칭룸 리스트 · 지난 (완료)</div>
+    <div class="tcard">
+      <div class="thumb"><div class="inner"><img src="../src/assets/teams/logo_hangang_bulldogs.png" alt=""></div></div>
+      <div class="body">
+        <div class="btop"><div class="opp">한강 불독스</div><span class="rbadge">승리</span></div>
+        <div class="vs">vs <b>청초 타이거즈</b> · 6.28 (토) 18:00</div>
+        <div class="drow"><span class="score win">3</span><span class="colon">:</span><span class="score">1</span><span class="scap">우리 : 상대</span></div>
+      </div>
+    </div>
+
+    <div class="cap">매칭룸 리스트 · 취소</div>
+    <div class="tcard">
+      <div class="thumb"><div class="inner"><img src="../src/assets/teams/logo_li_lion.png" alt=""></div></div>
+      <div class="body">
+        <div class="btop"><div class="opp">이 라이온</div><span class="cchip">✕ 취소됨</span></div>
+        <div class="vs">vs <b>청초 타이거즈</b> · 6.20 (금) 20:00</div>
+        <div class="drow"><span class="rtype">상대팀 취소</span><span class="rtext">개인 사정으로 참석이 어려워요</span></div>
+        <div class="drow"><span class="refund">환불 완료</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

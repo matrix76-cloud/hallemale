@@ -168,8 +168,9 @@ export async function updateClubName({ clubId, name }) {
   const curName = String(cur.name || "").trim().replace(/\s+/g, " ");
   if (nextName === curName) return true;
 
-  // ✅ 쿨다운 가드: 마지막 변경(또는 생성)일로부터 90일 이내면 거부
-  const { locked, remainingDays } = getNameChangeStatus(cur.nameUpdatedAt || cur.createdAt);
+  // ✅ 쿨다운 가드: 최초 rename 이후(nameUpdatedAt 존재)부터 90일 이내면 거부
+  // (생성 직후엔 nameUpdatedAt이 없어 잠기지 않음 → 오타 즉시 수정 가능)
+  const { locked, remainingDays } = getNameChangeStatus(cur.nameUpdatedAt);
   if (locked) {
     throw new Error(`팀 이름은 ${remainingDays}일 후에 변경할 수 있어요.`);
   }
@@ -304,6 +305,14 @@ export async function createClubInvite({ clubId, fromUid, toUid, message, toSnap
   const cleanMessage = String(message || "").trim();
 
   const invCol = collection(db, "clubs", clubId, "invites");
+
+  // ✅ 중복 초대 가드: 같은 유저에게 pending 초대가 이미 있으면 거부
+  const dupSnap = await getDocs(
+    query(invCol, where("toUid", "==", toUid), where("status", "==", "pending"), limit(1))
+  );
+  if (!dupSnap.empty) {
+    throw new Error("이미 초대를 보낸 사용자예요.");
+  }
 
   const invitePayload = {
     clubId,
@@ -785,6 +794,9 @@ export async function listClubMembers({ clubId, limitCount = 100 }) {
 
   const snap = await getDocs(q);
 
+  // ✅ 팀장(ownerUid) 기준으로 역할 라벨 산출 (users doc엔 role이 없어 항상 공백이던 버그 수정)
+  const { ownerUid } = await resolveClubMetaSafe(cid);
+
   const rows = snap.docs.map((d) => {
     const v = d.data() || {};
     return {
@@ -792,7 +804,7 @@ export async function listClubMembers({ clubId, limitCount = 100 }) {
       nickname: String(v.nickname || ""),
       avatarUrl: String(v.avatarUrl || ""),
       region: String(v.region || ""),
-      role: v.role ? String(v.role) : "",
+      role: ownerUid && d.id === ownerUid ? "리더" : "멤버",
     };
   });
 
@@ -846,13 +858,16 @@ export async function forceRemoveClubMember({ clubId, targetUid, actorUid }) {
   if (!auid) throw new Error("actorUid가 필요합니다.");
   if (tuid === auid) throw new Error("본인은 강제 탈퇴할 수 없습니다.");
 
-  // 1) 유저 소속 해제 (SSOT: activeTeamId)
+  // 1) 유저 소속 해제 (SSOT: activeTeamId) — 유저 문서가 있을 때만 갱신
   const userRef = doc(db, "users", tuid);
-  await updateDoc(userRef, {
-    activeTeamId: "",
-    teamRole: "",
-    updatedAt: serverTimestamp(),
-  });
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    await updateDoc(userRef, {
+      activeTeamId: "",
+      teamRole: "",
+      updatedAt: serverTimestamp(),
+    });
+  }
 
   const memberRef = doc(db, "clubs", cid, "members", tuid);
   const memberSnap = await getDoc(memberRef);

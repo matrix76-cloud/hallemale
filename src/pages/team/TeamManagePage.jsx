@@ -587,8 +587,8 @@ export default function TeamManagePage() {
     return "";
   };
 
-  // 마지막 변경(또는 생성)일 기준 쿨다운
-  const nameLock = getNameChangeStatus(club?.nameUpdatedAt || club?.createdAt);
+  // 최초 rename 이후(nameUpdatedAt)부터 쿨다운 (생성 직후엔 잠기지 않음)
+  const nameLock = getNameChangeStatus(club?.nameUpdatedAt);
   const nameChanged = String(nameDraft || "").trim() !== String(club?.name || "").trim();
 
   const onChangeNameDraft = (v) => {
@@ -1044,25 +1044,30 @@ export default function TeamManagePage() {
     <Shell>
       {/* ✅ 상단 */}
       <TeamRowTop>
-        <TeamLeft>
+        <HeaderTop>
+          <HeaderLogo>
+            {logoUrl ? (
+              <HeaderLogoImg src={logoUrl} alt={teamName} />
+            ) : (
+              <AvatarPlaceholder size={54} />
+            )}
+          </HeaderLogo>
+
           <TeamInfo>
-            <TeamNameLine>
-              <TeamNameText>{teamName}</TeamNameText>
-
-              <TopActions>
-                <TopGhost type="button" onClick={() => nav(`/team/${clubId}`)}>
-                  팀 프로필
-                </TopGhost>
-
-                <TopDanger type="button" onClick={onDeleteTeam} disabled={deleteBusy}>
-                  {deleteBusy ? "삭제 중..." : "팀삭제"}
-                </TopDanger>
-              </TopActions>
-            </TeamNameLine>
-
+            <TeamNameText>{teamName}</TeamNameText>
             <TeamMetaText>{teamRegion}</TeamMetaText>
           </TeamInfo>
-        </TeamLeft>
+        </HeaderTop>
+
+        <TopActions>
+          <TopGhost type="button" onClick={() => nav(`/team/${clubId}`)}>
+            팀 프로필 보기
+          </TopGhost>
+
+          <TopDanger type="button" onClick={onDeleteTeam} disabled={deleteBusy}>
+            {deleteBusy ? "삭제 중..." : "팀 삭제"}
+          </TopDanger>
+        </TopActions>
       </TeamRowTop>
 
       {/* 로고 파일 input */}
@@ -1088,8 +1093,6 @@ export default function TeamManagePage() {
           사진/영상
         </TabBtn>
       </TabsRow>
-
-      <Divider />
 
       {/* ====================== 팀명/로고 탭 ====================== */}
       {tab === "profile" ? (
@@ -1148,7 +1151,7 @@ export default function TeamManagePage() {
                 {nameCheckStatus === "checking" ? "확인 중..." : "중복체크"}
               </NameCheckBtn>
               <BtnPrimary
-                style={{ flex: "0 0 auto", height: 42, borderRadius: 8, padding: "0 14px" }}
+                style={{ flex: "0 0 auto", height: 46, borderRadius: 12, padding: "0 16px" }}
                 type="button"
                 onClick={handleSaveName}
                 disabled={
@@ -1673,10 +1676,10 @@ export default function TeamManagePage() {
 const Shell = styled.div`
   min-height: calc(100vh - 56px);
   background: ${({ theme }) => theme.colors.bg};
-  padding: 14px 24px 80px;
+  padding: 14px 14px calc(40px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 `;
 
 const TopHint = styled.div`
@@ -1700,31 +1703,53 @@ const SpinnerWrap = styled.div`
 `;
 
 const TeamRowTop = styled.div`
-  display: flex;
-  align-items: flex-start;
-`;
-
-const TeamLeft = styled.div`
-  flex: 1;
-  min-width: 0;
-`;
-
-const TeamInfo = styled.div`
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 18px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-`;
-
-const TeamNameLine = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 12px;
 `;
 
+const HeaderTop = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+`;
+
+const HeaderLogo = styled.div`
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#eef0f3"};
+  display: grid;
+  place-items: center;
+`;
+
+const HeaderLogoImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const TeamInfo = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+`;
+
 const TeamNameText = styled.div`
-  font-size: 20px;
+  font-size: 19px;
+  font-weight: 800;
   color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
@@ -1732,38 +1757,45 @@ const TeamNameText = styled.div`
 `;
 
 const TeamMetaText = styled.div`
-  font-size: 12px;
+  font-size: 12.5px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const TopActions = styled.div`
   display: flex;
   gap: 8px;
-  flex: 0 0 auto;
 `;
 
 const TopGhost = styled.button`
-  height: 30px;
+  flex: 1;
+  height: 40px;
   padding: 0 12px;
-  border-radius: 999px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) => theme.colors.card};
-  color: ${({ theme }) => theme.colors.textNormal};
-  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
+
+  &:active {
+    transform: translateY(1px);
+  }
 `;
 
 const TopDanger = styled.button`
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
   border: 1px solid
     ${({ theme }) =>
       theme.mode === "dark" ? "rgba(248,113,113,0.45)" : "#fecaca"};
   background: ${({ theme }) =>
     theme.mode === "dark" ? "rgba(248,113,113,0.16)" : "#fef2f2"};
   color: ${({ theme }) => (theme.mode === "dark" ? "#fca5a5" : "#b91c1c")};
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
 
   &:disabled {
@@ -1774,36 +1806,40 @@ const TopDanger = styled.button`
 
 const TabsRow = styled.div`
   display: flex;
-  gap: 8px;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f1f3f5"};
 `;
 
 const TabBtn = styled.button`
   flex: 1;
-  height: 30px;
-  border-radius: 8px;
-  border: 1px solid
-    ${({ $active, theme }) =>
-      $active ? theme.colors.primary : theme.colors.border};
+  height: 40px;
+  border-radius: 10px;
+  border: none;
   background: ${({ $active, theme }) =>
-    $active
-      ? theme.mode === "dark"
-        ? "rgba(99,102,241,0.18)"
-        : "#eef2ff"
-      : theme.colors.card};
+    $active ? theme.colors.primary : "transparent"};
   color: ${({ $active, theme }) =>
-    $active
-      ? theme.mode === "dark"
-        ? "#a5b4fc"
-        : theme.colors.primary
-      : theme.colors.textStrong};
+    $active ? "#ffffff" : theme.colors.textWeak};
   font-size: 13px;
+  font-weight: ${({ $active }) => ($active ? 700 : 600)};
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  box-shadow: ${({ $active, theme }) =>
+    $active ? "0 4px 12px -4px " + theme.colors.primary : "none"};
 `;
 
 const Section = styled.section`
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 18px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 `;
 
 const Field = styled.div`
@@ -1814,6 +1850,7 @@ const Field = styled.div`
 
 const Label = styled.div`
   font-size: 13px;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
@@ -1829,19 +1866,12 @@ const TagChip = styled.button`
   border: 1px solid
     ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.border)};
   background: ${({ $selected, theme }) =>
-    $selected
-      ? theme.mode === "dark"
-        ? "rgba(99,102,241,0.18)"
-        : "#eef2ff"
-      : theme.colors.card};
-  padding: 5px 11px;
+    $selected ? theme.colors.primary : theme.colors.card};
+  padding: 7px 13px;
   font-size: 12px;
+  font-weight: ${({ $selected }) => ($selected ? 700 : 500)};
   color: ${({ $selected, theme }) =>
-    $selected
-      ? theme.mode === "dark"
-        ? "#a5b4fc"
-        : theme.colors.primary
-      : theme.colors.textNormal};
+    $selected ? "#ffffff" : theme.colors.textNormal};
   cursor: pointer;
 `;
 
@@ -1851,18 +1881,19 @@ const TwoColRow = styled.div`
 `;
 
 const SelectBox = styled.select`
-  height: 42px;
-  border-radius: 8px;
+  height: 46px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
   color: ${({ theme }) => theme.colors.textStrong};
   padding: 0 12px;
-  font-size: 13px;
+  font-size: 14px;
   outline: none;
 
   &:focus {
     border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.card};
   }
 `;
 
@@ -1874,19 +1905,21 @@ const LabelRow2 = styled.div`
 `;
 
 const TextArea = styled.textarea`
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 13px 14px;
+  font-size: 14px;
   outline: none;
-  min-height: 220px;
+  min-height: 140px;
   resize: none;
+  line-height: 1.5;
   background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
   color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
     border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.card};
   }
 
   &::placeholder {
@@ -1958,7 +1991,7 @@ const NameEditRow = styled.div`
 
 const NameCheckBtn = styled.button`
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.primary};
   background: ${({ theme }) =>
     theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
@@ -2014,7 +2047,7 @@ const LogoEditorRow = styled.div`
 const LogoPreview = styled.div`
   width: 92px;
   height: 92px;
-  border-radius: 8px;
+  border-radius: 16px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
@@ -2055,8 +2088,8 @@ const MediaGrid = styled.div`
 
 const MediaItem = styled.div`
   position: relative;
-  height: 108px;
-  border-radius: 8px;
+  height: 118px;
+  border-radius: 14px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
@@ -2122,8 +2155,8 @@ const MediaRemove = styled.button`
 `;
 
 const MediaAdd = styled.button`
-  height: 108px;
-  border-radius: 8px;
+  height: 118px;
+  border-radius: 14px;
   border: 1px dashed ${({ theme }) => theme.colors.border};
   background: ${({ theme }) => theme.colors.card};
   cursor: pointer;
@@ -2167,12 +2200,13 @@ const ModalOverlay = styled.div`
 const Modal = styled.div`
   width: min(520px, 92vw);
   background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
-  padding: 14px 14px 12px;
+  border-radius: 18px;
+  padding: 18px 16px 14px;
   border: 1px solid ${({ theme }) => theme.colors.border};
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.22);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 `;
 
 const ModalTop = styled.div`
@@ -2200,17 +2234,18 @@ const ModalSub = styled.div`
 `;
 
 const ModalInput = styled.input`
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 13px 14px;
+  font-size: 14px;
   outline: none;
   background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
   color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
     border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.card};
   }
 
   &::placeholder {
@@ -2299,9 +2334,10 @@ const ChoiceCol = styled.div`
 const ChoiceCard = styled.button`
   width: 100%;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
-  padding: 12px 12px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
+  border-radius: 12px;
+  padding: 14px 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2331,7 +2367,7 @@ const PickRow = styled.div`
   cursor: pointer;
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 8px;
+  border-radius: 12px;
 
   &:hover {
     background: ${({ theme }) =>
@@ -2412,7 +2448,8 @@ const RadioInner = styled.div`
 
 const InviteSectionTitle = styled.div`
   margin-top: 8px;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 700;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
@@ -2430,9 +2467,10 @@ const InviteList = styled.div`
 
 const InviteRow = styled.div`
   border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
-  padding: 10px 12px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
+  border-radius: 14px;
+  padding: 12px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2511,14 +2549,19 @@ const InviteStatus = styled.div`
 const LineButton = styled.button`
   width: 100%;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
-  padding: 12px 12px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
+  border-radius: 14px;
+  padding: 14px 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+
+  &:active {
+    transform: translateY(1px);
+  }
 `;
 
 const LineLeft = styled.div`
@@ -2566,14 +2609,14 @@ const KickBtn = styled.button`
 `;
 
 const RegionSelectBtn = styled.button`
-  height: 42px;
-  border-radius: 8px;
+  height: 46px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: 0 12px;
-  font-size: 13px;
+  padding: 0 14px;
+  font-size: 14px;
   outline: none;
   background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : theme.colors.card};
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
   cursor: pointer;
   text-align: left;
   display: flex;

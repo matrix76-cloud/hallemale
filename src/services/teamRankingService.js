@@ -197,7 +197,9 @@ export async function getTeamRankMap({ debugLog = false } = {}) {
   const map = new Map();
   sorted.forEach((t, idx) => {
     const id = toStr(t?.clubId || t?.id);
-    if (id) map.set(id, idx + 1);
+    // 0경기(무경기) 팀은 순위/왕관 대상에서 제외 (점수 0이라 항상 뒤쪽에 정렬됨)
+    const played = getRankPerfKey(t).total > 0;
+    if (id && played) map.set(id, idx + 1);
   });
 
   return map;

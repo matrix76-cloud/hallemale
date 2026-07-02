@@ -3,16 +3,36 @@
 // 매출분석 — 실제 확정 예약 기준 (P1: 합계/요일별 기본, 추후 보강)
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import { LuChartColumn, LuTrendingUp, LuReceipt, LuChevronLeft, LuChevronRight } from "react-icons/lu";
+import { LuChartColumn, LuTrendingUp, LuReceipt, LuChevronLeft, LuChevronRight, LuActivity, LuBan } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
-import { listReservations } from "../../services/ownerVenueService";
+import { listReservations, dowToKey } from "../../services/ownerVenueService";
 import { Page, Card, ScreenTitle, SecTitle, Caption, Money, Chip, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerSpinner from "./components/OwnerSpinner";
 
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 
+function toMin(h){const[a,b]=String(h||"0:0").split(":").map(x=>parseInt(x,10)||0);return a*60+b;}
+// 코트의 해당 월 운영 가능 시간(분) 합계 — 요일별 운영시간 × 그 달 날짜수
+function courtMonthOperatingMin(court, y, m){
+  if(!court) return 0;
+  const daysInMonth = new Date(y, m, 0).getDate();
+  let total = 0;
+  for(let day=1; day<=daysInMonth; day++){
+    const dk = dowToKey(new Date(y, m-1, day).getDay());
+    const h = court.hours?.[dk];
+    if(!h || h.closed) continue;
+    total += Math.max(0, toMin(h.close) - toMin(h.open));
+  }
+  return total;
+}
+
 const Row = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 10px;`;
+const WideBar = styled.div`height:12px;border-radius:999px;background:${C.violet50};position:relative;overflow:hidden;margin-top:6px;& > i{position:absolute;inset:0;width:${({$pct})=>$pct}%;background:${C.violet600};border-radius:999px;}`;
+const TwoCol = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:8px;`;
+const Mini = styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:12px;text-align:center;`;
+const MiniN = styled.div`font-size:20px;font-weight:800;color:${({$c})=>$c||C.slate800};`;
+const MiniL = styled.div`font-size:11.5px;color:${C.slate500};margin-top:2px;`;
 const Bars = styled.div`display: flex; flex-direction: column; gap: 8px; margin-top: 4px;`;
 const BarRow = styled.div`display: grid; grid-template-columns: 28px 1fr 70px; align-items: center; gap: 8px; font-size: 12px; color: ${C.slate500};`;
 const Bar = styled.div`
@@ -60,7 +80,7 @@ export default function OwnerSalesPage() {
     if (!venue?.id) return;
     setLoading(true);
     listReservations({ venueId: venue.id })
-      .then((rs) => setRows(rs.filter((r) => ["confirmed", "done"].includes(r.status))))
+      .then((rs) => setRows(rs))
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, [venue?.id]);
@@ -72,15 +92,29 @@ export default function OwnerSalesPage() {
 
   // 선택한 연·월 기준
   const monthKey = `${ym.y}-${String(ym.m).padStart(2, "0")}`;
-  const monthRows = useMemo(() => filtered.filter((r) => (r.date || "").startsWith(monthKey)), [filtered, monthKey]);
+  // 그 달 전체(모든 상태) — 취소·노쇼 집계용
+  const monthAll = useMemo(() => filtered.filter((r) => (r.date || "").startsWith(monthKey)), [filtered, monthKey]);
+  // 매출 대상(확정·완료)
+  const monthRows = useMemo(() => monthAll.filter((r) => ["confirmed", "done"].includes(r.status)), [monthAll]);
 
   const total = monthRows.reduce((s, r) => s + (r.price || 0), 0);
   const count = monthRows.length;
 
+  const cancelCnt = monthAll.filter((r) => ["cancelled", "rejected"].includes(r.status)).length;
+  const noshowCnt = monthAll.filter((r) => r.status === "noshow").length;
+
+  // 가동률 — 예약(확정·완료) 시간 / 운영 가능 시간
+  const bookedMin = monthRows.reduce((s, r) => s + Math.max(0, toMin(r.endTime) - toMin(r.startTime)), 0);
+  const operMin = useMemo(() => {
+    const list = courtId === "all" ? courts : courts.filter((c) => c.id === courtId);
+    return list.reduce((s, c) => s + courtMonthOperatingMin(c, ym.y, ym.m), 0);
+  }, [courts, courtId, ym]);
+  const occupancy = operMin > 0 ? Math.round((bookedMin / operMin) * 100) : 0;
+
   const byDow = useMemo(() => {
     const m = [0, 0, 0, 0, 0, 0, 0];
     monthRows.forEach((r) => {
-      const d = r.date ? new Date(r.date).getDay() : null;
+      const d = r.date ? new Date(`${r.date}T00:00:00`).getDay() : null;
       if (d != null && !Number.isNaN(d)) m[d] += r.price || 0;
     });
     return m;
@@ -120,6 +154,24 @@ export default function OwnerSalesPage() {
         <SecTitle><LuTrendingUp size={16} /> {ym.y}년 {ym.m}월 매출</SecTitle>
         <Money $lg>{total.toLocaleString()}원</Money>
         <Caption>확정·완료 예약 {count}건</Caption>
+      </Card>
+
+      <Card>
+        <SecTitle><LuActivity size={16} /> 가동률</SecTitle>
+        <Row>
+          <Money $lg style={{ color: C.violet600 }}>{occupancy}%</Money>
+          <Caption style={{ textAlign: "right" }}>예약 {Math.round(bookedMin / 60)}시간 / 운영 {Math.round(operMin / 60)}시간</Caption>
+        </Row>
+        <WideBar $pct={Math.min(100, occupancy)}><i /></WideBar>
+        <Caption>운영시간 대비 실제 예약된 비율이에요. 낮으면 공실 시간대에 정기대관·할인을 유도해보세요.</Caption>
+      </Card>
+
+      <Card>
+        <SecTitle><LuBan size={16} /> 취소·노쇼</SecTitle>
+        <TwoCol>
+          <Mini><MiniN $c={C.slate500}>{cancelCnt}</MiniN><MiniL>취소·반려</MiniL></Mini>
+          <Mini><MiniN $c={C.red500}>{noshowCnt}</MiniN><MiniL>노쇼</MiniL></Mini>
+        </TwoCol>
       </Card>
 
       <Card>

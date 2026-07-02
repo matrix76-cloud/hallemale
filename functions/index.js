@@ -37,3 +37,7 @@ exports.matchAutoConfirmTick = matchAutoConfirmTick;
 // ✅ 카카오 소셜 로그인 (accessToken → Firebase Custom Token)
 const { kakaoCustomToken } = require("./auth/kakaoCustomToken");
 exports.kakaoCustomToken = kakaoCustomToken;
+
+// ✅ 국세청 사업자등록정보 진위확인 (구장 사업자 인증 자동 처리)
+const { verifyBusiness } = require("./business/verifyBusiness");
+exports.verifyBusiness = verifyBusiness;

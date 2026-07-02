@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import {
   LuPlus, LuTrash2, LuPin, LuMegaphone, LuTriangleAlert, LuCoins, LuClock, LuLayoutGrid, LuBuilding2, LuLogOut,
-  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo,
+  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo, LuEye,
 } from "react-icons/lu";
 import { useNavigate } from "react-router-dom";
 import { useOwner } from "../../context/OwnerContext";
@@ -14,6 +14,7 @@ import { uploadVenueImage } from "../../services/venuesService";
 import CourtHoursEditor from "./components/CourtHoursEditor";
 import PriceBandsEditor from "./components/PriceBandsEditor";
 import BusinessSection from "./components/BusinessSection";
+import VenuePreviewSheet from "./components/VenuePreviewSheet";
 import { FacilityIcon } from "../venue/facilityIcons";
 import {
   Page, Card, ScreenTitle, SecTitle, Caption, Input, Chip, PrimaryBtn, GhostBtn, DangerBtn, C,
@@ -81,6 +82,7 @@ export default function OwnerVenuePage() {
   const [rules, setRules] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!venue) return;
@@ -130,7 +132,7 @@ export default function OwnerVenuePage() {
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
 
   const save = async () => {
-    if (courts.some((c) => !c.name.trim())) return window.alert && null;
+    if (courts.some((c) => !c.name.trim())) { window.alert("코트 이름을 입력해 주세요."); return; }
     setSaving(true);
     try {
       await updateMyVenue(venue.id, {
@@ -149,9 +151,23 @@ export default function OwnerVenuePage() {
 
   const configuredDates = Object.keys(court?.priceOverrides || {}).sort();
 
+  // 미리보기용 — 저장 전 편집 내용까지 반영해 사용자 화면을 재현
+  const previewVenue = {
+    ...venue,
+    photos: photos.map((p) => p.url).filter(Boolean),
+    imageUrl: photos[0]?.url || venue.imageUrl,
+    facilities, description, phone, rules, refundPolicy,
+    displayMode, displayName,
+    courts: courts.map((c) => ({ ...c, pricePerHour: Number(c.pricePerHour) || 0 })),
+  };
+
   return (
     <Page>
       <ScreenTitle>구장정보</ScreenTitle>
+
+      <GhostBtn type="button" onClick={() => setPreviewOpen(true)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <LuEye size={16} /> 상세페이지 미리보기
+      </GhostBtn>
 
       {/* 구장 사진 — 사용자 예약화면 상단 캐러셀/시설사진에 노출 */}
       <Card>
@@ -198,7 +214,7 @@ export default function OwnerVenuePage() {
             <Field><Lbl>코트 이름</Lbl><Input value={court.name} onChange={(e) => setCourt({ name: e.target.value })} placeholder="A코트" /></Field>
             <Row>
               <Field><Lbl>종류</Lbl><Sel value={court.type} onChange={(e) => setCourt({ type: e.target.value })}><option value="indoor">실내</option><option value="outdoor">실외</option></Sel></Field>
-              <Field><Lbl>예약 시간 단위</Lbl><Sel value={court.slotMinutes} onChange={(e) => setCourt({ slotMinutes: Number(e.target.value) })}><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option></Sel></Field>
+              <Field><Lbl>예약 시간 단위</Lbl><Sel value={court.slotMinutes} onChange={(e) => setCourt({ slotMinutes: Number(e.target.value) })}><option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option></Sel></Field>
             </Row>
             {courts.length > 1 && <GhostBtn type="button" onClick={removeCourt} style={{ color: C.red500, borderColor: C.red200 }}>이 코트 삭제</GhostBtn>}
           </Card>
@@ -320,6 +336,8 @@ export default function OwnerVenuePage() {
 
       <LogoutRow type="button" onClick={handleLogout}><LuLogOut size={16} /> 로그아웃</LogoutRow>
       <div style={{ height: 8 }} />
+
+      {previewOpen && <VenuePreviewSheet venue={previewVenue} onClose={() => setPreviewOpen(false)} />}
     </Page>
   );
 }

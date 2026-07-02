@@ -461,7 +461,8 @@ export default function TeamRankingFullPage() {
             const recentForms = getRecentFormsSafe(t, 5);
             const regionText = buildRegionText(t);
 
-            const showCrown = t.rank <= 3;
+            // 0경기(무경기) 팀은 순위권 왕관 제외
+            const showCrown = t.rank <= 3 && (wins + losses + draws) > 0;
 
             return (
               <RowCard key={t.clubId || t.id || index} onClick={() => handleTeamClick(t.clubId)}>

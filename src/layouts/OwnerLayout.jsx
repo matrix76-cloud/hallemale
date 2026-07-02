@@ -7,6 +7,7 @@ import styled from "styled-components";
 import { OwnerProvider } from "../context/OwnerContext";
 import OwnerBottomTabBar from "./components/OwnerBottomTabBar";
 import { C } from "../pages/owner/components/od";
+import { useUI } from "../hooks/useUI";
 
 const Wrap = styled.div`
   min-height: 100vh;
@@ -60,6 +61,23 @@ const Main = styled.main`
       : "env(safe-area-inset-bottom)"};
 `;
 
+const ToastWrap = styled.div`
+  position: fixed;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: 88%;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  padding: 11px 18px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+  z-index: 400;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+`;
+
 const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/settlement", "/owner/venue"];
 
 function getTitle(p) {
@@ -76,6 +94,7 @@ function getTitle(p) {
 export default function OwnerLayout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { toast } = useUI() || {};
   const p = (location.pathname || "").toLowerCase();
 
   const hasTab = TAB_PATHS.some((t) => p.startsWith(t));
@@ -100,6 +119,8 @@ export default function OwnerLayout() {
         {hasTab && (
           <OwnerBottomTabBar currentPath={location.pathname} onNavigate={navigate} />
         )}
+
+        {toast && <ToastWrap>{toast.message}</ToastWrap>}
       </Wrap>
     </OwnerProvider>
   );

@@ -351,6 +351,14 @@ const SectionIconCircle = styled.div`
   font-size: 17px;
 `;
 
+/* 섹션 헤더 3D 아이콘 */
+const Ico3D = styled.img`
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.16));
+`;
+
 const SectionTitleText = styled.h2`
   margin: 0;
   font-size: 16px;
@@ -1522,7 +1530,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <FiInfo />
+                      <Ico3D src={images.emoji3dSpeech} alt="" />
                     </SectionIconCircle>
                     <SectionTitleText>팀 소개</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1542,7 +1550,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <FiBarChart2 />
+                      <Ico3D src={images.emoji3dBarchart} alt="" />
                     </SectionIconCircle>
                     <SectionTitleText>팀 전적</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1581,7 +1589,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <FiClock />
+                      <Ico3D src={images.emoji3dFlag} alt="" />
                     </SectionIconCircle>
                     <SectionTitleText>경기 기록</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1616,7 +1624,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <FiUsers />
+                      <Ico3D src={images.emoji3dPeople} alt="" />
                     </SectionIconCircle>
                     <SectionTitleText>팀 멤버</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1631,7 +1639,7 @@ useEffect(() => {
                   <SectionHeaderRow>
                     <SectionHeaderLeft>
                       <SectionIconCircle>
-                        <FiImage />
+                        <Ico3D src={images.emoji3dPicture} alt="" />
                       </SectionIconCircle>
                       <SectionTitleText>팀 사진/영상</SectionTitleText>
                     </SectionHeaderLeft>
@@ -1670,7 +1678,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <FiStar />
+                      <Ico3D src={images.emoji3dStar} alt="" />
                     </SectionIconCircle>
                     <SectionTitleText>팀 리뷰</SectionTitleText>
                   </SectionHeaderLeft>

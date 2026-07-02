@@ -33,7 +33,6 @@ import MyProfileDetailPage from "../pages/my/MyProfileDetailPage";
 import MyPostsPage from "../pages/my/MyPostsPage";
 import MyReportsPage from "../pages/my/MyReportsPage";
 import MyPersonalMatchesPage from "../pages/my/MyPersonalMatchesPage";
-import MyMatchedMatchesPage from "../pages/my/MyMatchedMatchesPage";
 import InquiryPage from "../pages/my/InquiryPage";
 
 import PlayerProfilePage from "../pages/player/PlayerProfilePage";
@@ -424,7 +423,6 @@ export default function AppRoutes() {
 
           <Route path="/my/posts" element={<MyPostsPage />} />
           <Route path="/my/personal-matches" element={<MyPersonalMatchesPage />} />
-          <Route path="/my/matched-matches" element={<MyMatchedMatchesPage />} />
           <Route path="/my/reports" element={<MyReportsPage />} />
           <Route path="/my/inquiry" element={<InquiryPage />} />
 

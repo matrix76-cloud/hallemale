@@ -168,6 +168,24 @@ export function getNotificationDef(key) {
   return NOTIFICATION_DEFINITIONS[toStr(key)] || null;
 }
 
+// 알림 배지 카테고리 — 실제 저장되는 kind 문자열을 표시용 라벨/색으로 매핑.
+// 미매핑 kind는 "시스템"으로 폴백. (알림창/상세 공통 사용)
+export function getNotiCategory(kind) {
+  const k = String(kind || "").trim().toLowerCase();
+
+  if (k === "notice") return { label: "공지", color: "#2563eb" };
+  if (k === "event") return { label: "이벤트", color: "#2563eb" };
+  if (k === "match" || k === "result") return { label: "매칭", color: "#22c55e" };
+  if (k === "chat") return { label: "메시지", color: "#0ea5e9" };
+  if (k === "team" || k === "teaminvite" || k === "teamdecision" || k === "player")
+    return { label: "팀", color: "#7c3aed" };
+  if (k.startsWith("community")) return { label: "커뮤니티", color: "#f59e0b" };
+  if (k === "venue") return { label: "구장", color: "#0d9488" };
+  if (k === "game_added") return { label: "경기소식", color: "#6366f1" };
+
+  return { label: "시스템", color: "#6b7280" };
+}
+
 // 팀장 전용(팀장만 처리 가능) 매칭 알림 subType — 매칭 요청/수락/거절/취소 + 라인업·결제·결과입력 독촉.
 // 팀장 → 팀원 강등 시 권한이 없으므로 알림창/배지에서 숨겨 자동 리셋한다.
 export const LEADER_ONLY_MATCH_SUBTYPES = new Set([

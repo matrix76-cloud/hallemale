@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>확정/지난 경기 캘린더 뷰</title>
+<style>
+  body{margin:0;background:#f9fafb;font-family:-apple-system,'Segoe UI',Roboto,'Malgun Gothic',sans-serif;padding:16px;}
+  .frame{width:100%;max-width:412px;margin:0 auto;display:flex;flex-direction:column;gap:12px;}
+  .cap{font-size:12px;color:#6b7280;font-weight:700;}
+
+  .toggle{display:inline-flex;align-self:flex-start;gap:3px;padding:3px;border-radius:999px;background:#eef0f3;}
+  .tbtn{border:none;border-radius:999px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#9ca3af;}
+  .tbtn.on{background:#fff;color:#111827;box-shadow:0 6px 16px rgba(15,23,42,.08);}
+
+  .calcard{background:#fff;border-radius:18px;box-shadow:0 6px 16px rgba(15,23,42,.08);padding:14px 12px 16px;}
+  .mrow{display:flex;align-items:center;justify-content:space-between;padding:0 4px 12px;}
+  .mlabel{font-size:16px;font-weight:800;color:#111827;}
+  .nav{width:32px;height:32px;border:none;border-radius:10px;background:#f3f4f6;color:#374151;display:grid;place-items:center;cursor:pointer;font-size:16px;}
+  .whead{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px;}
+  .wd{text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:#6b7280;}
+  .wd.sun{color:#ef4444;} .wd.sat{color:#3b82f6;}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px;}
+  .cell{border:none;background:transparent;cursor:pointer;padding:3px 0 2px;display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .num{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-size:13px;font-weight:600;color:#111827;}
+  .num.sun{color:#ef4444;} .num.sat{color:#3b82f6;}
+  .num.today{background:#f0eeff;color:#4f46e5;font-weight:800;}
+  .num.sel{background:#4f46e5;color:#fff;font-weight:800;}
+  .dot{width:5px;height:5px;border-radius:50%;background:#4f46e5;}
+  .dot.off{background:transparent;}
+
+  .dhead{display:flex;align-items:center;gap:8px;padding:0 4px;font-size:14px;font-weight:800;color:#111827;}
+  .dcount{font-size:12px;font-weight:700;color:#4f46e5;}
+
+  .tcard{display:flex;align-items:flex-start;gap:12px;background:#fff;border:1px solid transparent;border-radius:16px;box-shadow:0 6px 16px rgba(15,23,42,.08);padding:12px;}
+  .thumb{width:76px;height:76px;border-radius:16px;overflow:hidden;background:#f3f4f6;flex-shrink:0;box-shadow:0 0 0 1px rgba(15,23,42,.06);}
+  .thumb img{width:100%;height:100%;object-fit:cover;}
+  .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;justify-content:center;}
+  .btop{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .opp{font-size:15.5px;font-weight:800;color:#111827;}
+  .dday{padding:0;color:#4f46e5;font-size:13px;font-weight:800;}
+  .sub{font-size:12.5px;color:#374151;}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="cap">확정된 경기 — 캘린더 뷰 (경기 있는 날 점 · 날짜 탭 → 그 날 경기)</div>
+    <div class="toggle"><button class="tbtn on">📅 캘린더</button><button class="tbtn">목록</button></div>
+
+    <div class="calcard">
+      <div class="mrow"><button class="nav">‹</button><div class="mlabel">2026년 7월</div><button class="nav">›</button></div>
+      <div class="whead">
+        <div class="wd sun">일</div><div class="wd">월</div><div class="wd">화</div><div class="wd">수</div><div class="wd">목</div><div class="wd">금</div><div class="wd sat">토</div>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="dhead">7월 5일 (일) <span class="dcount">2경기</span></div>
+
+    <div class="tcard">
+      <div class="thumb"><img src="../src/assets/teams/logo_shinchon_sharks.png"></div>
+      <div class="body">
+        <div class="btop"><div class="opp">신촌 샤크스 · 2위</div><span class="dday">D-3</span></div>
+        <div class="sub">3 vs 3 · 7.5 (일) 19:00</div>
+      </div>
+    </div>
+    <div class="tcard">
+      <div class="thumb"><img src="../src/assets/teams/logo_deokso_eagles.png"></div>
+      <div class="body">
+        <div class="btop"><div class="opp">덕소 이글스</div><span class="dday">D-3</span></div>
+        <div class="sub">5 vs 5 · 7.5 (일) 21:00</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 2026-07-01 is Wednesday (getDay=3). Mark 5,12,20 as match days; 2 = today; 5 selected.
+    var start = 3, days = 31, today = 2, sel = 5, marks = {5:1,12:1,20:1};
+    var g = document.getElementById('grid');
+    for (var i=0;i<start;i++){ g.appendChild(document.createElement('div')); }
+    for (var d=1; d<=days; d++){
+      var wd = (start + d - 1) % 7;
+      var cell = document.createElement('button'); cell.className='cell';
+      var num = document.createElement('span'); num.className='num';
+      if (wd===0) num.className+=' sun'; if (wd===6) num.className+=' sat';
+      if (d===sel) num.className+=' sel'; else if (d===today) num.className+=' today';
+      num.textContent = d;
+      var dot = document.createElement('span'); dot.className = 'dot' + (marks[d]?'':' off');
+      cell.appendChild(num); cell.appendChild(dot); g.appendChild(cell);
+    }
+  </script>
+</body>
+</html>

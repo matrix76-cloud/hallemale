@@ -395,9 +395,19 @@ export default function MatchOpponentRevealPage() {
     return all.filter((t) => {
       const tGu = String(t.regionGu || "").trim();
       const tSido = String(t.regionSido || "").trim();
-      if (regionGu && tGu !== regionGu) return false;
-      if (regionSido && tSido !== regionSido) return false;
-      return true;
+      const tRegion = String(t.region || "").trim();
+
+      // 1) 구조화된 지역(regionSido/regionGu)이 정확히 일치
+      const structuredMatch =
+        (!regionGu || tGu === regionGu) && (!regionSido || tSido === regionSido);
+      if ((tGu || tSido) && structuredMatch) return true;
+
+      // 2) 구조화된 지역이 없는 팀은 자유 텍스트 region 문자열로 폴백 매칭
+      if (!tGu && !tSido && tRegion) {
+        if (regionGu && tRegion.includes(regionGu)) return true;
+        if (regionSido && tRegion.includes(regionSido)) return true;
+      }
+      return false;
     });
   }, [opponentTeams, regionGu, regionSido]);
 

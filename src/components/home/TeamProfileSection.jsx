@@ -4,6 +4,7 @@ import React from "react";
 import styled, { css } from "styled-components";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
+import { FiMessageSquare, FiCheckCircle, FiFlag, FiXCircle } from "react-icons/fi";
 
 const SectionWrap = styled.section`
   display: flex;
@@ -28,12 +29,14 @@ const ProfileRow = styled.div`
 `;
 
 const ProfileCard = styled.div`
-  flex: 1.7;
+  position: relative;
+  overflow: hidden;
+  flex: 1.4;
   min-width: 0;
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "transparent"};
-  border-radius: 8px;
+  border-radius: 16px;
   padding: 12px 14px;
   box-shadow: ${({ theme }) => theme.shadows.card};
   display: flex;
@@ -46,6 +49,20 @@ const ProfileCard = styled.div`
   }
 `;
 
+/* 팀 프로필 우하단 3D 데코 (매칭하기 카드와 톤 맞춤) */
+const ProfileDeco = styled.img`
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  transform: rotate(8deg);
+  opacity: 0.95;
+  filter: drop-shadow(0 6px 12px rgba(15, 23, 42, 0.2));
+  pointer-events: none;
+`;
+
 const TopRow = styled.div`
   display: flex;
   align-items: center;
@@ -54,8 +71,8 @@ const TopRow = styled.div`
 
 const LogoOuter = styled.div`
   position: relative;
-  width: 60px;
-  height: 60px;
+  width: 66px;
+  height: 66px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -63,9 +80,9 @@ const LogoOuter = styled.div`
 `;
 
 const LogoBase = styled.div`
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
+  width: 66px;
+  height: 66px;
+  border-radius: 14px;
   overflow: hidden;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#f4f4ff"};
@@ -89,17 +106,24 @@ const TeamMeta = styled.div`
 `;
 
 const TeamName = styled.div`
-  font-size: 18px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
   color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 `;
 
 const MemberBadge = styled.div`
   align-self: flex-start;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#f4f4f5"};
-  font-size: 11px;
+  font-size: 12.5px;
+  font-weight: 600;
   color: ${({ theme }) => theme.colors.textNormal};
   display: inline-flex;
   align-items: center;
@@ -118,68 +142,91 @@ const ActionsCol = styled.div`
   gap: 10px;
 `;
 
-/* 매칭하기 카드(이미 적용된 버전과 맞춰둠) */
+/* 매칭하기 카드 — 앱2 스타일 피처 카드 (보라 채움 · 제목 좌상단 · 3D 우하단) */
 const BigActionCard = styled.button`
+  position: relative;
+  overflow: hidden;
   flex: 1;
   min-width: 0;
-  border: 1px solid ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.06)"};
-  border-radius: 8px;
-  background: ${({ theme }) => theme.colors.card};
-  box-shadow: ${({ theme }) => theme.shadows.card};
-  padding: 12px;
+  min-height: 138px;
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #7c6ef2 0%, #4f46e5 100%);
+  box-shadow: 0 14px 26px -10px rgba(79, 70, 229, 0.6);
+  padding: 16px 16px 14px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  text-align: center;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  text-align: left;
 
   &:active {
     transform: translateY(1px);
   }
 `;
 
-/* 🏀 + "매칭하기" 가로 한 줄 */
-const TitleRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`;
-
-
-const BigIcon = styled.div`
-  font-size: 20px;
-  line-height: 1;
+/* 3D 농구공 — 우하단 코너에 살짝 걸치게 (앱2 일러스트 배치) */
+const BigIcon = styled.img`
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.3));
+  pointer-events: none;
 `;
 
 const BigTitle = styled.div`
-  font-size: 16px;
-  color: ${({ theme }) => theme.colors.textStrong || "#111827"};
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  position: relative;
+  z-index: 1;
+  font-size: 18px;
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: -0.3px;
 `;
 
 const BigSubtitle = styled.div`
+  position: relative;
+  z-index: 1;
+  max-width: calc(100% - 20px);
   font-size: 12px;
   line-height: 1.35;
-  color: ${({ theme }) => theme.colors.textWeak || "#9ca3af"};
+  color: rgba(255, 255, 255, 0.82);
   font-weight: 500;
   letter-spacing: -0.2px;
 `;
 
-/* ✅ 매칭룸 카드(문구/숫자 멋내기) */
+/* ✅ 매칭룸 카드(매칭하기 버튼처럼 코너 3D) */
 const MatchRoomCard = styled.div`
+  position: relative;
+  overflow: hidden;
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "transparent"};
-  border-radius: 8px;
+  border-radius: 16px;
   box-shadow: ${({ theme }) => theme.shadows.card};
-  padding: 12px 12px 12px;
+  padding: 14px 12px 54px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+`;
+
+/* 카드 우하단 매칭룸 3D (매칭하기 농구공 배치와 동일) */
+const MatchRoomDeco = styled.img`
+  position: absolute;
+  right: 2px;
+  bottom: 4px;
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  transform: rotate(-6deg);
+  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.22));
+  pointer-events: none;
+  z-index: 0;
 `;
 
 const MatchRoomHeader = styled.div`
@@ -193,23 +240,9 @@ const MatchRoomTitle = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
+  font-size: 16px;
   color: ${({ theme }) => theme.colors.textStrong || "#111827"};
-  font-weight: 600;
-`;
-
-const FolderIconWrap = styled.div`
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(56, 189, 248, 0.16)" : "rgba(2, 132, 199, 0.1)"};
-`;
-
-const FolderIcon = styled.div`
-  font-size: 22px;
+  font-weight: 700;
 `;
 
 const MatchRoomLinkText = styled.div`
@@ -219,8 +252,10 @@ const MatchRoomLinkText = styled.div`
   white-space: nowrap;
 `;
 
-/* ✅ 3개 박스 업그레이드 */
+/* ✅ 상태 카운트 4열 */
 const StatRow = styled.div`
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 7px;
@@ -231,24 +266,18 @@ const StatValue = styled.div`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const NumberBadge = styled.div`
-  width: 100%;
-  height: 42px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.bg : "#f3f4f6"};
-  border: 1px solid ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.06)"};
-`;
-
-const NumberText = styled.div`
-  font-size: 20px;
+/* 상태별 컬러 카운트 (0이면 흐리게) */
+const StatCount = styled.div`
+  font-size: 23px;
   line-height: 1;
-  letter-spacing: -0.8px;
-  color: ${({ theme }) => theme.colors.textStrong};
-  font-weight: 700;
+  letter-spacing: -0.6px;
+  font-weight: 800;
+  color: ${({ $zero, $tone, theme }) =>
+    $zero
+      ? theme.colors.textWeak
+      : $tone === "confirm"
+      ? theme.colors.primary
+      : theme.colors.textStrong};
 `;
 
 const StatHint = styled.div`
@@ -260,36 +289,40 @@ const StatHint = styled.div`
 
 const StatItem = styled.button`
   position: relative;
-  border: 1px solid ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.border : "rgba(15, 23, 42, 0.06)"};
-  background: ${({ theme }) =>
-    theme.mode === "dark"
-      ? theme.colors.surface
-      : "linear-gradient(180deg, #ffffff 0%, #f9fafb 100%)"};
-  border-radius: 8px;
-  padding: 10px 7px;
+  border: none;
+  background: transparent;
+  padding: 6px 4px;
   cursor: pointer;
 
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-
-  box-shadow: ${({ theme }) =>
-    theme.mode === "dark"
-      ? "0 4px 10px rgba(0, 0, 0, 0.25)"
-      : "0 8px 18px rgba(15, 23, 42, 0.05)"};
+  gap: 6px;
 
   &:active {
     transform: translateY(1px);
   }
 `;
 
+/* 라벨 + 왼쪽 아이콘 한 줄 */
+const StatLabelRow = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const StatIco = styled.span`
+  display: inline-flex;
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
 const StatLabel = styled.div`
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 600;
   text-align: center;
   white-space: nowrap;
-  color: ${({ theme }) => theme.colors.textWeak};
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 // 반응 필요(미확인) 빨간 배지 — 박스 우상단
@@ -489,6 +522,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
         <DimArea $locked={locked} aria-hidden={locked}>
       <ProfileRow>
       <ProfileCard onClick={handleGoMyTeamDetail}>
+        <ProfileDeco src={images.emoji3dTrophy} alt="" />
         <TopRow>
           <LogoOuter>
             <LogoBase>
@@ -508,12 +542,9 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
       </ProfileCard>
 
         <BigActionCard type="button" onClick={handleGoMatching}>
-          <TitleRow>
-            <BigIcon>🏀</BigIcon>
-            <BigTitle>매칭하기</BigTitle>
-          </TitleRow>
-
+          <BigTitle>매칭하기</BigTitle>
           <BigSubtitle>원하는 팀과 경기 잡기</BigSubtitle>
+          <BigIcon src={images.emoji3dBasketball} alt="" />
         </BigActionCard>
       </ProfileRow>
 
@@ -521,56 +552,53 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
         <MatchRoomCard>
           <MatchRoomHeader>
             <MatchRoomTitle>
-              <FolderIconWrap>
-                <FolderIcon>🗂️</FolderIcon>
-              </FolderIconWrap>
               <span>매칭룸</span>
             </MatchRoomTitle>
-
-
 
             <MatchRoomLinkText onClick={() => navigate("/matches/finished")}>
               내 팀 경기 기록 보기
             </MatchRoomLinkText>
-
           </MatchRoomHeader>
 
           <StatRow>
             <StatItem type="button" onClick={() => goMatchRoomList("ongoing")}>
               {attnOngoing > 0 && <AttentionBadge>{attnOngoing}</AttentionBadge>}
-              <StatLabel>조율중 경기</StatLabel>
-              <NumberBadge>
-                <NumberText>{ongoing}</NumberText>
-              </NumberBadge>
-
+              <StatLabelRow>
+                <StatIco $tone="adjust"><FiMessageSquare /></StatIco>
+                <StatLabel>조율중</StatLabel>
+              </StatLabelRow>
+              <StatCount $tone="adjust" $zero={ongoing === 0}>{ongoing}</StatCount>
             </StatItem>
 
             <StatItem type="button" onClick={() => goMatchRoomList("confirmed")}>
               {attnConfirmed > 0 && <AttentionBadge>{attnConfirmed}</AttentionBadge>}
-              <StatLabel>확정된 경기</StatLabel>
-              <NumberBadge>
-                <NumberText>{confirmed}</NumberText>
-              </NumberBadge>
-
+              <StatLabelRow>
+                <StatIco $tone="confirm"><FiCheckCircle /></StatIco>
+                <StatLabel>확정</StatLabel>
+              </StatLabelRow>
+              <StatCount $tone="confirm" $zero={confirmed === 0}>{confirmed}</StatCount>
             </StatItem>
 
             <StatItem type="button" onClick={() => goMatchRoomList("past")}>
               {attnPast > 0 && <AttentionBadge>{attnPast}</AttentionBadge>}
-              <StatLabel>지난 경기</StatLabel>
-              <NumberBadge>
-                <NumberText>{past}</NumberText>
-              </NumberBadge>
-
+              <StatLabelRow>
+                <StatIco $tone="past"><FiFlag /></StatIco>
+                <StatLabel>지난</StatLabel>
+              </StatLabelRow>
+              <StatCount $tone="past" $zero={past === 0}>{past}</StatCount>
             </StatItem>
 
             <StatItem type="button" onClick={() => goMatchRoomList("cancelled")}>
               {attnCancelled > 0 && <AttentionBadge>{attnCancelled}</AttentionBadge>}
-              <StatLabel>취소된 경기</StatLabel>
-              <NumberBadge>
-                <NumberText>{cancelled}</NumberText>
-              </NumberBadge>
+              <StatLabelRow>
+                <StatIco $tone="cancel"><FiXCircle /></StatIco>
+                <StatLabel>취소</StatLabel>
+              </StatLabelRow>
+              <StatCount $tone="cancel" $zero={cancelled === 0}>{cancelled}</StatCount>
             </StatItem>
           </StatRow>
+
+          <MatchRoomDeco src={images.emoji3dFolder} alt="" />
         </MatchRoomCard>
       </ActionsCol>
         </DimArea>

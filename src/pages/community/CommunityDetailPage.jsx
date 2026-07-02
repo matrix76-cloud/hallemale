@@ -12,6 +12,7 @@ import {
   toggleCommunityLike,
   toggleCommunityCommentLike,
   incrementCommunityPostViews,
+  deleteCommunityPost,
 } from "../../services/communityService";
 import { createPostReport } from "../../services/postReportService";
 import { blockAuthorAndHidePost } from "../../services/userBlockService";
@@ -1057,7 +1058,14 @@ export default function CommunityDetailPage() {
                           type="button"
                           onClick={() => {
                             setMenuOpen(false);
-                            alert("수정 화면은 추후 구현 예정입니다.");
+                            nav("/community/write", {
+                              state: {
+                                editPostId: post.id,
+                                initTitle: post.title,
+                                initContent: post.content,
+                                initCategory: post.category || "free",
+                              },
+                            });
                           }}
                         >
                           수정
@@ -1065,9 +1073,16 @@ export default function CommunityDetailPage() {
                         <MenuItem
                           type="button"
                           $danger
-                          onClick={() => {
+                          onClick={async () => {
                             setMenuOpen(false);
-                            alert("삭제 기능은 추후 구현 예정입니다.");
+                            if (!window.confirm("이 게시글을 삭제할까요?")) return;
+                            try {
+                              await deleteCommunityPost({ postId: post.id, myUid });
+                              window.alert("삭제했어요.");
+                              nav("/community", { replace: true });
+                            } catch (e) {
+                              window.alert(e?.message || "삭제에 실패했어요.");
+                            }
                           }}
                         >
                           삭제
