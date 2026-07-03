@@ -666,6 +666,20 @@ export default function MyProfilePage() {
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
 
+              <MenuItemButton onClick={() => handleSettingMenuClick("alarm")}>
+                <MenuTextWrap>
+                  <MenuTitle>알림 설정</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
+              <MenuItemButton onClick={() => handleSettingMenuClick("notice")}>
+                <MenuTextWrap>
+                  <MenuTitle>공지사항</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
               <MenuItemButton onClick={() => handleSettingMenuClick("faq")}>
                 <MenuTextWrap>
                   <MenuTitle>FAQ</MenuTitle>
@@ -676,6 +690,13 @@ export default function MyProfilePage() {
               <MenuItemButton onClick={() => handleSettingMenuClick("cs")}>
                 <MenuTextWrap>
                   <MenuTitle>1:1 문의</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
+              <MenuItemButton onClick={() => handleSettingMenuClick("reportBlock")}>
+                <MenuTextWrap>
+                  <MenuTitle>차단 · 숨김 관리</MenuTitle>
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
