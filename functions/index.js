@@ -43,6 +43,10 @@ exports.kakaoCustomToken = kakaoCustomToken;
 const { deleteAccount } = require("./auth/deleteAccount");
 exports.deleteAccount = deleteAccount;
 
+// ✅ 어드민 로그인 — 서버 비번검증 + admin 클레임 커스텀 토큰 발급
+const { adminLogin } = require("./auth/adminLogin");
+exports.adminLogin = adminLogin;
+
 // ✅ 국세청 사업자등록정보 진위확인 (구장 사업자 인증 자동 처리)
 const { verifyBusiness } = require("./business/verifyBusiness");
 exports.verifyBusiness = verifyBusiness;

@@ -4,10 +4,8 @@ import styled, { keyframes, ThemeProvider } from "styled-components";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { lightTheme } from "../../theme/theme";
-import { verifyAdminLogin } from "../../services/adminAccountService";
-
-const ADMIN_SESSION_KEY = "HALLE_ADMIN_AUTHED";
-const ADMIN_SESSION_USER_KEY = "HALLE_ADMIN_USER";
+import { adminSignIn } from "../../services/adminAuthService";
+import { useAuth } from "../../hooks/useAuth";
 
 const Wrap = styled.div`
   min-height: 100dvh;
@@ -144,6 +142,7 @@ const PwToggle = styled.button`
 
 export default function AdminLoginPage() {
   const nav = useNavigate();
+  const { userDoc } = useAuth();
 
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
@@ -152,12 +151,10 @@ export default function AdminLoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // 이미 어드민 Firebase 세션이 있으면 대시보드로
   useEffect(() => {
-    try {
-      const authed = localStorage.getItem(ADMIN_SESSION_KEY) === "1";
-      if (authed) nav("/admin/dashboard", { replace: true });
-    } catch (e) {}
-  }, [nav]);
+    if (userDoc?.isAdmin === true) nav("/admin/dashboard", { replace: true });
+  }, [userDoc, nav]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -175,22 +172,9 @@ export default function AdminLoginPage() {
 
     setBusy(true);
     try {
-      const result = await verifyAdminLogin({ id: cleanId, password: cleanPw });
-      if (result?.ok) {
-        try {
-          localStorage.setItem(ADMIN_SESSION_KEY, "1");
-          localStorage.setItem(
-            ADMIN_SESSION_USER_KEY,
-            JSON.stringify({ id: result.id, name: result.name, role: result.role })
-          );
-          if (auto) localStorage.setItem(`${ADMIN_SESSION_KEY}_AUTO`, "1");
-          else localStorage.removeItem(`${ADMIN_SESSION_KEY}_AUTO`);
-        } catch (e) {}
-        nav("/admin/dashboard", { replace: true });
-        return;
-      }
-
-      setErr("아이디 또는 비밀번호가 올바르지 않습니다.");
+      await adminSignIn({ id: cleanId, password: cleanPw });
+      // 세션 반영은 AuthContext 가 처리 → 대시보드로 이동
+      nav("/admin/dashboard", { replace: true });
     } catch (e) {
       console.error("[AdminLoginPage] login failed", e);
       setErr(e?.message || "로그인 처리 중 오류가 발생했습니다.");

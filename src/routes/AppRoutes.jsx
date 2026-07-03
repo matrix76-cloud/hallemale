@@ -173,19 +173,12 @@ function RequireOwnerAuth({ children }) {
 }
 
 function RequireAdmin({ children }) {
-  const { isLoggedIn, loading, userDoc } = useAuth();
+  const { loading, userDoc } = useAuth();
   if (loading) return <AppLoadingPage />;
 
-  let devAdminAuthed = false;
-  try {
-    devAdminAuthed = localStorage.getItem("HALLE_ADMIN_AUTHED") === "1";
-  } catch (e) {}
-
-  if (devAdminAuthed) return children;
-  if (!isLoggedIn) return <Navigate to="/admin/login" replace />;
-
-  const isAdmin = userDoc?.isAdmin === true || userDoc?.role === "admin";
-  if (!isAdmin) return <Navigate to="/home" replace />;
+  // ✅ 진짜 Firebase 어드민 세션(admin 클레임)만 통과. localStorage 우회 제거.
+  const isAdmin = userDoc?.isAdmin === true;
+  if (!isAdmin) return <Navigate to="/admin/login" replace />;
 
   return children;
 }

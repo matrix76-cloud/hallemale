@@ -5,8 +5,8 @@ import React from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { IoTimeOutline, IoLogOutOutline } from "react-icons/io5";
+import { adminSignOut } from "../../services/adminAuthService";
 
-const ADMIN_SESSION_KEY = "HALLE_ADMIN_AUTHED";
 const ADMIN_SESSION_USER_KEY = "HALLE_ADMIN_USER";
 
 const Bar = styled.header`
@@ -91,12 +91,8 @@ export default function AdminTopbar() {
   const [loginTime] = React.useState(() => formatNow());
   const [user] = React.useState(() => readAdminUser());
 
-  const handleLogout = () => {
-    try {
-      localStorage.removeItem(ADMIN_SESSION_KEY);
-      localStorage.removeItem(`${ADMIN_SESSION_KEY}_AUTO`);
-      localStorage.removeItem(ADMIN_SESSION_USER_KEY);
-    } catch (e) {}
+  const handleLogout = async () => {
+    await adminSignOut();
     nav("/admin/login", { replace: true });
   };
 

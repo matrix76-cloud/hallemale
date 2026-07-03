@@ -69,6 +69,27 @@ export function AuthProvider({ children }) {
       // 새 유저 로그인 시 userDoc 로드 완료까지 loading 유지
       setLoading(true);
 
+      // ✅ 어드민 세션(커스텀 토큰 + admin 클레임): 사용자 프로필 로드 대신 어드민으로 처리.
+      //    사용자 앱과 섞이지 않도록 users 문서/FCM 로드를 건너뛴다.
+      try {
+        const tokenResult = await user.getIdTokenResult();
+        const claims = tokenResult?.claims || {};
+        if (claims.admin === true) {
+          setUserDoc({
+            id: user.uid,
+            uid: user.uid,
+            isAdmin: true,
+            role: String(claims.adminRole || "admin"),
+            adminId: String(claims.adminId || ""),
+            nickname: String(claims.adminName || "관리자"),
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn("[AuthProvider] admin claim check failed:", e?.message || e);
+      }
+
       try {
         const docData = await getUserDoc(user.uid);
 
