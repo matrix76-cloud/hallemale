@@ -109,8 +109,11 @@ const Notice = styled.p`
 `;
 
 export default function SettingsBlockedPage() {
-  const { user, userDoc } = useAuth();
-  const myUid = String(userDoc?.uid || user?.uid || "");
+  // ⚠️ useAuth 는 user 가 아니라 firebaseUser 를 제공하고, normalized userDoc 은
+  //    항상 id 를 세팅하지만 uid 는 없을 수 있다. 커뮤니티 차단(handleBlock)과 동일하게
+  //    firebaseUser.uid → userDoc.uid → userDoc.id 순으로 계산해야 같은 user_blocks 문서를 읽는다.
+  const { firebaseUser, userDoc } = useAuth();
+  const myUid = String(firebaseUser?.uid || userDoc?.uid || userDoc?.id || "");
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState({});
