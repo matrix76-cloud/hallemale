@@ -1325,8 +1325,15 @@ export default function MatchRoomListPage() {
     return pastRooms; // recent (byLatest)
   }, [pastRooms, pastView, reviewedSet]);
 
+  // ✅ 매칭룸 취소 = "상대가 수락해 매칭룸이 생성된 뒤" 취소된 것만.
+  //    수락 전 내가 신청을 철회한 것(pending 철회)은 acceptedAt/confirmedAt 이 없으므로 제외.
   const cancelledRooms = useMemo(
-    () => rooms.filter((r) => r.status === "cancelled").sort(byLatest),
+    () =>
+      rooms
+        .filter(
+          (r) => r.status === "cancelled" && (r.acceptedAt || r.confirmedAt)
+        )
+        .sort(byLatest),
     [rooms]
   );
 
