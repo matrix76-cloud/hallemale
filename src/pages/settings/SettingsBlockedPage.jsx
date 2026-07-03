@@ -9,7 +9,6 @@ import { getUserPublicMeta } from "../../services/counterpartService";
 import {
   getMyBlockList,
   unblockUser,
-  unhidePost,
 } from "../../services/userBlockService";
 import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
@@ -73,16 +72,6 @@ const NameCol = styled.div`
   text-overflow: ellipsis;
 `;
 
-const PostText = styled.div`
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  color: #374151;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
 const UnblockBtn = styled.button`
   padding: 8px 12px;
   font-size: 13px;
@@ -118,7 +107,6 @@ export default function SettingsBlockedPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState({});
   const [users, setUsers] = useState([]); // [{ uid, name, avatar }]
-  const [posts, setPosts] = useState([]); // [{ postId }]
 
   const reload = useCallback(async () => {
     if (!myUid) {
@@ -127,7 +115,7 @@ export default function SettingsBlockedPage() {
     }
     setLoading(true);
     try {
-      const { blockedUids, hiddenPostIds } = await getMyBlockList(myUid);
+      const { blockedUids } = await getMyBlockList(myUid);
       const metaList = await Promise.all(
         blockedUids.map(async (uid) => {
           const m = await getUserPublicMeta(uid);
@@ -135,7 +123,6 @@ export default function SettingsBlockedPage() {
         })
       );
       setUsers(metaList);
-      setPosts(hiddenPostIds.map((id) => ({ postId: id })));
     } catch (e) {
       console.warn("[SettingsBlockedPage] reload failed", e?.message || e);
     } finally {
@@ -161,20 +148,6 @@ export default function SettingsBlockedPage() {
     }
   };
 
-  const handleUnhidePost = async (postId) => {
-    if (!myUid || !postId) return;
-    if (!window.confirm("이 게시글 숨김을 해제하시겠습니까?")) return;
-    setBusy((b) => ({ ...b, [`p_${postId}`]: true }));
-    try {
-      await unhidePost({ myUid, postId });
-      setPosts((prev) => prev.filter((p) => p.postId !== postId));
-    } catch (e) {
-      alert(e?.message || "숨김 해제에 실패했습니다.");
-    } finally {
-      setBusy((b) => ({ ...b, [`p_${postId}`]: false }));
-    }
-  };
-
   if (loading) {
     return (
       <Wrap>
@@ -187,9 +160,9 @@ export default function SettingsBlockedPage() {
     <Wrap>
       <H2>차단 관리</H2>
       <Notice>
-        신고하거나 차단한 사용자/게시글은 회원님 피드에서 즉시 숨겨집니다.
+        차단한 사용자의 게시글과 댓글은 회원님 피드에서 보이지 않습니다.
         <br />
-        아래 목록에서 언제든 해제할 수 있습니다.
+        아래 목록에서 언제든 차단을 해제할 수 있습니다.
       </Notice>
 
       <SectionTitle>차단한 사용자 ({users.length})</SectionTitle>
@@ -207,26 +180,6 @@ export default function SettingsBlockedPage() {
                 onClick={() => handleUnblockUser(u.uid)}
               >
                 {busy[`u_${u.uid}`] ? "해제중…" : "차단 해제"}
-              </UnblockBtn>
-            </Item>
-          ))}
-        </List>
-      )}
-
-      <SectionTitle>숨긴 게시글 ({posts.length})</SectionTitle>
-      {posts.length === 0 ? (
-        <EmptyState text="숨긴 게시글이 없습니다." />
-      ) : (
-        <List>
-          {posts.map((p) => (
-            <Item key={p.postId}>
-              <PostText>게시글 ID: {p.postId}</PostText>
-              <UnblockBtn
-                type="button"
-                disabled={!!busy[`p_${p.postId}`]}
-                onClick={() => handleUnhidePost(p.postId)}
-              >
-                {busy[`p_${p.postId}`] ? "해제중…" : "숨김 해제"}
               </UnblockBtn>
             </Item>
           ))}

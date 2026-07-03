@@ -696,7 +696,7 @@ export default function MyProfilePage() {
 
               <MenuItemButton onClick={() => handleSettingMenuClick("reportBlock")}>
                 <MenuTextWrap>
-                  <MenuTitle>차단 · 숨김 관리</MenuTitle>
+                  <MenuTitle>차단 관리</MenuTitle>
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
