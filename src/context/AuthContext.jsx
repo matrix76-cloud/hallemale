@@ -6,7 +6,7 @@ import { getUserDoc, getUserProfileByUid } from "../services/userService";
 import { registerFcmToken, unregisterFcmToken } from "../services/fcmService";
 import { db } from "../services/firebase";
 import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
-import { parseAppMessage } from "../bridge/webviewBridge";
+import { parseAppMessage, isInWebView, postToApp } from "../bridge/webviewBridge";
 
 const AuthContext = createContext(null);
 
@@ -189,6 +189,13 @@ export function AuthProvider({ children }) {
     if (firebaseUser?.uid && pendingRnTokenRef.current) {
       saveRnToken(firebaseUser.uid, pendingRnTokenRef.current);
       pendingRnTokenRef.current = null;
+    }
+
+    // ⚠️ RN이 pull 모델(GET_PUSH_TOKEN 요청 시 PUSH_TOKEN 응답)일 수 있어,
+    // 로그인 후 앱에 토큰을 명시적으로 요청한다. (웹이 요청 안 하면 토큰이 안 올라오던 문제)
+    // proactive push 모델이면 무해한 no-op.
+    if (firebaseUser?.uid && isInWebView()) {
+      postToApp("GET_PUSH_TOKEN", {});
     }
 
     return () => {
