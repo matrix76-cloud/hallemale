@@ -19,7 +19,10 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { deleteUser, signOut } from "firebase/auth";
-import { reassignOrDisbandOwnedClubsOnWithdraw } from "./clubLeaderService";
+import {
+  reassignOrDisbandOwnedClubsOnWithdraw,
+  removeMembershipsOnWithdraw,
+} from "./clubLeaderService";
 
 const DELETE_ACCOUNT_URL =
   "https://asia-northeast3-halle-bf789.cloudfunctions.net/deleteAccount";
@@ -108,15 +111,16 @@ export async function withdrawAccount() {
   if (!user) throw new Error("로그인 상태가 아닙니다.");
   const uid = String(user.uid);
 
-  // 1) Firestore users 문서 정보 가져오기 (phoneE164 등 정리에 사용)
+  // 1) Firestore users 문서 정보 가져오기 (phoneE164·소속 팀 등 정리에 사용)
   let phoneE164 = "";
   let userDocId = uid;
+  const teamIds = []; // 소속 팀(멤버십 정리 대상)
   try {
     const myDocRef = doc(db, "users", uid);
     const mySnap = await getDoc(myDocRef);
+    let d = null;
     if (mySnap.exists()) {
-      const d = mySnap.data() || {};
-      phoneE164 = String(d.phoneE164 || "").trim();
+      d = mySnap.data() || {};
     } else {
       // 소셜 연결된 경우 linkedSocialUid로 한 번 더 조회
       const linkedQ = query(
@@ -127,9 +131,15 @@ export async function withdrawAccount() {
       if (!linkedSnap.empty) {
         const ex = linkedSnap.docs[0];
         userDocId = ex.id;
-        const d = ex.data() || {};
-        phoneE164 = String(d.phoneE164 || "").trim();
+        d = ex.data() || {};
       }
+    }
+    if (d) {
+      phoneE164 = String(d.phoneE164 || "").trim();
+      const t1 = String(d.activeTeamId || "").trim();
+      const t2 = String(d.clubId || "").trim();
+      if (t1) teamIds.push(t1);
+      if (t2 && t2 !== t1) teamIds.push(t2);
     }
   } catch (e) {
     console.warn("[withdraw] read user doc failed:", e?.message || e);
@@ -143,6 +153,16 @@ export async function withdrawAccount() {
     console.log("[withdraw] clubs handled:", r);
   } catch (e) {
     console.warn("[withdraw] reassign clubs failed:", e?.message || e);
+  }
+
+  // 2-1) 내가 팀원으로 소속된 팀에서 멤버십 제거 (팀장이 아닌 팀)
+  //      - members 서브컬렉션 doc + clubs.members 배열 정리
+  //      - 카카오 uid 고정이라 정리 안 하면 재가입 시 예전 팀에 데이터가 남음
+  try {
+    const r2 = await removeMembershipsOnWithdraw({ uid: userDocId, clubIds: teamIds });
+    console.log("[withdraw] memberships removed:", r2);
+  } catch (e) {
+    console.warn("[withdraw] remove memberships failed:", e?.message || e);
   }
 
   // 3) 차단/숨김 데이터 삭제

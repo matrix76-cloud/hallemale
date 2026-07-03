@@ -221,17 +221,22 @@ async function pickHeirUid({ clubId, excludeUid }) {
 }
 
 /** 떠나는 팀장 → 새 팀장으로 위임 (떠나는 팀장 member 문서는 삭제) */
-async function transferLeadershipOnWithdraw({ clubId, fromUid, toUid }) {
+async function transferLeadershipOnWithdraw({ clubId, fromUid, toUid, clubData }) {
   const cid = safeStr(clubId);
   const from = safeStr(fromUid);
   const to = safeStr(toUid);
 
   const batch = writeBatch(db);
 
-  batch.update(doc(db, "clubs", cid), {
-    ownerUid: to,
-    updatedAt: serverTimestamp(),
-  });
+  // clubs.members 배열(비정규화)에서도 떠나는 팀장 제거
+  const arr = Array.isArray(clubData?.members) ? clubData.members : [];
+  const nextArr = arr.filter(
+    (m) => safeStr(m?.userId || m?.id || m?.uid) !== from
+  );
+
+  const clubUpdate = { ownerUid: to, updatedAt: serverTimestamp() };
+  if (nextArr.length !== arr.length) clubUpdate.members = nextArr;
+  batch.update(doc(db, "clubs", cid), clubUpdate);
 
   // 떠나는 팀장 멤버십 제거 (users 문서는 탈퇴 로직에서 삭제됨)
   batch.delete(doc(db, "clubs", cid, "members", from));
@@ -327,7 +332,12 @@ export async function reassignOrDisbandOwnedClubsOnWithdraw({ uid }) {
     try {
       const heir = await pickHeirUid({ clubId: cid, excludeUid: u });
       if (heir) {
-        await transferLeadershipOnWithdraw({ clubId: cid, fromUid: u, toUid: heir });
+        await transferLeadershipOnWithdraw({
+          clubId: cid,
+          fromUid: u,
+          toUid: heir,
+          clubData: clubDoc.data(),
+        });
         await notifyNewLeader({ clubId: cid, toUid: heir, clubName, actorUid: u });
         reassigned.push({ clubId: cid, newOwnerUid: heir });
       } else {
@@ -340,4 +350,53 @@ export async function reassignOrDisbandOwnedClubsOnWithdraw({ uid }) {
   }
 
   return { reassigned, disbanded };
+}
+
+/**
+ * 회원탈퇴 시 호출 — 내가 (팀장이 아닌) 팀원으로 소속된 팀에서 내 멤버십을 제거.
+ * - clubs/{clubId}/members/{uid} 서브컬렉션 doc 삭제
+ * - clubs/{clubId}.members 배열(비정규화)에서 제거
+ * - 팀장인 팀은 reassignOrDisbandOwnedClubsOnWithdraw 가 별도 처리하므로 건너뜀
+ * - best-effort: 실패해도 탈퇴를 막지 않음
+ *
+ * ※ 카카오 uid 는 고정(kakao:{id})이라, 재가입해도 같은 uid → 정리하지 않으면
+ *   예전 팀에 내 멤버 데이터가 그대로 되살아난다.
+ */
+export async function removeMembershipsOnWithdraw({ uid, clubIds = [] }) {
+  const u = safeStr(uid);
+  if (!u) return { removed: [] };
+
+  const ids = Array.from(new Set((clubIds || []).map(safeStr).filter(Boolean)));
+  const removed = [];
+
+  for (const cid of ids) {
+    try {
+      const clubRef = doc(db, "clubs", cid);
+      const snap = await getDoc(clubRef);
+      if (!snap.exists()) continue;
+
+      const club = snap.data() || {};
+      // 팀장인 팀은 위임/해체 로직이 처리 → 중복 처리 방지
+      if (safeStr(club.ownerUid || club.ownerId) === u) continue;
+
+      const batch = writeBatch(db);
+
+      const arr = Array.isArray(club.members) ? club.members : [];
+      const nextArr = arr.filter(
+        (m) => safeStr(m?.userId || m?.id || m?.uid) !== u
+      );
+      if (nextArr.length !== arr.length) {
+        batch.update(clubRef, { members: nextArr, updatedAt: serverTimestamp() });
+      }
+
+      batch.delete(doc(db, "clubs", cid, "members", u));
+
+      await batch.commit();
+      removed.push(cid);
+    } catch (e) {
+      console.warn(`[withdraw] remove membership ${cid} failed:`, e?.message || e);
+    }
+  }
+
+  return { removed };
 }
