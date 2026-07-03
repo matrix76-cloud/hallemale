@@ -7,6 +7,7 @@
 
 import React, { useState } from "react";
 import styled from "styled-components";
+import { showAlert } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 import { FiChevronRight, FiMapPin } from "react-icons/fi";
 
@@ -276,7 +277,7 @@ export default function MatchRegionSelectPage() {
   const useMyLocation = () => {
     if (locating) return;
     if (!navigator.geolocation) {
-      alert("이 기기에서는 위치 정보를 사용할 수 없습니다. 직접 선택해 주세요.");
+      showAlert("이 기기에서는 위치 정보를 사용할 수 없습니다. 직접 선택해 주세요.");
       return;
     }
 
@@ -293,7 +294,7 @@ export default function MatchRegionSelectPage() {
             geocoder.coord2RegionCode(lng, lat, (result, status) => {
               setLocating(false);
               if (status !== kakao.maps.services.Status.OK || !Array.isArray(result)) {
-                alert("현재 위치의 지역 정보를 가져오지 못했어요. 직접 선택해 주세요.");
+                showAlert("현재 위치의 지역 정보를 가져오지 못했어요. 직접 선택해 주세요.");
                 return;
               }
               const r = result.find((x) => x.region_type === "H") || result[0];
@@ -302,7 +303,7 @@ export default function MatchRegionSelectPage() {
                 r?.region_2depth_name
               );
               if (!s || !g) {
-                alert("현재 위치를 지원 지역으로 변환하지 못했어요. 직접 선택해 주세요.");
+                showAlert("현재 위치를 지원 지역으로 변환하지 못했어요. 직접 선택해 주세요.");
                 return;
               }
               setSido(s);
@@ -311,7 +312,7 @@ export default function MatchRegionSelectPage() {
             });
           } catch (e) {
             setLocating(false);
-            alert("위치 정보를 불러오지 못했어요. 직접 선택해 주세요.");
+            showAlert("위치 정보를 불러오지 못했어요. 직접 선택해 주세요.");
           }
         };
 
@@ -321,7 +322,7 @@ export default function MatchRegionSelectPage() {
           run();
         } else {
           setLocating(false);
-          alert("지도 서비스를 불러오지 못했어요. 직접 선택해 주세요.");
+          showAlert("지도 서비스를 불러오지 못했어요. 직접 선택해 주세요.");
         }
       },
       (err) => {
@@ -331,7 +332,7 @@ export default function MatchRegionSelectPage() {
           setPermOpen(true);
           return;
         }
-        alert("위치를 가져오지 못했어요. 직접 선택해 주세요.");
+        showAlert("위치를 가져오지 못했어요. 직접 선택해 주세요.");
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );

@@ -2,6 +2,7 @@
 // src/pages/my/MyProfileBodyEditPage.jsx
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
+import { showAlert } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { updateUserProfile } from "../../services/userService";
@@ -42,7 +43,7 @@ export default function MyProfileBodyEditPage() {
       try { await refreshUser?.(); } catch (e) {}
       nav(-1);
     } catch (e) {
-      window.alert("저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSaving(false);
     }

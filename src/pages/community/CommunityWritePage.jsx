@@ -4,6 +4,7 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import styled from "styled-components";
+import { showAlert } from "../../utils/appDialog";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { createCommunityPost, updateCommunityPost } from "../../services/communityService";
@@ -255,7 +256,7 @@ export default function CommunityWritePage() {
   React.useEffect(() => {
     if (isEdit || !myUid) return;
     if (!hasProfilePhoto(userDoc)) {
-      alert("커뮤니티 글 작성을 위해 먼저 프로필 사진을 등록해주세요.");
+      showAlert("커뮤니티 글 작성을 위해 먼저 프로필 사진을 등록해주세요.");
       nav("/my/profile/edit", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,13 +279,13 @@ export default function CommunityWritePage() {
 
     const onlyImages = files.filter((f) => String(f?.type || "").startsWith("image/"));
     if (!onlyImages.length) {
-      alert("이미지 파일만 선택할 수 있어요.");
+      showAlert("이미지 파일만 선택할 수 있어요.");
       return;
     }
 
     const remain = Math.max(0, 4 - images.length);
     if (remain <= 0) {
-      alert("사진은 최대 4장까지 첨부할 수 있어요.");
+      showAlert("사진은 최대 4장까지 첨부할 수 있어요.");
       return;
     }
 
@@ -324,7 +325,7 @@ export default function CommunityWritePage() {
     if (!isValid) return;
 
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
 
@@ -350,7 +351,7 @@ export default function CommunityWritePage() {
       nav(`/communitypost/${res.postId}`);
     } catch (err) {
       console.error("[CommunityWritePage] submit failed:", err?.code, err?.message, err);
-      alert(err?.message || "작성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(err?.message || "작성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }

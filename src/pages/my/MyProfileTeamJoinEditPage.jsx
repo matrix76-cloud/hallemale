@@ -2,6 +2,7 @@
 // src/pages/my/MyProfileTeamJoinEditPage.jsx
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
+import { showAlert } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useClub } from "../../hooks/useClub";
@@ -66,7 +67,7 @@ export default function MyProfileTeamJoinEditPage() {
   const handleSubmitted = async () => {
     setTeamPickerOpen(false);
     try { await refreshUser?.(); } catch (e) {}
-    window.alert("팀에 가입 신청을 보냈습니다.");
+    showAlert("팀에 가입 신청을 보냈습니다.");
   };
 
   return (

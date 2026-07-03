@@ -4,6 +4,7 @@
 // 영구 삭제 (비활성화 아님). 확인 단계 포함.
 import React, { useState } from "react";
 import styled from "styled-components";
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 import { withdrawAccount } from "../../services/withdrawService";
 import { useAuth } from "../../hooks/useAuth";
@@ -119,7 +120,7 @@ export default function WithdrawPage() {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    if (!window.confirm("정말 탈퇴하시겠습니까?\n계정과 데이터는 영구 삭제되며 복구할 수 없습니다.")) return;
+    if (!(await showConfirm("정말 탈퇴하시겠습니까?\n계정과 데이터는 영구 삭제되며 복구할 수 없습니다."))) return;
     setBusy(true);
     try {
       await withdrawAccount();
@@ -127,16 +128,16 @@ export default function WithdrawPage() {
       // 곧바로 /welcome·/login 으로 보내면 "로그인된 것으로 오인" → 스플래시/홈으로 튀는 레이스가 있다.
       // 컨텍스트 signOut 으로 상태를 확정적으로 비운 뒤 로그인 화면으로 이동한다.
       try { await signOut(); } catch (e) {}
-      alert("회원탈퇴가 완료되었습니다.\n그동안 할래말래를 이용해주셔서 감사합니다.");
+      showAlert("회원탈퇴가 완료되었습니다.\n그동안 할래말래를 이용해주셔서 감사합니다.");
       nav("/login", { replace: true });
     } catch (e) {
       const code = String(e?.code || "");
       if (code === "auth/requires-recent-login") {
-        alert(
+        showAlert(
           "보안을 위해 다시 로그인이 필요합니다.\n로그아웃 후 다시 로그인하시고 탈퇴를 진행해주세요."
         );
       } else {
-        alert(e?.message || "회원탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        showAlert(e?.message || "회원탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
     } finally {
       setBusy(false);

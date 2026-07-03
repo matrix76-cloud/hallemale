@@ -7,6 +7,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+import { showAlert } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 import { loadCommunityList } from "../../services/communityService";
 import { useAuth } from "../../hooks/useAuth";
@@ -391,11 +392,11 @@ export default function CommunityListPage() {
 
   const handleClickWrite = () => {
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     if (!hasProfilePhoto(userDoc)) {
-      alert("커뮤니티 글 작성을 위해 먼저 프로필 사진을 등록해주세요.");
+      showAlert("커뮤니티 글 작성을 위해 먼저 프로필 사진을 등록해주세요.");
       navigate("/my/profile/edit");
       return;
     }

@@ -5,6 +5,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
+import { showAlert } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 
 import { images, playerAvatars } from "../../utils/imageAssets";
@@ -115,7 +116,7 @@ export default function MyProfileEditPage() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      window.alert("이미지는 최대 5MB까지 업로드할 수 있어요.");
+      showAlert("이미지는 최대 5MB까지 업로드할 수 있어요.");
       return;
     }
     setAvatarFile(file);
@@ -146,7 +147,7 @@ export default function MyProfileEditPage() {
 
   const handleSave = async () => {
     if (!canSave) {
-      window.alert("닉네임을 입력해주세요.");
+      showAlert("닉네임을 입력해주세요.");
       return;
     }
     if (isSaving) return;
@@ -173,11 +174,11 @@ export default function MyProfileEditPage() {
         region: regionText || null,
       });
       try { await refreshUser?.(); } catch (e) {}
-      window.alert("프로필이 저장되었습니다.");
+      showAlert("프로필이 저장되었습니다.");
       nav("/my");
     } catch (e) {
       console.warn("[MyProfileEdit] save failed:", e?.message || e);
-      window.alert(e?.message || "저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSaving(false);
     }
