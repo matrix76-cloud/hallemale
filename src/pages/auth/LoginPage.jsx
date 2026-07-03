@@ -142,13 +142,12 @@ const spin = keyframes`
 `;
 
 const Wrap = styled.div`
-  min-height: 100vh;
+  height: 100dvh;
   background: ${({ theme }) => theme.colors.bg};
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
 `;
 
 const Hero = styled.div`
