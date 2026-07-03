@@ -194,6 +194,8 @@ const Input = styled.input`
   padding: 9px 10px;
   font-size: 13px;
   outline: none;
+  min-width: 0; /* flex 컨테이너에서 input 고유 최소폭 때문에 옆 버튼이 밀려나가는 것 방지 */
+  box-sizing: border-box;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   color: ${({ theme }) => theme.colors.textStrong};
