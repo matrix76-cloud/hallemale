@@ -34,10 +34,13 @@ export default function LoginPage() {
 
       if (!res || res.success !== true) {
         const code = res?.error_code || "";
-        if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-          // 사용자가 팝업을 닫음 — 조용히 무시
-        } else {
-          window.alert("구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+        const silent =
+          code === "auth/popup-closed-by-user" ||
+          code === "auth/cancelled-popup-request" ||
+          code === "cancelled";
+        if (!silent) {
+          // 실기기 진단용: 네이티브/웹이 돌려준 실제 오류코드를 함께 표시
+          window.alert(`구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.\n(오류: ${code || "unknown"})`);
         }
         return;
       }
