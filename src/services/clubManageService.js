@@ -212,34 +212,35 @@ function isTeamless(v) {
 }
 
 /**
- * ✅ (기본) 초대 가능한 선수 목록
- * - users.activeTeamId === "" 인 유저를 기본으로 보여줌
- * - ✅ 기본 리스트는 orderBy 제거(인덱스 요구를 최소화)
- * - ✅ 팀에 소속된 유저(activeTeamId/clubId 보유)는 제외
+ * ✅ 팀 미소속 후보 로드 (내부 헬퍼)
+ * - ⚠️ where("activeTeamId","==","") 는 activeTeamId 가 null/미설정인 유저를 놓친다.
+ *   (팀에 한 번도 가입 안 한 유저는 이 필드가 아예 없는 경우가 많음)
+ *   → users 를 넉넉히 로드해 클라이언트에서 isTeamless(활동팀/clubId 모두 없음)로 정확히 필터.
+ * - 인덱스/prefix 제약이 없어 이름 일부만 입력해도 검색 가능.
+ */
+async function loadTeamlessCandidates({ excludeUid, cap = 500 }) {
+  const snap = await getDocs(query(collection(db, "users"), limit(cap)));
+  const list = [];
+  snap.forEach((d) => {
+    const v = d.data() || {};
+    const uid = d.id;
+    if (excludeUid && uid === excludeUid) return;
+    if (!isTeamless(v)) return; // ✅ 팀 있는 유저 제외 (null/미설정도 정확히 판정)
+    list.push({ uid, id: uid, ...v });
+  });
+  list.sort((a, b) =>
+    String(a.nickname || "").localeCompare(String(b.nickname || ""), "ko")
+  );
+  return list;
+}
+
+/**
+ * ✅ (기본) 초대 가능한 선수 목록 — 팀 미소속 유저만
  */
 export async function listInvitableUsers({ excludeUid, max = 20 }) {
-  const usersCol = collection(db, "users");
-
-  const q1 = query(usersCol, where("activeTeamId", "==", ""), limit(Math.min(Math.max(max, 1), 30)));
-
   try {
-    const snap = await getDocs(q1);
-
-    console.groupCollapsed("[clubManageService] listInvitableUsers");
-    console.log("excludeUid:", excludeUid);
-    console.log("size:", snap.size);
-    console.log("ids:", snap.docs.map((d) => d.id));
-    console.groupEnd();
-
-    const list = [];
-    snap.forEach((d) => {
-      const v = d.data() || {};
-      const uid = d.id;
-      if (excludeUid && uid === excludeUid) return;
-      if (!isTeamless(v)) return; // ✅ 이미 팀에 소속된 유저 제외
-      list.push({ uid, id: uid, ...v });
-    });
-    return list;
+    const all = await loadTeamlessCandidates({ excludeUid });
+    return all.slice(0, Math.max(max, 1));
   } catch (e) {
     console.warn("[clubManageService] listInvitableUsers ERROR:", e?.code, e?.message || e);
     return [];
@@ -247,47 +248,20 @@ export async function listInvitableUsers({ excludeUid, max = 20 }) {
 }
 
 /**
- * ✅ 선수 검색 (닉네임 prefix 검색)
+ * ✅ 선수 검색 — 팀 미소속 유저 중 닉네임 부분일치(대소문자 무시)
  * - keyword 없으면: 기본 후보(listInvitableUsers)
- * - keyword 있으면:
- *   where(activeTeamId=="") + nickname prefix
+ * - 인덱스/prefix 제약 없이 클라이언트 substring 필터 → 이름 일부만 입력해도 검색됨
  */
 export async function searchUsersByNickname({ keyword, excludeUid, max = 20 }) {
-  const k = String(keyword || "").trim();
-
-  if (!k) {
-    return await listInvitableUsers({ excludeUid, max });
-  }
-
-  const usersCol = collection(db, "users");
-  const q1 = query(
-    usersCol,
-    where("activeTeamId", "==", ""),
-    orderBy("nickname"),
-    where("nickname", ">=", k),
-    where("nickname", "<=", k + "\uf8ff"),
-    limit(Math.min(Math.max(max, 1), 30))
-  );
+  const k = String(keyword || "").trim().toLowerCase();
+  if (!k) return await listInvitableUsers({ excludeUid, max });
 
   try {
-    const snap = await getDocs(q1);
-
-    console.groupCollapsed("[clubManageService] searchUsersByNickname");
-    console.log("keyword:", k);
-    console.log("excludeUid:", excludeUid);
-    console.log("size:", snap.size);
-    console.log("ids:", snap.docs.map((d) => d.id));
-    console.groupEnd();
-
-    const list = [];
-    snap.forEach((d) => {
-      const v = d.data() || {};
-      const uid = d.id;
-      if (excludeUid && uid === excludeUid) return;
-      if (!isTeamless(v)) return; // ✅ 이미 팀에 소속된 유저 제외
-      list.push({ uid, id: uid, ...v });
-    });
-    return list;
+    const all = await loadTeamlessCandidates({ excludeUid });
+    const filtered = all.filter((u) =>
+      String(u.nickname || "").toLowerCase().includes(k)
+    );
+    return filtered.slice(0, Math.max(max, 1));
   } catch (e) {
     console.warn("[clubManageService] searchUsersByNickname ERROR:", e?.code, e?.message || e);
     return [];
