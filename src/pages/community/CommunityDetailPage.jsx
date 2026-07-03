@@ -522,7 +522,7 @@ const InputRow = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px 12px;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
 `;
 
 const CommentInput = styled.input`

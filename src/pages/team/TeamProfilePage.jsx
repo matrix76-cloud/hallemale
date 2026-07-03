@@ -784,7 +784,7 @@ const BottomBar = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 11px 16px 17px;
+  padding: 11px 16px calc(17px + env(safe-area-inset-bottom));
   background: ${({ theme }) =>
     theme.mode === "dark"
       ? theme.colors.card

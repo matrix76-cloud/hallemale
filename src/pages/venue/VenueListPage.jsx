@@ -698,7 +698,7 @@ const PickerHead = styled.div`
 `;
 const PickerTitle = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
 const PickerClose = styled.button`border: none; background: transparent; cursor: pointer; font-size: 18px; color: ${({ theme }) => theme.colors.textWeak};`;
-const PickerBody = styled.div`flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 6px;`;
+const PickerBody = styled.div`flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px;`;
 const SecTitle = styled.div`font-size: 13px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong}; margin: 8px 2px 2px;`;
 const ChipsRow = styled.div`
   display: flex; gap: 7px; padding-bottom: 2px;

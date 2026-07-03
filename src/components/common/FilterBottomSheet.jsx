@@ -25,7 +25,7 @@ const Sheet = styled.div`
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;
   background: ${({ theme }) => theme.colors.card};
-  padding: 14px 14px 16px;
+  padding: 14px 14px calc(16px + env(safe-area-inset-bottom));
   box-shadow: ${({ theme }) =>
     theme.mode === "dark"
       ? "0 -16px 40px rgba(0, 0, 0, 0.55)"

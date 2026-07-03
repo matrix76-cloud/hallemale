@@ -110,7 +110,7 @@ const Overlay = styled.div`
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 0 14px 14px;
+  padding: 0 14px calc(14px + env(safe-area-inset-bottom));
   box-sizing: border-box;
   overflow: hidden;
   touch-action: none;
