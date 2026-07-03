@@ -3006,6 +3006,20 @@ export default function MatchRoomDetailPage() {
   // ✅ 모바일 키보드가 올라오면 채팅 입력창이 가려지지 않도록 실제 보이는 높이를 CSS 변수로 노출
   useVisualViewportHeightVar();
 
+  // ✅ 키보드가 올라오면(visualViewport 축소) 상단 진행단계/라인업 헤더를 접어
+  //    채팅 입력창이 잘리지 않고 키보드 바로 위에 보이도록 한다. (내리면 복원)
+  const [kbOpen, setKbOpen] = useState(false);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const onResize = () => {
+      setKbOpen(window.innerHeight - vv.height > 120);
+    };
+    onResize();
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
+
   const myClubId = toStr(club?.clubId || club?.id);
 
   // 제휴구장 분할결제 상태 (partnerBooking + 예약 결제현황)
@@ -5116,7 +5130,7 @@ export default function MatchRoomDetailPage() {
         $dark={!isVenue}
         $confirmed={!isVenue && (status === "confirmed" || status === "cancelled" || status === "finished") && !confirmedChatOpen}
       >
-        {!(isVenue || status === "confirmed" || status === "cancelled" || status === "finished") && (
+        {!kbOpen && !(isVenue || status === "confirmed" || status === "cancelled" || status === "finished") && (
           <DarkHeader>
               <MatchInfoBar
                 type="button"

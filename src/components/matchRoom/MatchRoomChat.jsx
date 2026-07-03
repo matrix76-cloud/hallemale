@@ -178,6 +178,7 @@ const Img = styled.img`
 `;
 
 const InputBar = styled.div`
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
