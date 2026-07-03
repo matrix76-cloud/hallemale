@@ -23,6 +23,7 @@ import {
   reassignOrDisbandOwnedClubsOnWithdraw,
   removeMembershipsOnWithdraw,
 } from "./clubLeaderService";
+import { clearNotificationsForUser } from "./notificationService";
 
 const DELETE_ACCOUNT_URL =
   "https://asia-northeast3-halle-bf789.cloudfunctions.net/deleteAccount";
@@ -163,6 +164,15 @@ export async function withdrawAccount() {
     console.log("[withdraw] memberships removed:", r2);
   } catch (e) {
     console.warn("[withdraw] remove memberships failed:", e?.message || e);
+  }
+
+  // 2-2) 내게 온 알림 정리 — 모든 알림 targetIds 에서 내 uid 제거
+  //      (카카오 uid 고정이라, 정리 안 하면 재가입 시 예전 알림이 그대로 뜬다)
+  try {
+    await clearNotificationsForUser({ uid: userDocId });
+    if (uid !== userDocId) await clearNotificationsForUser({ uid });
+  } catch (e) {
+    console.warn("[withdraw] clear notifications failed:", e?.message || e);
   }
 
   // 3) 차단/숨김 데이터 삭제

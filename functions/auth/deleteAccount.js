@@ -43,6 +43,23 @@ async function deleteClubSub(fs, clubId, sub) {
   await batchDelete(fs, snap.docs.map((d) => d.ref));
 }
 
+/** 내게 온 알림 정리 — 모든 알림 targetIds 에서 uid 제거 (재가입 시 예전 알림 잔존 방지) */
+async function clearNotificationsForUid(fs, uid) {
+  const admin = getAdmin();
+  const snap = await fs
+    .collection("notifications")
+    .where("targetIds", "array-contains", uid)
+    .get();
+  const refs = snap.docs.map((d) => d.ref);
+  for (let i = 0; i < refs.length; i += 450) {
+    const batch = fs.batch();
+    refs.slice(i, i + 450).forEach((r) =>
+      batch.update(r, { targetIds: admin.firestore.FieldValue.arrayRemove(uid) })
+    );
+    await batch.commit();
+  }
+}
+
 /**
  * 회원탈퇴 시 내가 팀장(ownerUid)인 팀 정리 — 서버 권위적 처리(Admin SDK).
  * - 혼자뿐인 팀: 완전 해체(경기 기록·서브컬렉션·팀 문서 삭제)
@@ -112,6 +129,13 @@ exports.deleteAccount = onRequest(
         await cleanupOwnedSoloClubs(fs, uid);
       } catch (e) {
         console.warn("[deleteAccount] cleanupOwnedSoloClubs failed:", e?.message || e);
+      }
+
+      // 2-1) 내게 온 알림 정리 — 재가입 시 예전 알림 잔존 방지
+      try {
+        await clearNotificationsForUid(fs, uid);
+      } catch (e) {
+        console.warn("[deleteAccount] clearNotificationsForUid failed:", e?.message || e);
       }
 
       // 3) users 문서 삭제(안전망) — 클라이언트 삭제가 규칙 등으로 막혔어도 Admin은 통과
