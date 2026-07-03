@@ -13,6 +13,8 @@ import {
   toggleCommunityCommentLike,
   incrementCommunityPostViews,
   deleteCommunityPost,
+  updateCommunityComment,
+  deleteCommunityComment,
 } from "../../services/communityService";
 import { createPostReport } from "../../services/postReportService";
 import { blockAuthorAndHidePost } from "../../services/userBlockService";
@@ -264,6 +266,32 @@ const PostImage = styled.div`
   background-position: center;
 `;
 
+/* 여러 장: 1장=풀 / 2장 이상=2열(4장이면 2열2줄) */
+const PostImageGrid = styled.div`
+  margin-top: 2px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: ${({ $count }) => ($count === 1 ? "1fr" : "1fr 1fr")};
+`;
+
+const PostImageCell = styled.div`
+  position: relative;
+  width: 100%;
+  padding-top: ${({ $count }) => ($count === 1 ? "62%" : "100%")};
+  border-radius: 10px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.surface : "#e5e7eb"};
+`;
+
+const PostImageCellInner = styled.div`
+  position: absolute;
+  inset: 0;
+  background-image: ${({ src }) => (src ? `url(${src})` : "none")};
+  background-size: cover;
+  background-position: center;
+`;
+
 /* =============== 게시글 액션 (하트 / 댓글수) =============== */
 
 const PostStats = styled.div`
@@ -430,6 +458,30 @@ const CmtActionBtn = styled.button`
 
 const ReplyIndent = styled.div`
   margin-left: 34px;
+`;
+
+/* 댓글 인라인 수정 */
+const CommentEditArea = styled.textarea`
+  width: 100%;
+  min-height: 54px;
+  margin: 2px 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.12)"};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors?.card : "#ffffff"};
+  color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors?.primary || "#4f46e5"};
+  }
 `;
 
 /* =============== 하단 입력 바 =============== */
@@ -688,6 +740,10 @@ export default function CommunityDetailPage() {
   // 답글 대상 { id(root), authorName }
   const [replyTo, setReplyTo] = useState(null);
 
+  // 내 댓글 인라인 수정
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
+
   // 신고 모달
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
@@ -800,6 +856,48 @@ export default function CommunityDetailPage() {
     inputRef.current?.focus();
   };
 
+  const startEditComment = (cmt) => {
+    setEditingId(cmt.id);
+    setEditText(cmt.content || "");
+  };
+
+  const cancelEditComment = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const saveEditComment = async (cmt) => {
+    const txt = String(editText || "").trim();
+    if (!txt) return;
+    if (txt === cmt.content) {
+      cancelEditComment();
+      return;
+    }
+    const prev = comments;
+    setComments((p) => p.map((c) => (c.id === cmt.id ? { ...c, content: txt } : c)));
+    cancelEditComment();
+    try {
+      await updateCommunityComment({ postId, commentId: cmt.id, myUid, content: txt });
+    } catch (e) {
+      console.error("[CommunityDetailPage] comment edit failed:", e?.message || e);
+      setComments(prev);
+      alert(e?.message || "댓글 수정에 실패했습니다.");
+    }
+  };
+
+  const handleDeleteComment = async (cmt) => {
+    if (!window.confirm("이 댓글을 삭제할까요?")) return;
+    const prev = comments;
+    setComments((p) => p.filter((c) => c.id !== cmt.id));
+    try {
+      await deleteCommunityComment({ postId, commentId: cmt.id, myUid });
+    } catch (e) {
+      console.error("[CommunityDetailPage] comment delete failed:", e?.message || e);
+      setComments(prev);
+      alert(e?.message || "댓글 삭제에 실패했습니다.");
+    }
+  };
+
   const openReport = () => {
     if (!myUid) {
       alert("로그인 후 이용해주세요.");
@@ -828,7 +926,7 @@ export default function CommunityDetailPage() {
     if (!post || !myUid) return;
     setReportBusy(true);
     try {
-      // 1) 관리자에게 신고 접수
+      // 관리자에게 신고 접수 (신고만 — 차단은 별도 메뉴에서 처리)
       await createPostReport({
         postId: post.id,
         postTitle: post.title,
@@ -838,23 +936,46 @@ export default function CommunityDetailPage() {
         reporterNickname: String(userDoc?.nickname || userDoc?.name || ""),
         reason,
       });
-      // 2) 즉시 본인 피드에서 해당 작성자 + 게시글 숨김 (Apple Guideline 1.2)
-      await blockAuthorAndHidePost({
-        myUid: String(myUid),
-        targetUid: post.authorId,
-        postId: post.id,
-      });
       setReportOpen(false);
       setReportReason("");
-      alert(
-        "신고가 접수되었습니다.\n해당 게시글과 작성자의 글은 회원님 피드에서 즉시 숨겨졌으며,\n관리자가 검토 후 조치합니다."
-      );
-      nav(-1);
+      alert("신고가 접수되었습니다.\n관리자가 검토 후 조치합니다.");
     } catch (e) {
       console.error("[CommunityDetailPage] report failed", e);
       alert(e?.message || "신고 접수에 실패했습니다.");
     } finally {
       setReportBusy(false);
+    }
+  };
+
+  // 작성자 차단 — 해당 작성자의 게시글/댓글을 본인 피드에서 숨김 (신고와 분리)
+  const handleBlock = async () => {
+    if (!myUid) {
+      alert("로그인 후 이용해주세요.");
+      return;
+    }
+    if (post?.isMine) {
+      alert("본인은 차단할 수 없습니다.");
+      return;
+    }
+    if (!post) return;
+    const who = post.authorName ? `'${post.authorName}'님` : "이 작성자";
+    if (
+      !window.confirm(
+        `${who}을 차단할까요?\n차단하면 이 작성자의 게시글과 댓글이\n회원님 피드에서 더 이상 보이지 않습니다.`
+      )
+    )
+      return;
+    try {
+      await blockAuthorAndHidePost({
+        myUid: String(myUid),
+        targetUid: post.authorId,
+        postId: post.id,
+      });
+      alert("차단했습니다.\n이 작성자의 글은 회원님 피드에서 숨겨집니다.");
+      nav(-1);
+    } catch (e) {
+      console.error("[CommunityDetailPage] block failed", e);
+      alert(e?.message || "차단에 실패했습니다.");
     }
   };
 
@@ -989,23 +1110,54 @@ export default function CommunityDetailPage() {
           <CommentTime>{timeAgo(cmt.createdAtMs) || cmt.createdAt}</CommentTime>
         </CommentTopRow>
 
-        <CommentContent>{cmt.content}</CommentContent>
+        {editingId === cmt.id ? (
+          <>
+            <CommentEditArea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              autoFocus
+            />
+            <CommentActions>
+              <CmtActionBtn type="button" onClick={() => saveEditComment(cmt)}>
+                저장
+              </CmtActionBtn>
+              <CmtActionBtn type="button" onClick={cancelEditComment}>
+                취소
+              </CmtActionBtn>
+            </CommentActions>
+          </>
+        ) : (
+          <>
+            <CommentContent>{cmt.content}</CommentContent>
 
-        <CommentActions>
-          <CmtActionBtn
-            type="button"
-            $active={cmt.likedByMe}
-            onClick={() => handleToggleCommentLike(cmt)}
-          >
-            <FiHeart style={{ fill: cmt.likedByMe ? "currentColor" : "none" }} />
-            <span>{cmt.likes || 0}</span>
-          </CmtActionBtn>
+            <CommentActions>
+              <CmtActionBtn
+                type="button"
+                $active={cmt.likedByMe}
+                onClick={() => handleToggleCommentLike(cmt)}
+              >
+                <FiHeart style={{ fill: cmt.likedByMe ? "currentColor" : "none" }} />
+                <span>{cmt.likes || 0}</span>
+              </CmtActionBtn>
 
-          <CmtActionBtn type="button" onClick={() => startReply(cmt)}>
-            <FiCornerUpLeft />
-            <span>{replyCount > 0 ? `답글 ${replyCount}` : "답글"}</span>
-          </CmtActionBtn>
-        </CommentActions>
+              <CmtActionBtn type="button" onClick={() => startReply(cmt)}>
+                <FiCornerUpLeft />
+                <span>{replyCount > 0 ? `답글 ${replyCount}` : "답글"}</span>
+              </CmtActionBtn>
+
+              {cmt.isMine && !String(cmt.id).startsWith("temp-") && (
+                <>
+                  <CmtActionBtn type="button" onClick={() => startEditComment(cmt)}>
+                    수정
+                  </CmtActionBtn>
+                  <CmtActionBtn type="button" onClick={() => handleDeleteComment(cmt)}>
+                    삭제
+                  </CmtActionBtn>
+                </>
+              )}
+            </CommentActions>
+          </>
+        )}
       </CommentBubble>
     </CommentItem>
   );
@@ -1089,16 +1241,27 @@ export default function CommunityDetailPage() {
                         </MenuItem>
                       </>
                     ) : (
-                      <MenuItem
-                        type="button"
-                        $danger
-                        onClick={() => {
-                          setMenuOpen(false);
-                          openReport();
-                        }}
-                      >
-                        신고
-                      </MenuItem>
+                      <>
+                        <MenuItem
+                          type="button"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            openReport();
+                          }}
+                        >
+                          신고
+                        </MenuItem>
+                        <MenuItem
+                          type="button"
+                          $danger
+                          onClick={() => {
+                            setMenuOpen(false);
+                            handleBlock();
+                          }}
+                        >
+                          차단
+                        </MenuItem>
+                      </>
                     )}
                   </Menu>
                 </>
@@ -1110,11 +1273,19 @@ export default function CommunityDetailPage() {
 
           <PostContent>{post.content}</PostContent>
 
-          {post.image && (
+          {Array.isArray(post.images) && post.images.length > 0 ? (
+            <PostImageGrid $count={post.images.length}>
+              {post.images.map((src, i) => (
+                <PostImageCell key={`${i}-${src}`} $count={post.images.length}>
+                  <PostImageCellInner src={src} />
+                </PostImageCell>
+              ))}
+            </PostImageGrid>
+          ) : post.image ? (
             <PostImageBox>
               <PostImage src={post.image} />
             </PostImageBox>
-          )}
+          ) : null}
 
           <PostStats>
             <StatBtn
@@ -1207,9 +1378,9 @@ export default function CommunityDetailPage() {
           }}
         >
           <ReportModal onClick={(e) => e.stopPropagation()}>
-            <ReportTitle>게시글 신고 및 작성자 차단</ReportTitle>
+            <ReportTitle>게시글 신고</ReportTitle>
             <ReportSub>
-              {`신고하시면 이 게시글과 작성자의 모든 글이\n회원님 피드에서 즉시 숨겨집니다.\n관리자가 24시간 이내 검토 후 조치합니다.\n허위 신고 시 서비스 이용이 제한될 수 있습니다.`}
+              {`신고 사유를 입력해주세요.\n관리자가 24시간 이내 검토 후 조치합니다.\n허위 신고 시 서비스 이용이 제한될 수 있습니다.\n\n작성자의 글을 안 보이게 하려면 '차단'을 이용해주세요.`}
             </ReportSub>
 
             <ReportTextarea
@@ -1230,7 +1401,7 @@ export default function CommunityDetailPage() {
                 onClick={handleSubmitReport}
                 disabled={reportBusy || !reportReason.trim()}
               >
-                {reportBusy ? "전송중…" : "신고 및 차단"}
+                {reportBusy ? "전송중…" : "신고"}
               </ReportBtn>
             </ReportActions>
           </ReportModal>
