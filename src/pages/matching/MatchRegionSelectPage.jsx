@@ -262,8 +262,8 @@ export default function MatchRegionSelectPage() {
   const goToLocationSettings = () => {
     try {
       if (isWebView && bridge?.sendToApp) {
-        // 네이티브(RN)에서 OS 앱 설정 화면을 열어줌
-        bridge.sendToApp("OPEN_APP_SETTINGS", { reason: "location" });
+        // 네이티브(RN)의 기존 규약: OPEN_SETTINGS → handleOpenSettings 가 OS 앱 설정을 염
+        bridge.sendToApp("OPEN_SETTINGS", { reason: "location" });
       }
     } catch (e) {}
     setPermOpen(false);
