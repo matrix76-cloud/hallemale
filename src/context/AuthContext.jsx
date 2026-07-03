@@ -2,7 +2,7 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { watchAuthState, signOutUser, consumeRedirectResultIfAny } from "../services/authService";
-import { getUserDoc } from "../services/userService";
+import { getUserDoc, getUserProfileByUid } from "../services/userService";
 import { registerFcmToken, unregisterFcmToken } from "../services/fcmService";
 import { db } from "../services/firebase";
 import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
@@ -134,12 +134,24 @@ export function AuthProvider({ children }) {
 
   // RN WebView → PUSH_TOKEN / FCM_TOKEN 수신 → users/{uid}.fcmTokens arrayUnion(객체형)
   useEffect(() => {
-    const saveRnToken = async (uid, payload) => {
+    const saveRnToken = async (authUid, payload) => {
       const token = String(payload?.token || "").trim();
-      if (!uid || !token) return;
+      if (!authUid || !token) return;
       const platform = String(payload?.platform || payload?.os || "").toLowerCase() || "rn";
+
+      // ⚠️ 카카오 등 소셜 로그인: Firebase Auth UID ≠ Firestore 문서 ID.
+      // linkedSocialUid까지 해석해서 "실제 프로필 문서 ID"에 저장해야 서버 targetIds와 매칭됨.
+      // (기존엔 authUid에 저장 → 서버가 타겟하는 유저 문서엔 토큰이 없어 푸시 미수신)
+      let targetUid = authUid;
       try {
-        await updateDoc(doc(db, "users", uid), {
+        const profile = await getUserProfileByUid(authUid);
+        if (profile?.id) targetUid = profile.id;
+      } catch (e) {
+        console.warn("[AuthProvider] profile resolve for token failed:", e?.message || e);
+      }
+
+      try {
+        await updateDoc(doc(db, "users", targetUid), {
           fcmTokens: arrayUnion({
             token,
             platform,
@@ -147,7 +159,7 @@ export function AuthProvider({ children }) {
           }),
           updatedAt: serverTimestamp(),
         });
-        console.log("[AuthProvider] RN FCM token saved:", platform);
+        console.log("[AuthProvider] RN FCM token saved:", platform, "→", targetUid);
       } catch (e) {
         console.warn("[AuthProvider] RN token save failed:", e?.message || e);
       }

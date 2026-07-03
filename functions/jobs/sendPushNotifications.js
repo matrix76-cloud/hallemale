@@ -122,6 +122,19 @@ async function processNotification(noti, userInfoMap, messaging) {
       kind: noti.kind || "",
       type: noti.type || "",
     },
+    // Android: 절전모드(Doze)에서도 즉시 배달되도록 high priority + 고중요도 채널 지정
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "hallamalle_default",
+        sound: "default",
+      },
+    },
+    // iOS: APNs 최우선순위(10)로 즉시 배달
+    apns: {
+      headers: { "apns-priority": "10" },
+      payload: { aps: { sound: "default" } },
+    },
     webpush: {
       fcmOptions: {
         link: deepLink || "/",
