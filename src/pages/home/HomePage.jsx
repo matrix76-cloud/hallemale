@@ -1,7 +1,7 @@
 // src/pages/home/HomePage.jsx
 // (Context 기반: HomePage에서 loadHomePageData 직접 호출 금지)
 /* eslint-disable */
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useRef } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
 
@@ -105,7 +105,7 @@ export default function HomePage() {
   const { club } = useClub();
   const myClubId = String(club?.clubId || club?.id || "").trim();
 
-  const { homeData, loading: homeLoading, loadedUid, refreshFavorites, preloadHomeData } = useHomeData();
+  const { homeData, loading: homeLoading, loadedUid, refreshFavorites, preloadHomeData, refreshHomeData } = useHomeData();
 
   // ✅ 현재 로그인 uid와 캐시된 homeData의 주인이 다르면 stale (계정 전환 후 이전 계정 데이터)
   const staleForUser = !!loadedUid && loadedUid !== uid;
@@ -124,6 +124,23 @@ export default function HomePage() {
     if (!uid) return;
     refreshFavorites && refreshFavorites(uid);
   }, [uid, refreshFavorites]);
+
+  // ✅ 소속팀(실시간 useClub)이 홈 캐시(homeData.myTeam)와 다르면 강제 재로딩.
+  //    팀 생성/탈퇴 직후 홈에 즉시 반영되도록. (myClubId 값당 1회만 실행해 루프 방지)
+  const syncedClubRef = useRef(null);
+  useEffect(() => {
+    if (!uid || authLoading) return;
+    if (!homeData || loadedUid !== uid) return; // 최초 로드는 기존 로직이 처리
+    if (syncedClubRef.current === myClubId) return;
+
+    const shownId = String(homeData?.myTeam?.clubId || homeData?.myTeam?.id || "").trim();
+    if (shownId === myClubId) {
+      syncedClubRef.current = myClubId;
+      return;
+    }
+    syncedClubRef.current = myClubId;
+    refreshHomeData && refreshHomeData(uid).catch(() => {});
+  }, [uid, authLoading, myClubId, homeData, loadedUid, refreshHomeData]);
 
   // ✅ 매칭룸 카운트 실시간 + 미확인(반응 필요) 배지
   const { counts: matchRoomCounts, attention: matchRoomAttention } = useMatchRoomCounts({

@@ -13,7 +13,7 @@ import { countPendingJoinRequestsForClub } from "../../services/joinRequestServi
 
 import InfoDialog from "../../components/common/InfoDialog";
 import Spinner from "../../components/common/Spinner";
-import { leaveClub } from "../../services/clubManageService";
+import { leaveClub, deleteClubAndCleanup } from "../../services/clubManageService";
 
 // ✅ 팀장 이임 서비스
 import {
@@ -26,8 +26,11 @@ export default function MyProfilePage() {
   const { userDoc, loading, signOut } = useAuth();
   const { mode: themeMode, toggleMode: toggleThemeMode } = useThemeMode();
 
-  const { club, activeTeamId, isTeamLeader: isTeamLeaderFromCtx, loading: clubLoading } =
+  const { club, members, activeTeamId, isTeamLeader: isTeamLeaderFromCtx, loading: clubLoading } =
     useClub();
+
+  // ✅ 혼자(팀장 본인만) 있는 팀이면 "탈퇴 = 팀 해체"로 허용
+  const memberCount = Array.isArray(members) ? members.length : 0;
 
   const uid = userDoc?.uid || userDoc?.id || "";
   const nickname = userDoc?.nickname || "";
@@ -59,6 +62,9 @@ export default function MyProfilePage() {
   }, [hasTeam, club?.name]);
 
   const isTeamLeader = !!hasTeam && !!isTeamLeaderFromCtx;
+
+  // ✅ 팀장이면서 팀원이 본인뿐이면 "탈퇴 = 팀 해체"
+  const soloOwner = isTeamLeader && memberCount <= 1;
 
   // ✅ 메뉴 뱃지: 팀장=참여요청, 팀원=받은초대
   const [pendingCount, setPendingCount] = useState(0);
@@ -205,7 +211,8 @@ export default function MyProfilePage() {
       window.alert("팀 정보가 없습니다.");
       return;
     }
-    if (isTeamLeader) {
+    // 팀장이라도 혼자인 팀이면 탈퇴(해체) 허용. 팀원이 더 있으면 이임 후 가능.
+    if (isTeamLeader && !soloOwner) {
       setLeaveBlockedOpen(true);
       return;
     }
@@ -219,7 +226,12 @@ export default function MyProfilePage() {
     setLeaveBusy(true);
 
     try {
-      await leaveClub({ clubId: teamId, uid });
+      if (soloOwner) {
+        // 혼자인 팀장: 탈퇴 = 팀 해체(팀/멤버/연결 정리)
+        await deleteClubAndCleanup({ clubId: teamId, uid });
+      } else {
+        await leaveClub({ clubId: teamId, uid });
+      }
       setLeaveBusy(false);
       setLeaveDoneOpen(true);
     } catch (e) {
@@ -342,6 +354,8 @@ export default function MyProfilePage() {
         message={
           leaveErr
             ? `팀 탈퇴에 실패했습니다.\n${leaveErr}\n\n다시 시도할까요?`
+            : soloOwner
+            ? `혼자 있는 팀이라 탈퇴하면\n"${teamName}" 팀이 해체(삭제)됩니다.\n계속할까요?`
             : `탈퇴하면 "${teamName}"에서\n내 멤버 정보가 제거됩니다.`
         }
         primaryText="탈퇴하기"

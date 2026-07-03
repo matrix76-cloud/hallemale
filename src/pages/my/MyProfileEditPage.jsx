@@ -14,6 +14,8 @@ import { updateUserProfile, isNicknameTaken } from "../../services/userService";
 import { uploadUserAvatar } from "../../services/mediaService";
 import { getNameChangeStatus } from "../../utils/nameChange";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
+import RegionPickerSheet from "../../components/common/RegionPickerSheet";
+import { FiChevronRight } from "react-icons/fi";
 
 const POSITION_LABEL = {
   guard: "가드",
@@ -44,6 +46,12 @@ export default function MyProfileEditPage() {
   const [nickStatus, setNickStatus] = useState("idle");
   const [regionSido, setRegionSido] = useState("");
   const [regionGu, setRegionGu] = useState("");
+  const [regionOpen, setRegionOpen] = useState(false);
+
+  const regionText = useMemo(() => {
+    if (!regionSido || !regionGu) return "";
+    return `${regionSido} ${regionGu}`;
+  }, [regionSido, regionGu]);
 
   const originalNick = String(userDoc?.nickname || "").trim();
   const nickChanged = nickname.trim() !== originalNick;
@@ -311,25 +319,21 @@ export default function MyProfileEditPage() {
 
         <FieldGroup>
           <Label>지역</Label>
-          <TwoColRow>
-            <Select value={regionSido || ""} onChange={(e) => { setRegionSido(e.target.value); setRegionGu(""); }}>
-              <option value="">시/도 선택</option>
-              {sidoOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </Select>
+          <RegionSelectBtn type="button" onClick={() => setRegionOpen(true)} $muted={!regionText}>
+            <span>{regionText || "활동 지역 선택"}</span>
+            <FiChevronRight size={16} />
+          </RegionSelectBtn>
 
-            <Select
-              value={regionGu || ""}
-              onChange={(e) => setRegionGu(e.target.value)}
-              disabled={!regionSido}
-            >
-              <option value="">{regionSido ? "구/군 선택" : "시/도 먼저 선택"}</option>
-              {guOptions.map((g) => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </Select>
-          </TwoColRow>
+          <RegionPickerSheet
+            open={regionOpen}
+            onClose={() => setRegionOpen(false)}
+            value={{ sido: regionSido, gu: regionGu }}
+            onPick={({ sido, gu }) => {
+              setRegionSido(sido);
+              setRegionGu(gu);
+            }}
+            title="활동 지역 선택"
+          />
         </FieldGroup>
       </Card>
 
@@ -588,6 +592,30 @@ const Select = styled.select`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+`;
+
+/* 지역 선택 버튼 — 팀 생성(RegionPickerSheet)과 동일한 방식으로 통일 */
+const RegionSelectBtn = styled.button`
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  padding: 13px 12px;
+  font-size: 14px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f6f7f9"};
+  color: ${({ $muted, theme }) =>
+    $muted ? theme.colors.textWeak : theme.colors.textStrong};
+  outline: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.card};
   }
 `;
 

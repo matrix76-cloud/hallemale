@@ -1131,7 +1131,7 @@ export default function TeamManagePage() {
             <Label>팀 이름</Label>
             <NameEditRow>
               <ModalInput
-                style={{ flex: 1 }}
+                style={{ flex: "1 1 140px", minWidth: 0 }}
                 value={nameDraft}
                 onChange={(e) => onChangeNameDraft(e.target.value)}
                 placeholder="팀 이름"
@@ -1987,6 +1987,8 @@ const NameEditRow = styled.div`
   display: flex;
   gap: 8px;
   align-items: stretch;
+  /* 좁은 화면에서 입력+중복체크+저장 3개가 안 들어가면 줄바꿈(버튼 짤림 방지) */
+  flex-wrap: wrap;
 `;
 
 const NameCheckBtn = styled.button`

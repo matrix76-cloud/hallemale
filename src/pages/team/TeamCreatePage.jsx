@@ -74,6 +74,44 @@ const StepDot = styled.div`
     $active ? theme.colors.primary : theme.colors.border};
 `;
 
+/* ===== 개인 프로필 유도 배너 ===== */
+
+const NudgeCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(99,102,241,0.14)" : "#eef2ff"};
+  padding: 12px 14px;
+`;
+
+const NudgeText = styled.div`
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textStrong};
+
+  b {
+    font-weight: 700;
+    color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary)};
+  }
+`;
+
+const NudgeBtn = styled.button`
+  align-self: flex-start;
+  border-radius: 999px;
+  border: none;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  cursor: pointer;
+
+  &:active { transform: translateY(1px); }
+`;
+
 /* ===== 폼 공통 ===== */
 
 const Section = styled.section`
@@ -433,6 +471,15 @@ export default function TeamCreatePage() {
 
   const uid = userDoc?.uid || userDoc?.id || "";
 
+  // ✅ 개인 프로필 기본 정보가 비어 있으면 팀 생성 전에 설정하도록 유도
+  const profileIncomplete = useMemo(() => {
+    if (!userDoc) return false; // 로딩 전에는 배너 숨김
+    const hasNick = !!String(userDoc.nickname || "").trim();
+    const hasPos = !!userDoc.mainPosition;
+    const hasSkill = !!userDoc.skillLevel;
+    return !(hasNick && hasPos && hasSkill);
+  }, [userDoc]);
+
   const [step, setStep] = useState(1);
 
   // STEP 2: 팀 기본 정보 + 홍보 문구
@@ -514,6 +561,11 @@ export default function TeamCreatePage() {
     if (isSubmitting) return;
 
     if (step === 1) {
+      // ✅ 로고(팀 프로필 사진) 필수
+      if (!logoFile) {
+        window.alert("팀 로고 이미지를 등록해 주세요. (필수)");
+        return;
+      }
       setStep(2);
       return;
     }
@@ -586,12 +638,25 @@ export default function TeamCreatePage() {
           </StepIndicatorRow>
         </Header>
 
+        {/* ✅ 개인 프로필 미완성 시: 먼저 설정하도록 유도 (비강제) */}
+        {profileIncomplete && (
+          <NudgeCard>
+            <NudgeText>
+              팀을 만들기 전에 <b>내 프로필(닉네임·포지션·실력)</b>을 먼저 설정하면
+              팀원 모집과 매칭에 도움이 돼요.
+            </NudgeText>
+            <NudgeBtn type="button" onClick={() => nav("/my/profile/edit")}>
+              내 프로필 설정하러 가기
+            </NudgeBtn>
+          </NudgeCard>
+        )}
+
         {/* STEP 1: 팀 로고 이미지 */}
         {step === 1 && (
           <Section>
             <LabelColumn>
-              <Label>팀 로고 이미지</Label>
-              <LabelSub>팀 리스트와 매칭 카드에 가장 크게 노출되는 대표 이미지예요.</LabelSub>
+              <Label>팀 로고 이미지 <span style={{ color: "#ef4444" }}>*</span></Label>
+              <LabelSub>팀 리스트와 매칭 카드에 가장 크게 노출되는 대표 이미지예요. (필수)</LabelSub>
             </LabelColumn>
 
             <LogoHelpText>
@@ -827,7 +892,10 @@ export default function TeamCreatePage() {
           {step < 3 && (
             <PrimaryButton
               type="button"
-              disabled={isSubmitting || (step === 2 ? !canGoNextStep2 : false)}
+              disabled={
+                isSubmitting ||
+                (step === 1 ? !logoFile : step === 2 ? !canGoNextStep2 : false)
+              }
               onClick={handleNext}
             >
               다음

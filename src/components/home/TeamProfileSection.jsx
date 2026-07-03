@@ -193,12 +193,14 @@ const BigTitle = styled.div`
 const BigSubtitle = styled.div`
   position: relative;
   z-index: 1;
-  max-width: calc(100% - 20px);
-  font-size: 12px;
-  line-height: 1.35;
+  max-width: 100%;
+  /* 한 줄로만 표시 (줄바꿈 금지) */
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.3;
   color: rgba(255, 255, 255, 0.82);
   font-weight: 500;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.3px;
 `;
 
 /* ✅ 매칭룸 카드(매칭하기 버튼처럼 코너 3D) */
