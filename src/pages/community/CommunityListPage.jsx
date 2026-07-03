@@ -14,6 +14,13 @@ import FilterSearchBar from "../../components/common/FilterSearchBar";
 import { FiHeart, FiMessageCircle, FiEdit3 } from "react-icons/fi";
 import EmptyState from "../../components/common/EmptyState";
 import HomeHeroBanner from "../../components/home/HomeHeroBanner";
+import { images } from "../../utils/imageAssets";
+
+// 프로필 사진(실제 업로드본) 보유 여부 — 기본 로고/기본아바타는 '없음'으로 처리
+const hasProfilePhoto = (u) => {
+  const a = String(u?.avatarUrl || "").trim();
+  return !!a && a !== images.logo && a !== images.defaultAvatar;
+};
 
 // 커뮤니티 배너는 어드민 등록분만 노출 (기본 fallback 없음)
 const COMMUNITY_BANNER_FALLBACK = [];
@@ -140,7 +147,7 @@ const ErrorBox = styled(EmptyBox)`
 const FloatingWriteButton = styled.button`
   position: fixed;
   right: 18px;
-  bottom: 90px;
+  bottom: calc(90px + env(safe-area-inset-bottom));
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -383,6 +390,15 @@ export default function CommunityListPage() {
   };
 
   const handleClickWrite = () => {
+    if (!myUid) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+    if (!hasProfilePhoto(userDoc)) {
+      alert("커뮤니티 글 작성을 위해 먼저 프로필 사진을 등록해주세요.");
+      navigate("/my/profile/edit");
+      return;
+    }
     navigate("/community/write");
   };
 

@@ -208,6 +208,9 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
     title: String(data.title || "").trim(),
     content: String(data.content || "").trim(),
     image: pickThumb(data),
+    images: Array.isArray(data?.media?.images)
+      ? data.media.images.map((u) => String(u || "").trim()).filter(Boolean)
+      : [],
 
     createdAt: formatKST(createdAt),
     updatedAt: updatedAt ? formatKST(updatedAt) : "",
@@ -305,6 +308,52 @@ function safeExt(file) {
   return ext ? `.${ext}` : "";
 }
 
+// ✅ 업로드 전 이미지 압축 (canvas 리사이즈 + JPEG 재인코딩) — 용량·업로드 시간 대폭 감소
+async function compressImage(file, { maxDim = 1280, quality = 0.7 } = {}) {
+  try {
+    if (!file || !String(file.type || "").startsWith("image/")) return file;
+    if (file.type === "image/gif") return file; // 애니메이션 유지 위해 원본
+
+    const dataUrl = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = dataUrl;
+    });
+
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/jpeg", quality)
+    );
+    if (!blob || blob.size >= file.size) return file; // 압축이 무의미하면 원본
+
+    const baseName = String(file.name || "image").replace(/\.\w+$/, "");
+    return new File([blob], `${baseName}.jpg`, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  } catch (e) {
+    console.warn("[community] compressImage failed, use original:", e?.message || e);
+    return file;
+  }
+}
+
 function buildPostImagePath({ authorUid, postId, file } = {}) {
   const ext = safeExt(file) || ".jpg";
   const now = new Date();
@@ -369,8 +418,10 @@ export async function createCommunityPost({
     const validFiles = picked.filter(
       (f) => f && String(f?.type || "").startsWith("image/")
     );
+    // 업로드 전 압축 후 병렬 업로드
+    const compressed = await Promise.all(validFiles.map((f) => compressImage(f)));
     const uploaded = await Promise.all(
-      validFiles.map((f) => uploadPostImage({ authorUid: uid, postId, file: f }))
+      compressed.map((f) => uploadPostImage({ authorUid: uid, postId, file: f }))
     );
     const urls = uploaded.map((up) => up.url);
 
@@ -512,6 +563,54 @@ export async function addCommunityComment({ postId, authorUid, content, parentId
   });
 
   return { commentId: cRef.id };
+}
+
+/**
+ * ✅ 댓글 수정 (본인만)
+ */
+export async function updateCommunityComment({ postId, commentId, myUid, content } = {}) {
+  const pid = String(postId || "").trim();
+  const cid = String(commentId || "").trim();
+  const uid = String(myUid || "").trim();
+  const txt = String(content || "").trim();
+  if (!pid || !cid) throw new Error("updateCommunityComment: postId/commentId is required");
+  if (!uid) throw new Error("updateCommunityComment: myUid is required");
+  if (!txt) throw new Error("내용을 입력해 주세요.");
+
+  const cRef = doc(db, "community_posts", pid, "comments", cid);
+  const snap = await getDoc(cRef);
+  if (!snap.exists()) throw new Error("댓글을 찾을 수 없어요.");
+  const author = String(snap.data()?.authorUid || snap.data()?.authorId || "").trim();
+  if (author !== uid) throw new Error("본인 댓글만 수정할 수 있어요.");
+
+  await updateDoc(cRef, { content: txt, updatedAt: serverTimestamp() });
+  return { ok: true };
+}
+
+/**
+ * ✅ 댓글 삭제 (본인만) + 댓글수 감소
+ */
+export async function deleteCommunityComment({ postId, commentId, myUid } = {}) {
+  const pid = String(postId || "").trim();
+  const cid = String(commentId || "").trim();
+  const uid = String(myUid || "").trim();
+  if (!pid || !cid) throw new Error("deleteCommunityComment: postId/commentId is required");
+  if (!uid) throw new Error("deleteCommunityComment: myUid is required");
+
+  const cRef = doc(db, "community_posts", pid, "comments", cid);
+  const snap = await getDoc(cRef);
+  if (!snap.exists()) return { ok: true };
+  const author = String(snap.data()?.authorUid || snap.data()?.authorId || "").trim();
+  if (author !== uid) throw new Error("본인 댓글만 삭제할 수 있어요.");
+
+  await deleteDoc(cRef);
+  try {
+    await updateDoc(doc(db, "community_posts", pid), {
+      "stats.commentsCount": increment(-1),
+      updatedAt: serverTimestamp(),
+    });
+  } catch {}
+  return { ok: true };
 }
 
 export async function toggleCommunityLike({ postId, uid } = {}) {

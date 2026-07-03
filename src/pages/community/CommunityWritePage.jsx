@@ -7,12 +7,13 @@ import styled from "styled-components";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { createCommunityPost, updateCommunityPost } from "../../services/communityService";
+import { images } from "../../utils/imageAssets";
 
-const CATEGORIES = [
-  { key: "free", label: "자유" },
-  { key: "recruit", label: "상대모집" },
-  { key: "review", label: "경기후기" },
-];
+// 프로필 사진(실제 업로드본) 보유 여부 — 기본 로고/기본아바타는 '없음'으로 처리
+const hasProfilePhoto = (u) => {
+  const a = String(u?.avatarUrl || "").trim();
+  return !!a && a !== images.logo && a !== images.defaultAvatar;
+};
 
 /* =============== 레이아웃 =============== */
 
@@ -91,7 +92,7 @@ const ContentTextarea = styled.textarea`
   color: ${({ theme }) => theme.colors?.textStrong || "#111827"};
   padding: 8px 10px;
   font-size: 13px;
-  min-height: 420px;
+  min-height: 160px;
   resize: vertical;
   outline: none;
   line-height: 1.7;
@@ -202,7 +203,7 @@ const SubmitBar = styled.div`
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  padding: 8px 12px 12px;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
   background: ${({ theme }) => theme.colors?.card || "#ffffff"};
   border-top: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors?.border : "rgba(0, 0, 0, 0.04)"};
@@ -229,24 +230,6 @@ const SubmitButton = styled.button`
   }
 `;
 
-const CatRow = styled.div`
-  display: flex;
-  gap: 8px;
-`;
-const CatChip = styled.button`
-  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
-  background: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.card)};
-  color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textNormal)};
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  &:active {
-    transform: translateY(1px);
-  }
-`;
-
 /* =============== 컴포넌트 =============== */
 
 export default function CommunityWritePage() {
@@ -264,12 +247,19 @@ export default function CommunityWritePage() {
 
   const [title, setTitle] = useState(editState.initTitle || "");
   const [content, setContent] = useState(editState.initContent || "");
-  const [category, setCategory] = useState(
-    ["free", "recruit", "review"].includes(editState.initCategory) ? editState.initCategory : "free"
-  );
 
   const [images, setImages] = useState([]); // [{ file, previewUrl }]
   const [busy, setBusy] = useState(false);
+
+  // ✅ 새 글 작성은 프로필 사진 필수 (수정 모드는 제외)
+  React.useEffect(() => {
+    if (isEdit || !myUid) return;
+    if (!hasProfilePhoto(userDoc)) {
+      alert("커뮤니티 글 작성을 위해 먼저 프로필 사진을 등록해주세요.");
+      nav("/my/profile/edit", { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, myUid, userDoc]);
 
   const isValid = useMemo(() => {
     return String(title || "").trim().length > 0 && String(content || "").trim().length > 0;
@@ -344,8 +334,8 @@ export default function CommunityWritePage() {
       setBusy(true);
 
       if (isEdit) {
-        // ✅ 수정
-        await updateCommunityPost({ postId: editPostId, myUid, title, content, category });
+        // ✅ 수정 (분류 제거 — 기존 category 유지)
+        await updateCommunityPost({ postId: editPostId, myUid, title, content });
         nav(`/communitypost/${editPostId}`, { replace: true });
         return;
       }
@@ -354,7 +344,6 @@ export default function CommunityWritePage() {
         myUid,
         title,
         content,
-        category, // ✅ 선택한 카테고리 반영 (기존엔 항상 free로 저장되던 버그)
         imageFiles: images.map((x) => x.file), // ✅ 여러 장
       });
 
@@ -371,24 +360,6 @@ export default function CommunityWritePage() {
     <PageWrap>
       <Inner>
         <Form id="community-write-form" onSubmit={handleSubmit}>
-          <Field>
-            <LabelRow>
-              <Label>분류</Label>
-            </LabelRow>
-            <CatRow>
-              {CATEGORIES.map((c) => (
-                <CatChip
-                  key={c.key}
-                  type="button"
-                  $on={category === c.key}
-                  onClick={() => !busy && setCategory(c.key)}
-                >
-                  {c.label}
-                </CatChip>
-              ))}
-            </CatRow>
-          </Field>
-
           <Field>
             <LabelRow>
               <Label htmlFor="title">제목</Label>
