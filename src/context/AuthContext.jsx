@@ -178,7 +178,12 @@ export function AuthProvider({ children }) {
       saveRnToken(uid, msg.payload);
     };
 
+    // ⚠️ RN WebView: iOS는 window, Android는 document 로 message 가 dispatch 됨.
+    // window 만 듣으면 안드로이드에서 PUSH_TOKEN 을 놓쳐 토큰이 저장 안 됨 → 둘 다 등록.
     window.addEventListener("message", handler);
+    if (typeof document !== "undefined") {
+      document.addEventListener("message", handler);
+    }
 
     // 보류 토큰 처리
     if (firebaseUser?.uid && pendingRnTokenRef.current) {
@@ -186,7 +191,12 @@ export function AuthProvider({ children }) {
       pendingRnTokenRef.current = null;
     }
 
-    return () => window.removeEventListener("message", handler);
+    return () => {
+      window.removeEventListener("message", handler);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("message", handler);
+      }
+    };
   }, [firebaseUser?.uid]);
 
   const refreshUser = async () => {
