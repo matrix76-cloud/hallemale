@@ -15,6 +15,7 @@ import { getTeamRankMap } from "../../services/teamRankingService";
 import { useAuth } from "../../hooks/useAuth";
 import { setFavoritePlayer } from "../../services/favoriteService";
 import { createUserReport } from "../../services/userReportService";
+import { blockAuthorAndHidePost } from "../../services/userBlockService";
 import BlockedOverlay from "../../components/common/BlockedOverlay";
 import PlayerActivitySection from "../../components/player/PlayerActivitySection";
 import PlayerHealthSection from "../../components/player/PlayerHealthSection";
@@ -605,6 +606,7 @@ const ReportRow = styled.div`
   padding: 0 4px 8px;
   display: flex;
   justify-content: center;
+  gap: 12px;
 `;
 
 const ReportLink = styled.button`
@@ -923,6 +925,35 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
       alert(e?.message || "신고 접수에 실패했습니다.");
     } finally {
       setReportBusy(false);
+    }
+  };
+
+  // 사용자 차단 — 이 사용자의 게시글/댓글을 본인 피드에서 숨김 (신고와 분리)
+  const handleBlock = async () => {
+    if (!myUid) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+    if (isSelf) {
+      alert("본인은 차단할 수 없습니다.");
+      return;
+    }
+    if (!playerId) return;
+    const who =
+      player?.nickname || player?.name ? `'${player.nickname || player.name}'님` : "이 사용자";
+    if (
+      !window.confirm(
+        `${who}을 차단할까요?\n차단하면 이 사용자의 게시글·댓글이\n회원님 피드에서 더 이상 보이지 않습니다.`
+      )
+    )
+      return;
+    try {
+      await blockAuthorAndHidePost({ myUid: String(myUid), targetUid: String(playerId) });
+      alert("차단했습니다.\n이 사용자의 글은 회원님 피드에서 숨겨집니다.");
+      nav(-1);
+    } catch (e) {
+      console.error("[PlayerProfilePage] block failed", e);
+      alert(e?.message || "차단에 실패했습니다.");
     }
   };
 
@@ -1256,7 +1287,10 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
           {!isSelf && (
             <ReportRow>
               <ReportLink type="button" onClick={openReport}>
-                🚩 부정 사용자 신고하기
+                🚩 신고하기
+              </ReportLink>
+              <ReportLink type="button" onClick={handleBlock}>
+                🚫 차단하기
               </ReportLink>
             </ReportRow>
           )}
