@@ -11,6 +11,8 @@ import { useNavigate } from "react-router-dom";
 import { FiChevronRight, FiMapPin } from "react-icons/fi";
 
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
+import InfoDialog from "../../components/common/InfoDialog";
+import { useWebviewBridgeContext } from "../../context/WebviewBridgeContext";
 import { KR_AREAS } from "../../utils/constants";
 
 const Page = styled.div`
@@ -246,12 +248,26 @@ function normalizeRegionFromKakao(region1, region2) {
 
 export default function MatchRegionSelectPage() {
   const navigate = useNavigate();
+  const bridge = useWebviewBridgeContext();
+  const isWebView = !!bridge?.isWebView;
 
   const [sido, setSido] = useState("");
   const [gu, setGu] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [detectedLabel, setDetectedLabel] = useState("");
+  // 위치 권한이 꺼져 있을 때 안내(설정 유도) 다이얼로그
+  const [permOpen, setPermOpen] = useState(false);
+
+  const goToLocationSettings = () => {
+    try {
+      if (isWebView && bridge?.sendToApp) {
+        // 네이티브(RN)에서 OS 앱 설정 화면을 열어줌
+        bridge.sendToApp("OPEN_APP_SETTINGS", { reason: "location" });
+      }
+    } catch (e) {}
+    setPermOpen(false);
+  };
 
   const region = sido && gu ? `${sido} ${gu}` : "";
   const usingMyLocation = !!detectedLabel && region === detectedLabel;
@@ -308,9 +324,14 @@ export default function MatchRegionSelectPage() {
           alert("지도 서비스를 불러오지 못했어요. 직접 선택해 주세요.");
         }
       },
-      () => {
+      (err) => {
         setLocating(false);
-        alert("위치 권한이 거부되었거나 위치를 가져오지 못했어요. 직접 선택해 주세요.");
+        // code 1 = PERMISSION_DENIED → 설정에서 위치 권한을 켜도록 유도
+        if (err && err.code === 1) {
+          setPermOpen(true);
+          return;
+        }
+        alert("위치를 가져오지 못했어요. 직접 선택해 주세요.");
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
@@ -387,6 +408,24 @@ export default function MatchRegionSelectPage() {
           setGu(g);
         }}
         title="활동 지역 선택"
+      />
+
+      {/* 위치 권한 꺼짐 → 설정 유도 */}
+      <InfoDialog
+        open={permOpen}
+        tone="warning"
+        title="위치 권한이 꺼져 있어요"
+        message={
+          isWebView
+            ? "현재 위치로 지역을 설정하려면\n위치 권한이 필요해요.\n\n설정에서 위치 접근을 허용한 뒤\n다시 시도해 주세요.\n허용하지 않아도 아래에서 지역을\n직접 선택할 수 있어요."
+            : "현재 위치로 지역을 설정하려면\n브라우저의 위치 권한이 필요해요.\n\n주소창의 자물쇠(사이트 설정)에서\n위치를 '허용'으로 바꾼 뒤 다시 시도해 주세요.\n허용하지 않아도 아래에서 지역을\n직접 선택할 수 있어요."
+        }
+        primaryText={isWebView ? "설정으로 가기" : "확인"}
+        onPrimary={isWebView ? goToLocationSettings : () => setPermOpen(false)}
+        secondaryText="직접 선택할게요"
+        onClose={() => setPermOpen(false)}
+        closeOnOverlay={true}
+        showClose={true}
       />
     </Page>
   );
