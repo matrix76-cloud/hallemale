@@ -17,7 +17,8 @@ function normalizeTokens(raw) {
       out.push(t.token.trim());
     }
   }
-  return out;
+  // 같은 토큰이 여러 번 저장돼도(플랫폼/시각 달라 arrayUnion이 중복 저장) 1회만 발송하도록 유니크화
+  return [...new Set(out)];
 }
 
 function buildUserInfo(snap) {

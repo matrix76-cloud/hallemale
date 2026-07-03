@@ -43,6 +43,33 @@ async function fetchQueuedNotifications(batchSize = 50) {
 }
 
 /**
+ * 원자적 클레임 — push.status 를 queued → sending 으로 트랜잭션 전환.
+ * - 이미 queued 가 아니면(다른 트리거/스케줄러가 처리 중/완료) false 반환
+ * - 실시간 트리거와 3분 스케줄러가 같은 알림을 중복 발송하는 것을 방지
+ * @returns {Promise<boolean>} 클레임 성공 여부
+ */
+async function claimNotification(notificationId) {
+  if (!notificationId) return false;
+  const ref = notificationsCol().doc(notificationId);
+  try {
+    return await getDb().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return false;
+      const push = (snap.data() || {}).push || {};
+      const status = push.status;
+      const isQueued = status === "queued";
+      const isLegacy = push.sent === false && !status;
+      if (!isQueued && !isLegacy) return false; // 이미 처리 중/완료
+      tx.update(ref, { "push.status": "sending" });
+      return true;
+    });
+  } catch (e) {
+    console.warn(`[claimNotification] ${notificationId} tx failed:`, e?.message || e);
+    return false;
+  }
+}
+
+/**
  * push 상태 업데이트
  */
 async function updatePushStatus(notificationId, { status, failReason = null }) {
@@ -61,4 +88,4 @@ async function updatePushStatus(notificationId, { status, failReason = null }) {
   await notificationsCol().doc(notificationId).update(patch);
 }
 
-module.exports = { fetchQueuedNotifications, updatePushStatus };
+module.exports = { fetchQueuedNotifications, claimNotification, updatePushStatus };

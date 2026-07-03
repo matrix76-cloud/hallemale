@@ -10,9 +10,10 @@ exports.resetPasswordViaProxy = resetPasswordViaProxy;
 const { sendSmsProxy } = require("./sms/sendSmsProxy");
 exports.sendSmsProxy = sendSmsProxy;
 
-// ✅ FCM Push Notification 스케줄러
-const { sendPushTick } = require("./jobs/sendPushNotifications");
+// ✅ FCM Push Notification — 실시간 트리거(생성 즉시 발송) + 스케줄러(백로그·재시도 폴백)
+const { sendPushTick, onNotificationCreated } = require("./jobs/sendPushNotifications");
 exports.sendPushTick = sendPushTick;
+exports.onNotificationCreated = onNotificationCreated;
 
 // ✅ 즉시 푸시 발송 (디버깅용)
 const { sendTestPush } = require("./jobs/sendTestPush");
