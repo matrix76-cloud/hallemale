@@ -80,8 +80,10 @@ export function ClubProvider({ children }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 중복 호출 방지
-  const bootRef = useRef({ key: "", running: false });
+  // ✅ 최신 호출만 상태를 쓰도록 세대(generation) 가드
+  // (activeTeamId="" 초기 실행과 스냅샷 반영 후 실행이 동시에 돌 때,
+  //  느리게 끝난 stale 실행이 setClub(null)로 정상 결과를 덮는 것 방지)
+  const genRef = useRef(0);
 
   // ✅ users/{uid} 구독: activeTeamId 즉시 반영
   useEffect(() => {
@@ -135,17 +137,13 @@ export function ClubProvider({ children }) {
       return;
     }
 
-    const bootKey = `${uid}:${activeTeamId || "none"}`;
-    if (bootRef.current.running && bootRef.current.key === bootKey) {
-      logGroup("[ClubContext] refreshClub: skipped (already running)", { bootKey });
-      return;
-    }
-
-    bootRef.current = { key: bootKey, running: true };
+    // 이 실행을 "최신"으로 표시. 이후 stale 실행은 setState를 건너뜀.
+    const myGen = ++genRef.current;
     setLoading(true);
 
     try {
       const teamId = await ensureActiveTeamId({ uid, activeTeamId });
+      if (myGen !== genRef.current) return; // 더 최신 실행에 의해 무효화됨
 
       logGroup("[ClubContext] refreshClub: resolved teamId", {
         uid,
@@ -160,6 +158,7 @@ export function ClubProvider({ children }) {
       }
 
       const c = await loadClubById(teamId);
+      if (myGen !== genRef.current) return;
       if (!c) {
         logGroup("[ClubContext] refreshClub: club doc missing", { teamId });
         setClub(null);
@@ -170,6 +169,7 @@ export function ClubProvider({ children }) {
       setClub(c);
 
       const ms = await loadClubMembers(teamId);
+      if (myGen !== genRef.current) return;
       setMembers(ms);
 
       logGroup("[ClubContext] refreshClub: done", {
@@ -178,6 +178,7 @@ export function ClubProvider({ children }) {
         membersCount: ms.length,
       });
     } catch (e) {
+      if (myGen !== genRef.current) return;
       logGroup("[ClubContext] refreshClub: ERROR", {
         message: e?.message || String(e),
         code: e?.code,
@@ -186,8 +187,7 @@ export function ClubProvider({ children }) {
       setClub(null);
       setMembers([]);
     } finally {
-      setLoading(false);
-      bootRef.current.running = false;
+      if (myGen === genRef.current) setLoading(false);
     }
   };
 
