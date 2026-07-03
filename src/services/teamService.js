@@ -625,6 +625,7 @@ export async function createClub({
   description,
   tags,
   promo,
+  activity,
   logoFile,
 }) {
   if (!ownerUid) throw new Error("createClub: ownerUid is required");
@@ -648,6 +649,13 @@ export async function createClub({
     promo: {
       usePromoText: !!promo?.usePromoText,
       promoText: promo?.usePromoText ? String(promo?.promoText || "").trim() : "",
+    },
+    // ✅ 활동 요일/시간 (생성 시 함께 설정) — 관리 페이지와 동일 스키마
+    activity: {
+      days: ["WEEKDAY", "WEEKEND", "ANY"].includes(activity?.days) ? activity.days : "ANY",
+      time: ["MORNING", "AFTERNOON", "EVENING", "NIGHT", "ANY"].includes(activity?.time)
+        ? activity.time
+        : "ANY",
     },
     slug: safeSlug(name),
     ownerUid,

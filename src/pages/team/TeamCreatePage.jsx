@@ -258,6 +258,35 @@ const SelectBtn = styled.button`
   }
 `;
 
+const SelectRow = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const Select = styled.select`
+  flex: 1;
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  padding: 10px 10px;
+  font-size: 13px;
+  outline: none;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  color: ${({ theme }) => theme.colors.textStrong};
+  cursor: pointer;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.card};
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
 const TagRow = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -462,6 +491,20 @@ const SummaryText = styled.div`
 
 const TAG_PRESETS = TEAM_TAG_PRESETS;
 
+const ACTIVITY_DAYS_LABEL = {
+  ANY: "요일 상관없음",
+  WEEKDAY: "평일 위주",
+  WEEKEND: "주말 위주",
+};
+
+const ACTIVITY_TIME_LABEL = {
+  ANY: "시간 상관없음",
+  MORNING: "오전",
+  AFTERNOON: "오후",
+  EVENING: "저녁",
+  NIGHT: "야간",
+};
+
 /* ===== 컴포넌트 ===== */
 
 export default function TeamCreatePage() {
@@ -492,6 +535,10 @@ export default function TeamCreatePage() {
   const [regionOpen, setRegionOpen] = useState(false);
   const [regionSido, setRegionSido] = useState("");
   const [regionGu, setRegionGu] = useState("");
+
+  // ✅ 활동 요일/시간 (팀 관리와 동일 스키마) — 생성 시 함께 선택
+  const [activityDays, setActivityDays] = useState("ANY"); // WEEKDAY | WEEKEND | ANY
+  const [activityTime, setActivityTime] = useState("ANY"); // MORNING | AFTERNOON | EVENING | NIGHT | ANY
 
   const region = useMemo(() => {
     if (!regionSido || !regionGu) return "";
@@ -608,6 +655,10 @@ export default function TeamCreatePage() {
         promo: {
           usePromoText,
           promoText: usePromoText ? promoText.trim() : "",
+        },
+        activity: {
+          days: activityDays,
+          time: activityTime,
         },
         logoFile,
       });
@@ -759,6 +810,35 @@ export default function TeamCreatePage() {
 
             <FieldGroup>
               <LabelRow>
+                <Label>활동 요일 · 시간</Label>
+                <LabelSub>주로 언제 활동하는지 알려주세요.</LabelSub>
+              </LabelRow>
+              <SelectRow>
+                <Select
+                  value={activityDays}
+                  onChange={(e) => setActivityDays(e.target.value)}
+                  disabled={isSubmitting}
+                >
+                  <option value="ANY">활동 요일: 상관없음</option>
+                  <option value="WEEKDAY">활동 요일: 평일 위주</option>
+                  <option value="WEEKEND">활동 요일: 주말 위주</option>
+                </Select>
+                <Select
+                  value={activityTime}
+                  onChange={(e) => setActivityTime(e.target.value)}
+                  disabled={isSubmitting}
+                >
+                  <option value="ANY">활동 시간: 상관없음</option>
+                  <option value="MORNING">활동 시간: 오전</option>
+                  <option value="AFTERNOON">활동 시간: 오후</option>
+                  <option value="EVENING">활동 시간: 저녁</option>
+                  <option value="NIGHT">활동 시간: 야간</option>
+                </Select>
+              </SelectRow>
+            </FieldGroup>
+
+            <FieldGroup>
+              <LabelRow>
                 <Label htmlFor="description">한 줄 소개</Label>
                 <LabelSub>팀 분위기나 목표를 짧게 적어주세요.</LabelSub>
               </LabelRow>
@@ -842,6 +922,13 @@ export default function TeamCreatePage() {
                   </div>
                 </div>
               </SummaryLogoRow>
+
+              <SummaryBlock>
+                <SummaryLabel>활동 요일 · 시간</SummaryLabel>
+                <SummaryText>
+                  {ACTIVITY_DAYS_LABEL[activityDays]} · {ACTIVITY_TIME_LABEL[activityTime]}
+                </SummaryText>
+              </SummaryBlock>
 
               {description && (
                 <SummaryBlock>
