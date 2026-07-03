@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { images, playerAvatars } from "../../utils/imageAssets";
 import { KR_AREAS } from "../../utils/constants";
 import { useAuth } from "../../hooks/useAuth";
+import { useClub } from "../../hooks/useClub";
 import { updateUserProfile, isNicknameTaken } from "../../services/userService";
 import { uploadUserAvatar } from "../../services/mediaService";
 import { getNameChangeStatus } from "../../utils/nameChange";
@@ -34,6 +35,8 @@ const SKILL_LABEL = {
 export default function MyProfileEditPage() {
   const nav = useNavigate();
   const { userDoc, loading, refreshUser } = useAuth();
+  // ✅ 소속 여부는 stale한 userDoc 대신 실시간 ClubContext(club)로 판정
+  const { club } = useClub();
 
   const uid = userDoc?.uid || userDoc?.id || "";
 
@@ -210,7 +213,7 @@ export default function MyProfileEditPage() {
   })();
 
   const teamJoinPreview = (() => {
-    const hasTeam = !!(userDoc?.activeTeamId || userDoc?.clubId);
+    const hasTeam = !!club;
     if (hasTeam) return "이미 소속 팀 있음";
     const status = String(userDoc?.joinRequest?.status || "").trim();
     if (status === "pending") return "신청 중";

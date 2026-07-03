@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useClub } from "../../hooks/useClub";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { getClubForPickerRow } from "../../services/teamService";
 import TeamSelectModal from "../../components/team/TeamSelectModal";
@@ -11,12 +12,14 @@ import TeamSelectModal from "../../components/team/TeamSelectModal";
 export default function MyProfileTeamJoinEditPage() {
   const nav = useNavigate();
   const { userDoc, refreshUser } = useAuth();
+  // ✅ 소속 여부는 stale한 userDoc 대신 실시간 ClubContext(club)로 판정 (탈퇴 즉시 반영)
+  const { club } = useClub();
   const uid = userDoc?.uid || userDoc?.id || "";
 
   const joinReq = userDoc?.joinRequest || null;
   const joinReqStatus = String(joinReq?.status || "").trim();
   const isJoinPending = joinReqStatus === "pending";
-  const hasTeam = !!(userDoc?.activeTeamId || userDoc?.clubId);
+  const hasTeam = !!club;
 
   const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const [pendingClubRow, setPendingClubRow] = useState(null);
