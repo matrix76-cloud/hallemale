@@ -110,7 +110,7 @@ const CONFIRM_TEXT = "탈퇴합니다";
 
 export default function WithdrawPage() {
   const nav = useNavigate();
-  const { userDoc } = useAuth();
+  const { userDoc, signOut } = useAuth();
   const [agree, setAgree] = useState(false);
   const [confirmInput, setConfirmInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -123,9 +123,12 @@ export default function WithdrawPage() {
     setBusy(true);
     try {
       await withdrawAccount();
+      // Auth 계정은 이미 삭제됐지만, React auth 상태(isLoggedIn)가 아직 갱신되기 전이라
+      // 곧바로 /welcome·/login 으로 보내면 "로그인된 것으로 오인" → 스플래시/홈으로 튀는 레이스가 있다.
+      // 컨텍스트 signOut 으로 상태를 확정적으로 비운 뒤 로그인 화면으로 이동한다.
+      try { await signOut(); } catch (e) {}
       alert("회원탈퇴가 완료되었습니다.\n그동안 할래말래를 이용해주셔서 감사합니다.");
-      // Auth 삭제되면 watchAuthState가 감지해서 자동 로그아웃 처리됨
-      nav("/welcome", { replace: true });
+      nav("/login", { replace: true });
     } catch (e) {
       const code = String(e?.code || "");
       if (code === "auth/requires-recent-login") {

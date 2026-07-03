@@ -38,6 +38,10 @@ exports.matchAutoConfirmTick = matchAutoConfirmTick;
 const { kakaoCustomToken } = require("./auth/kakaoCustomToken");
 exports.kakaoCustomToken = kakaoCustomToken;
 
+// ✅ 회원탈퇴 — Auth 계정 삭제 (Admin SDK, requires-recent-login 회피)
+const { deleteAccount } = require("./auth/deleteAccount");
+exports.deleteAccount = deleteAccount;
+
 // ✅ 국세청 사업자등록정보 진위확인 (구장 사업자 인증 자동 처리)
 const { verifyBusiness } = require("./business/verifyBusiness");
 exports.verifyBusiness = verifyBusiness;

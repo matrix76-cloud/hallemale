@@ -18,8 +18,39 @@ import {
   where,
   serverTimestamp,
 } from "firebase/firestore";
-import { deleteUser } from "firebase/auth";
+import { deleteUser, signOut } from "firebase/auth";
 import { reassignOrDisbandOwnedClubsOnWithdraw } from "./clubLeaderService";
+
+const DELETE_ACCOUNT_URL =
+  "https://asia-northeast3-halle-bf789.cloudfunctions.net/deleteAccount";
+
+/**
+ * Auth 계정 삭제 — 서버(Admin SDK) 우선, 실패 시 클라이언트 폴백.
+ * 서버 경로는 requires-recent-login 제약이 없어 안정적이다.
+ * (함수 미배포 등으로 실패하면 기존 클라이언트 deleteUser 로 폴백 → 회귀 없음)
+ */
+async function deleteAuthAccount(user) {
+  try {
+    const idToken = await user.getIdToken();
+    const r = await fetch(DELETE_ACCOUNT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+    if (r.ok) {
+      // 서버가 계정을 지웠으므로 클라이언트 세션만 정리
+      await signOut(auth).catch(() => {});
+      return;
+    }
+    console.warn("[withdraw] server deleteAccount failed, fallback:", r.status);
+  } catch (e) {
+    console.warn("[withdraw] server deleteAccount error, fallback:", e?.message || e);
+  }
+  // 폴백: 클라이언트 삭제 (requires-recent-login 가능)
+  await deleteUser(user);
+}
 
 async function safeDelete(ref, label) {
   try {
@@ -128,6 +159,6 @@ export async function withdrawAccount() {
   await safeDelete(doc(db, "users", userDocId), `users/${userDocId}`);
   if (userDocId !== uid) await safeDelete(doc(db, "users", uid), `users/${uid}`);
 
-  // 7) 마지막으로 Firebase Auth 계정 삭제 — requires-recent-login 가능
-  await deleteUser(user);
+  // 7) 마지막으로 Firebase Auth 계정 삭제 (서버 우선 / 클라이언트 폴백)
+  await deleteAuthAccount(user);
 }
