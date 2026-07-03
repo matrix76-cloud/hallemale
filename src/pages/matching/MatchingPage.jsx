@@ -13,6 +13,7 @@ import TeamOpponentListSection from "./components/TeamOpponentListSection";
 import Spinner from "../../components/common/Spinner";
 import { useMatchingData } from "../../hooks/useMatchingData";
 import { getTeamRankMap } from "../../services/teamRankingService";
+import { loadMatchingHomeData } from "../../services/matchingHomeService";
 import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
 /* ==================== 상수/헬퍼 ==================== */
@@ -93,12 +94,32 @@ export default function MatchingPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState(filters);
   const [rankMap, setRankMap] = useState(null);
+  // 팀 없는 사용자 둘러보기용 상대팀 목록(null=로딩 전)
+  const [browseTeams, setBrowseTeams] = useState(null);
 
   useEffect(() => {
     if (clubLoading) return;
-    if (!activeTeamId) return;
-    preloadMatchingHomeData(activeTeamId).catch(() => {});
+    if (activeTeamId) {
+      preloadMatchingHomeData(activeTeamId).catch(() => {});
+      return;
+    }
+    // 팀 없음 → 둘러보기용으로 전체 팀 목록만 로드
+    let alive = true;
+    loadMatchingHomeData({})
+      .then((d) => {
+        if (alive) setBrowseTeams(Array.isArray(d?.opponentTeams) ? d.opponentTeams : []);
+      })
+      .catch(() => {
+        if (alive) setBrowseTeams([]);
+      });
+    return () => {
+      alive = false;
+    };
   }, [clubLoading, activeTeamId, preloadMatchingHomeData]);
+
+  // 팀 유무에 따른 실효 데이터
+  const effMyTeam = activeTeamId ? myTeam : null;
+  const sourceOpponents = activeTeamId ? opponentTeams : browseTeams;
 
   // 팀 랭킹 등수(clubId → 등수) — 랭킹 페이지와 동일 기준
   useEffect(() => {
@@ -116,7 +137,7 @@ export default function MatchingPage() {
   const appliedCount = useMemo(() => countAppliedFilters(filters), [filters]);
 
   const filteredOpponentTeams = useMemo(() => {
-    const base = Array.isArray(opponentTeams) ? opponentTeams : [];
+    const base = Array.isArray(sourceOpponents) ? sourceOpponents : [];
     const qText = String(teamQ || "").trim().toLowerCase();
 
     const searched = qText
@@ -155,7 +176,7 @@ export default function MatchingPage() {
       }
       return true;
     });
-  }, [opponentTeams, teamQ, filters]);
+  }, [sourceOpponents, teamQ, filters]);
 
   if (clubLoading) {
     return (
@@ -167,17 +188,18 @@ export default function MatchingPage() {
     );
   }
 
+  // 팀 없는 사용자: 둘러보기 목록 로딩 전까지만 스피너
   if (!activeTeamId) {
-    return (
-      <Wrap>
-        <LoadingCenter>
-          <Spinner />
-        </LoadingCenter>
-      </Wrap>
-    );
-  }
-
-  if (matchingLoading || !myTeam) {
+    if (browseTeams === null) {
+      return (
+        <Wrap>
+          <LoadingCenter>
+            <Spinner />
+          </LoadingCenter>
+        </Wrap>
+      );
+    }
+  } else if (matchingLoading || !myTeam) {
     return (
       <Wrap>
         <LoadingCenter>
@@ -192,7 +214,11 @@ export default function MatchingPage() {
       <Inner>
         <QuickMatchHero
           onStart={() => {
-            const myCount = Array.isArray(myTeam?.members) ? myTeam.members.length : 0;
+            if (!activeTeamId) {
+              showToast({ message: "팀을 먼저 만들어야 매칭할 수 있어요." });
+              return;
+            }
+            const myCount = Array.isArray(effMyTeam?.members) ? effMyTeam.members.length : 0;
             if (myCount < MIN_TEAM_MEMBERS) {
               showToast({
                 message: `팀원이 ${MIN_TEAM_MEMBERS}명 이상부터 매칭할 수 있어요.`,
@@ -203,13 +229,15 @@ export default function MatchingPage() {
           }}
         />
 
-        <AiRecommendedTeamsSection
-          myTeam={myTeam}
-          opponentTeams={opponentTeams}
-          onOpenAnalysis={(opponentClubId) => {
-            navigate(`/matching/analysis/${opponentClubId}`);
-          }}
-        />
+        {effMyTeam && (
+          <AiRecommendedTeamsSection
+            myTeam={effMyTeam}
+            opponentTeams={sourceOpponents || []}
+            onOpenAnalysis={(opponentClubId) => {
+              navigate(`/matching/analysis/${opponentClubId}`);
+            }}
+          />
+        )}
 
         <TeamOpponentListSection
           teams={filteredOpponentTeams}

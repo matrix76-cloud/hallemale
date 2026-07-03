@@ -5,6 +5,7 @@ import styled, { css } from "styled-components";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
 import { FiMessageSquare, FiCheckCircle, FiFlag, FiXCircle } from "react-icons/fi";
+import { useUIContext } from "../../context/UIContext";
 
 const SectionWrap = styled.section`
   display: flex;
@@ -368,49 +369,6 @@ const DimArea = styled.div`
     `}
 `;
 
-const LockOverlay = styled.div`
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 20px;
-  text-align: center;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(0, 0, 0, 0.45)" : "rgba(255, 255, 255, 0.55)"};
-`;
-
-const LockIcon = styled.div`
-  font-size: 30px;
-`;
-
-const LockText = styled.div`
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.5;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-
-const LockButton = styled.button`
-  height: 42px;
-  padding: 0 20px;
-  border-radius: 999px;
-  border: none;
-  background: ${({ theme }) => theme.colors.primary};
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-
-  &:active {
-    transform: translateY(1px);
-  }
-`;
-
 function toInt(n, fallback = 0) {
   const v = Number(n);
   return Number.isFinite(v) ? v : fallback;
@@ -418,8 +376,9 @@ function toInt(n, fallback = 0) {
 
 export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, matchRoomAttention, matchRoomUnread }) {
   const navigate = useNavigate();
+  const { showModal, hideModal } = useUIContext();
 
-  // ✅ 팀 미가입: 카드는 보여주되 잠금 처리 + 안내 오버레이
+  // ✅ 팀 미가입: 카드는 그대로 보여주되, 클릭 시 가입/생성 유도 모달만 띄운다
   const locked = !team;
   const safeTeam = team || {
     name: "우리 팀",
@@ -482,6 +441,16 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
 
 
   const handleGoMyTeamDetail = () => {
+    // 팀 없는 사용자: 팀 상세 대신 가입/생성 유도 모달
+    if (locked) {
+      showModal({
+        title: "아직 팀이 없어요",
+        message: "팀에 가입하거나 팀을 만들면 이용할 수 있어요. 팀 만들기로 이동할까요?",
+        onCancel: hideModal,
+        onConfirm: () => navigate("/team/create"),
+      });
+      return;
+    }
     const teamId = team?.clubId || team?.id;
     if (!teamId) return;
     navigate(`/team/${teamId}`);
@@ -505,21 +474,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
       <SectionTitle>팀 프로필</SectionTitle>
 
       <LockWrap>
-        {locked && (
-          <LockOverlay>
-            <LockIcon>🔒</LockIcon>
-            <LockText>
-              팀에 먼저 가입하거나
-              <br />
-              팀을 생성해 주세요
-            </LockText>
-            <LockButton type="button" onClick={() => navigate("/team/create")}>
-              팀 만들기
-            </LockButton>
-          </LockOverlay>
-        )}
-
-        <DimArea $locked={locked} aria-hidden={locked}>
+        <DimArea>
       <ProfileRow>
       <ProfileCard onClick={handleGoMyTeamDetail}>
         <ProfileDeco src={images.emoji3dTrophy} alt="" />

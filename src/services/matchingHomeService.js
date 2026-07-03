@@ -95,19 +95,16 @@ export async function loadMatchingHomeData({
 } = {}) {
   const teamId = String(activeTeamId || "").trim();
 
-  if (!teamId) {
-    return {
-      myTeam: null,
-      opponentTeams: [],
-    };
-  }
-
-  const myTeam = await getTeamProfile(teamId);
-  if (!myTeam) {
-    return {
-      myTeam: null,
-      opponentTeams: [],
-    };
+  // ✅ 팀 없는 사용자(둘러보기): 내 팀 없이 전체 팀 목록만 반환
+  let myTeam = null;
+  if (teamId) {
+    myTeam = await getTeamProfile(teamId);
+    if (!myTeam) {
+      return {
+        myTeam: null,
+        opponentTeams: [],
+      };
+    }
   }
 
   // ⚠️ orderBy("createdAt")로 쿼리하면 createdAt 필드가 없는 팀(스크립트/구버전 생성 등)이
