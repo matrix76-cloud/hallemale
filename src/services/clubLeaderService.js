@@ -261,6 +261,29 @@ async function transferLeadershipOnWithdraw({ clubId, fromUid, toUid, clubData }
   await batch.commit();
 }
 
+/**
+ * 해체되는 팀의 경기 기록(match_requests) 삭제
+ * - actorClubId / targetClubId 양쪽 조회 후 삭제
+ * - 카카오 uid 고정이라 재가입해도 같은 팀에 예전 경기가 "내 팀 기록"으로 되살아나는 것 방지
+ * - best-effort
+ */
+async function deleteClubMatchRequests(clubId) {
+  const cid = safeStr(clubId);
+  if (!cid) return;
+  try {
+    const col = collection(db, "match_requests");
+    const [aSnap, tSnap] = await Promise.all([
+      getDocs(query(col, where("actorClubId", "==", cid))),
+      getDocs(query(col, where("targetClubId", "==", cid))),
+    ]);
+    const refs = new Map();
+    [...aSnap.docs, ...tSnap.docs].forEach((d) => refs.set(d.id, d.ref));
+    await Promise.all(Array.from(refs.values()).map((r) => deleteDoc(r).catch(() => {})));
+  } catch (e) {
+    console.warn("[withdraw] deleteClubMatchRequests failed:", e?.message || e);
+  }
+}
+
 /** 혼자뿐인 팀 해체 (best-effort) */
 async function disbandSoloClub({ clubId }) {
   const cid = safeStr(clubId);
@@ -271,6 +294,8 @@ async function disbandSoloClub({ clubId }) {
       await Promise.all(snap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
     } catch (e) {}
   }
+  // 팀 해체 시 경기 기록도 함께 삭제 (재가입해도 예전 경기가 남지 않도록)
+  await deleteClubMatchRequests(cid);
   try {
     await deleteDoc(doc(db, "clubs", cid));
   } catch (e) {}

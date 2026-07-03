@@ -2428,6 +2428,9 @@ export async function listFinishedMatchesPage({ pageSize = 20, cursor = null, cl
   const take = Number.isFinite(size) && size > 0 ? Math.min(size, 50) : 20;
   const myClubId = toStr(clubId);
 
+  // ✅ 팀이 없으면(탈퇴 후 재가입/미가입) 전체 경기가 "내 팀 기록"으로 노출되지 않도록 빈 결과 반환
+  if (!myClubId) return { rows: [], nextCursor: null };
+
   const col = collection(db, "match_requests");
 
   // 내 팀 필터: actor/target 두 쿼리 병합 후 클라이언트 정렬
