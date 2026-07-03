@@ -607,6 +607,12 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
   s2.docs.forEach((d) => uniq.set(d.id, d.ref));
   s3.docs.forEach((d) => uniq.set(d.id, d.ref));
 
+  // ✅ 알림용 메타를 먼저 읽고, 클럽 문서를 "먼저" 삭제한다.
+  //    (ClubContext.ensureActiveTeamId 의 findOwnedClubId 재치유가 삭제 중인 팀을
+  //     다시 activeTeamId 로 되살려 "팀 불러오는중"에서 멈추는 레이스 방지)
+  const clubMeta = await resolveClubMetaSafe(_clubId);
+  await deleteDoc(clubRef);
+
   const userUpdates = Array.from(uniq.values()).map((ref) => ({
     ref,
     data: {
@@ -629,11 +635,8 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
     }
   }
 
-  // ✅ 해체 알림 (영향 받은 멤버 전원)
+  // ✅ 해체 알림 (영향 받은 멤버 전원) — 클럽/메타는 위에서 이미 처리됨
   const affectedUids = Array.from(uniq.keys()).filter((x) => x && x !== _uid);
-  const clubMeta = await resolveClubMetaSafe(_clubId);
-
-  await deleteDoc(clubRef);
 
   if (affectedUids.length) {
     await notifyTeamEvent({

@@ -160,9 +160,14 @@ export function ClubProvider({ children }) {
       const c = await loadClubById(teamId);
       if (myGen !== genRef.current) return;
       if (!c) {
-        logGroup("[ClubContext] refreshClub: club doc missing", { teamId });
+        // 참조하던 팀이 존재하지 않음(탈퇴/해체로 삭제) → 댕글링 activeTeamId 정리.
+        // 안 하면 hasTeam=true 인데 club=null 이라 "팀 불러오는중"에서 영구히 멈춘다.
+        logGroup("[ClubContext] refreshClub: club doc missing → clear activeTeamId", { teamId });
         setClub(null);
         setMembers([]);
+        try {
+          await setDoc(doc(db, "users", uid), { activeTeamId: "" }, { merge: true });
+        } catch (e) {}
         return;
       }
 
