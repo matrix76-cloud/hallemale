@@ -215,9 +215,24 @@ async function webSignInWithGoogle({ keepLogin }) {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
 
-  // classmanage 와 동일하게 PC/모바일 모두 팝업으로 통일.
-  // signInWithRedirect 는 localhost 복귀 시 세션이 안 붙어 로그인이 막히므로 사용하지 않음.
-  // (크롬 반응형/모바일 에뮬레이션이면 UA가 모바일로 잡혀 redirect 분기를 타던 문제도 제거됨)
+  // ✅ 모바일 브라우저: 구글 OAuth 팝업이 팝업차단·서드파티쿠키 차단으로 거의 실패한다.
+  //    authDomain 이 기본 도메인(halle-bf789.firebaseapp.com)이라 redirect 핸들러가 항상 등록돼 있어
+  //    운영 환경에서 redirect 는 안전하다. 복귀 결과는 AuthContext.consumeRedirectResultIfAny() 가
+  //    소비 → onAuthStateChanged 발화 → 로그인 완료. (localhost+커스텀도메인 이슈는 배포 환경엔 무관)
+  if (isMobileBrowser()) {
+    try {
+      await setPersistence(
+        auth,
+        keepLogin ? browserLocalPersistence : browserSessionPersistence
+      );
+    } catch {}
+    await signInWithRedirect(auth, provider);
+    // 페이지가 인가 화면으로 이동하므로 아래 코드는 실행되지 않는다.
+    return { success: true, provider: "google", strategy: "web_redirect_started" };
+  }
+
+  // 데스크톱: 팝업으로 통일. (제스처 유지를 위해 setPersistence 없이 즉시 호출)
+  // signInWithPopup 앞에 await 를 두면 클릭 제스처가 끊겨 팝업이 차단된다.
 
   // ⚠️ 데스크톱 팝업: signInWithPopup 앞에 await(setPersistence 등)를 두면
   //    사용자 클릭 제스처가 끊겨 팝업이 차단되고 → redirect 폴백 → localhost+커스텀 authDomain
