@@ -120,12 +120,12 @@ export default function AgreementGate() {
 /* ===================== styles ===================== */
 
 const Wrap = styled.div`
-  min-height: 100dvh;
+  height: 100dvh;
   background: ${({ theme }) => theme.colors.bg};
   display: flex;
   justify-content: center;
   padding: 0 16px calc(28px + env(safe-area-inset-bottom));
-  overflow-y: auto;
+  overflow: hidden;
 `;
 
 const Inner = styled.div`
@@ -133,7 +133,7 @@ const Inner = styled.div`
   max-width: 460px;
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: 0;
   padding-top: 56px;
 `;
 
