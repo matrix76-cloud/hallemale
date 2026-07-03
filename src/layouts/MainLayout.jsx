@@ -30,8 +30,9 @@ const Wrap = styled.div`
 const Main = styled.main`
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  /* 블록 스크롤 컨테이너. flex-column + overflow 를 함께 주면 자식이
+     스크롤 대신 flex 압축되어 하단 카드/버튼이 잘리므로 display:block 이어야 한다. */
+  display: block;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
