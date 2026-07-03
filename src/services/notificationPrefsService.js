@@ -8,11 +8,10 @@ const DEFAULT_PREFS = {
   categories: {
     notice: true, // 공지사항
     chat: true, // 채팅
+    community: true, // 커뮤니티(내 글 댓글·좋아요)
     teamInvite: true, // 팀 초대
     teamDecision: true, // 팀 수락/거절(참여요청 결과)
     match: true, // 매칭 알람
-    player: true, // 선수등록
-    team: true, // 팀등록
   },
 };
 
@@ -24,11 +23,10 @@ function normalizePrefs(p) {
   const categories = {
     notice: typeof c.notice === "boolean" ? c.notice : DEFAULT_PREFS.categories.notice,
     chat: typeof c.chat === "boolean" ? c.chat : DEFAULT_PREFS.categories.chat,
+    community: typeof c.community === "boolean" ? c.community : DEFAULT_PREFS.categories.community,
     teamInvite: typeof c.teamInvite === "boolean" ? c.teamInvite : DEFAULT_PREFS.categories.teamInvite,
     teamDecision: typeof c.teamDecision === "boolean" ? c.teamDecision : DEFAULT_PREFS.categories.teamDecision,
     match: typeof c.match === "boolean" ? c.match : DEFAULT_PREFS.categories.match,
-    player: typeof c.player === "boolean" ? c.player : DEFAULT_PREFS.categories.player,
-    team: typeof c.team === "boolean" ? c.team : DEFAULT_PREFS.categories.team,
   };
 
   return { enabled, categories };

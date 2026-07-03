@@ -16,11 +16,10 @@ import {
 const CATEGORY_ITEMS = [
   { key: "notice", label: "공지사항", desc: "서비스 공지·업데이트 안내" },
   { key: "chat", label: "채팅", desc: "매칭룸 채팅 메시지" },
+  { key: "community", label: "커뮤니티", desc: "내 글 댓글·좋아요 알림" },
   { key: "teamInvite", label: "팀 초대", desc: "팀 초대 도착 알림" },
   { key: "teamDecision", label: "팀 수락/거절", desc: "참여요청 결과 알림" },
   { key: "match", label: "매칭 알림", desc: "매칭 신청·성사·경기 리마인드" },
-  { key: "player", label: "선수 등록", desc: "선수 관련 알림" },
-  { key: "team", label: "팀 등록", desc: "팀 관련 알림" },
 ];
 
 export default function NotificationSettingsPage() {
