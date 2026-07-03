@@ -12,27 +12,30 @@ function nowTs() {
 
 /**
  * queued 알림 조회
- * - push.enabled == true 쿼리 후 JS에서 status 필터
- * - 레거시 호환: push.sent === false && !push.status 도 포함
+ * - push.status == "queued" 를 직접 쿼리(단일 필드 인덱스, 자동 생성됨)
+ *   ⚠️ 과거엔 push.enabled==true 를 정렬 없이 limit 로 훑고 JS에서 queued 필터했는데,
+ *      enabled 알림이 limit 를 넘으면 queued 가 조회 범위 밖으로 밀려 영영 발송 안 되던 버그.
+ * - 레거시 호환(push.sent===false && !push.status)은 별도 쿼리로 소량 보강
  */
 async function fetchQueuedNotifications(batchSize = 50) {
   const snap = await notificationsCol()
-    .where("push.enabled", "==", true)
-    .limit(batchSize * 2) // JS 필터링 여유분
+    .where("push.status", "==", "queued")
+    .limit(batchSize)
     .get();
 
-  const results = [];
+  const results = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-  for (const doc of snap.docs) {
-    const data = doc.data() || {};
-    const push = data.push || {};
-
-    const isQueued = push.status === "queued";
-    const isLegacy = push.sent === false && !push.status;
-
-    if (isQueued || isLegacy) {
-      results.push({ id: doc.id, ...data });
-      if (results.length >= batchSize) break;
+  // 레거시 문서(status 없음) 보강 — 여유분만
+  if (results.length < batchSize) {
+    const legacySnap = await notificationsCol()
+      .where("push.sent", "==", false)
+      .limit(batchSize - results.length)
+      .get();
+    for (const doc of legacySnap.docs) {
+      const data = doc.data() || {};
+      if (data.push && !data.push.status) {
+        results.push({ id: doc.id, ...data });
+      }
     }
   }
 
