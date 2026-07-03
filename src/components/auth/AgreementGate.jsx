@@ -2,6 +2,7 @@
 // src/components/auth/AgreementGate.jsx
 // 최초 로그인 후 1회 노출되는 약관·개인정보·연령(만 14세 이상) 동의 게이트.
 // 필수 3항목에 동의해야 서비스 진입이 가능하며, 동의 내역은 users 문서에 기록된다.
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
@@ -34,7 +35,7 @@ export default function AgreementGate() {
   const handleSubmit = async () => {
     if (!requiredOk || busy) return;
     if (!uid) {
-      window.alert("로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.");
+      showAlert("로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.");
       return;
     }
     setBusy(true);
@@ -43,7 +44,7 @@ export default function AgreementGate() {
       await refreshUser();
       // refreshUser 후 userDoc이 갱신되면 상위 RequireConsent가 통과시켜 서비스로 진입한다.
     } catch (e) {
-      window.alert(e?.message || "동의 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "동의 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }

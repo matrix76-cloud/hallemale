@@ -5,6 +5,7 @@
 // - 라인업은 수락 후 매칭룸에서 각 팀이 확정 → 신청 시엔 사이즈만 선택
 // - createMatchRequest 호출 후 /matchingmanage sent 탭으로 이동 (TeamProfilePage와 동일 방식)
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
@@ -884,7 +885,7 @@ export default function MatchAnalysisPage() {
 
     // ✅ 팀원은 매칭 분석까지만 가능 — 요청 전송은 팀장만
     if (!isTeamLeader) {
-      alert("매칭 요청은 팀장만 보낼 수 있어요. 이 분석 결과를 팀장에게 알려 주세요.");
+      showAlert("매칭 요청은 팀장만 보낼 수 있어요. 이 분석 결과를 팀장에게 알려 주세요.");
       return;
     }
 
@@ -892,12 +893,12 @@ export default function MatchAnalysisPage() {
     const oppCount = view.opp.membersCount || 0;
 
     if (myCount < MIN_TEAM_MEMBERS) {
-      alert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
+      showAlert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
       return;
     }
 
     if (oppCount < MIN_TEAM_MEMBERS) {
-      alert(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
+      showAlert(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
       return;
     }
 
@@ -913,7 +914,7 @@ export default function MatchAnalysisPage() {
     }
 
     if (!selectedMatchSize) {
-      alert("매치 사이즈(3 vs 3 / 4 vs 4 / 5 vs 5)를 선택해 주세요.");
+      showAlert("매치 사이즈(3 vs 3 / 4 vs 4 / 5 vs 5)를 선택해 주세요.");
       return;
     }
 
@@ -938,7 +939,7 @@ export default function MatchAnalysisPage() {
       nav("/matchingmanage", { state: { initialTab: "sent" } });
     } catch (e) {
       console.warn("[MatchAnalysis] create match request failed:", e?.message || e);
-      alert(e?.message || "매칭 신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "매칭 신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       setShowMatchConfirm(false);
       setShowSizeModal(false);
     } finally {

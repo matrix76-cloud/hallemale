@@ -1,5 +1,6 @@
 /* eslint-disable */
 // src/pages/chat/ChatRoomPage.jsx
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useParams } from "react-router-dom";
@@ -389,12 +390,12 @@ export default function ChatRoomPage() {
     if (!chatId) return;
 
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
 
     if (closedInfo.closed) {
-      alert(closedInfo.reason || "종료된 경기라 메시지를 보낼 수 없습니다.");
+      showAlert(closedInfo.reason || "종료된 경기라 메시지를 보낼 수 없습니다.");
       return;
     }
 
@@ -407,7 +408,7 @@ export default function ChatRoomPage() {
       setText("");
     } catch (e) {
       console.warn("[ChatRoom] sendText failed:", e?.message || e);
-      alert("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSending(false);
     }
@@ -417,12 +418,12 @@ export default function ChatRoomPage() {
     if (sending) return;
 
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
 
     if (closedInfo.closed) {
-      alert(closedInfo.reason || "종료된 경기라 메시지를 보낼 수 없습니다.");
+      showAlert(closedInfo.reason || "종료된 경기라 메시지를 보낼 수 없습니다.");
       return;
     }
 
@@ -435,7 +436,7 @@ export default function ChatRoomPage() {
     if (!chatId) return;
 
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
 
@@ -453,7 +454,7 @@ export default function ChatRoomPage() {
       setText("");
     } catch (e2) {
       console.warn("[ChatRoom] sendImages failed:", e2?.message || e2);
-      alert("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSending(false);
     }

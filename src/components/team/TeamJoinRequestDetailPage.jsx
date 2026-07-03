@@ -2,6 +2,7 @@
 // src/pages/team/TeamJoinRequestDetailPage.jsx
 // ✅ 팀장: 참여요청 상세 + 수락/거절
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
@@ -81,16 +82,16 @@ export default function TeamJoinRequestDetailPage() {
     if (!isPending) return;
     if (saving) return;
 
-    const ok = window.confirm("이 참여요청을 수락하고 팀원으로 승인할까요?");
+    const ok = await showConfirm("이 참여요청을 수락하고 팀원으로 승인할까요?");
     if (!ok) return;
 
     setSaving(true);
     try {
       await acceptJoinRequest({ clubId, requestId, leaderUid });
-      window.alert("수락했습니다. 팀원으로 추가되었습니다.");
+      showAlert("수락했습니다. 팀원으로 추가되었습니다.");
       nav(`/team/${clubId}/manage`, { replace: true });
     } catch (e) {
-      window.alert(e?.message || "수락에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "수락에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSaving(false);
     }
@@ -101,16 +102,16 @@ export default function TeamJoinRequestDetailPage() {
     if (!isPending) return;
     if (saving) return;
 
-    const ok = window.confirm("이 참여요청을 거절할까요?");
+    const ok = await showConfirm("이 참여요청을 거절할까요?");
     if (!ok) return;
 
     setSaving(true);
     try {
       await rejectJoinRequest({ clubId, requestId, leaderUid });
-      window.alert("거절했습니다.");
+      showAlert("거절했습니다.");
       nav(`/team/${clubId}/join-requests`, { replace: true });
     } catch (e) {
-      window.alert("거절에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("거절에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSaving(false);
     }

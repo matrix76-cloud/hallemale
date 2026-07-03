@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminSettingsPolicyPage.jsx
 // 어드민 - 약관/정책 (개인정보 처리지침 / 이용약관) 편집
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -214,16 +215,16 @@ export default function AdminSettingsPolicyPage() {
       }
     } catch (e) {
       console.error("[AdminSettingsPolicyPage] load failed", e);
-      window.alert(e?.message || "불러오기에 실패했습니다.");
+      showAlert(e?.message || "불러오기에 실패했습니다.");
     } finally {
       setLoading(false);
     }
   };
 
-  const fillDefault = () => {
+  const fillDefault = async () => {
     const def = LEGAL_DEFAULTS[type];
     if (!def) return;
-    if (content && !window.confirm("현재 입력 내용을 기본 템플릿으로 덮어쓸까요?")) return;
+    if (content && !(await showConfirm("현재 입력 내용을 기본 템플릿으로 덮어쓸까요?"))) return;
     setTitle(def.title || TYPE_LABEL[type]);
     setContent(def.content || "");
     setDirty(true);
@@ -234,9 +235,9 @@ export default function AdminSettingsPolicyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
 
-  const switchType = (next) => {
+  const switchType = async (next) => {
     if (next === type) return;
-    if (dirty && !window.confirm("저장하지 않은 변경사항이 있습니다. 다른 문서로 이동할까요?")) {
+    if (dirty && !(await showConfirm("저장하지 않은 변경사항이 있습니다. 다른 문서로 이동할까요?"))) {
       return;
     }
     setType(next);
@@ -244,16 +245,16 @@ export default function AdminSettingsPolicyPage() {
 
   const handleSave = async () => {
     if (!content.trim()) {
-      if (!window.confirm("내용이 비어있습니다. 그래도 저장하시겠습니까?")) return;
+      if (!await showConfirm("내용이 비어있습니다. 그래도 저장하시겠습니까?")) return;
     }
     setSaving(true);
     try {
       await saveLegalDoc({ type, title: title || TYPE_LABEL[type], content });
-      window.alert("저장되었습니다.");
+      showAlert("저장되었습니다.");
       await load(type);
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "저장에 실패했습니다.");
+      showAlert(e?.message || "저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminUsersReportsPage.jsx
 // 사용자 신고 목록 - 관리자가 보고 차단/무시 처리
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -372,7 +373,7 @@ export default function AdminUsersReportsPage() {
     const reason = String(blockReason || "").trim();
     if (!t?.uid) return;
     if (!reason) {
-      window.alert("차단 사유를 입력해주세요.");
+      showAlert("차단 사유를 입력해주세요.");
       return;
     }
     setBlockBusy(true);
@@ -392,7 +393,7 @@ export default function AdminUsersReportsPage() {
       navigate("/admin/users/blocks");
     } catch (e) {
       console.error("[AdminUsersReportsPage] block failed", e);
-      window.alert(e?.message || "차단 처리에 실패했습니다.");
+      showAlert(e?.message || "차단 처리에 실패했습니다.");
     } finally {
       setBlockBusy(false);
     }
@@ -400,7 +401,7 @@ export default function AdminUsersReportsPage() {
 
   const handleReject = async (report) => {
     if (!report?.id) return;
-    if (!window.confirm("이 신고를 기각하시겠습니까?")) return;
+    if (!await showConfirm("이 신고를 기각하시겠습니까?")) return;
     setBusyId(report.id);
     try {
       await updateReportStatus({
@@ -411,7 +412,7 @@ export default function AdminUsersReportsPage() {
       await load(statusFilter);
     } catch (e) {
       console.error("[AdminUsersReportsPage] reject failed", e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusyId("");
     }

@@ -3,6 +3,7 @@
 // ✅ "매칭 신청" = 내 팀 라인업 선택 → match_requests 생성 → notifications(팀단위) 생성
 // ✅ 페이지에서 DB 직접 접근 금지: matchingService만 호출
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
@@ -1041,7 +1042,7 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
 
   const openReport = () => {
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     setReportReason("");
@@ -1057,7 +1058,7 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const handleSubmitReport = async () => {
     const reason = String(reportReason || "").trim();
     if (!reason) {
-      alert("신고 사유를 입력해주세요.");
+      showAlert("신고 사유를 입력해주세요.");
       return;
     }
     if (!team?.clubId && !team?.id) return;
@@ -1073,10 +1074,10 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
       });
       setReportOpen(false);
       setReportReason("");
-      alert("신고가 접수되었습니다. 검토 후 조치합니다.");
+      showAlert("신고가 접수되었습니다. 검토 후 조치합니다.");
     } catch (e) {
       console.error("[TeamProfilePage] report failed", e);
-      alert(e?.message || "신고 접수에 실패했습니다.");
+      showAlert(e?.message || "신고 접수에 실패했습니다.");
     } finally {
       setReportBusy(false);
     }
@@ -1279,7 +1280,7 @@ useEffect(() => {
 
   const onFavoriteTeam = async () => {
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     if (!teamId) return;
@@ -1295,7 +1296,7 @@ useEffect(() => {
     } catch (e) {
       console.warn("[TeamProfile] setFavoriteTeam failed:", e?.message || e);
       setFav(!next);
-      alert("즐겨찾기 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("즐겨찾기 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setFavBusy(false);
     }
@@ -1305,35 +1306,35 @@ useEffect(() => {
     if (!team) return;
 
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
 
     if (!myClubId) {
-      alert("내 팀 정보를 확인할 수 없습니다. 팀 생성/가입 후 이용해 주세요.");
+      showAlert("내 팀 정보를 확인할 수 없습니다. 팀 생성/가입 후 이용해 주세요.");
       return;
     }
 
     // ✅ 매칭 신청은 팀장만 가능
     if (!isTeamLeader) {
-      alert("매칭 신청은 팀장만 할 수 있어요.");
+      showAlert("매칭 신청은 팀장만 할 수 있어요.");
       return;
     }
 
     const opponentClubId = String(team?.clubId || team?.id || "").trim();
     if (!opponentClubId) {
-      alert("상대 팀 정보를 확인할 수 없습니다.");
+      showAlert("상대 팀 정보를 확인할 수 없습니다.");
       return;
     }
 
     if (opponentClubId === myClubId) {
-      alert("내 팀에는 매칭 신청을 할 수 없습니다.");
+      showAlert("내 팀에는 매칭 신청을 할 수 없습니다.");
       return;
     }
 
     // ✅ 상대 팀 최소 인원 체크 (팀장 포함 3명)
     if (targetMemberCount < MIN_TEAM_MEMBERS) {
-      alert(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
+      showAlert(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
       return;
     }
 
@@ -1344,13 +1345,13 @@ useEffect(() => {
       const myData = await getTeamProfile(myClubId);
       if (!myData) {
         setMyTeamError("내 팀 정보를 불러올 수 없습니다.");
-        alert("내 팀 정보를 불러올 수 없습니다.");
+        showAlert("내 팀 정보를 불러올 수 없습니다.");
         return;
       }
 
       // ✅ 내 팀 최소 인원 체크 (팀장 포함 3명)
       if ((Array.isArray(myData.members) ? myData.members.length : 0) < MIN_TEAM_MEMBERS) {
-        alert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
+        showAlert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
         return;
       }
 
@@ -1361,7 +1362,7 @@ useEffect(() => {
     } catch (e) {
       console.warn("[TeamProfile] load myTeam failed:", e?.message || e);
       setMyTeamError("내 팀 정보를 불러올 수 없습니다.");
-      alert("내 팀 정보를 불러올 수 없습니다.");
+      showAlert("내 팀 정보를 불러올 수 없습니다.");
     } finally {
       setMyTeamLoading(false);
     }
@@ -1375,11 +1376,11 @@ useEffect(() => {
   const onMediaClick = (m) => {
     const href = getMediaHref(m);
     if (!href) {
-      alert("미디어 링크가 없습니다.");
+      showAlert("미디어 링크가 없습니다.");
       return;
     }
     const ok = openExternal(href);
-    if (!ok) alert("링크를 열 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    if (!ok) showAlert("링크를 열 수 없습니다. 잠시 후 다시 시도해 주세요.");
   };
 
   const handleSubmitMatchRequest = async () => {
@@ -1387,19 +1388,19 @@ useEffect(() => {
 
     if (!myTeam || !myClubId) {
       setShowLineupSelectModal(false);
-      alert("내 팀 정보를 확인할 수 없습니다.");
+      showAlert("내 팀 정보를 확인할 수 없습니다.");
       return;
     }
 
     const opponentClubId = String(team?.clubId || team?.id || "").trim();
     if (!opponentClubId) {
       setShowLineupSelectModal(false);
-      alert("상대 팀 정보를 확인할 수 없습니다.");
+      showAlert("상대 팀 정보를 확인할 수 없습니다.");
       return;
     }
 
     if (!selectedMatchSize) {
-      alert("매치 사이즈(3 vs 3 / 4 vs 4 / 5 vs 5)를 선택해 주세요.");
+      showAlert("매치 사이즈(3 vs 3 / 4 vs 4 / 5 vs 5)를 선택해 주세요.");
       return;
     }
 
@@ -1424,7 +1425,7 @@ useEffect(() => {
       nav("/matchingmanage", { state: { initialTab: "sent" } });
     } catch (e) {
       console.warn("[TeamProfile] create match request failed:", e?.message || e);
-      alert(e?.message || "매칭 신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "매칭 신청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       setShowMatchConfirm(false);
       setShowLineupSelectModal(false);
     } finally {

@@ -5,6 +5,7 @@
 // - 소개/홍보: description / promo / activity 변경 시 자동 저장
 // - 저장 버튼 제거, 상태 텍스트로만 표시
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
@@ -177,19 +178,19 @@ export default function TeamManagePage() {
     if (deleteBusy) return;
     if (!clubId) return;
 
-    const ok1 = window.confirm("팀을 삭제할까요? 삭제 후 복구할 수 없습니다.");
+    const ok1 = await showConfirm("팀을 삭제할까요? 삭제 후 복구할 수 없습니다.");
     if (!ok1) return;
 
-    const ok2 = window.confirm("정말 삭제합니다. 팀 멤버들의 팀 연결(activeTeamId/clubId)이 해제됩니다.");
+    const ok2 = await showConfirm("정말 삭제합니다. 팀 멤버들의 팀 연결(activeTeamId/clubId)이 해제됩니다.");
     if (!ok2) return;
 
     try {
       setDeleteBusy(true);
       await deleteClubAndCleanup({ clubId, uid });
-      window.alert("팀이 삭제되었습니다.");
+      showAlert("팀이 삭제되었습니다.");
       nav("/my", { replace: true });
     } catch (e) {
-      window.alert(e?.message || "팀 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "팀 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setDeleteBusy(false);
     }
@@ -249,11 +250,11 @@ export default function TeamManagePage() {
     if (!targetUid) return;
 
     if (targetUid === uid) {
-      window.alert("본인은 강제 탈퇴할 수 없습니다.");
+      showAlert("본인은 강제 탈퇴할 수 없습니다.");
       return;
     }
 
-    const ok = window.confirm("해당 멤버를 팀에서 강제 탈퇴시킬까요? (즉시 반영)");
+    const ok = await showConfirm("해당 멤버를 팀에서 강제 탈퇴시킬까요? (즉시 반영)");
     if (!ok) return;
 
     try {
@@ -267,10 +268,10 @@ export default function TeamManagePage() {
       console.groupEnd();
 
       await refreshMembers();
-      window.alert("강제 탈퇴 처리되었습니다.");
+      showAlert("강제 탈퇴 처리되었습니다.");
     } catch (e) {
       console.warn("[TeamManage] force remove failed:", e?.message || e);
-      window.alert(e?.message || "강제 탈퇴에 실패했습니다.");
+      showAlert(e?.message || "강제 탈퇴에 실패했습니다.");
     } finally {
       setKickBusyUid("");
     }
@@ -476,7 +477,7 @@ export default function TeamManagePage() {
       setLogoSaveMsg("업로드 완료 · 저장 중...");
     } catch (e2) {
       console.warn("[TeamManage] logo upload failed:", e2?.message || e2);
-      window.alert("로고 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("로고 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       setPendingLogo(null);
       setLogoSaveState("error");
       setLogoSaveMsg("로고 저장 실패");
@@ -837,7 +838,7 @@ export default function TeamManagePage() {
       setSearchResult(list);
     } catch (e) {
       console.warn("[TeamManage] search failed:", e?.message || e);
-      window.alert("검색에 실패했습니다.");
+      showAlert("검색에 실패했습니다.");
     } finally {
       setSearching(false);
     }
@@ -845,12 +846,12 @@ export default function TeamManagePage() {
 
   const goInviteMessageStep = () => {
     if (!selectedUserId) {
-      window.alert("초대할 선수를 선택해 주세요.");
+      showAlert("초대할 선수를 선택해 주세요.");
       return;
     }
     const u = (searchResult || []).find((x) => x?.uid === selectedUserId) || null;
     if (!u) {
-      window.alert("선수 정보를 찾을 수 없습니다.");
+      showAlert("선수 정보를 찾을 수 없습니다.");
       return;
     }
     setInviteTarget(u);
@@ -885,11 +886,11 @@ export default function TeamManagePage() {
       console.log("path:", `clubs/${clubId}/invites/${res?.inviteId || ""}`);
       console.groupEnd();
 
-      window.alert("초대를 보냈습니다.");
+      showAlert("초대를 보냈습니다.");
       closeInvite();
     } catch (e) {
       console.warn("[TeamManage] invite failed:", e?.message || e);
-      window.alert("초대 전송에 실패했습니다.");
+      showAlert("초대 전송에 실패했습니다.");
     } finally {
       setInviting(false);
     }
@@ -932,7 +933,7 @@ export default function TeamManagePage() {
   const onAddMediaClick = () => {
     if (mediaBusy) return;
     if ((mediaItems?.length || 0) >= 10) {
-      window.alert("사진/동영상은 최대 10개까지 추가할 수 있어요.");
+      showAlert("사진/동영상은 최대 10개까지 추가할 수 있어요.");
       return;
     }
     openAddPicker();
@@ -983,7 +984,7 @@ export default function TeamManagePage() {
     if (!file) return;
 
     if ((mediaItems?.length || 0) >= 10) {
-      window.alert("사진/동영상은 최대 10개까지 추가할 수 있어요.");
+      showAlert("사진/동영상은 최대 10개까지 추가할 수 있어요.");
       return;
     }
 
@@ -1003,7 +1004,7 @@ export default function TeamManagePage() {
       openCaptionModalFor(itemWithCaption.id);
     } catch (e2) {
       console.warn("[TeamManage] media upload failed:", e2?.message || e2);
-      window.alert("사진 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("사진 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setMediaBusy(false);
     }
@@ -1013,7 +1014,7 @@ export default function TeamManagePage() {
     if (!item?.id) return;
     if (mediaBusy) return;
 
-    const ok = window.confirm("삭제할까요?");
+    const ok = await showConfirm("삭제할까요?");
     if (!ok) return;
 
     setMediaBusy(true);
@@ -1023,7 +1024,7 @@ export default function TeamManagePage() {
       await syncClubMedia(next);
     } catch (e) {
       console.warn("[TeamManage] media delete failed:", e?.message || e);
-      window.alert("삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setMediaBusy(false);
     }

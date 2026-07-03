@@ -4,6 +4,7 @@
 // 시안(할래말래_직접입력.html · 직접1)을 그대로 옮긴 화면.
 // 지도를 움직여 중앙 고정 핀으로 위치를 잡고, idle 시 좌표→주소 역지오코딩.
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { FiMapPin } from "react-icons/fi";
@@ -133,7 +134,7 @@ export default function MapLocationPicker({
     const daum = window.daum;
     const kakao = window.kakao;
     if (!daum || !daum.Postcode) {
-      window.alert("주소 검색 스크립트가 아직 로드되지 않았습니다.");
+      showAlert("주소 검색 스크립트가 아직 로드되지 않았습니다.");
       return;
     }
     new daum.Postcode({
@@ -161,7 +162,7 @@ export default function MapLocationPicker({
   // 내 위치로 이동
   const goMyLocation = () => {
     if (!navigator.geolocation) {
-      window.alert("이 기기에서는 위치 정보를 사용할 수 없습니다.");
+      showAlert("이 기기에서는 위치 정보를 사용할 수 없습니다.");
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -174,7 +175,7 @@ export default function MapLocationPicker({
         }
         centerRef.current = { lat, lng };
       },
-      () => window.alert("위치 정보를 가져오지 못했습니다."),
+      () => showAlert("위치 정보를 가져오지 못했습니다."),
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };

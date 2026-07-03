@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminCommunityPostsPage.jsx
 // 어드민 - 커뮤니티 게시글 관리
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -351,7 +352,7 @@ export default function AdminCommunityPostsPage() {
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusyId("");
     }
@@ -365,7 +366,7 @@ export default function AdminCommunityPostsPage() {
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusyId("");
     }
@@ -373,7 +374,7 @@ export default function AdminCommunityPostsPage() {
 
   const handleDelete = async (r) => {
     if (!r?.id || busyId) return;
-    if (!window.confirm(`이 게시글을 삭제하시겠습니까?\n\n"${r.title}"\n\n삭제하면 댓글/좋아요까지 함께 사라지고 복구할 수 없습니다.`)) {
+    if (!await showConfirm(`이 게시글을 삭제하시겠습니까?\n\n"${r.title}"\n\n삭제하면 댓글/좋아요까지 함께 사라지고 복구할 수 없습니다.`)) {
       return;
     }
     setBusyId(r.id);
@@ -382,7 +383,7 @@ export default function AdminCommunityPostsPage() {
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusyId("");
     }

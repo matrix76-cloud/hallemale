@@ -1,5 +1,6 @@
 /* eslint-disable */
 // src/pages/my/MyProfileMediaEditPage.jsx
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
@@ -74,12 +75,12 @@ export default function MyProfileMediaEditPage() {
 
   const handleAddMediaClick = () => {
     if (!uid) {
-      window.alert("로그인 정보가 없습니다.");
+      showAlert("로그인 정보가 없습니다.");
       return;
     }
     if (mediaBusy) return;
     if ((mediaItems?.length || 0) >= 10) {
-      window.alert("사진/동영상은 최대 10개까지 추가할 수 있어요.");
+      showAlert("사진/동영상은 최대 10개까지 추가할 수 있어요.");
       return;
     }
     openAddPicker();
@@ -127,11 +128,11 @@ export default function MyProfileMediaEditPage() {
     e.target.value = "";
     if (!file) return;
     if (!uid) {
-      window.alert("로그인 정보가 없습니다.");
+      showAlert("로그인 정보가 없습니다.");
       return;
     }
     if ((mediaItems?.length || 0) >= 10) {
-      window.alert("사진/동영상은 최대 10개까지 추가할 수 있어요.");
+      showAlert("사진/동영상은 최대 10개까지 추가할 수 있어요.");
       return;
     }
 
@@ -150,7 +151,7 @@ export default function MyProfileMediaEditPage() {
       openCaptionModalFor(itemWithCaption.id);
     } catch (e2) {
       console.warn("[MyProfileMediaEdit] media upload failed:", e2?.message || e2);
-      window.alert("사진 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("사진 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setMediaBusy(false);
     }
@@ -158,7 +159,7 @@ export default function MyProfileMediaEditPage() {
 
   const handleRemoveMedia = async (item) => {
     if (!item?.id || mediaBusy) return;
-    const ok = window.confirm("삭제할까요?");
+    const ok = await showConfirm("삭제할까요?");
     if (!ok) return;
     setMediaBusy(true);
     try {
@@ -168,7 +169,7 @@ export default function MyProfileMediaEditPage() {
       await syncMediaToUser(next);
     } catch (e) {
       console.warn("[MyProfileMediaEdit] media delete failed:", e?.message || e);
-      window.alert("삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setMediaBusy(false);
     }

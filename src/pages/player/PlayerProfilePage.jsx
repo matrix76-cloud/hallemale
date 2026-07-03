@@ -2,6 +2,7 @@
 // src/pages/player/PlayerProfilePage.jsx
 // ✅ HeroName 옆 "팀장" pill 추가 (player.isTeamCaptain === true)
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
@@ -860,7 +861,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
 
   const onFavoritePlayer = async () => {
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     if (!playerId) return;
@@ -880,7 +881,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
     } catch (e) {
       console.warn("[PlayerProfilePage] setFavoritePlayer failed:", e?.message || e);
       setFav(!next);
-      alert("즐겨찾기 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("즐겨찾기 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setFavBusy(false);
     }
@@ -888,7 +889,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
 
   const openReport = () => {
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     setReportReason("");
@@ -904,7 +905,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
   const handleSubmitReport = async () => {
     const reason = String(reportReason || "").trim();
     if (!reason) {
-      alert("신고 사유를 입력해주세요.");
+      showAlert("신고 사유를 입력해주세요.");
       return;
     }
     if (!playerId || !myUid) return;
@@ -919,10 +920,10 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
       });
       setReportOpen(false);
       setReportReason("");
-      alert("신고가 접수되었습니다. 검토 후 조치합니다.");
+      showAlert("신고가 접수되었습니다. 검토 후 조치합니다.");
     } catch (e) {
       console.error("[PlayerProfilePage] report failed", e);
-      alert(e?.message || "신고 접수에 실패했습니다.");
+      showAlert(e?.message || "신고 접수에 실패했습니다.");
     } finally {
       setReportBusy(false);
     }
@@ -931,29 +932,29 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
   // 사용자 차단 — 이 사용자의 게시글/댓글을 본인 피드에서 숨김 (신고와 분리)
   const handleBlock = async () => {
     if (!myUid) {
-      alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     if (isSelf) {
-      alert("본인은 차단할 수 없습니다.");
+      showAlert("본인은 차단할 수 없습니다.");
       return;
     }
     if (!playerId) return;
     const who =
       player?.nickname || player?.name ? `'${player.nickname || player.name}'님` : "이 사용자";
     if (
-      !window.confirm(
+      !await showConfirm(
         `${who}을 차단할까요?\n차단하면 이 사용자의 게시글·댓글이\n회원님 피드에서 더 이상 보이지 않습니다.`
       )
     )
       return;
     try {
       await blockAuthorAndHidePost({ myUid: String(myUid), targetUid: String(playerId) });
-      alert("차단했습니다.\n이 사용자의 글은 회원님 피드에서 숨겨집니다.");
+      showAlert("차단했습니다.\n이 사용자의 글은 회원님 피드에서 숨겨집니다.");
       nav(-1);
     } catch (e) {
       console.error("[PlayerProfilePage] block failed", e);
-      alert(e?.message || "차단에 실패했습니다.");
+      showAlert(e?.message || "차단에 실패했습니다.");
     }
   };
 

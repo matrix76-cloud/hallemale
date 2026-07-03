@@ -4,6 +4,7 @@
 // - 모든 팀 리스트
 // - 팀별 매칭 상태 + 액션 버튼 (매칭 신청 / 다시 요청하기)
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
@@ -275,7 +276,7 @@ export default function MatchingHomePage() {
       status,
       direction,
     });
-    alert(
+    showAlert(
       `${team.name} 팀에 "${
         status === "none" ? "매칭 신청" : "다시 요청"
       }" 액션을 보냈다고 가정합니다.`

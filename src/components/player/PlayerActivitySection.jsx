@@ -2,6 +2,7 @@
 // src/components/player/PlayerActivitySection.jsx
 // 워치 기반 활동량 섹션 — 본인 프로필에서만 기록 UI 노출, 타 선수는 조회만
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styled, { useTheme } from "styled-components";
 import { FiHeart, FiZap, FiWatch, FiActivity } from "react-icons/fi";
@@ -215,7 +216,7 @@ export default function PlayerActivitySection({ playerId, isSelf }) {
       const r = await checkHealthAvailable();
       if (!r?.available) {
         setAvailable(false);
-        alert(
+        showAlert(
           r?.status === "update_required"
             ? "Health Connect 업데이트가 필요합니다."
             : "워치/헬스 데이터를 사용할 수 없습니다."
@@ -224,7 +225,7 @@ export default function PlayerActivitySection({ playerId, isSelf }) {
       }
       const perm = await requestHealthPermission();
       if (!perm?.success) {
-        alert("권한이 거부되었습니다.");
+        showAlert("권한이 거부되었습니다.");
         return;
       }
       setAvailable(true);
@@ -255,10 +256,10 @@ export default function PlayerActivitySection({ playerId, isSelf }) {
           await loadSessions();
         } catch (e) {
           console.warn("[PlayerActivity] save error", e?.message);
-          alert("기록 저장에 실패했습니다.");
+          showAlert("기록 저장에 실패했습니다.");
         }
       } else {
-        alert("수집된 활동 데이터가 없습니다. 경기 중 워치가 연결돼 있어야 합니다.");
+        showAlert("수집된 활동 데이터가 없습니다. 경기 중 워치가 연결돼 있어야 합니다.");
       }
     } finally {
       setBusy(false);

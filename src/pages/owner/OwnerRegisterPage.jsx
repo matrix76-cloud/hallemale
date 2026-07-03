@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/owner/OwnerRegisterPage.jsx
 // 구장 등록(심사 신청) 폼 — 플랩 구장정보 참고 필드 + 예약 대상(코트) 여러 개
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -229,7 +230,7 @@ export default function OwnerRegisterPage() {
       const { imageUrl, storagePath } = await uploadVenueImage(file);
       setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
     } catch (err) {
-      window.alert(err?.message || "사진 업로드에 실패했어요.");
+      showAlert(err?.message || "사진 업로드에 실패했어요.");
     } finally {
       setUploading(false);
     }
@@ -238,10 +239,10 @@ export default function OwnerRegisterPage() {
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
 
   const handleSubmit = async () => {
-    if (!form.name.trim()) return window.alert("구장명을 입력해주세요.");
-    if (!form.address.trim()) return window.alert("주소를 입력해주세요.");
-    if (!courts.length) return window.alert("예약 대상(코트)을 최소 1개 등록해주세요.");
-    if (courts.some((c) => !c.name.trim())) return window.alert("코트 이름을 모두 입력해주세요.");
+    if (!form.name.trim()) return showAlert("구장명을 입력해주세요.");
+    if (!form.address.trim()) return showAlert("주소를 입력해주세요.");
+    if (!courts.length) return showAlert("예약 대상(코트)을 최소 1개 등록해주세요.");
+    if (courts.some((c) => !c.name.trim())) return showAlert("코트 이름을 모두 입력해주세요.");
 
     setBusy(true);
     try {
@@ -262,7 +263,7 @@ export default function OwnerRegisterPage() {
       await refresh();
       navigate("/owner/home", { replace: true });
     } catch (e) {
-      window.alert(e?.message || "신청에 실패했어요. 잠시 후 다시 시도해주세요.");
+      showAlert(e?.message || "신청에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setBusy(false);
     }

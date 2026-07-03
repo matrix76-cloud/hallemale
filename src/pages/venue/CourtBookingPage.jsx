@@ -2,6 +2,7 @@
 // src/pages/venue/CourtBookingPage.jsx
 // 코트 상세 — 날짜·시간(빈 슬롯) 선택 → 결제/예약 또는 매칭룸 구장·일정 제안
 // 진입: /venue-book/:id/court/:courtId  (구장 상세 → 코트 카드 클릭)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -185,7 +186,7 @@ export default function CourtBookingPage() {
     const opponentClubId = isActor ? matchInfo.targetClubId : matchInfo.actorClubId;
     const myTeamName = isActor ? matchInfo.fromName : matchInfo.toName;
     const oppTeamName = isActor ? matchInfo.toName : matchInfo.fromName;
-    const ok = window.confirm(`${venue.name}\n${date} ${selected.start}~${selected.end}\n\n이 구장·일정으로 ${oppTeamName || "상대팀"}에게 제안할까요?`);
+    const ok = await showConfirm(`${venue.name}\n${date} ${selected.start}~${selected.end}\n\n이 구장·일정으로 ${oppTeamName || "상대팀"}에게 제안할까요?`);
     if (!ok) return;
     setPaying(true);
     try {

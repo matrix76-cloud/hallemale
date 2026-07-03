@@ -3,10 +3,12 @@
 // 다음(카카오) 주소검색 팝업 + 좌표 지오코딩.
 // index.html 에 postcode.v2.js / kakao maps sdk(services) 가 이미 로드돼 있음.
 
+import { showAlert } from "../../../utils/appDialog";
+
 export function openDaumPostcode(onComplete) {
   const daum = window.daum;
   if (!daum || !daum.Postcode) {
-    window.alert("주소 검색 스크립트가 아직 로드되지 않았어요. 잠시 후 다시 시도해주세요.");
+    showAlert("주소 검색 스크립트가 아직 로드되지 않았어요. 잠시 후 다시 시도해주세요.");
     return;
   }
   new daum.Postcode({

@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminChatRoomDetailPage.jsx
 // 어드민 - 채팅방 상세 (메시지 모니터링)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
@@ -326,7 +327,7 @@ export default function AdminChatRoomDetailPage() {
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -335,7 +336,7 @@ export default function AdminChatRoomDetailPage() {
   const handleDeleteRoom = async () => {
     if (!room) return;
     const names = (room.participants || []).map((p) => p.name).join(", ");
-    if (!window.confirm(`이 채팅방을 삭제하시겠습니까?\n\n참여자: ${names}\n\n메시지까지 모두 사라지고 복구할 수 없습니다.`)) {
+    if (!await showConfirm(`이 채팅방을 삭제하시겠습니까?\n\n참여자: ${names}\n\n메시지까지 모두 사라지고 복구할 수 없습니다.`)) {
       return;
     }
     setBusy(true);
@@ -344,21 +345,21 @@ export default function AdminChatRoomDetailPage() {
       navigate("/admin/chat/list", { replace: true });
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
       setBusy(false);
     }
   };
 
   const handleDeleteMessage = async (m) => {
     if (!room || !m?.id) return;
-    if (!window.confirm("이 메시지를 삭제하시겠습니까?")) return;
+    if (!await showConfirm("이 메시지를 삭제하시겠습니까?")) return;
     setBusy(true);
     try {
       await deleteChatMessageByAdmin({ chatId: room.id, messageId: m.id });
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusy(false);
     }

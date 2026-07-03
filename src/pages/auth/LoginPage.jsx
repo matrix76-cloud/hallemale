@@ -1,5 +1,6 @@
 /* eslint-disable */
 // src/pages/auth/LoginPage.jsx
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
@@ -40,7 +41,7 @@ export default function LoginPage() {
           code === "cancelled";
         if (!silent) {
           // 실기기 진단용: 네이티브/웹이 돌려준 실제 오류코드를 함께 표시
-          window.alert(`구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.\n(오류: ${code || "unknown"})`);
+          showAlert(`구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.\n(오류: ${code || "unknown"})`);
         }
         return;
       }
@@ -48,7 +49,7 @@ export default function LoginPage() {
       // 팝업 성공 시 즉시 홈으로 (redirect 폴백이면 이미 페이지가 이동됨)
       navigate("/home", { replace: true });
     } catch (err) {
-      window.alert("구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      showAlert("구글 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSubmitting(false);
     }
@@ -64,11 +65,11 @@ export default function LoginPage() {
       if (!res || res.success !== true) {
         const code = res?.error_code || "";
         if (code === "web_unsupported" || code === "not_in_app") {
-          window.alert("카카오 로그인은 앱에서만 이용할 수 있어요.");
+          showAlert("카카오 로그인은 앱에서만 이용할 수 있어요.");
         } else if (code === "timeout") {
-          window.alert("로그인 시간이 초과되었어요. 다시 시도해 주세요.");
+          showAlert("로그인 시간이 초과되었어요. 다시 시도해 주세요.");
         } else {
-          window.alert("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+          showAlert("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
         }
         return;
       }
@@ -76,7 +77,7 @@ export default function LoginPage() {
       // 성공 시 즉시 홈으로 이동
       navigate("/home", { replace: true });
     } catch (err) {
-      window.alert("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      showAlert("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsSubmitting(false);
     }

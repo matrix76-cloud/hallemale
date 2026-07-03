@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminChatListPage.jsx
 // 어드민 - 채팅방 목록 (모니터링/잠금/삭제)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -332,7 +333,7 @@ export default function AdminChatListPage() {
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusyId("");
     }
@@ -341,7 +342,7 @@ export default function AdminChatListPage() {
   const handleDelete = async (r) => {
     if (!r?.id || busyId) return;
     const names = (r.participants || []).map((p) => p.name).join(", ");
-    if (!window.confirm(`이 채팅방을 삭제하시겠습니까?\n\n참여자: ${names}\n\n메시지까지 모두 사라지고 복구할 수 없습니다.`)) {
+    if (!await showConfirm(`이 채팅방을 삭제하시겠습니까?\n\n참여자: ${names}\n\n메시지까지 모두 사라지고 복구할 수 없습니다.`)) {
       return;
     }
     setBusyId(r.id);
@@ -350,7 +351,7 @@ export default function AdminChatListPage() {
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusyId("");
     }

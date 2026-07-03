@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminUsersBlocksPage.jsx
 // 차단된 회원 목록 + 해제 기능
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -218,7 +219,7 @@ export default function AdminUsersBlocksPage() {
   const handleUnblock = async (uid, nickname) => {
     if (!uid) return;
     if (busyUid) return;
-    if (!window.confirm(`${nickname || uid} 회원의 차단을 해제하시겠습니까?`)) {
+    if (!await showConfirm(`${nickname || uid} 회원의 차단을 해제하시겠습니까?`)) {
       return;
     }
     setBusyUid(uid);
@@ -227,7 +228,7 @@ export default function AdminUsersBlocksPage() {
       await load();
     } catch (e) {
       console.error("[AdminUsersReportsPage] unblock failed", e);
-      window.alert(e?.message || "차단 해제에 실패했습니다.");
+      showAlert(e?.message || "차단 해제에 실패했습니다.");
     } finally {
       setBusyUid("");
     }

@@ -1,5 +1,6 @@
 /* eslint-disable */
 // src/components/home/MyProfilePage.jsx
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
@@ -124,7 +125,7 @@ export default function MyProfilePage() {
 
     if (key === "join-requests") {
       if (!teamId) {
-        window.alert("팀 정보가 없습니다.");
+        showAlert("팀 정보가 없습니다.");
         return;
       }
       nav(`/team/${teamId}/join-requests`);
@@ -139,11 +140,11 @@ export default function MyProfilePage() {
 
     if (key === "manage") {
       if (!hasTeam) {
-        window.alert("팀 정보가 없습니다. 팀을 생성한 뒤 다시 시도해 주세요.");
+        showAlert("팀 정보가 없습니다. 팀을 생성한 뒤 다시 시도해 주세요.");
         return;
       }
       if (!isTeamLeader) {
-        window.alert("팀장만 팀 관리를 할 수 있어요.");
+        showAlert("팀장만 팀 관리를 할 수 있어요.");
         return;
       }
       nav(`/team/${teamId}/manage`);
@@ -152,7 +153,7 @@ export default function MyProfilePage() {
 
     if (key === "view") {
       if (!hasTeam) {
-        window.alert("팀 정보가 없습니다. 팀을 선택한 뒤 다시 시도해 주세요.");
+        showAlert("팀 정보가 없습니다. 팀을 선택한 뒤 다시 시도해 주세요.");
         return;
       }
       nav(`/team/${teamId}`);
@@ -184,7 +185,7 @@ export default function MyProfilePage() {
     if (key === "cs") nav("/my/inquiry");
 
     if (key === "logout") {
-      const ok = window.confirm("로그아웃할까요?");
+      const ok = await showConfirm("로그아웃할까요?");
       if (!ok) return;
       try {
         await signOut();
@@ -204,11 +205,11 @@ export default function MyProfilePage() {
 
   const openLeaveTeam = () => {
     if (!uid) {
-      window.alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     if (!hasTeam || !teamId) {
-      window.alert("팀 정보가 없습니다.");
+      showAlert("팀 정보가 없습니다.");
       return;
     }
     // 팀장이라도 혼자인 팀이면 탈퇴(해체) 허용. 팀원이 더 있으면 이임 후 가능.
@@ -264,15 +265,15 @@ export default function MyProfilePage() {
 
   const openTransferLeader = async () => {
     if (!uid) {
-      window.alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     if (!hasTeam || !teamId) {
-      window.alert("팀 정보가 없습니다.");
+      showAlert("팀 정보가 없습니다.");
       return;
     }
     if (!isTeamLeader) {
-      window.alert("팀장만 권한을 이임할 수 있어요.");
+      showAlert("팀장만 권한을 이임할 수 있어요.");
       return;
     }
 
@@ -304,11 +305,11 @@ export default function MyProfilePage() {
   const runTransferLeader = async () => {
     if (!uid || !teamId) return;
     if (!selectedTargetUid) {
-      window.alert("이임할 팀원을 선택해 주세요.");
+      showAlert("이임할 팀원을 선택해 주세요.");
       return;
     }
 
-    const ok = window.confirm("팀장 권한을 이임할까요? 이 작업은 되돌릴 수 없습니다.");
+    const ok = await showConfirm("팀장 권한을 이임할까요? 이 작업은 되돌릴 수 없습니다.");
     if (!ok) return;
 
     setTransferBusy(true);

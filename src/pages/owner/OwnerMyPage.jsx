@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/owner/OwnerMyPage.jsx
 // 내정보 — 계정 정보 + 로그아웃
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -60,7 +61,7 @@ export default function OwnerMyPage() {
 
   const handleLogout = async () => {
     if (busy) return;
-    if (!window.confirm("로그아웃 하시겠어요?")) return;
+    if (!await showConfirm("로그아웃 하시겠어요?")) return;
     setBusy(true);
     try {
       await signOut();

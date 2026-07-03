@@ -4,6 +4,7 @@
 // - 지도 뷰: 전체 지도 + 가격 핀 + 하단 가로 스와이프 카드 캐러셀(중앙 카드 ↔ 핀 강조 동기화) + 인덱스 + 리스트로 보기
 // - 리스트 뷰: 세로 카드 리스트 + 지도로 보기
 // ⚠️ 평점/거리 데이터는 venues 모델에 없음 → 평점 없으면 "신규", 거리 생략(추후 연동)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -353,7 +354,7 @@ export default function VenueListPage() {
       return;
     }
     if (!navigator.geolocation) {
-      window.alert("이 기기에서는 위치 정보를 사용할 수 없어요.");
+      showAlert("이 기기에서는 위치 정보를 사용할 수 없어요.");
       return;
     }
     setLocating(true);
@@ -365,7 +366,7 @@ export default function VenueListPage() {
       },
       (err) => {
         stopLocate();
-        window.alert(
+        showAlert(
           err && err.code === 1
             ? "위치 권한이 거부됐어요. 기기/브라우저 설정에서 위치 권한을 허용해 주세요."
             : "현재 위치를 가져오지 못했어요. 잠시 후 다시 시도해 주세요."

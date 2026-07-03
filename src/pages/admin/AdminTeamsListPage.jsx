@@ -1,5 +1,6 @@
 /* eslint-disable */
 // src/pages/admin/AdminTeamsListPage.jsx
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -595,11 +596,11 @@ export default function AdminTeamsListPage() {
     const reason = String(blockReason || "").trim();
     if (!clubId) return;
     if (!reason) {
-      window.alert("차단 사유를 입력해주세요.");
+      showAlert("차단 사유를 입력해주세요.");
       return;
     }
 
-    if (!window.confirm(`${blockTarget?.name || clubId} 팀을 차단하시겠습니까?`)) {
+    if (!await showConfirm(`${blockTarget?.name || clubId} 팀을 차단하시겠습니까?`)) {
       return;
     }
 
@@ -612,7 +613,7 @@ export default function AdminTeamsListPage() {
       navigate("/admin/teams/blocks");
     } catch (e) {
       console.error("[AdminTeamsListPage] block failed", e);
-      window.alert(e?.message || "차단 처리에 실패했습니다.");
+      showAlert(e?.message || "차단 처리에 실패했습니다.");
     } finally {
       setBlockBusy(false);
     }

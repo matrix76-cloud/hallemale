@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminTeamsBlocksPage.jsx
 // 차단된 팀 목록 + 해제 기능
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -222,7 +223,7 @@ export default function AdminTeamsBlocksPage() {
   const handleUnblock = async (clubId, name) => {
     if (!clubId) return;
     if (busyId) return;
-    if (!window.confirm(`${name || clubId} 팀의 차단을 해제하시겠습니까?`)) {
+    if (!await showConfirm(`${name || clubId} 팀의 차단을 해제하시겠습니까?`)) {
       return;
     }
     setBusyId(clubId);
@@ -231,7 +232,7 @@ export default function AdminTeamsBlocksPage() {
       await load();
     } catch (e) {
       console.error("[AdminTeamsBlocksPage] unblock failed", e);
-      window.alert(e?.message || "차단 해제에 실패했습니다.");
+      showAlert(e?.message || "차단 해제에 실패했습니다.");
     } finally {
       setBusyId("");
     }

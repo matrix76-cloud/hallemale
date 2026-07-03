@@ -6,6 +6,7 @@
 // - stats 없으면 0경기 · 승률 0% 표시
 // - 신청 보내기: clubs/{clubId}/joinRequests에 pending 생성
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { FiX, FiSearch } from "react-icons/fi";
@@ -120,11 +121,11 @@ export default function TeamSelectModal({
 
   const handleSubmit = async () => {
     if (!myUid) {
-      window.alert("로그인이 필요합니다.");
+      showAlert("로그인이 필요합니다.");
       return;
     }
     if (!selectedClubId) {
-      window.alert("지원할 팀을 선택해 주세요.");
+      showAlert("지원할 팀을 선택해 주세요.");
       return;
     }
 

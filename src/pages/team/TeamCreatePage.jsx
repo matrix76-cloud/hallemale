@@ -6,6 +6,7 @@
 // - STEP 3: 확인 & 생성 (실제 생성: Firestore + Storage)
 // ✅ 중복 생성 방지: submitLockRef + isSubmitting 이중 방어
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useMemo, useRef, useState } from "react";
 import styled, { useTheme } from "styled-components";
 import { useNavigate } from "react-router-dom";
@@ -588,7 +589,7 @@ export default function TeamCreatePage() {
     if (!file) return;
 
     if (file.size > 6 * 1024 * 1024) {
-      window.alert("로고 이미지는 최대 6MB까지 업로드할 수 있어요.");
+      showAlert("로고 이미지는 최대 6MB까지 업로드할 수 있어요.");
       return;
     }
 
@@ -612,7 +613,7 @@ export default function TeamCreatePage() {
     if (step === 1) {
       // ✅ 로고(팀 프로필 사진) 필수
       if (!logoFile) {
-        window.alert("팀 로고 이미지를 등록해 주세요. (필수)");
+        showAlert("팀 로고 이미지를 등록해 주세요. (필수)");
         return;
       }
       setStep(2);
@@ -632,7 +633,7 @@ export default function TeamCreatePage() {
 
   const handleSubmit = async () => {
     if (!canSubmit) {
-      if (!uid) window.alert("로그인이 필요합니다.");
+      if (!uid) showAlert("로그인이 필요합니다.");
       return;
     }
 
@@ -665,11 +666,11 @@ export default function TeamCreatePage() {
         logoFile,
       });
 
-      window.alert("팀이 생성되었습니다.");
+      showAlert("팀이 생성되었습니다.");
       nav(`/my`);
     } catch (e) {
       console.warn("[TeamCreate] create failed:", e?.message || e);
-      window.alert(e?.message || "팀 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "팀 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       // ✅ 실패 시에만 재시도 허용
       submitLockRef.current = false;
     } finally {

@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminSettingsAdminsPage.jsx
 // 어드민 - 운영자 계정 관리 (목록/추가/삭제/비밀번호 변경)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -278,7 +279,7 @@ export default function AdminSettingsAdminsPage() {
       setRows(Array.isArray(list) ? list : []);
     } catch (e) {
       console.error("[AdminSettingsAdminsPage] load failed", e);
-      window.alert(e?.message || "불러오기에 실패했습니다.");
+      showAlert(e?.message || "불러오기에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -323,7 +324,7 @@ export default function AdminSettingsAdminsPage() {
       setCreateOpen(false);
       await load();
     } catch (e) {
-      window.alert(e?.message || "추가에 실패했습니다.");
+      showAlert(e?.message || "추가에 실패했습니다.");
     } finally {
       setCreateBusy(false);
     }
@@ -332,20 +333,20 @@ export default function AdminSettingsAdminsPage() {
   const handleDelete = async (r) => {
     if (!r?.id || busyId) return;
     if (r.role === "super") {
-      window.alert("최고 관리자는 삭제할 수 없습니다.");
+      showAlert("최고 관리자는 삭제할 수 없습니다.");
       return;
     }
     if (r.id === myAdminId) {
-      window.alert("현재 로그인된 본인 계정은 삭제할 수 없습니다.");
+      showAlert("현재 로그인된 본인 계정은 삭제할 수 없습니다.");
       return;
     }
-    if (!window.confirm(`'${r.name}' (${r.id}) 운영자 계정을 삭제하시겠습니까?`)) return;
+    if (!await showConfirm(`'${r.name}' (${r.id}) 운영자 계정을 삭제하시겠습니까?`)) return;
     setBusyId(r.id);
     try {
       await deleteAdminAccount({ id: r.id });
       await load();
     } catch (e) {
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusyId("");
     }
@@ -369,10 +370,10 @@ export default function AdminSettingsAdminsPage() {
     setPwBusy(true);
     try {
       await changeAdminPassword({ id: pwTarget.id, newPassword: pwValue });
-      window.alert("비밀번호가 변경되었습니다.");
+      showAlert("비밀번호가 변경되었습니다.");
       closePw();
     } catch (e) {
-      window.alert(e?.message || "비밀번호 변경에 실패했습니다.");
+      showAlert(e?.message || "비밀번호 변경에 실패했습니다.");
     } finally {
       setPwBusy(false);
     }

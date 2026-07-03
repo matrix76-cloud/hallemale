@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminCommunityPostDetailPage.jsx
 // 어드민 - 커뮤니티 게시글 상세
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
@@ -350,7 +351,7 @@ export default function AdminCommunityPostDetailPage() {
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -364,7 +365,7 @@ export default function AdminCommunityPostDetailPage() {
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -372,7 +373,7 @@ export default function AdminCommunityPostDetailPage() {
 
   const handleDeletePost = async () => {
     if (!post) return;
-    if (!window.confirm(`이 게시글을 삭제하시겠습니까?\n\n"${post.title}"\n\n댓글/좋아요까지 모두 사라지고 복구할 수 없습니다.`)) {
+    if (!await showConfirm(`이 게시글을 삭제하시겠습니까?\n\n"${post.title}"\n\n댓글/좋아요까지 모두 사라지고 복구할 수 없습니다.`)) {
       return;
     }
     setBusy(true);
@@ -381,21 +382,21 @@ export default function AdminCommunityPostDetailPage() {
       navigate("/admin/community/posts", { replace: true });
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
       setBusy(false);
     }
   };
 
   const handleDeleteComment = async (c) => {
     if (!post || !c?.id) return;
-    if (!window.confirm("이 댓글을 삭제하시겠습니까?")) return;
+    if (!await showConfirm("이 댓글을 삭제하시겠습니까?")) return;
     setBusy(true);
     try {
       await deleteCommunityCommentByAdmin({ postId: post.id, commentId: c.id });
       await load();
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusy(false);
     }

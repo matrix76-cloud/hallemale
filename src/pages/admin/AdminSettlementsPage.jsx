@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminSettlementsPage.jsx
 // 결제 정산 관리 — 구장별 매출/수수료/정산액 집계 + 정산 처리.
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -79,18 +80,18 @@ export default function AdminSettlementsPage() {
 
   const settleVenue = async (g) => {
     const pendingIds = g.items.filter((r) => !r.settled).map((r) => r.id);
-    if (!pendingIds.length) return window.alert("정산할 건이 없습니다.");
-    if (!window.confirm(`"${g.venueName}" 미정산 ${pendingIds.length}건을 정산 완료 처리할까요?\n정산액: ${won(calcSettlement(g.items.filter((r) => !r.settled).reduce((s, r) => s + r.price, 0)).net)}`)) return;
+    if (!pendingIds.length) return showAlert("정산할 건이 없습니다.");
+    if (!await showConfirm(`"${g.venueName}" 미정산 ${pendingIds.length}건을 정산 완료 처리할까요?\n정산액: ${won(calcSettlement(g.items.filter((r) => !r.settled).reduce((s, r) => s + r.price, 0)).net)}`)) return;
     setBusy(true);
     try { await markManySettled(pendingIds, true); await load(); }
-    catch (e) { window.alert(e?.message || "정산 처리 실패"); }
+    catch (e) { showAlert(e?.message || "정산 처리 실패"); }
     finally { setBusy(false); }
   };
 
   const toggleOne = async (r) => {
     setBusy(true);
     try { await markReservationSettled(r.id, !r.settled); await load(); }
-    catch (e) { window.alert(e?.message || "처리 실패"); }
+    catch (e) { showAlert(e?.message || "처리 실패"); }
     finally { setBusy(false); }
   };
 

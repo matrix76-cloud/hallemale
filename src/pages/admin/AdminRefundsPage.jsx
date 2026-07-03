@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminRefundsPage.jsx
 // 환불 관리 — 결제 완료된 예약을 취소/환불(피지 복구)하고 환불 내역을 관리.
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -76,18 +77,18 @@ export default function AdminRefundsPage() {
     );
     if (input === null) return;
     const amount = Number(String(input).replace(/[^0-9]/g, ""));
-    if (!amount || amount <= 0) return window.alert("환불액이 올바르지 않습니다.");
-    if (amount > r.price) return window.alert("환불액이 결제액보다 클 수 없습니다.");
+    if (!amount || amount <= 0) return showAlert("환불액이 올바르지 않습니다.");
+    if (amount > r.price) return showAlert("환불액이 결제액보다 클 수 없습니다.");
     const reason = window.prompt("환불 사유 (선택, 비워도 됨):", "") || "";
-    if (!window.confirm(`${r.userName || "이용자"} 님에게 ${won(amount)}을 환불(피지 복구)하고 예약을 취소할까요?`)) return;
+    if (!await showConfirm(`${r.userName || "이용자"} 님에게 ${won(amount)}을 환불(피지 복구)하고 예약을 취소할까요?`)) return;
 
     setBusy(true);
     try {
       await processRefund(r, amount, reason);
-      window.alert("환불 처리 완료 — 피지가 복구되고 예약이 취소되었습니다.");
+      showAlert("환불 처리 완료 — 피지가 복구되고 예약이 취소되었습니다.");
       await load();
     } catch (e) {
-      window.alert(e?.message || "환불 처리 실패");
+      showAlert(e?.message || "환불 처리 실패");
     } finally { setBusy(false); }
   };
 

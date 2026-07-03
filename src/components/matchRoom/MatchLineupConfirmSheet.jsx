@@ -3,6 +3,7 @@
 // 매칭룸(조율) 라인업 확정 시트
 // - 내 팀 로스터에서 주전 N명(=매치 사이즈) 선택 + 후보(벤치) 선택
 // - 탭으로 역할 순환: 미선택 → 주전 → 후보 → 미선택
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import {
@@ -259,7 +260,7 @@ export default function MatchLineupConfirmSheet({
       onConfirmed && (await onConfirmed());
       onClose && onClose();
     } catch (e) {
-      window.alert(e?.message || "라인업 확정에 실패했습니다.");
+      showAlert(e?.message || "라인업 확정에 실패했습니다.");
     } finally {
       setBusy(false);
     }

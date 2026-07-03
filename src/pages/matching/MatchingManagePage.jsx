@@ -1,5 +1,6 @@
 /* eslint-disable */
 // src/pages/matching/MatchingHomePage.jsx
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -1007,13 +1008,13 @@ export default function MatchingManagePage() {
     const latest = row?.latest || null;
     const matchId = toStr(latest?.matchId);
     if (!latest || !matchId) {
-      alert("매칭 정보를 확인할 수 없습니다.");
+      showAlert("매칭 정보를 확인할 수 없습니다.");
       return;
     }
 
     // ✅ 매칭 요청 수락/거절/취소는 팀장만 가능
     if (!isTeamLeader) {
-      alert("매칭 요청 수락·거절은 팀장만 할 수 있어요.");
+      showAlert("매칭 요청 수락·거절은 팀장만 할 수 있어요.");
       return;
     }
 
@@ -1026,7 +1027,7 @@ export default function MatchingManagePage() {
       if (action.type === "accept") {
         // ✅ 최소 인원(팀장 포함 3명) 미만이면 수락 불가
         if (myMemberCount < MIN_TEAM_MEMBERS) {
-          alert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 수락할 수 있어요. (현재 ${myMemberCount}명)`);
+          showAlert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 수락할 수 있어요. (현재 ${myMemberCount}명)`);
           return;
         }
         await acceptMatchRequest({ myClubId, latestNoti: latest });
@@ -1050,7 +1051,7 @@ export default function MatchingManagePage() {
         return;
       }
     } catch (e) {
-      alert(e?.message || "처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusyKey("");
     }

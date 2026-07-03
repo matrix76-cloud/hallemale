@@ -1,5 +1,6 @@
 /* eslint-disable */
 // src/pages/admin/AdminPlayersListPage.jsx
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -552,11 +553,11 @@ export default function AdminPlayersListPage() {
     const reason = String(blockReason || "").trim();
     if (!uid) return;
     if (!reason) {
-      window.alert("차단 사유를 입력해주세요.");
+      showAlert("차단 사유를 입력해주세요.");
       return;
     }
 
-    if (!window.confirm(`${blockTarget?.nickname || uid} 회원을 차단하시겠습니까?`)) {
+    if (!await showConfirm(`${blockTarget?.nickname || uid} 회원을 차단하시겠습니까?`)) {
       return;
     }
 
@@ -569,7 +570,7 @@ export default function AdminPlayersListPage() {
       navigate("/admin/users/blocks");
     } catch (e) {
       console.error("[AdminPlayersListPage] block failed", e);
-      window.alert(e?.message || "차단 처리에 실패했습니다.");
+      showAlert(e?.message || "차단 처리에 실패했습니다.");
     } finally {
       setBlockBusy(false);
     }

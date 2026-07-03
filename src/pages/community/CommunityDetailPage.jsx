@@ -2,6 +2,7 @@
 // src/pages/CommunityDetailPage.jsx
 // 생활체육 매칭 — 커뮤니티 게시글 상세 페이지
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
@@ -794,7 +795,7 @@ export default function CommunityDetailPage() {
 
   const handleToggleLike = async () => {
     if (!myUid) {
-      alert("로그인 후 이용해주세요.");
+      showAlert("로그인 후 이용해주세요.");
       return;
     }
     if (likeBusy) return;
@@ -811,7 +812,7 @@ export default function CommunityDetailPage() {
     } catch (e) {
       console.error("[CommunityDetailPage] like failed:", e?.message || e);
       setPost(prev);
-      alert("좋아요 처리에 실패했습니다.");
+      showAlert("좋아요 처리에 실패했습니다.");
     } finally {
       setLikeBusy(false);
     }
@@ -819,7 +820,7 @@ export default function CommunityDetailPage() {
 
   const handleToggleCommentLike = async (cmt) => {
     if (!myUid) {
-      alert("로그인 후 이용해주세요.");
+      showAlert("로그인 후 이용해주세요.");
       return;
     }
     const nextLiked = !cmt.likedByMe;
@@ -881,12 +882,12 @@ export default function CommunityDetailPage() {
     } catch (e) {
       console.error("[CommunityDetailPage] comment edit failed:", e?.message || e);
       setComments(prev);
-      alert(e?.message || "댓글 수정에 실패했습니다.");
+      showAlert(e?.message || "댓글 수정에 실패했습니다.");
     }
   };
 
   const handleDeleteComment = async (cmt) => {
-    if (!window.confirm("이 댓글을 삭제할까요?")) return;
+    if (!await showConfirm("이 댓글을 삭제할까요?")) return;
     const prev = comments;
     setComments((p) => p.filter((c) => c.id !== cmt.id));
     try {
@@ -894,17 +895,17 @@ export default function CommunityDetailPage() {
     } catch (e) {
       console.error("[CommunityDetailPage] comment delete failed:", e?.message || e);
       setComments(prev);
-      alert(e?.message || "댓글 삭제에 실패했습니다.");
+      showAlert(e?.message || "댓글 삭제에 실패했습니다.");
     }
   };
 
   const openReport = () => {
     if (!myUid) {
-      alert("로그인 후 이용해주세요.");
+      showAlert("로그인 후 이용해주세요.");
       return;
     }
     if (post?.isMine) {
-      alert("본인 게시글은 신고할 수 없습니다.");
+      showAlert("본인 게시글은 신고할 수 없습니다.");
       return;
     }
     setReportReason("");
@@ -920,7 +921,7 @@ export default function CommunityDetailPage() {
   const handleSubmitReport = async () => {
     const reason = String(reportReason || "").trim();
     if (!reason) {
-      alert("신고 사유를 입력해주세요.");
+      showAlert("신고 사유를 입력해주세요.");
       return;
     }
     if (!post || !myUid) return;
@@ -938,10 +939,10 @@ export default function CommunityDetailPage() {
       });
       setReportOpen(false);
       setReportReason("");
-      alert("신고가 접수되었습니다.\n관리자가 검토 후 조치합니다.");
+      showAlert("신고가 접수되었습니다.\n관리자가 검토 후 조치합니다.");
     } catch (e) {
       console.error("[CommunityDetailPage] report failed", e);
-      alert(e?.message || "신고 접수에 실패했습니다.");
+      showAlert(e?.message || "신고 접수에 실패했습니다.");
     } finally {
       setReportBusy(false);
     }
@@ -950,17 +951,17 @@ export default function CommunityDetailPage() {
   // 작성자 차단 — 해당 작성자의 게시글/댓글을 본인 피드에서 숨김 (신고와 분리)
   const handleBlock = async () => {
     if (!myUid) {
-      alert("로그인 후 이용해주세요.");
+      showAlert("로그인 후 이용해주세요.");
       return;
     }
     if (post?.isMine) {
-      alert("본인은 차단할 수 없습니다.");
+      showAlert("본인은 차단할 수 없습니다.");
       return;
     }
     if (!post) return;
     const who = post.authorName ? `'${post.authorName}'님` : "이 작성자";
     if (
-      !window.confirm(
+      !await showConfirm(
         `${who}을 차단할까요?\n차단하면 이 작성자의 게시글과 댓글이\n회원님 피드에서 더 이상 보이지 않습니다.`
       )
     )
@@ -971,11 +972,11 @@ export default function CommunityDetailPage() {
         targetUid: post.authorId,
         postId: post.id,
       });
-      alert("차단했습니다.\n이 작성자의 글은 회원님 피드에서 숨겨집니다.");
+      showAlert("차단했습니다.\n이 작성자의 글은 회원님 피드에서 숨겨집니다.");
       nav(-1);
     } catch (e) {
       console.error("[CommunityDetailPage] block failed", e);
-      alert(e?.message || "차단에 실패했습니다.");
+      showAlert(e?.message || "차단에 실패했습니다.");
     }
   };
 
@@ -983,7 +984,7 @@ export default function CommunityDetailPage() {
     const text = commentText.trim();
     if (!text) return;
     if (!myUid) {
-      alert("로그인 후 이용해주세요.");
+      showAlert("로그인 후 이용해주세요.");
       return;
     }
     if (submittingComment) return;
@@ -1031,7 +1032,7 @@ export default function CommunityDetailPage() {
       setComments((prev) => prev.filter((c) => c.id !== tempId));
       setCommentText(text);
       setReplyTo(prevReplyTo);
-      alert("댓글 등록에 실패했습니다.");
+      showAlert("댓글 등록에 실패했습니다.");
     } finally {
       setSubmittingComment(false);
     }
@@ -1227,13 +1228,13 @@ export default function CommunityDetailPage() {
                           $danger
                           onClick={async () => {
                             setMenuOpen(false);
-                            if (!window.confirm("이 게시글을 삭제할까요?")) return;
+                            if (!await showConfirm("이 게시글을 삭제할까요?")) return;
                             try {
                               await deleteCommunityPost({ postId: post.id, myUid });
-                              window.alert("삭제했어요.");
+                              showAlert("삭제했어요.");
                               nav("/community", { replace: true });
                             } catch (e) {
-                              window.alert(e?.message || "삭제에 실패했어요.");
+                              showAlert(e?.message || "삭제에 실패했어요.");
                             }
                           }}
                         >

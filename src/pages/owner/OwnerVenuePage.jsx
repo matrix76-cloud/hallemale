@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/owner/OwnerVenuePage.jsx
 // 구장정보 — 코트별 기본정보/운영시간/요금(3단계)/공지/주의 + 편의시설·노출모드 (명세서 4,5,6)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import {
@@ -126,13 +127,13 @@ export default function OwnerVenuePage() {
       const { imageUrl, storagePath } = await uploadVenueImage(file);
       setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
     } catch (err) {
-      window.alert(err?.message || "사진 업로드에 실패했어요.");
+      showAlert(err?.message || "사진 업로드에 실패했어요.");
     } finally { setUploading(false); }
   };
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
 
   const save = async () => {
-    if (courts.some((c) => !c.name.trim())) { window.alert("코트 이름을 입력해 주세요."); return; }
+    if (courts.some((c) => !c.name.trim())) { showAlert("코트 이름을 입력해 주세요."); return; }
     setSaving(true);
     try {
       await updateMyVenue(venue.id, {
@@ -147,7 +148,7 @@ export default function OwnerVenuePage() {
     } finally { setSaving(false); }
   };
 
-  const handleLogout = async () => { if (!window.confirm("로그아웃 하시겠어요?")) return; await signOut(); navigate("/owner/login", { replace: true }); };
+  const handleLogout = async () => { if (!await showConfirm("로그아웃 하시겠어요?")) return; await signOut(); navigate("/owner/login", { replace: true }); };
 
   const configuredDates = Object.keys(court?.priceOverrides || {}).sort();
 

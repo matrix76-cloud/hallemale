@@ -8,6 +8,7 @@
 // - it.homeEmblemUrl / it.awayEmblemUrl
 // - 또는 it.raw.home.emblemUrl / it.raw.away.emblemUrl 에서 자동 추출
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
@@ -399,7 +400,7 @@ export default function TodayMatchesStripFlat({
                   type="button"
                   onClick={() => {
                     if (typeof onItemClick === "function") onItemClick(it);
-                    else window.alert("금일 예정된 경기 없습니다");
+                    else showAlert("금일 예정된 경기 없습니다");
                   }}
                 >
                   <TopLine>
@@ -456,7 +457,7 @@ export default function TodayMatchesStripFlat({
             );
           })
         ) : (
-          <EmptyCard type="button" onClick={() => window.alert("금일 예정된 경기 없습니다")}>
+          <EmptyCard type="button" onClick={() => showAlert("금일 예정된 경기 없습니다")}>
             <TopLine>
               <TimeText>—</TimeText>
               <Badge>농구</Badge>

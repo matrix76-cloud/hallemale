@@ -2,6 +2,7 @@
 // src/pages/admin/AdminVenuesPage.jsx
 // 구장 관리 — 추천구장 + 구장주 신청을 한 테이블로 통합.
 // 상태 표시/변경(신청·승인·반려), 페이지네이션, 상세보기(구장주 입력 전체 정보), 삭제.
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -301,14 +302,14 @@ export default function AdminVenuesPage() {
       reason = window.prompt(`"${row.name}" 반려 사유 (구장주에게 표시):`, row.rejectReason || "");
       if (reason === null) return;
     } else if (status === "approved") {
-      if (!window.confirm(`"${row.name}" 승인할까요? 승인 시 사용자에게 노출됩니다.`)) return;
+      if (!await showConfirm(`"${row.name}" 승인할까요? 승인 시 사용자에게 노출됩니다.`)) return;
     }
     setBusy(true);
     try {
       await setVenueStatus(row.id, status, reason);
       await load();
     } catch (e) {
-      window.alert(e?.message || "상태 변경 실패");
+      showAlert(e?.message || "상태 변경 실패");
     } finally { setBusy(false); }
   };
 
@@ -318,7 +319,7 @@ export default function AdminVenuesPage() {
       reason = window.prompt(`"${row.name}" 사업자 인증 반려 사유:`, row.business?.rejectReason || "");
       if (reason === null) return;
     } else if (status === "verified") {
-      if (!window.confirm(`"${row.name}" 사업자 인증을 승인할까요? 승인 시 구장주가 정산 계좌를 등록할 수 있어요.`)) return;
+      if (!await showConfirm(`"${row.name}" 사업자 인증을 승인할까요? 승인 시 구장주가 정산 계좌를 등록할 수 있어요.`)) return;
     }
     setBusy(true);
     try {
@@ -329,19 +330,19 @@ export default function AdminVenuesPage() {
         ? { ...f, business: { ...(f.business || {}), status, rejectReason: status === "rejected" ? reason : "" } }
         : f));
     } catch (e) {
-      window.alert(e?.message || "상태 변경 실패");
+      showAlert(e?.message || "상태 변경 실패");
     } finally { setBusy(false); }
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`"${row.name || row.id}" 구장을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    if (!await showConfirm(`"${row.name || row.id}" 구장을 삭제할까요? 되돌릴 수 없습니다.`)) return;
     setBusy(true);
     try {
       await deleteVenue({ id: row.id, storagePath: row.storagePath });
       await load();
       if (form.id === row.id) closeForm();
     } catch (e) {
-      window.alert(e?.message || "삭제 실패");
+      showAlert(e?.message || "삭제 실패");
     } finally { setBusy(false); }
   };
 
@@ -357,7 +358,7 @@ export default function AdminVenuesPage() {
     try {
       const { imageUrl, storagePath } = await uploadVenueImage(file);
       setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
-    } catch (err) { window.alert(err?.message || "업로드 실패"); }
+    } catch (err) { showAlert(err?.message || "업로드 실패"); }
     finally { setUploading(false); }
   };
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
@@ -370,9 +371,9 @@ export default function AdminVenuesPage() {
   const removeCourt = (i) => setCourts((prev) => prev.filter((_, idx) => idx !== i));
 
   const saveForm = async () => {
-    if (!form.name.trim()) return window.alert("구장명을 입력해주세요.");
-    if (!form.address.trim()) return window.alert("주소를 입력해주세요.");
-    if (courts.some((c) => !c.name.trim())) return window.alert("코트 이름을 모두 입력해주세요.");
+    if (!form.name.trim()) return showAlert("구장명을 입력해주세요.");
+    if (!form.address.trim()) return showAlert("주소를 입력해주세요.");
+    if (courts.some((c) => !c.name.trim())) return showAlert("코트 이름을 모두 입력해주세요.");
     setBusy(true);
     try {
       const venueType = courts[0]?.type || form.type || "indoor";
@@ -417,7 +418,7 @@ export default function AdminVenuesPage() {
         }
       }
       closeForm(); await load();
-    } catch (e) { window.alert(e?.message || "저장 실패"); }
+    } catch (e) { showAlert(e?.message || "저장 실패"); }
     finally { setBusy(false); }
   };
 

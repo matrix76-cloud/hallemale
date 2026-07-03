@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminBannersPage.jsx
 // 홈 히어로 배너 등록/수정/삭제/순서 관리
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -472,7 +473,7 @@ export default function AdminBannersPage() {
       updateForm({ imageUrl, storagePath });
     } catch (err) {
       console.error("[AdminBannersPage] upload failed", err);
-      window.alert(err?.message || "이미지 업로드에 실패했습니다.");
+      showAlert(err?.message || "이미지 업로드에 실패했습니다.");
     } finally {
       setUploading(false);
     }
@@ -506,7 +507,7 @@ export default function AdminBannersPage() {
 
   const handleSave = async () => {
     if (!form.imageUrl) {
-      window.alert("이미지를 업로드해주세요.");
+      showAlert("이미지를 업로드해주세요.");
       return;
     }
     setBusy(true);
@@ -521,14 +522,14 @@ export default function AdminBannersPage() {
       await load();
     } catch (e) {
       console.error("[AdminBannersPage] save failed", e);
-      window.alert(e?.message || "저장에 실패했습니다.");
+      showAlert(e?.message || "저장에 실패했습니다.");
     } finally {
       setBusy(false);
     }
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`"${row.title || row.id}" 배너를 삭제하시겠습니까?`)) return;
+    if (!await showConfirm(`"${row.title || row.id}" 배너를 삭제하시겠습니까?`)) return;
     setBusy(true);
     try {
       await deleteBanner({ id: row.id, storagePath: row.storagePath });
@@ -539,7 +540,7 @@ export default function AdminBannersPage() {
       await load();
     } catch (e) {
       console.error("[AdminBannersPage] delete failed", e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -552,7 +553,7 @@ export default function AdminBannersPage() {
       await load();
     } catch (e) {
       console.error("[AdminBannersPage] toggle active failed", e);
-      window.alert(e?.message || "상태 변경에 실패했습니다.");
+      showAlert(e?.message || "상태 변경에 실패했습니다.");
     } finally {
       setBusy(false);
     }

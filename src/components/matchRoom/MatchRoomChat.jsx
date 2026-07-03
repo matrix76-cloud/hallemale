@@ -3,6 +3,7 @@
 // 매칭룸 임베드용 채팅 컴포넌트 (기획안 HTML 스타일 1:1)
 // - chatService(DM) 그대로 재활용. props로 chatId/상대정보 받아 자체 구독·전송.
 // - 색은 앱 색상 모드(theme.mode)에 맞춰 라이트/다크 자동 전환 (mrp).
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 
@@ -382,7 +383,7 @@ export default function MatchRoomChat({
       await sendTextMessage({ chatId, fromUid: myUid, text: v });
       setText("");
     } catch (e) {
-      alert("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSending(false);
     }
@@ -411,7 +412,7 @@ export default function MatchRoomChat({
       });
       setText("");
     } catch (e2) {
-      alert("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("전송에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSending(false);
     }

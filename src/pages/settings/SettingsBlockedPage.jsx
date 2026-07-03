@@ -2,6 +2,7 @@
 // src/pages/settings/SettingsBlockedPage.jsx
 // 내가 차단한 사용자 / 숨긴 게시글 목록 + 해제
 // Apple App Store Guideline 1.2 대응 — 차단 관리 UI
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useState, useCallback } from "react";
 import styled from "styled-components";
 import { useAuth } from "../../hooks/useAuth";
@@ -136,13 +137,13 @@ export default function SettingsBlockedPage() {
 
   const handleUnblockUser = async (targetUid) => {
     if (!myUid || !targetUid) return;
-    if (!window.confirm("이 사용자의 차단을 해제하시겠습니까?")) return;
+    if (!await showConfirm("이 사용자의 차단을 해제하시겠습니까?")) return;
     setBusy((b) => ({ ...b, [`u_${targetUid}`]: true }));
     try {
       await unblockUser({ myUid, targetUid });
       setUsers((prev) => prev.filter((u) => u.uid !== targetUid));
     } catch (e) {
-      alert(e?.message || "차단 해제에 실패했습니다.");
+      showAlert(e?.message || "차단 해제에 실패했습니다.");
     } finally {
       setBusy((b) => ({ ...b, [`u_${targetUid}`]: false }));
     }

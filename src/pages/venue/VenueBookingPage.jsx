@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/venue/VenueBookingPage.jsx
 // 구장 예약 — 코트/날짜/빈 슬롯 선택 → 원(가짜) 결제 → 예약 확정 + 구장주 푸시
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -244,7 +245,7 @@ export default function VenueBookingPage() {
     const oppTeamName = isActor ? matchInfo.toName : matchInfo.fromName;
 
     // ✅ 제안 전 확인창
-    const ok = window.confirm(
+    const ok = await showConfirm(
       `${venue.name}\n${date} ${selected.start}~${selected.end}\n\n이 구장·일정으로 ${oppTeamName || "상대팀"}에게 제안할까요?`
     );
     if (!ok) return;

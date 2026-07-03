@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminInquiriesPage.jsx
 // 1:1 문의 관리 — 목록(상태 필터) + 답변 작성/수정
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -128,7 +129,7 @@ function InquiryRow({ item, adminUid, onSaved }) {
   const onSave = async () => {
     const ans = draft.trim();
     if (!ans) {
-      window.alert("답변 내용을 입력해 주세요.");
+      showAlert("답변 내용을 입력해 주세요.");
       return;
     }
     setBusy(true);
@@ -143,7 +144,7 @@ function InquiryRow({ item, adminUid, onSaved }) {
       await onSaved();
     } catch (e) {
       console.error("[AdminInquiriesPage] answer failed", e);
-      window.alert(e?.message || "답변 저장에 실패했습니다.");
+      showAlert(e?.message || "답변 저장에 실패했습니다.");
     } finally {
       setBusy(false);
     }

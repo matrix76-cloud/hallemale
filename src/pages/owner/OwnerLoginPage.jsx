@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/owner/OwnerLoginPage.jsx
 // 구장 관리자 로그인 — 소셜 로그인(카카오/구글) 재활용 + role=owner 마킹
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
@@ -32,9 +33,9 @@ export default function OwnerLoginPage() {
         if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
           // 사용자가 닫음 — 무시
         } else if (code === "web_unsupported" || code === "not_in_app") {
-          window.alert(`${provider === "kakao" ? "카카오" : "구글"} 로그인은 앱에서 이용해주세요.`);
+          showAlert(`${provider === "kakao" ? "카카오" : "구글"} 로그인은 앱에서 이용해주세요.`);
         } else {
-          window.alert("로그인에 실패했어요. 잠시 후 다시 시도해주세요.");
+          showAlert("로그인에 실패했어요. 잠시 후 다시 시도해주세요.");
         }
         return;
       }
@@ -42,7 +43,7 @@ export default function OwnerLoginPage() {
       // 여기서 navigate 하면 isLoggedIn 반영 전이라 RequireOwnerAuth 가 다시
       // /owner/login 으로 튕겨내는 레이스가 생긴다. (redirect 방식은 이미 페이지 이탈)
     } catch (e) {
-      window.alert("로그인에 실패했어요. 잠시 후 다시 시도해주세요.");
+      showAlert("로그인에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setBusy(false);
     }

@@ -1,5 +1,6 @@
 /* eslint-disable */
 // src/pages/matching/MatchRoomDetailPage.jsx
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -3678,11 +3679,11 @@ export default function MatchRoomDetailPage() {
     const kakao = window.kakao;
 
     if (!daum || !daum.Postcode) {
-      window.alert("주소 검색 스크립트가 아직 로드되지 않았습니다.");
+      showAlert("주소 검색 스크립트가 아직 로드되지 않았습니다.");
       return;
     }
     if (!kakao || !kakao.maps || !kakao.maps.services) {
-      window.alert("지도 스크립트가 아직 로드되지 않았습니다.");
+      showAlert("지도 스크립트가 아직 로드되지 않았습니다.");
       return;
     }
 
@@ -3699,7 +3700,7 @@ export default function MatchRoomDetailPage() {
         const geocoder = new kakao.maps.services.Geocoder();
         geocoder.addressSearch(address, (result, status) => {
           if (status !== kakao.maps.services.Status.OK) {
-            window.alert("주소 좌표를 찾을 수 없습니다.");
+            showAlert("주소 좌표를 찾을 수 없습니다.");
             return;
           }
           const first = result && result[0] ? result[0] : null;
@@ -3948,7 +3949,7 @@ export default function MatchRoomDetailPage() {
 
   const handlePropose = async () => {
     if (!myClubId) {
-      window.alert("팀 정보를 확인할 수 없습니다.");
+      showAlert("팀 정보를 확인할 수 없습니다.");
       return;
     }
     if (!selectedDate || !selectedTime) return;
@@ -3972,7 +3973,7 @@ export default function MatchRoomDetailPage() {
       // (history pop: venue 항목을 빼서 채팅 뒤로가기가 venue로 되돌아가지 않게)
       if (isVenue) goBackOrHome(navigate);
     } catch (e) {
-      window.alert(e?.message || "일정 제안에 실패했습니다.");
+      showAlert(e?.message || "일정 제안에 실패했습니다.");
     }
   };
 
@@ -3991,7 +3992,7 @@ export default function MatchRoomDetailPage() {
       navigate("/match-roomlist");
       navigate(`/match-roomdetail/${roomId}`);
     } catch (e) {
-      window.alert(e?.message || "일정 확정에 실패했습니다.");
+      showAlert(e?.message || "일정 확정에 실패했습니다.");
     }
   };
 
@@ -4004,7 +4005,7 @@ export default function MatchRoomDetailPage() {
       await loadPartnerPay();
       setShowPayPromptAnim(true); // 수락자 즉시 표시(제안자는 실시간 구독으로 표시)
     } catch (e) {
-      window.alert(e?.message || "제안 수락에 실패했습니다.");
+      showAlert(e?.message || "제안 수락에 실패했습니다.");
     }
   };
 
@@ -4035,7 +4036,7 @@ export default function MatchRoomDetailPage() {
     if (cancelBusy) return;
     // 경기/매칭 취소는 팀장만 가능
     if (!isTeamLeader) {
-      window.alert("경기 취소는 팀장만 할 수 있어요.");
+      showAlert("경기 취소는 팀장만 할 수 있어요.");
       return;
     }
     setCancelBusy(true);
@@ -4051,7 +4052,7 @@ export default function MatchRoomDetailPage() {
       await refresh();
       goBackOrHome(navigate);
     } catch (e) {
-      window.alert(e?.message || "매칭 취소에 실패했습니다.");
+      showAlert(e?.message || "매칭 취소에 실패했습니다.");
     } finally {
       setCancelBusy(false);
     }
@@ -4060,7 +4061,7 @@ export default function MatchRoomDetailPage() {
   // 보낸 제안만 취소 (매칭은 유지) → proposed → accepted(조율중) 복귀, 재제안 가능
   const handleCancelProposal = async () => {
     if (
-      !window.confirm(
+      !await showConfirm(
         "보낸 구장·일정 제안을 취소할까요?\n매칭은 유지되며 다시 제안할 수 있어요."
       )
     )
@@ -4070,14 +4071,14 @@ export default function MatchRoomDetailPage() {
       await refresh();
       showToast && showToast({ message: "보낸 제안을 취소했어요. 다시 제안할 수 있어요." });
     } catch (e) {
-      window.alert(e?.message || "제안 취소에 실패했습니다.");
+      showAlert(e?.message || "제안 취소에 실패했습니다.");
     }
   };
 
   // 확정 경기 취소 — 사유 선택 시트 오픈(결제건이면 환불 안내 포함). 팀장만 가능.
   const handleCancelConfirmedMatch = () => {
     if (!isTeamLeader) {
-      window.alert("경기 취소는 팀장만 할 수 있어요.");
+      showAlert("경기 취소는 팀장만 할 수 있어요.");
       return;
     }
     setCancelSheetOpen(true);
@@ -4090,7 +4091,7 @@ export default function MatchRoomDetailPage() {
     const oppScore = toStr(oppScoreInput);
 
     if (!myScore || !oppScore) {
-      window.alert("점수를 입력해 주세요.");
+      showAlert("점수를 입력해 주세요.");
       return;
     }
 
@@ -4098,7 +4099,7 @@ export default function MatchRoomDetailPage() {
     const oppN = Number(oppScore);
 
     if (!Number.isFinite(myN) || !Number.isFinite(oppN)) {
-      window.alert("점수는 숫자만 입력해 주세요.");
+      showAlert("점수는 숫자만 입력해 주세요.");
       return;
     }
 
@@ -4120,9 +4121,9 @@ export default function MatchRoomDetailPage() {
 
       setOppRating(0);
       await refresh();
-      window.alert("결과를 제출했습니다. 상대팀 승인을 기다립니다.");
+      showAlert("결과를 제출했습니다. 상대팀 승인을 기다립니다.");
     } catch (e) {
-      window.alert(e?.message || "결과 제출에 실패했습니다.");
+      showAlert(e?.message || "결과 제출에 실패했습니다.");
     } finally {
       setResultBusy(false);
     }
@@ -4131,11 +4132,11 @@ export default function MatchRoomDetailPage() {
   // ✅ 지난 경기 리뷰 제출/수정 (팀장·팀원 공통) — 상대 팀 평점
   const handleSubmitReview = async () => {
     if (!myClubId || !myUid) {
-      window.alert("로그인 정보를 확인할 수 없습니다.");
+      showAlert("로그인 정보를 확인할 수 없습니다.");
       return;
     }
     if (reviewStars < 1) {
-      window.alert("별점을 선택해 주세요.");
+      showAlert("별점을 선택해 주세요.");
       return;
     }
     const targetClubId = isActor ? toStr(room.targetClubId) : toStr(room.actorClubId);
@@ -4153,10 +4154,10 @@ export default function MatchRoomDetailPage() {
       reviewPrefillRef.current = ""; // 새 데이터로 prefill 재적용 허용
       await refresh();               // room.reviews 갱신 → 등록된 리뷰 카드로 표시
       setEditingReview(false);
-      window.alert("리뷰가 등록되었습니다.");
+      showAlert("리뷰가 등록되었습니다.");
       return;
     } catch (e) {
-      window.alert(e?.message || "리뷰 등록에 실패했습니다.");
+      showAlert(e?.message || "리뷰 등록에 실패했습니다.");
     } finally {
       setReviewBusy(false);
     }
@@ -4165,17 +4166,17 @@ export default function MatchRoomDetailPage() {
   const handleAcceptResult = async () => {
     if (!myClubId) return;
     if (!isTeamLeader) {
-      window.alert("경기 결과 인정은 팀장만 할 수 있어요.");
+      showAlert("경기 결과 인정은 팀장만 할 수 있어요.");
       return;
     }
     setResultBusy(true);
     try {
       await acceptMatchResult({ matchRequestId: room.id, confirmedByClubId: myClubId });
       await refresh();
-      window.alert("경기 결과가 확정되었습니다.");
+      showAlert("경기 결과가 확정되었습니다.");
       navigate("/match-roomlist");
     } catch (e) {
-      window.alert(e?.message || "결과 인정에 실패했습니다.");
+      showAlert(e?.message || "결과 인정에 실패했습니다.");
     } finally {
       setResultBusy(false);
     }
@@ -4183,10 +4184,10 @@ export default function MatchRoomDetailPage() {
 
   const handleDisputeResult = async () => {
     if (!isTeamLeader) {
-      window.alert("이의 제기는 팀장만 할 수 있어요.");
+      showAlert("이의 제기는 팀장만 할 수 있어요.");
       return;
     }
-    const ok = window.confirm(
+    const ok = await showConfirm(
       "이의를 제기하면 입력된 결과가 취소되고, 두 팀이 협의 후 결과를 다시 입력할 수 있어요. 진행할까요?"
     );
     if (!ok) return;
@@ -4195,9 +4196,9 @@ export default function MatchRoomDetailPage() {
     try {
       await disputeMatchResult({ matchRequestId: room.id });
       await refresh();
-      window.alert("이의가 제기됐어요. 상대팀과 협의 후 결과를 다시 입력해 주세요.");
+      showAlert("이의가 제기됐어요. 상대팀과 협의 후 결과를 다시 입력해 주세요.");
     } catch (e) {
-      window.alert(e?.message || "이의 제기에 실패했습니다.");
+      showAlert(e?.message || "이의 제기에 실패했습니다.");
     } finally {
       setResultBusy(false);
     }
@@ -4364,7 +4365,7 @@ export default function MatchRoomDetailPage() {
         await navigator.share({ title: "경기 확정", text });
       } else {
         await navigator.clipboard.writeText(text);
-        window.alert("경기 정보가 복사되었어요.");
+        showAlert("경기 정보가 복사되었어요.");
       }
     } catch (e) {}
   };

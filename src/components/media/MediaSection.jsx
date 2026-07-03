@@ -4,6 +4,7 @@
 // - 어디서든 재사용: 프로필/팀/매치/게시글
 // - parent는 items/onChange만 주고, Firestore 반영은 parent에서 처리하면 됨.
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { FiPlus, FiTrash2, FiX, FiPlay } from "react-icons/fi";
@@ -38,11 +39,11 @@ export default function MediaSection({
 
   const openFilePicker = () => {
     if (!canAddMore) {
-      window.alert(`최대 ${maxItems}장까지 추가할 수 있어요.`);
+      showAlert(`최대 ${maxItems}장까지 추가할 수 있어요.`);
       return;
     }
     if (!ownerId) {
-      window.alert("저장 대상 정보가 없습니다. (ownerId 누락)");
+      showAlert("저장 대상 정보가 없습니다. (ownerId 누락)");
       return;
     }
     fileRef.current?.click();
@@ -54,11 +55,11 @@ export default function MediaSection({
     if (!file) return;
 
     if (!canAddMore) {
-      window.alert(`최대 ${maxItems}장까지 추가할 수 있어요.`);
+      showAlert(`최대 ${maxItems}장까지 추가할 수 있어요.`);
       return;
     }
     if (!ownerId) {
-      window.alert("저장 대상 정보가 없습니다. (ownerId 누락)");
+      showAlert("저장 대상 정보가 없습니다. (ownerId 누락)");
       return;
     }
 
@@ -75,7 +76,7 @@ export default function MediaSection({
       onChange?.(next);
     } catch (err) {
       console.warn("[MediaSection] upload failed:", err?.message || err);
-      window.alert("업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setUploading(false);
     }
@@ -83,7 +84,7 @@ export default function MediaSection({
 
   const openYoutubeModal = () => {
     if (!canAddMore) {
-      window.alert(`최대 ${maxItems}장까지 추가할 수 있어요.`);
+      showAlert(`최대 ${maxItems}장까지 추가할 수 있어요.`);
       return;
     }
     setYtError("");
@@ -106,7 +107,7 @@ export default function MediaSection({
 
   const removeItem = async (item) => {
     if (!item?.id) return;
-    const ok = window.confirm("삭제할까요?");
+    const ok = await showConfirm("삭제할까요?");
     if (!ok) return;
 
     setBusyIds((prev) => ({ ...prev, [item.id]: true }));
@@ -117,7 +118,7 @@ export default function MediaSection({
       onChange?.(next);
     } catch (e) {
       console.warn("[MediaSection] delete failed:", e?.message || e);
-      window.alert("삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusyIds((prev) => {
         const c = { ...prev };

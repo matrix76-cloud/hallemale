@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminCommunityReportsPage.jsx
 // 어드민 - 게시글 신고 목록 (검토 후 게시글 숨김/삭제 또는 신고 기각)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -316,7 +317,7 @@ export default function AdminCommunityReportsPage() {
 
   const handleHidePost = async (r) => {
     if (!r?.postId || busyId) return;
-    if (!window.confirm(`이 게시글을 숨김 처리하고 신고를 종결할까요?\n\n"${r.postTitle}"\n\n사용자 측 목록에서 사라집니다. (해제 가능)`)) {
+    if (!await showConfirm(`이 게시글을 숨김 처리하고 신고를 종결할까요?\n\n"${r.postTitle}"\n\n사용자 측 목록에서 사라집니다. (해제 가능)`)) {
       return;
     }
     setBusyId(r.id);
@@ -326,7 +327,7 @@ export default function AdminCommunityReportsPage() {
       await load(statusFilter);
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusyId("");
     }
@@ -334,7 +335,7 @@ export default function AdminCommunityReportsPage() {
 
   const handleDeletePost = async (r) => {
     if (!r?.postId || busyId) return;
-    if (!window.confirm(`이 게시글을 영구 삭제하고 신고를 종결할까요?\n\n"${r.postTitle}"\n\n댓글/좋아요까지 모두 사라지고 복구할 수 없습니다.`)) {
+    if (!await showConfirm(`이 게시글을 영구 삭제하고 신고를 종결할까요?\n\n"${r.postTitle}"\n\n댓글/좋아요까지 모두 사라지고 복구할 수 없습니다.`)) {
       return;
     }
     setBusyId(r.id);
@@ -344,7 +345,7 @@ export default function AdminCommunityReportsPage() {
       await load(statusFilter);
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusyId("");
     }
@@ -352,14 +353,14 @@ export default function AdminCommunityReportsPage() {
 
   const handleReject = async (r) => {
     if (!r?.id || busyId) return;
-    if (!window.confirm("이 신고를 기각하시겠습니까?")) return;
+    if (!await showConfirm("이 신고를 기각하시겠습니까?")) return;
     setBusyId(r.id);
     try {
       await updatePostReportStatus({ reportId: r.id, status: "rejected", byAdmin: "admin" });
       await load(statusFilter);
     } catch (e) {
       console.error(e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusyId("");
     }

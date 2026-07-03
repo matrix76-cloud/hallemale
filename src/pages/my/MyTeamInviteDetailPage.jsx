@@ -3,6 +3,7 @@
 // ✅ 초대 상세 + 수락/거절
 // - 페이지 내 헤더 없음(MainLayout에서 처리)
 
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
@@ -93,17 +94,17 @@ export default function MyTeamInviteDetailPage() {
     if (!isPending) return;
     if (saving) return;
 
-    const ok = window.confirm("이 초대를 수락하고 팀에 가입할까요?");
+    const ok = await showConfirm("이 초대를 수락하고 팀에 가입할까요?");
     if (!ok) return;
 
     setSaving(true);
     try {
       await acceptClubInvite({ clubId, inviteId, uid });
       await refreshUser?.(); // ✅ userDoc.activeTeamId 즉시 갱신 (stale 방지)
-      window.alert("팀에 가입했어요.");
+      showAlert("팀에 가입했어요.");
       nav("/my", { replace: true });
     } catch (e) {
-      window.alert(e?.message || "수락에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert(e?.message || "수락에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSaving(false);
     }
@@ -114,16 +115,16 @@ export default function MyTeamInviteDetailPage() {
     if (!isPending) return;
     if (saving) return;
 
-    const ok = window.confirm("이 초대를 거절할까요?");
+    const ok = await showConfirm("이 초대를 거절할까요?");
     if (!ok) return;
 
     setSaving(true);
     try {
       await rejectClubInvite({ clubId, inviteId, uid });
-      window.alert("거절했습니다.");
+      showAlert("거절했습니다.");
       nav("/my/team-invites", { replace: true });
     } catch (e) {
-      window.alert("거절에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      showAlert("거절에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setSaving(false);
     }

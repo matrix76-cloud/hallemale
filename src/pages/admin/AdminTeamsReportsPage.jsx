@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminTeamsReportsPage.jsx
 // 팀 신고 목록 - 관리자가 보고 차단/기각 처리
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -372,7 +373,7 @@ export default function AdminTeamsReportsPage() {
     const reason = String(blockReason || "").trim();
     if (!t?.clubId) return;
     if (!reason) {
-      window.alert("차단 사유를 입력해주세요.");
+      showAlert("차단 사유를 입력해주세요.");
       return;
     }
     setBlockBusy(true);
@@ -392,7 +393,7 @@ export default function AdminTeamsReportsPage() {
       navigate("/admin/teams/blocks");
     } catch (e) {
       console.error("[AdminTeamsReportsPage] block failed", e);
-      window.alert(e?.message || "차단 처리에 실패했습니다.");
+      showAlert(e?.message || "차단 처리에 실패했습니다.");
     } finally {
       setBlockBusy(false);
     }
@@ -400,7 +401,7 @@ export default function AdminTeamsReportsPage() {
 
   const handleReject = async (report) => {
     if (!report?.id) return;
-    if (!window.confirm("이 신고를 기각하시겠습니까?")) return;
+    if (!await showConfirm("이 신고를 기각하시겠습니까?")) return;
     setBusyId(report.id);
     try {
       await updateTeamReportStatus({
@@ -411,7 +412,7 @@ export default function AdminTeamsReportsPage() {
       await load(statusFilter);
     } catch (e) {
       console.error("[AdminTeamsReportsPage] reject failed", e);
-      window.alert(e?.message || "처리에 실패했습니다.");
+      showAlert(e?.message || "처리에 실패했습니다.");
     } finally {
       setBusyId("");
     }

@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminEventPopupsSection.jsx
 // 이벤트 팝업 등록/수정/삭제 (광고 관리 페이지의 한 섹션)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -428,7 +429,7 @@ export default function AdminEventPopupsSection() {
       updateForm({ imageUrl, storagePath });
     } catch (err) {
       console.error("[AdminEventPopupsSection] upload failed", err);
-      window.alert(err?.message || "이미지 업로드에 실패했습니다.");
+      showAlert(err?.message || "이미지 업로드에 실패했습니다.");
     } finally {
       setUploading(false);
     }
@@ -463,7 +464,7 @@ export default function AdminEventPopupsSection() {
 
   const handleSave = async () => {
     if (!form.title.trim()) {
-      window.alert("제목을 입력해주세요.");
+      showAlert("제목을 입력해주세요.");
       return;
     }
     setBusy(true);
@@ -490,14 +491,14 @@ export default function AdminEventPopupsSection() {
       await load();
     } catch (e) {
       console.error("[AdminEventPopupsSection] save failed", e);
-      window.alert(e?.message || "저장에 실패했습니다.");
+      showAlert(e?.message || "저장에 실패했습니다.");
     } finally {
       setBusy(false);
     }
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`"${row.title || row.id}" 팝업을 삭제하시겠습니까?`)) return;
+    if (!await showConfirm(`"${row.title || row.id}" 팝업을 삭제하시겠습니까?`)) return;
     setBusy(true);
     try {
       await deleteEventPopup({ id: row.id, storagePath: row.storagePath });
@@ -508,7 +509,7 @@ export default function AdminEventPopupsSection() {
       await load();
     } catch (e) {
       console.error("[AdminEventPopupsSection] delete failed", e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -521,7 +522,7 @@ export default function AdminEventPopupsSection() {
       await load();
     } catch (e) {
       console.error("[AdminEventPopupsSection] toggle active failed", e);
-      window.alert(e?.message || "상태 변경에 실패했습니다.");
+      showAlert(e?.message || "상태 변경에 실패했습니다.");
     } finally {
       setBusy(false);
     }

@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/admin/AdminNotifyNoticesPage.jsx
 // 공지 작성 / 수정 / 삭제 (Firestore: notices)
+import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
@@ -335,11 +336,11 @@ export default function AdminNotifyNoticesPage() {
     const t = title.trim();
     const c = content.trim();
     if (!t) {
-      window.alert("제목을 입력해주세요.");
+      showAlert("제목을 입력해주세요.");
       return;
     }
     if (!c) {
-      window.alert("내용을 입력해주세요.");
+      showAlert("내용을 입력해주세요.");
       return;
     }
     setBusy(true);
@@ -357,14 +358,14 @@ export default function AdminNotifyNoticesPage() {
 
         // 푸시 발송 옵션 (발행된 공지만 전체 푸시)
         if (pushOnCreate && published) {
-          const ok = window.confirm(
+          const ok = await showConfirm(
             "전체 사용자에게 앱 푸시 알림을 발송합니다. 계속할까요?"
           );
           if (ok) {
             try {
               await queueNoticeBroadcastPush({ noticeId: newId, title: t, content: c });
             } catch (e) {
-              window.alert(
+              showAlert(
                 "공지는 저장됐지만 푸시 발송 등록에 실패했습니다.\n" + (e?.message || "")
               );
             }
@@ -375,14 +376,14 @@ export default function AdminNotifyNoticesPage() {
       await load();
     } catch (e) {
       console.error("[AdminNotifyNoticesPage] save failed", e);
-      window.alert(e?.message || "저장에 실패했습니다.");
+      showAlert(e?.message || "저장에 실패했습니다.");
     } finally {
       setBusy(false);
     }
   };
 
   const onDelete = async (n) => {
-    if (!window.confirm(`"${n.title}" 공지를 삭제하시겠습니까?`)) return;
+    if (!await showConfirm(`"${n.title}" 공지를 삭제하시겠습니까?`)) return;
     setBusy(true);
     try {
       await deleteNotice(n.id);
@@ -390,7 +391,7 @@ export default function AdminNotifyNoticesPage() {
       await load();
     } catch (e) {
       console.error("[AdminNotifyNoticesPage] delete failed", e);
-      window.alert(e?.message || "삭제에 실패했습니다.");
+      showAlert(e?.message || "삭제에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -403,7 +404,7 @@ export default function AdminNotifyNoticesPage() {
       await load();
     } catch (e) {
       console.error("[AdminNotifyNoticesPage] toggle publish failed", e);
-      window.alert(e?.message || "변경에 실패했습니다.");
+      showAlert(e?.message || "변경에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -416,7 +417,7 @@ export default function AdminNotifyNoticesPage() {
       await load();
     } catch (e) {
       console.error("[AdminNotifyNoticesPage] toggle pin failed", e);
-      window.alert(e?.message || "변경에 실패했습니다.");
+      showAlert(e?.message || "변경에 실패했습니다.");
     } finally {
       setBusy(false);
     }
