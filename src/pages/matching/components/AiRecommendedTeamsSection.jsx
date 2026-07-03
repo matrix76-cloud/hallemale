@@ -42,12 +42,8 @@ const AiScrollRow = styled.div`
   margin-top: 2px;
   display: flex;
   gap: 10px;
-  overflow-x: auto;
   padding-bottom: 4px;
-
-  &::-webkit-scrollbar {
-    height: 4px;
-  }
+  /* 추천 2팀이 가로폭을 꽉 채우도록(오른쪽 여백 제거) — 각 카드 flex:1 */
 `;
 
 const AiEmpty = styled.div`
@@ -63,7 +59,8 @@ const AiEmpty = styled.div`
 `;
 
 const AiTeamCard = styled.div`
-  flex: 0 0 140px;
+  flex: 1 1 0;
+  min-width: 0;
   border-radius: 8px;
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) =>
