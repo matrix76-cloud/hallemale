@@ -34,7 +34,8 @@ const formatKoreanDateTime = (iso) => {
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
-  padding: 0 0 24px;
+  padding: 0 0
+    calc(${({ theme }) => theme.layout.bottomTabHeight}px + 24px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
 `;

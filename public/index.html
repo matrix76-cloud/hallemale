@@ -4,6 +4,11 @@
   <head>
     <meta charset="utf-8" />
 
+    <!-- 항상 최신 index.html 로드 (WebView가 no-cache 헤더 무시하는 경우 대비) -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <!-- PC(화면폭 1024px 이상)로 루트 접속 시 정적 랜딩으로, 모바일은 기존 앱(로그인) 유지 -->
     <script>
       (function () {

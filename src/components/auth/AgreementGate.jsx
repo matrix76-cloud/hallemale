@@ -220,15 +220,17 @@ const Check = styled.span`
   flex-shrink: 0;
   width: 22px;
   height: 22px;
-  border-radius: 999px;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 13px;
   font-weight: 800;
   color: #ffffff;
+  border: 1.5px solid
+    ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
   background: ${({ $on, theme }) =>
-    $on ? theme.colors.primary : theme.mode === "dark" ? theme.colors.surface : "#d1d5db"};
+    $on ? theme.colors.primary : theme.colors.card};
 `;
 
 const ItemText = styled.span`

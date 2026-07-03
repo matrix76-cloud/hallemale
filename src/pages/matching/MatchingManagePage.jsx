@@ -193,7 +193,8 @@ const Page = styled.div`
 
 const Inner = styled.div`
   width: 100%;
-  margin: 0 auto 80px;
+  margin: 0 auto;
+  padding-bottom: calc(${({ theme }) => theme.layout.bottomTabHeight}px + 20px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 10px;

@@ -17,6 +17,9 @@ import { goBackOrHome } from "../../utils/navigation";
 import { useUIContext } from "../../context/UIContext";
 
 const Wrap = styled.header`
+  position: sticky;
+  top: 0;
+  z-index: 100;
   height: calc(52px + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
   padding-left: calc(16px + env(safe-area-inset-left));

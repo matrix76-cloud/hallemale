@@ -44,6 +44,19 @@ export function isVersionNewer(server, local) {
   return false;
 }
 
+// 캐시(Cache Storage)를 비우고 새로고침 — WebView가 오래된 화면을 다시 읽는 것 방지
+async function hardReload() {
+  try {
+    if (typeof caches !== "undefined" && caches.keys) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch (e) {}
+  try {
+    window.location.reload();
+  } catch (e) {}
+}
+
 export async function checkAppUpdate({ onUpdate } = {}) {
   const latest = await fetchLatestUpdate();
   if (!latest?.version) return null;
@@ -68,7 +81,7 @@ export async function checkAppUpdate({ onUpdate } = {}) {
       try { onUpdate(latest); } catch (e) {}
     }
     setTimeout(() => {
-      try { window.location.reload(); } catch (e) {}
+      hardReload();
     }, 1500);
     return latest;
   }

@@ -950,10 +950,10 @@ const ModalPrimaryBtn = styled.button`
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
   background: ${({ theme }) => theme.colors.bg};
-  padding: 12px 12px 24px;
+  padding: 12px 12px
+    calc(${({ theme }) => theme.layout.bottomTabHeight}px + 24px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  margin-bottom: 50px;
 `;
 
 const ProfileHeader = styled.div`
