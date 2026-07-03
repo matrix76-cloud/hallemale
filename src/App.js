@@ -14,6 +14,7 @@ import { IoInformationCircleOutline } from "react-icons/io5";
 import { checkAppUpdate } from "./services/appVersionService";
 import BlockedAuthGate from "./components/common/BlockedAuthGate";
 import EventPopupModal from "./components/common/EventPopupModal";
+import OfflineBanner from "./components/common/OfflineBanner";
 
 function VersionChecker() {
   const [toast, setToast] = useState(null);
@@ -80,6 +81,7 @@ function ThemedApp() {
                   <VersionChecker />
                   <BlockedAuthGate />
                   <EventPopupModal />
+                  <OfflineBanner />
                 </WebviewBridgeProvider>
               </MatchingDataProvider>
             </HomeDataProvider>
