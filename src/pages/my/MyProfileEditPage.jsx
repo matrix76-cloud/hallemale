@@ -509,6 +509,7 @@ const Label = styled.label`
 `;
 
 const Input = styled.input`
+  min-width: 0;
   border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border};
   padding: 13px 14px;
@@ -538,11 +539,9 @@ const CheckButton = styled.button`
   flex-shrink: 0;
   border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
-  color: ${({ theme }) =>
-    theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
-  padding: 0 16px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #ffffff;
+  padding: 0 14px;
   font-size: 12.5px;
   font-weight: 700;
   white-space: nowrap;
