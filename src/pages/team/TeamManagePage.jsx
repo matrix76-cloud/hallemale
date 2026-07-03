@@ -2298,9 +2298,11 @@ const SearchRow = styled.div`
 
 const SearchInput = styled(ModalInput)`
   flex: 1;
+  min-width: 0; /* input 고유 최소폭 때문에 검색 버튼이 밀려나가는 것 방지 */
 `;
 
 const SearchBtn = styled.button`
+  flex-shrink: 0;
   width: 44px;
   height: 44px;
   border-radius: 8px;
