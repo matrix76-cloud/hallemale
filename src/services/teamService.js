@@ -24,6 +24,7 @@ import {
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { compressImageFile } from "../utils/imageCompress";
 
 /* ===========================
  * 공통 라벨
@@ -684,11 +685,30 @@ export async function createClub({
   );
 
   if (logoFile) {
-    const ext = String(logoFile.name || "").split(".").pop() || "jpg";
-    const storagePath = `clubs/${clubId}/logo_${Date.now()}.${ext}`;
+    // ✅ 로고 압축 후 업로드 (팀 로고 '변경' 경로와 동일 정책: 1080px, JPEG q0.78)
+    //    - 기존엔 생성 시 원본을 그대로 올려 변경 경로와 압축 여부가 달랐음
+    let upLogo = logoFile;
+    try {
+      const c = await compressImageFile(logoFile, {
+        maxWidth: 1080,
+        maxHeight: 1080,
+        quality: 0.78,
+        mimeType: "image/jpeg",
+        preferSquare: false,
+        background: "#ffffff",
+      });
+      if (c?.file) upLogo = c.file;
+    } catch (e) {
+      console.warn("[teamService] logo compress failed, use original:", e?.message || e);
+    }
+
+    const storagePath = `clubs/${clubId}/logo_${Date.now()}.jpg`;
 
     const storageRef = ref(storage, storagePath);
-    await uploadBytes(storageRef, logoFile);
+    await uploadBytes(storageRef, upLogo, {
+      contentType: upLogo?.type || "image/jpeg",
+      cacheControl: "public,max-age=31536000",
+    });
     const url = await getDownloadURL(storageRef);
 
     await updateDoc(doc(db, "clubs", clubId), {

@@ -25,6 +25,8 @@ import {
   getDownloadURL,
 } from "firebase/storage";
 
+import { compressImageFile } from "../utils/imageCompress";
+
 function sortPair(a, b) {
   const A = String(a || "").trim();
   const B = String(b || "").trim();
@@ -456,11 +458,34 @@ function buildStoragePath({ chatId, fromUid, file } = {}) {
 
 async function uploadImageFile({ chatId, fromUid, file } = {}) {
   const storage = getStorage();
-  const path = buildStoragePath({ chatId, fromUid, file });
+
+  // ✅ 업로드 전 압축(원본 그대로 올려 느리던 문제)
+  //    - GIF는 애니메이션 보존 위해 원본 유지
+  //    - 압축 결과가 오히려 커지면 원본 유지
+  let upFile = file;
+  const type = String(file?.type || "").toLowerCase();
+  if (type.startsWith("image/") && type !== "image/gif") {
+    try {
+      const c = await compressImageFile(file, {
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.7,
+        mimeType: "image/jpeg",
+        preferSquare: false,
+        background: "#ffffff",
+      });
+      if (c?.file && c.file.size < Number(file?.size || Infinity)) upFile = c.file;
+    } catch (e) {
+      console.warn("[chatService] image compress failed, use original:", e?.message || e);
+    }
+  }
+
+  const path = buildStoragePath({ chatId, fromUid, file: upFile });
   const storageRef = sRef(storage, path);
 
-  const snapshot = await uploadBytes(storageRef, file, {
-    contentType: file?.type || "image/jpeg",
+  const snapshot = await uploadBytes(storageRef, upFile, {
+    contentType: upFile?.type || "image/jpeg",
+    cacheControl: "public,max-age=31536000",
   });
 
   const url = await getDownloadURL(snapshot.ref);
@@ -473,7 +498,7 @@ async function uploadImageFile({ chatId, fromUid, file } = {}) {
       img.onload = () => resolve(true);
       img.onerror = () => resolve(false);
     });
-    img.src = URL.createObjectURL(file);
+    img.src = URL.createObjectURL(upFile);
     const ok = await p;
     if (ok) {
       w = img.naturalWidth || 0;
@@ -489,8 +514,8 @@ async function uploadImageFile({ chatId, fromUid, file } = {}) {
     path,
     w,
     h,
-    size: Number(file?.size || 0),
-    contentType: String(file?.type || "image/jpeg"),
+    size: Number(upFile?.size || 0),
+    contentType: String(upFile?.type || "image/jpeg"),
   };
 }
 
