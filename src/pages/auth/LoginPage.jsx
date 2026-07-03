@@ -145,7 +145,10 @@ const spin = keyframes`
 `;
 
 const Wrap = styled.div`
-  height: 100dvh;
+  /* 부모 #root(height:100%, 스크롤 컨테이너)와 동일 단위로 맞춰
+     실기기에서 100dvh 편차로 #root 가 스크롤되던 문제 차단 */
+  height: 100%;
+  max-height: 100%;
   background: ${({ theme }) => theme.colors.bg};
   display: flex;
   flex-direction: column;

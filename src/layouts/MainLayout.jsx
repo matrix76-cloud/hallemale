@@ -15,19 +15,26 @@ import useMatchAcceptWatcher from "../hooks/useMatchAcceptWatcher";
 import useNotificationBanner from "../hooks/useNotificationBanner";
 import { resolveNotiRoute } from "../utils/notiRoute";
 
+/* app-shell: 화면 높이로 잠그고(overflow hidden) 헤더/하단탭은 스크롤 밖 고정,
+   가운데 Main 만 내부 스크롤. 이렇게 해야 웹뷰 엔진과 무관하게 헤더가 안 움직인다.
+   (position:sticky 는 일부 모바일 웹뷰에서 깨져 헤더가 같이 스크롤됨) */
 const Wrap = styled.div`
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
+  max-height: 100%;
   background: ${({ theme }) => theme.colors.bg};
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 `;
 
 const Main = styled.main`
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 `;
 
 const ToastWrap = styled.div`
