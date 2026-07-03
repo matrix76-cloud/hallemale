@@ -16,6 +16,7 @@ import {
   orderBy,
   limit,
   getDocs,
+  onSnapshot,
   writeBatch,
   deleteDoc,
   addDoc,
@@ -821,6 +822,78 @@ export async function listClubMembers({ clubId, limitCount = 100 }) {
   });
 
   return rows;
+}
+
+/**
+ * ✅ 팀 멤버 실시간 구독 — 초대 수락 등으로 users.activeTeamId 가 바뀌면 즉시 콜백.
+ * (listClubMembers 와 동일한 SSOT: users where activeTeamId == clubId)
+ * @returns unsubscribe 함수
+ */
+export function subscribeClubMembers({ clubId, limitCount = 100 }, cb) {
+  const cid = String(clubId || "").trim();
+  if (!cid || typeof cb !== "function") return () => {};
+
+  const q = query(
+    collection(db, "users"),
+    where("activeTeamId", "==", cid),
+    limit(Number(limitCount || 100))
+  );
+
+  return onSnapshot(
+    q,
+    async (snap) => {
+      try {
+        const { ownerUid } = await resolveClubMetaSafe(cid);
+        const rows = snap.docs.map((d) => {
+          const v = d.data() || {};
+          return {
+            uid: d.id,
+            nickname: String(v.nickname || ""),
+            avatarUrl: String(v.avatarUrl || ""),
+            region: String(v.region || ""),
+            role: ownerUid && d.id === ownerUid ? "리더" : "멤버",
+          };
+        });
+        rows.sort((a, b) => {
+          const an = (a.nickname || "").toLowerCase();
+          const bn = (b.nickname || "").toLowerCase();
+          if (an < bn) return -1;
+          if (an > bn) return 1;
+          return String(a.uid || "").localeCompare(String(b.uid || ""));
+        });
+        cb(rows);
+      } catch (e) {
+        console.warn("[subscribeClubMembers] map failed:", e?.message || e);
+      }
+    },
+    (err) => console.warn("[subscribeClubMembers] snapshot error:", err?.message || err)
+  );
+}
+
+/**
+ * ✅ 보낸 초대(대기중) 실시간 구독 — 수락/거절로 status 가 바뀌면 즉시 콜백.
+ * @returns unsubscribe 함수
+ */
+export function subscribeClubInvites({ clubId, status = "pending", limitCount = 30 }, cb) {
+  const cid = String(clubId || "").trim();
+  if (!cid || typeof cb !== "function") return () => {};
+
+  const q = query(
+    collection(db, "clubs", cid, "invites"),
+    where("status", "==", status),
+    orderBy("createdAt", "desc"),
+    limit(Math.min(Math.max(limitCount, 1), 50))
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list = [];
+      snap.forEach((d) => list.push({ id: d.id, inviteId: d.id, ...d.data() }));
+      cb(list);
+    },
+    (err) => console.warn("[subscribeClubInvites] snapshot error:", err?.message || err)
+  );
 }
 
 // ✅ 매치 라이프사이클 알림 fan-out용: 팀원 uid 목록 (팀장=ownerUid 제외)

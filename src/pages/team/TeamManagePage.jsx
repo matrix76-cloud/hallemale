@@ -26,6 +26,8 @@ import {
   listClubMembers,
   forceRemoveClubMember,
   updateClubRegion,
+  subscribeClubMembers,
+  subscribeClubInvites,
 } from "../../services/clubManageService";
 import { isClubNameTaken } from "../../services/teamService";
 import { getNameChangeStatus } from "../../utils/nameChange";
@@ -207,11 +209,24 @@ export default function TeamManagePage() {
     }
   };
 
+  // 보낸 초대(대기중) 실시간 구독 — 선수가 수락/거절하면 즉시 목록 반영
   useEffect(() => {
     if (loading) return;
     if (!clubId) return;
     if (tab !== "members") return;
-    refreshPendingInvites();
+    setInvitesLoading(true);
+    const unsub = subscribeClubInvites(
+      { clubId, status: "pending", limitCount: 30 },
+      (rows) => {
+        setPendingInvites(Array.isArray(rows) ? rows : []);
+        setInvitesLoading(false);
+      }
+    );
+    return () => {
+      try {
+        unsub && unsub();
+      } catch (e) {}
+    };
   }, [loading, clubId, tab]);
 
 
@@ -263,11 +278,24 @@ export default function TeamManagePage() {
 
 
 
+  // 팀 멤버 실시간 구독 — 초대 수락으로 새 멤버가 붙으면 즉시 화면 반영
   useEffect(() => {
     if (loading) return;
     if (!clubId) return;
     if (tab !== "members") return;
-    refreshMembers();
+    setMembersLoading(true);
+    const unsub = subscribeClubMembers(
+      { clubId, limitCount: 100 },
+      (rows) => {
+        setMembers(Array.isArray(rows) ? rows : []);
+        setMembersLoading(false);
+      }
+    );
+    return () => {
+      try {
+        unsub && unsub();
+      } catch (e) {}
+    };
   }, [loading, clubId, tab]);
 
 
