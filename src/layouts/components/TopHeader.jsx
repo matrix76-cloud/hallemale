@@ -20,7 +20,9 @@ const Wrap = styled.header`
   position: sticky;
   top: 0;
   z-index: 100;
+  flex-shrink: 0;
   height: calc(52px + env(safe-area-inset-top));
+  min-height: calc(52px + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
   padding-left: calc(16px + env(safe-area-inset-left));
   padding-right: calc(16px + env(safe-area-inset-right));

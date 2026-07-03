@@ -11,16 +11,16 @@ const Wrap = styled.div`
 `;
 
 const Logo = styled.img`
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: block;
 `;
 
 const Title = styled.span`
   font-size: ${({ theme }) => theme.fontSizes.title}px;
   font-weight: 600;
+  line-height: 1;
   color: ${({ theme }) => theme.colors.textStrong};
-  padding-top:5px;
 `;
 
 export default function BrandHeader() {
