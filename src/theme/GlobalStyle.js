@@ -57,6 +57,15 @@ const GlobalStyle = createGlobalStyle`
     height: 100%;
   }
 
+  /* #root 를 유일한 스크롤 컨테이너로 지정.
+     이렇게 해야 TopHeader 의 position:sticky 가 실제 스크롤러(#root)를 기준으로
+     잡혀서 상단에 고정된다. (body/window 스크롤이면 sticky 가 깨져 헤더가 같이 올라감) */
+  #root {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
   }
