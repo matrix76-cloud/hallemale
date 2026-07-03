@@ -2,7 +2,8 @@ import React, {
   createContext,
   useContext,
   useState,
-  useCallback
+  useCallback,
+  useRef
 } from "react";
 
 const UIContext = createContext(null);
@@ -57,6 +58,32 @@ export function UIProvider({ children }) {
 
   const hideBottomSheet = useCallback(() => setBottomSheet(null), []);
 
+  // ✅ 하드웨어 백 인터셉트 스택 — 자체 오버레이(RegionPickerSheet 등)가 열려 있으면
+  //    백 버튼이 페이지를 벗어나지 않고 오버레이를 먼저 닫도록 등록한다. (LIFO)
+  const backStackRef = useRef([]);
+  const [blockingCount, setBlockingCount] = useState(0);
+
+  const registerBackInterceptor = useCallback((closeFn) => {
+    const entry = { close: closeFn };
+    backStackRef.current.push(entry);
+    setBlockingCount(backStackRef.current.length);
+    return () => {
+      const i = backStackRef.current.indexOf(entry);
+      if (i >= 0) backStackRef.current.splice(i, 1);
+      setBlockingCount(backStackRef.current.length);
+    };
+  }, []);
+
+  // 최상단 인터셉터 1개 실행(닫기). 있으면 true 반환 → 호출측은 네비게이션 중단.
+  const runTopBackInterceptor = useCallback(() => {
+    const top = backStackRef.current[backStackRef.current.length - 1];
+    if (!top) return false;
+    try {
+      top.close && top.close();
+    } catch (e) {}
+    return true;
+  }, []);
+
   const value = {
     globalLoading,
     setGlobalLoading,
@@ -74,7 +101,10 @@ export function UIProvider({ children }) {
     headerSubtitle,
     setHeaderSubtitle,
     headerConfig,
-    setHeaderConfig
+    setHeaderConfig,
+    blockingCount,
+    registerBackInterceptor,
+    runTopBackInterceptor
   };
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;

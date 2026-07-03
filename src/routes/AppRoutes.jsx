@@ -202,13 +202,29 @@ function BridgeNavSync() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const bridge = useWebviewBridgeContext();
-  const { modal, bottomSheet, hideModal, hideBottomSheet, showModal } = useUI();
+  const {
+    modal,
+    bottomSheet,
+    hideModal,
+    hideBottomSheet,
+    showModal,
+    blockingCount,
+    runTopBackInterceptor,
+  } = useUI();
 
   // 최신 UI 상태를 ref로 유지 (subscribe 콜백 안에서 stale closure 방지)
-  const uiRef = useRef({ modal, bottomSheet, hideModal, hideBottomSheet, showModal });
-  uiRef.current = { modal, bottomSheet, hideModal, hideBottomSheet, showModal };
+  const uiRef = useRef({});
+  uiRef.current = {
+    modal,
+    bottomSheet,
+    hideModal,
+    hideBottomSheet,
+    showModal,
+    runTopBackInterceptor,
+  };
 
-  const hasBlockingUI = !!(modal || bottomSheet);
+  // 자체 오버레이(RegionPickerSheet 등)가 등록한 인터셉터도 블로킹 UI로 취급
+  const hasBlockingUI = !!(modal || bottomSheet) || (blockingCount || 0) > 0;
 
   // 라우트 또는 블로킹 UI 변경 시 NAV_STATE 발송
   useEffect(() => {
@@ -233,6 +249,8 @@ function BridgeNavSync() {
       const ui = uiRef.current;
       if (ui.modal) { ui.hideModal(); return; }
       if (ui.bottomSheet) { ui.hideBottomSheet(); return; }
+      // ✅ 자체 오버레이(지역 선택 시트 등) 열려 있으면 먼저 닫기
+      if (ui.runTopBackInterceptor && ui.runTopBackInterceptor()) return;
       // 푸터 탭(홈 제외)에 있을 때는 홈으로 이동
       const p = (typeof window !== "undefined" ? window.location.pathname : "").toLowerCase();
       if (FOOTER_NON_HOME.includes(p)) {
@@ -252,6 +270,7 @@ function BridgeNavSync() {
       // 이미 블로킹 UI가 떠 있으면 그것부터 닫기 (BACK_REQUEST와 동일 가드)
       if (ui.modal) { ui.hideModal(); return; }
       if (ui.bottomSheet) { ui.hideBottomSheet(); return; }
+      if (ui.runTopBackInterceptor && ui.runTopBackInterceptor()) return;
       ui.showModal({
         title: "앱 종료",
         message: "앱을 종료하시겠습니까?",

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { FiX } from "react-icons/fi";
 import { KR_AREAS } from "../../utils/constants";
+import { useUIContext } from "../../context/UIContext";
 
 /**
  * RegionPickerSheet
@@ -24,6 +25,18 @@ export default function RegionPickerSheet({
 }) {
   const initialSido = value?.sido || KR_AREAS?.[0]?.sido || "";
   const [pickedSido, setPickedSido] = useState(initialSido);
+
+  // ✅ 하드웨어 백: 시트가 열려 있으면 페이지 이탈 대신 시트를 먼저 닫는다.
+  // registerBackInterceptor 는 useCallback([]) 라 안정적 → 무한 루프 방지 위해 ui 객체 대신 이것만 의존.
+  const uiCtx = useUIContext();
+  const registerBackInterceptor = uiCtx?.registerBackInterceptor;
+  useEffect(() => {
+    if (!open || !registerBackInterceptor) return;
+    const unregister = registerBackInterceptor(() => onClose && onClose());
+    return () => {
+      unregister && unregister();
+    };
+  }, [open, registerBackInterceptor, onClose]);
 
   useEffect(() => {
     if (!open) return;
