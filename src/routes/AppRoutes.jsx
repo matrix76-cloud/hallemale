@@ -78,6 +78,7 @@ import OperationPage from "../pages/legal/OperationPage";
 import PlayerRankingFullPage from "../pages/player/PlayerRankingFullPage";
 import TeamRankingFullPage from "../pages/team/TeamRankingFullPage";
 import TeamMatchHistoryFullPage from "../pages/team/TeamMatchHistoryFullPage";
+import PlayerMatchHistoryFullPage from "../pages/player/PlayerMatchHistoryFullPage";
 import ImpactCampaignPage from "../pages/home/ImpactCampaignPage";
 import MatchAnalysisPage from "../pages/matching/MatchAnalysisPage";
 
@@ -416,6 +417,7 @@ export default function AppRoutes() {
           <Route path="/team/:teamId/matches" element={<TeamMatchHistoryFullPage />} />
           <Route path="/teamRanking" element={<TeamRankingFullPage />} />
           <Route path="/player/:playerId" element={<PlayerProfilePage />} />
+          <Route path="/player/:playerId/matches" element={<PlayerMatchHistoryFullPage />} />
           <Route path="/playerRanking" element={<PlayerRankingFullPage />} />
 
           <Route path="/team/create" element={<TeamCreatePage />} />

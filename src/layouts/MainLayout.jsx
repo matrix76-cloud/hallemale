@@ -181,6 +181,7 @@ export default function MainLayout({ hideHeader = false }) {
     if (p.startsWith("/team/") && p.endsWith("/matches")) return "경기 기록";
     if (p.startsWith("/team")) return "팀 프로필";
 
+    if (p.startsWith("/player/") && p.endsWith("/matches")) return "경기 기록";
     if (p.startsWith("/player")) return "선수 프로필";
     if (p === "/notifications") return "알림";
     if (p.startsWith("/notificationsdetail")) return "알림세부내용";

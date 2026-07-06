@@ -1218,6 +1218,22 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                 </SectionIconCircle>
                 <SectionTitleText>경기 기록</SectionTitleText>
               </SectionHeaderLeft>
+              {!playerMatchesLoading && playerMatches.length > 5 && (
+                <SectionMeta
+                  style={{ cursor: "pointer" }}
+                  onClick={() =>
+                    nav(`/player/${String(playerId)}/matches`, {
+                      state: {
+                        clubId: String(player.clubId || "").trim(),
+                        uid: String(player?.uid || player?.userId || playerId || "").trim(),
+                        clubName: player.clubName,
+                      },
+                    })
+                  }
+                >
+                  전체보기
+                </SectionMeta>
+              )}
             </SectionHeaderRow>
 
             {playerMatchesLoading ? (
@@ -1227,6 +1243,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                 teamClubId={String(player.clubId || "").trim()}
                 teamName={player.clubName}
                 matches={playerMatches}
+                limit={5}
                 onClickMatch={(id) =>
                   nav(`/match-roomdetail/${id}`, {
                     state: { viewClubId: String(player.clubId || "").trim() },
