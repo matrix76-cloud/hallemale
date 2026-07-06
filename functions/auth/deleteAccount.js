@@ -15,6 +15,9 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { getAdmin } = require("../firebaseAdmin");
 
+// Storage 버킷(웹 firebase config와 동일) — uid 기반 업로드 파일 삭제용.
+const STORAGE_BUCKET = "halle-bf789.firebasestorage.app";
+
 /**
  * 카카오 연결 끊기(unlink) — best-effort.
  * uid 는 "kakao:{kakaoId}" 형식(kakaoCustomToken.js)이라 접두어를 떼면 카카오 회원번호다.
@@ -127,6 +130,115 @@ async function cleanupOwnedSoloClubs(fs, uid) {
   }
 }
 
+/**
+ * uid에 매인 사용자 데이터 전량 삭제 — best-effort(각 단계 독립 try/catch, 탈퇴를 막지 않음).
+ * - 본인 전용 컬렉션: users_by_phone, inquiries, *_reports, community_posts(+하위)
+ * - 남의 글에 단 내 댓글/좋아요(collectionGroup)
+ * - 내가 참여한 1:1 채팅방(chatRooms, 메시지 포함)
+ * - 역참조 정리: 타인 user_blocks.blockedUids / 타인 users.favoritePlayerIds 에서 내 uid 제거
+ * - Storage: uid 기반 경로 파일
+ * ※ match_requests(경기 기록)/리뷰는 팀 단위 공유 데이터라 개인 탈퇴로 지우지 않는다.
+ */
+async function purgeUserData(fs, admin, uid) {
+  // 1) 본인 전용 top-level 문서 (필드 조회 후 삭제)
+  const simple = [
+    { col: "users_by_phone", field: "uid" },
+    { col: "inquiries", field: "uid" },
+    { col: "user_reports", field: "reporterUid" },
+    { col: "team_reports", field: "reporterUid" },
+    { col: "community_reports", field: "reporterUid" },
+  ];
+  for (const { col, field } of simple) {
+    try {
+      const snap = await fs.collection(col).where(field, "==", uid).get();
+      await batchDelete(fs, snap.docs.map((d) => d.ref));
+    } catch (e) {
+      console.warn(`[deleteAccount] purge ${col} failed:`, e?.message || e);
+    }
+  }
+
+  // 2) 내가 쓴 커뮤니티 게시글 (하위 comments/likes 포함 재귀 삭제)
+  try {
+    const posts = await fs.collection("community_posts").where("authorUid", "==", uid).get();
+    for (const p of posts.docs) {
+      try {
+        await fs.recursiveDelete(p.ref);
+      } catch (e) {
+        console.warn(`[deleteAccount] delete post ${p.id} failed:`, e?.message || e);
+      }
+    }
+  } catch (e) {
+    console.warn("[deleteAccount] purge community_posts failed:", e?.message || e);
+  }
+
+  // 3) 남의 글/댓글에 단 내 댓글·좋아요 (collectionGroup — 컬렉션그룹 인덱스 필요할 수 있음, best-effort)
+  const groups = [
+    { name: "comments", field: "authorUid" },
+    { name: "likes", field: "uid" },
+  ];
+  for (const { name, field } of groups) {
+    try {
+      const snap = await fs.collectionGroup(name).where(field, "==", uid).get();
+      await batchDelete(fs, snap.docs.map((d) => d.ref));
+    } catch (e) {
+      console.warn(`[deleteAccount] purge collectionGroup ${name} failed (index?):`, e?.message || e);
+    }
+  }
+
+  // 4) 내가 참여한 1:1 채팅방 (메시지 포함 재귀 삭제)
+  try {
+    const rooms = await fs
+      .collection("chatRooms")
+      .where("participantUids", "array-contains", uid)
+      .get();
+    for (const r of rooms.docs) {
+      try {
+        await fs.recursiveDelete(r.ref);
+      } catch (e) {
+        console.warn(`[deleteAccount] delete chatRoom ${r.id} failed:`, e?.message || e);
+      }
+    }
+  } catch (e) {
+    console.warn("[deleteAccount] purge chatRooms failed:", e?.message || e);
+  }
+
+  // 5) 역참조 정리 — 타인 문서에서 내 uid 제거
+  const reverseRefs = [
+    { col: "user_blocks", field: "blockedUids" },
+    { col: "users", field: "favoritePlayerIds" },
+  ];
+  for (const { col, field } of reverseRefs) {
+    try {
+      const snap = await fs.collection(col).where(field, "array-contains", uid).get();
+      const refs = snap.docs.map((d) => d.ref);
+      for (let i = 0; i < refs.length; i += 450) {
+        const batch = fs.batch();
+        refs.slice(i, i + 450).forEach((r) =>
+          batch.update(r, { [field]: admin.firestore.FieldValue.arrayRemove(uid) })
+        );
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn(`[deleteAccount] purge reverse ${col}.${field} failed:`, e?.message || e);
+    }
+  }
+
+  // 6) Storage 파일 삭제 (uid 기반 경로 프리픽스)
+  try {
+    const bucket = admin.storage().bucket(STORAGE_BUCKET);
+    const prefixes = [`users/${uid}/`, `media/users/${uid}/`, `community_posts/${uid}/`];
+    for (const prefix of prefixes) {
+      try {
+        await bucket.deleteFiles({ prefix });
+      } catch (e) {
+        console.warn(`[deleteAccount] delete storage ${prefix} failed:`, e?.message || e);
+      }
+    }
+  } catch (e) {
+    console.warn("[deleteAccount] purge storage failed:", e?.message || e);
+  }
+}
+
 exports.deleteAccount = onRequest(
   { region: "asia-northeast3", cors: true },
   async (req, res) => {
@@ -168,6 +280,13 @@ exports.deleteAccount = onRequest(
         await clearNotificationsForUid(fs, uid);
       } catch (e) {
         console.warn("[deleteAccount] clearNotificationsForUid failed:", e?.message || e);
+      }
+
+      // 2-2) uid에 매인 데이터 전량 삭제(게시글·채팅·신고·문의·역참조·Storage 등)
+      try {
+        await purgeUserData(fs, admin, uid);
+      } catch (e) {
+        console.warn("[deleteAccount] purgeUserData failed:", e?.message || e);
       }
 
       // 3) users 문서 삭제(안전망) — 클라이언트 삭제가 규칙 등으로 막혔어도 Admin은 통과

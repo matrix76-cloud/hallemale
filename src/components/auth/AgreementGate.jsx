@@ -13,7 +13,10 @@ import { images } from "../../utils/imageAssets";
 export default function AgreementGate() {
   const navigate = useNavigate();
   const { firebaseUser, userDoc, refreshUser } = useAuth();
-  const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
+  // ⚠️ 전화인증에서 같은 번호의 기존 계정과 병합되면 게이트가 읽는 실제 문서는 userDoc.id(병합된 문서)다.
+  //    firebaseUser.uid(방금 삭제된 소셜 uid)에 저장하면 phoneVerified 없는 고아 문서를 재생성해
+  //    전화인증 화면이 다시 뜨는 무한 루프가 생긴다. → 반드시 userDoc.id 우선. (SignupCompletePage와 동일)
+  const uid = userDoc?.id || userDoc?.uid || firebaseUser?.uid || "";
 
   const [age, setAge] = useState(false);
   const [terms, setTerms] = useState(false);
