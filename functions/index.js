@@ -50,3 +50,8 @@ exports.adminLogin = adminLogin;
 // ✅ 국세청 사업자등록정보 진위확인 (구장 사업자 인증 자동 처리)
 const { verifyBusiness } = require("./business/verifyBusiness");
 exports.verifyBusiness = verifyBusiness;
+
+// ✅ 전화번호 SMS 인증 (Solapi) — 소셜 계정 전화번호 통합용
+const { requestPhoneOtp, verifyPhoneOtp } = require("./otp/phoneOtp");
+exports.requestPhoneOtp = requestPhoneOtp;
+exports.verifyPhoneOtp = verifyPhoneOtp;

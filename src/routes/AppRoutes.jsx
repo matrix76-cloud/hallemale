@@ -25,6 +25,7 @@ import { useOwnerAuth } from "../hooks/useOwnerAuth";
 import { useClub } from "../hooks/useClub";
 import WelcomePage from "../pages/auth/WelcomePage";
 import KakaoCallbackPage from "../pages/auth/KakaoCallbackPage";
+import PhoneVerifyPage from "../pages/auth/PhoneVerifyPage";
 import MatchRoomListPage from "../pages/matching/MatchRoomListPage";
 import MatchRoomDetailPage from "../pages/matching/MatchRoomDetailPage";
 import MatchPayPage from "../pages/matching/MatchPayPage";
@@ -140,10 +141,15 @@ function RequireAuth({ children }) {
   return children;
 }
 
-// 카카오 단일 로그인으로 전환하며 전화번호 인증 단계 제거 (2026-06-12).
-// 게이트는 통과만 시킨다. (/link-phone 라우트는 남겨두되 더 이상 진입하지 않음)
+// 소셜(카카오/구글) 최초 로그인 후 1회: 전화번호 SMS 인증 게이트 (2026-07-06 재도입).
+// users.phoneVerified 가 true 가 아니면 진입을 막고 전화번호 인증 화면을 띄운다.
+// 전화번호를 키로 카카오/구글 동일인 계정을 통합한다. (RequireConsent 통과 후 진입)
 function RequirePhone({ children }) {
-  return children;
+  const { userDoc, loading } = useAuth();
+  if (loading) return <AppLoadingPage />;
+  if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
+  if (userDoc?.phoneVerified === true) return children;
+  return <PhoneVerifyPage />;
 }
 
 // 최초 로그인 후 1회: 만 14세 이상 + 이용약관·개인정보처리방침 동의 게이트.
@@ -381,13 +387,13 @@ export default function AppRoutes() {
         <Route
           element={
             <RequireAuth>
-              <RequirePhone>
-                <RequireConsent>
+              <RequireConsent>
+                <RequirePhone>
                 <RequireClub>
                   <MainLayout />
                 </RequireClub>
-                </RequireConsent>
-              </RequirePhone>
+                </RequirePhone>
+              </RequireConsent>
             </RequireAuth>
           }
         >
@@ -464,13 +470,13 @@ export default function AppRoutes() {
         <Route
           element={
             <RequireAuth>
-              <RequirePhone>
-                <RequireConsent>
+              <RequireConsent>
+                <RequirePhone>
                 <RequireClub>
                   <MainLayout hideHeader />
                 </RequireClub>
-                </RequireConsent>
-              </RequirePhone>
+                </RequirePhone>
+              </RequireConsent>
             </RequireAuth>
           }
         >

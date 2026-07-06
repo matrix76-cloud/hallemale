@@ -91,7 +91,9 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const docData = await getUserDoc(user.uid);
+        // ⚠️ linkedSocialUid(전화번호 통합)까지 해석해야 함 — 두 번째 소셜 계정으로 로그인해도
+        //    기존(전화번호가 연결된) 프로필을 찾도록 getUserProfileByUid(3단계 조회) 사용.
+        const docData = await getUserProfileByUid(user.uid);
 
         // 🔁 기존 코드 호환: userDoc.id / clubId 필드 유지
         // 차단된 회원도 일단 userDoc은 set (BlockedAuthGate가 감지해서 오버레이 표시)
@@ -229,7 +231,7 @@ export function AuthProvider({ children }) {
 
   const refreshUser = async () => {
     if (!firebaseUser?.uid) return;
-    const docData = await getUserDoc(firebaseUser.uid);
+    const docData = await getUserProfileByUid(firebaseUser.uid);
     if (!docData) return;
 
     const normalized = {
