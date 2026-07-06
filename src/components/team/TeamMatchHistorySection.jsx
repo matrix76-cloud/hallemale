@@ -115,6 +115,7 @@ export default function TeamMatchHistorySection({
   teamName,
   matches,
   onClickMatch,
+  limit,
 }) {
   const list = useMemo(() => {
     const arr = Array.isArray(matches) ? matches : [];
@@ -210,10 +211,13 @@ export default function TeamMatchHistorySection({
 
   if (!list.length) return <EmptyState compact text="지난 경기 기록이 아직 없습니다." />;
 
+  const visibleList =
+    typeof limit === "number" && limit >= 0 ? list.slice(0, limit) : list;
+
   return (
     <Wrap>
       <List>
-        {list.map((m) => (
+        {visibleList.map((m) => (
           <Card key={m.id} type="button" onClick={() => onClickMatch && onClickMatch(m.id)}>
             <TopRow>
               <Title title={`${toStr(teamName) || "팀"} vs ${m.opponentName}`}>

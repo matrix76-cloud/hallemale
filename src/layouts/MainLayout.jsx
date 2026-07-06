@@ -178,6 +178,7 @@ export default function MainLayout({ hideHeader = false }) {
     if (p.startsWith("/team/") && p.includes("/manage")) return "팀 관리";
     if (p === "/teamranking") return "팀전체순위";
     if (p === "/playerranking") return "선수전체순위";
+    if (p.startsWith("/team/") && p.endsWith("/matches")) return "경기 기록";
     if (p.startsWith("/team")) return "팀 프로필";
 
     if (p.startsWith("/player")) return "선수 프로필";

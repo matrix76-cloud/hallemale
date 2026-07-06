@@ -1594,6 +1594,21 @@ useEffect(() => {
                     </SectionIconCircle>
                     <SectionTitleText>경기 기록</SectionTitleText>
                   </SectionHeaderLeft>
+                  {!pastMatchesLoading && pastMatches.length > 5 && (
+                    <SectionMeta
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        nav(`/team/${String(team?.clubId || team?.id || "").trim()}/matches`, {
+                          state: {
+                            teamName: team?.name,
+                            teamClubId: String(team?.clubId || team?.id || "").trim(),
+                          },
+                        })
+                      }
+                    >
+                      전체보기
+                    </SectionMeta>
+                  )}
                 </SectionHeaderRow>
 
                 {pastMatchesLoading ? (
@@ -1605,6 +1620,7 @@ useEffect(() => {
                     teamClubId={String(team?.clubId || team?.id || "").trim()}
                     teamName={team?.name}
                     matches={pastMatches}
+                    limit={5}
                     onClickMatch={(id) =>
                       nav(`/match-roomdetail/${id}`, {
                         state: { viewClubId: String(team?.clubId || team?.id || "").trim() },
