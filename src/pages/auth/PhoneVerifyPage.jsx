@@ -34,6 +34,9 @@ export default function PhoneVerifyPage() {
   const [sending, setSending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  // 동시/중복 제출 방지용 동기 가드. state(submitting)는 비동기 반영이라
+  // 같은 틱에 doVerify가 두 번 들어오면 둘 다 통과해버린다(StrictMode 이펙트 2회 실행 포함).
+  const verifyingRef = useRef(false);
 
   const phoneDigits = phone.replace(/\D/g, "");
   const phoneValid = phoneDigits.length >= 10 && phoneDigits.length <= 11;
@@ -75,7 +78,8 @@ export default function PhoneVerifyPage() {
   };
 
   const doVerify = async (code) => {
-    if (submitting) return;
+    if (verifyingRef.current) return;
+    verifyingRef.current = true;
     setSubmitting(true);
     setError("");
 
@@ -92,6 +96,7 @@ export default function PhoneVerifyPage() {
       }
       setError(msg);
       setInput(""); // 다시 입력할 수 있도록 6자리 비움 (code 화면은 그대로 유지)
+      verifyingRef.current = false;
       setSubmitting(false);
       return;
     }
@@ -137,18 +142,28 @@ export default function PhoneVerifyPage() {
     } catch (e) {
       console.warn("[PhoneVerify] refreshUser failed:", e?.message);
     }
+    // 성공 시엔 상위 RequirePhone 게이트가 통과되며 이 컴포넌트가 언마운트된다.
+    // (언마운트되지 않는 예외 상황을 대비해 가드/상태는 반드시 해제)
+    verifyingRef.current = false;
     setSubmitting(false);
   };
+
+  // 6자리가 모두 채워지면 자동으로 1회 검증.
+  // ⚠️ 예전엔 setInput 업데이터 안에서 doVerify를 호출했는데, React 상태 업데이터는
+  //    StrictMode에서 2번 실행되어 doVerify가 같은 코드로 두 번 발사됐다.
+  //    → 두번째 호출이 서버에서 '인증번호 없음' 에러를 받아 방금의 성공을 덮어쓰고 입력을 비워
+  //      "인증했는데 안 넘어가고 다시 입력" 버그가 났다. verifyingRef로 정확히 1회만 실행한다.
+  useEffect(() => {
+    if (step !== "code") return;
+    if (input.length === CODE_LEN && !verifyingRef.current) {
+      doVerify(input);
+    }
+  }, [input, step]);
 
   const press = (n) => {
     if (submitting || expired) return;
     setError("");
-    setInput((prev) => {
-      if (prev.length >= CODE_LEN) return prev;
-      const next = prev + String(n);
-      if (next.length === CODE_LEN) doVerify(next);
-      return next;
-    });
+    setInput((prev) => (prev.length >= CODE_LEN ? prev : prev + String(n)));
   };
   const back = () => {
     if (submitting) return;

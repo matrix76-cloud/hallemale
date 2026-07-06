@@ -10,6 +10,12 @@ import { parseAppMessage, isInWebView, postToApp } from "../bridge/webviewBridge
 
 const AuthContext = createContext(null);
 
+// 🔴 강제 로그아웃(1회) — 이 값을 올리면 모든 기기의 기존 로그인 세션이 다음 실행 때
+//    한 번 로그아웃되어 로그인 화면부터 다시 시작한다. (인증/회원가입 흐름 개편 배포용)
+//    기기별 localStorage에 마지막 처리 버전을 기록해 딱 1회만 실행한다.
+const FORCE_LOGOUT_VERSION = "2026-07-06-auth-revamp";
+const FORCE_LOGOUT_KEY = "hm.forceLogout.v";
+
 function logUserDocSnapshot({ stage, uid, docData, normalized }) {
   try {
     console.groupCollapsed(`[AuthProvider] userDoc snapshot · ${stage}`);
@@ -51,13 +57,28 @@ export function AuthProvider({ children }) {
 
   // Auth 상태 구독 + users 문서 1회 로드
   useEffect(() => {
-    // 구글/애플 redirect 로그인 복귀 결과 소비 (모바일 팝업 차단 시 redirect 폴백).
-    // 이 호출이 있어야 redirect 복귀 후 로그인이 완료되어 onAuthStateChanged가 발화한다.
-    consumeRedirectResultIfAny().catch((e) =>
-      console.warn("[AuthProvider] consumeRedirectResult failed:", e?.message || e)
-    );
+    let unsub = () => {};
+    let cancelled = false;
 
-    const unsub = watchAuthState(async (user) => {
+    (async () => {
+      // 🔴 강제 로그아웃(1회): 배포된 새 인증 흐름으로 모두 로그인 화면부터 다시 시작하도록,
+      //    기존 세션을 구독 시작 전에 한 번 끊는다. (게이트 통과 후 앱 화면이 잠깐 보이는 깜빡임 방지)
+      try {
+        if (window?.localStorage?.getItem(FORCE_LOGOUT_KEY) !== FORCE_LOGOUT_VERSION) {
+          window.localStorage.setItem(FORCE_LOGOUT_KEY, FORCE_LOGOUT_VERSION);
+          await signOutUser().catch(() => {});
+        }
+      } catch {}
+
+      if (cancelled) return;
+
+      // 구글/애플 redirect 로그인 복귀 결과 소비 (모바일 팝업 차단 시 redirect 폴백).
+      // 이 호출이 있어야 redirect 복귀 후 로그인이 완료되어 onAuthStateChanged가 발화한다.
+      consumeRedirectResultIfAny().catch((e) =>
+        console.warn("[AuthProvider] consumeRedirectResult failed:", e?.message || e)
+      );
+
+      unsub = watchAuthState(async (user) => {
       setFirebaseUser(user || null);
 
       if (!user?.uid) {
@@ -146,9 +167,11 @@ export function AuthProvider({ children }) {
       } finally {
         setLoading(false);
       }
-    });
+      });
+    })();
 
     return () => {
+      cancelled = true;
       try {
         unsub && unsub();
       } catch (e) {}
