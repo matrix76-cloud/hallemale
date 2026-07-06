@@ -9,7 +9,9 @@ import styled from "styled-components";
 import { useAuth } from "../../hooks/useAuth";
 import { requestPhoneOtp, verifyPhoneOtp, toE164Kr } from "../../services/phoneOtpService";
 import { getPrimaryUidByPhone, linkPhoneToUid } from "../../services/phoneService";
-import { linkSocialToExistingUser } from "../../services/userService";
+import { linkSocialToExistingUser, getUserProfileByUid } from "../../services/userService";
+import { db } from "../../services/firebase";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 const CODE_LEN = 6;
 const DEFAULT_SEC = 180; // 3분
@@ -76,15 +78,31 @@ export default function PhoneVerifyPage() {
     if (submitting) return;
     setSubmitting(true);
     setError("");
+
+    // 1) 인증번호 검증 — 실패(오답/만료/시도초과 등)면 재입력 유도
     try {
       await verifyPhoneOtp(phoneDigits, code);
+    } catch (e) {
+      let msg = e?.message || "인증에 실패했습니다.";
+      if (e?.code === "otp/mismatch") {
+        const left = typeof e?.attemptsLeft === "number" ? e.attemptsLeft : null;
+        msg =
+          "인증번호가 일치하지 않습니다. 다시 입력해 주세요." +
+          (left != null ? ` (남은 시도 ${left}회)` : "");
+      }
+      setError(msg);
+      setInput(""); // 다시 입력할 수 있도록 6자리 비움 (code 화면은 그대로 유지)
+      setSubmitting(false);
+      return;
+    }
 
-      // ── 전화번호 기반 계정 통합 ──
-      const e164 = toE164Kr(phoneDigits);
-      const uid = firebaseUser?.uid;
-      const provider = userDoc?.provider || "";
+    // 2) 검증 성공 = 인증 완료. 아래 계정통합은 부가작업이므로
+    //    실패해도 게이트 통과를 막지 않는다. (예전엔 통합 예외가 verify 성공을 덮어써 못 넘어감)
+    const e164 = toE164Kr(phoneDigits);
+    const uid = firebaseUser?.uid;
+    const provider = userDoc?.provider || "";
+    try {
       const existingUid = await getPrimaryUidByPhone(e164);
-
       if (existingUid && uid && existingUid !== uid) {
         // 같은 번호로 이미 가입된 기존 계정 → 현재 소셜 계정을 그 계정에 연결
         await linkSocialToExistingUser({ existingUid, socialUid: uid, provider });
@@ -92,15 +110,34 @@ export default function PhoneVerifyPage() {
         // 신규: 이 번호를 현재 계정에 연결(primaryUid) + phoneVerified=true
         await linkPhoneToUid({ uid, phoneE164: e164, provider });
       }
-
-      // userDoc 갱신 → RequirePhone 게이트 재평가되어 통과
-      await refreshUser();
-      // 이 시점 이후 컴포넌트는 언마운트됨(게이트 통과). setState 불필요.
     } catch (e) {
-      setError(e?.message || "인증에 실패했습니다.");
-      setInput("");
-      setSubmitting(false);
+      console.warn("[PhoneVerify] account link failed (non-critical):", e?.message);
     }
+
+    // 3) 게이트가 읽는 실제 프로필 문서에 phoneVerified=true 보장(안전망).
+    //    통합 경로(문서 병합/삭제)나 트랜잭션 실패와 무관하게 반드시 통과되도록.
+    try {
+      const profile = await getUserProfileByUid(uid);
+      const targetId = profile?.id || uid;
+      if (targetId) {
+        await setDoc(
+          doc(db, "users", targetId),
+          { phoneVerified: true, phoneE164: e164, updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+      }
+    } catch (e) {
+      console.warn("[PhoneVerify] ensure phoneVerified failed:", e?.message);
+    }
+
+    // 4) userDoc 갱신 → RequirePhone 게이트 재평가되어 통과 → 컴포넌트 언마운트.
+    //    언마운트가 안 되는 경우(예외 등)를 대비해 submitting은 반드시 해제.
+    try {
+      await refreshUser();
+    } catch (e) {
+      console.warn("[PhoneVerify] refreshUser failed:", e?.message);
+    }
+    setSubmitting(false);
   };
 
   const press = (n) => {
