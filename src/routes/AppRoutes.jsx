@@ -26,6 +26,7 @@ import { useClub } from "../hooks/useClub";
 import WelcomePage from "../pages/auth/WelcomePage";
 import KakaoCallbackPage from "../pages/auth/KakaoCallbackPage";
 import PhoneVerifyPage from "../pages/auth/PhoneVerifyPage";
+import SignupCompletePage from "../pages/auth/SignupCompletePage";
 import MatchRoomListPage from "../pages/matching/MatchRoomListPage";
 import MatchRoomDetailPage from "../pages/matching/MatchRoomDetailPage";
 import MatchPayPage from "../pages/matching/MatchPayPage";
@@ -163,6 +164,16 @@ function RequireConsent({ children }) {
     userDoc?.ageOver14Consent === true;
   if (!agreed) return <AgreementGate />;
   return children;
+}
+
+// 전화번호 인증까지 마친 신규 가입자에게 1회 노출되는 회원가입 완료 화면 게이트.
+// users.welcomeSeen 이 true 가 아니면 완료 화면을 띄운다. (RequirePhone 통과 후 진입)
+function RequireWelcome({ children }) {
+  const { userDoc, loading } = useAuth();
+  if (loading) return <AppLoadingPage />;
+  if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
+  if (userDoc?.welcomeSeen === true) return children;
+  return <SignupCompletePage />;
 }
 
 function RequireClub({ children }) {
@@ -389,9 +400,11 @@ export default function AppRoutes() {
             <RequireAuth>
               <RequireConsent>
                 <RequirePhone>
+                <RequireWelcome>
                 <RequireClub>
                   <MainLayout />
                 </RequireClub>
+                </RequireWelcome>
                 </RequirePhone>
               </RequireConsent>
             </RequireAuth>

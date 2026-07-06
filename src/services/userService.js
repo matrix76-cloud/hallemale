@@ -166,6 +166,24 @@ export const saveUserConsents = async ({
 };
 
 /**
+ * ✅ 회원가입 완료 화면 노출 완료 표시 — 이후 재노출 방지
+ */
+export const markWelcomeSeen = async ({ uid }) => {
+  if (!uid) throw new Error("markWelcomeSeen: uid is required");
+  const ref = doc(db, "users", uid);
+  await setDoc(
+    ref,
+    {
+      welcomeSeen: true,
+      welcomeSeenAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+  return { uid };
+};
+
+/**
  * ✅ 프로필 업데이트 (MyProfileEditPage에서 쓰는 필드 전부 지원)
  */
 export const updateUserProfile = async ({
