@@ -13,7 +13,9 @@ import { showAlert } from "../../utils/appDialog";
 export default function SignupCompletePage() {
   const navigate = useNavigate();
   const { firebaseUser, userDoc, refreshUser } = useAuth();
-  const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
+  // ⚠️ 전화인증에서 같은 번호의 기존 계정과 병합되면 게이트가 읽는 문서는 userDoc.id(병합된 실제 문서)다.
+  //    firebaseUser.uid(소셜 uid)에 쓰면 엉뚱한 문서에 저장돼 완료 화면이 안 넘어간다.
+  const uid = userDoc?.id || userDoc?.uid || firebaseUser?.uid || "";
   const [busy, setBusy] = useState(false);
 
   const nickname = String(userDoc?.nickname || userDoc?.displayName || "").trim();
