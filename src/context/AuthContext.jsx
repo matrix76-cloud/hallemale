@@ -13,7 +13,7 @@ const AuthContext = createContext(null);
 // 🔴 강제 로그아웃(1회) — 이 값을 올리면 모든 기기의 기존 로그인 세션이 다음 실행 때
 //    한 번 로그아웃되어 로그인 화면부터 다시 시작한다. (인증/회원가입 흐름 개편 배포용)
 //    기기별 localStorage에 마지막 처리 버전을 기록해 딱 1회만 실행한다.
-const FORCE_LOGOUT_VERSION = "2026-07-06-auth-revamp";
+const FORCE_LOGOUT_VERSION = "2026-07-06-auth-revamp-2";
 const FORCE_LOGOUT_KEY = "hm.forceLogout.v";
 
 function logUserDocSnapshot({ stage, uid, docData, normalized }) {
