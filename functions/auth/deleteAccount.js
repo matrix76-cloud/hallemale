@@ -15,6 +15,38 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { getAdmin } = require("../firebaseAdmin");
 
+/**
+ * 카카오 연결 끊기(unlink) — best-effort.
+ * uid 는 "kakao:{kakaoId}" 형식(kakaoCustomToken.js)이라 접두어를 떼면 카카오 회원번호다.
+ * unlink 를 해야 재가입 시 카카오가 "새 연결"로 인식 → 동의화면이 다시 뜬다.
+ * (KAKAO_ADMIN_KEY 미설정이면 스킵 — 탈퇴 자체는 막지 않는다)
+ */
+async function unlinkKakao(uid) {
+  if (!uid || !uid.startsWith("kakao:")) return;
+  const adminKey = process.env.KAKAO_ADMIN_KEY;
+  if (!adminKey) {
+    console.warn("[deleteAccount] KAKAO_ADMIN_KEY not set — skip kakao unlink");
+    return;
+  }
+  const kakaoId = uid.slice("kakao:".length);
+  try {
+    const r = await fetch("https://kapi.kakao.com/v1/user/unlink", {
+      method: "POST",
+      headers: {
+        Authorization: `KakaoAK ${adminKey}`,
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+      },
+      body: `target_id_type=user_id&target_id=${encodeURIComponent(kakaoId)}`,
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      console.warn("[deleteAccount] kakao unlink failed:", r.status, t);
+    }
+  } catch (e) {
+    console.warn("[deleteAccount] kakao unlink error:", e?.message || e);
+  }
+}
+
 /** 여러 ref를 배치로 삭제 (배치 최대 500) */
 async function batchDelete(fs, refs) {
   const arr = Array.from(refs);
@@ -144,6 +176,9 @@ exports.deleteAccount = onRequest(
       } catch (e) {
         console.warn("[deleteAccount] users doc delete failed:", e?.message || e);
       }
+
+      // 3-1) 카카오 연결 끊기 — 재가입 시 동의화면이 다시 뜨도록 (best-effort)
+      await unlinkKakao(uid);
 
       // 4) Auth 계정 삭제 — requires-recent-login 없음
       await admin.auth().deleteUser(uid);

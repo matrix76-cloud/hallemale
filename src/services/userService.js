@@ -15,6 +15,7 @@ import {
   limit,
 } from "firebase/firestore";
 import { getNameChangeStatus } from "../utils/nameChange";
+import { clearNotificationsForUser } from "./notificationService";
 
 /**
  * 닉네임 중복 여부 확인
@@ -106,6 +107,17 @@ export const ensureUserDoc = async ({ uid, email, provider = "", phoneE164 = "",
       },
       { merge: true }
     );
+
+    // ✅ 신규 계정(재가입 포함) — 예전 알림 잔존 정리.
+    //    카카오 uid가 고정이라, 탈퇴 시 best-effort 정리가 실패했으면
+    //    같은 uid로 재가입 시 예전 알림(targetIds에 uid 잔존)이 다시 뜬다.
+    //    문서가 없다가 새로 만들어진 이 순간에 한 번 더 비워 깨끗한 상태를 보장한다.
+    try {
+      await clearNotificationsForUser({ uid });
+    } catch (e) {
+      console.warn("[userService] clear stale notifications failed (non-critical):", e?.message);
+    }
+
     return { uid, created: true };
   }
 
