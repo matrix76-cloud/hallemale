@@ -284,9 +284,13 @@ async function webSignInWithKakao({ keepLogin }) {
   } catch {}
 
   const redirectUri = `${window.location.origin}/oauth/kakao`;
+  // scope 를 명시해야 최초 가입(미동의) 사용자에게 카카오 동의화면이 뜬다.
+  // 요청 항목은 앱이 실제로 쓰는 값(닉네임·프로필사진)만 — 카카오 콘솔 동의항목에 활성화돼 있어야 함.
+  const scope = "profile_nickname,profile_image";
   const url =
     `https://kauth.kakao.com/oauth/authorize?client_id=${WEB_KAKAO_REST_KEY}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
+    `&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code` +
+    `&scope=${encodeURIComponent(scope)}`;
 
   window.location.href = url;
   // 리다이렉트되므로 이 함수는 사실상 값을 반환하지 않음
