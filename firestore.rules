@@ -1,77 +1,20 @@
 rules_version = '2';
 
-// 할래말래 Firestore 보안 규칙
-// 원칙:
-//  1) 익명(비로그인) 쓰기 전면 차단 — 기존 allow-all 최대 구멍(누구나 전 DB 수정·삭제 가능) 제거
-//  2) 서버(Cloud Functions/Admin SDK) 전용 컬렉션은 클라이언트 접근 완전 차단
-//     (OTP 코드·비번 재설정 로그·시스템 락 노출 차단. Admin SDK는 규칙을 우회하므로 함수는 정상 동작)
-//  3) admin_accounts 는 어드민 커스텀 클레임(admin==true) 필요
-//  4) 읽기는 기존 동작 유지(비로그인/교차 조회에 의존하는 화면 다수) — 민감 컬렉션만 제한
-//  5) 열거되지 않은 컬렉션은 기본 차단(default deny)
-// 주의: Firestore 규칙은 여러 match 가 OR 로 합쳐진다 → 넓은 read:true 캐치올을 두면
-//       좁은 deny 가 무력화되므로, 잠글 컬렉션을 위해 전 컬렉션을 명시 열거한다.
+// ⚠️⚠️⚠️ 테스트용 임시 규칙 (전면 허용) — 출시 전 반드시 교체할 것! ⚠️⚠️⚠️
+//
+// 테스트 단계라 시드 스크립트(비로그인 클라 쓰기)가 동작하도록 allow-all 로 복구함.
+// 강화(최소권한) 규칙은 firestore.rules.prod 에 보존돼 있음.
+//
+// 출시 전 재적용:
+//   cp firestore.rules.prod firestore.rules
+//   firebase deploy --only firestore:rules --project halle-bf789
+//
+// (이 상태에서는 누구나 전 DB 읽기·쓰기·삭제 가능 + OTP 코드 노출 → 프로덕션 금지)
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function signedIn() { return request.auth != null; }
-    function isAdmin()  { return signedIn() && request.auth.token.admin == true; }
-
-    // ───── 유저 / 팀 / 매칭 (공개 읽기, 로그인 쓰기) ─────
-    match /users/{id}                    { allow read: if true; allow write: if signedIn(); }
-    match /users_by_phone/{id}           { allow read: if true; allow write: if signedIn(); }
-    match /phones/{id}                    { allow read: if true; allow write: if signedIn(); }
-    match /clubs/{id}                     { allow read: if true; allow write: if signedIn(); }
-    match /clubs/{id}/{sub=**}            { allow read: if true; allow write: if signedIn(); }
-    // 팀 초대: collectionGroup(invites) 조회 지원 (MyTeamInvitesPage)
-    match /{path=**}/invites/{inviteId}  { allow read: if signedIn(); allow write: if signedIn(); }
-    match /match_requests/{id}            { allow read: if true; allow write: if signedIn(); }
-    match /rankings/{id}                  { allow read: if true; allow write: if signedIn(); }
-    match /player_sessions/{id}           { allow read: if true; allow write: if signedIn(); }
-
-    // ───── 구장 / 예약 ─────
-    match /venues/{id}                    { allow read: if true; allow write: if signedIn(); }
-    match /venueReservations/{id}         { allow read: if true; allow write: if signedIn(); }
-    match /venueBlocks/{id}               { allow read: if true; allow write: if signedIn(); }
-    match /gyms/{id}                      { allow read: if true; allow write: if signedIn(); }
-
-    // ───── 채팅 / 커뮤니티 ─────
-    match /chatRooms/{id}                 { allow read: if true; allow write: if signedIn(); }
-    match /chatRooms/{id}/{sub=**}        { allow read: if true; allow write: if signedIn(); }
-    match /community_posts/{id}           { allow read: if true; allow write: if signedIn(); }
-    match /community_posts/{id}/{sub=**}  { allow read: if true; allow write: if signedIn(); }
-
-    // ───── 알림 / 기기 토큰 ─────
-    match /notifications/{id}             { allow read: if true;      allow write: if signedIn(); }
-    match /fcmTokens/{id}                 { allow read: if signedIn(); allow write: if signedIn(); }
-
-    // ───── 공개 콘텐츠 (읽기 공개 / 쓰기 어드민) ─────
-    match /banners/{id}                   { allow read: if true; allow write: if isAdmin(); }
-    match /notices/{id}                    { allow read: if true; allow write: if isAdmin(); }
-    match /event_popups/{id}              { allow read: if true; allow write: if isAdmin(); }
-    match /app_updates/{id}               { allow read: if true; allow write: if isAdmin(); }
-    match /legal_documents/{id}           { allow read: if true; allow write: if isAdmin(); }
-    match /games/{id}                     { allow read: if true; allow write: if isAdmin(); }
-
-    // ───── 문의 / 신고 / 차단 (비공개 읽기, 로그인 쓰기) ─────
-    match /inquiries/{id}                 { allow read: if signedIn(); allow write: if signedIn(); }
-    match /community_reports/{id}         { allow read: if signedIn(); allow write: if signedIn(); }
-    match /team_reports/{id}              { allow read: if signedIn(); allow write: if signedIn(); }
-    match /user_reports/{id}              { allow read: if signedIn(); allow write: if signedIn(); }
-    match /user_blocks/{id}               { allow read: if signedIn(); allow write: if signedIn(); }
-
-    // ───── 운영 작업 큐 ─────
-    match /tasks/{id}                     { allow read: if true; allow write: if signedIn(); }
-
-    // ───── 어드민 계정 (어드민 전용) ─────
-    match /admin_accounts/{id}            { allow read: if isAdmin(); allow write: if isAdmin(); }
-
-    // ───── 서버(Cloud Functions / Admin SDK) 전용 : 클라 접근 전면 차단 ─────
-    match /phone_verifications/{id}       { allow read, write: if false; }
-    match /password_reset_logs/{id}       { allow read, write: if false; }
-    match /_system/{id}                   { allow read, write: if false; }
-
-    // ───── 그 외 미열거 컬렉션 : 기본 차단 ─────
-    match /{document=**}                  { allow read, write: if false; }
+    match /{document=**} {
+      allow read, write: if true;
+    }
   }
 }
