@@ -11,7 +11,6 @@ import { useNavigate } from "react-router-dom";
 import { images, playerAvatars } from "../../utils/imageAssets";
 import { KR_AREAS } from "../../utils/constants";
 import { useAuth } from "../../hooks/useAuth";
-import { useClub } from "../../hooks/useClub";
 import { updateUserProfile, isNicknameTaken } from "../../services/userService";
 import { uploadUserAvatar } from "../../services/mediaService";
 import { getNameChangeStatus } from "../../utils/nameChange";
@@ -36,8 +35,6 @@ const SKILL_LABEL = {
 export default function MyProfileEditPage() {
   const nav = useNavigate();
   const { userDoc, loading, refreshUser } = useAuth();
-  // ✅ 소속 여부는 stale한 userDoc 대신 실시간 ClubContext(club)로 판정
-  const { club } = useClub();
 
   const uid = userDoc?.uid || userDoc?.id || "";
 
@@ -213,25 +210,16 @@ export default function MyProfileEditPage() {
     return count > 0 ? `${count}개 등록됨` : "등록 안 됨";
   })();
 
-  const teamJoinPreview = (() => {
-    const hasTeam = !!club;
-    if (hasTeam) return "이미 소속 팀 있음";
-    const status = String(userDoc?.joinRequest?.status || "").trim();
-    if (status === "pending") return "신청 중";
-    if (status === "rejected") return "이전 신청 거절됨";
-    return "신청 안 함";
-  })();
-
   // 값이 "아직 안 채움" 상태인지 → 메뉴 값 색으로 한눈에 구분
   const isEmptyValue = (v) =>
     v === "선택 안 함" || v === "등록 안 됨" || v === "신청 안 함";
 
+  // 팀 가입 신청은 마이페이지(내 정보)로 분리됨 — 여기 상세 프로필 메뉴에는 두지 않는다.
   const detailMenus = [
     { key: "skills", label: "포지션 · 실력", value: skillsPreview, to: "/my/profile/edit/skills" },
     { key: "body", label: "키 · 몸무게", value: bodyPreview, to: "/my/profile/edit/body" },
     { key: "intro", label: "소개 · 경력", value: introPreview, to: "/my/profile/edit/intro" },
     { key: "media", label: "경기 소개 · 사진/동영상", value: mediaPreview, to: "/my/profile/edit/media" },
-    { key: "team", label: "팀 가입 신청", value: teamJoinPreview, to: "/my/profile/edit/team-join" },
   ];
 
   return (

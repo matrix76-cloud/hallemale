@@ -121,6 +121,8 @@ export default function MyProfilePage() {
     if (key === "personal-matches") nav("/my/personal-matches");
     if (key === "my-reports") nav("/my/reports");
 
+    if (key === "team-join") nav("/my/profile/edit/team-join");
+
     if (key === "team-invites") nav("/my/team-invites");
 
     if (key === "join-requests") {
@@ -610,6 +612,13 @@ export default function MyProfilePage() {
           </SectionInner>
           <SectionBody>
             <MenuList>
+              <MenuItemButton onClick={() => handleMainMenuClick("team-join")}>
+                <MenuTextWrap>
+                  <MenuTitle>팀 가입 신청</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
               <MenuItemButton
                 onClick={() => handleMainMenuClick(isTeamLeader ? "join-requests" : "team-invites")}
               >
