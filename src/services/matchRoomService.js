@@ -180,6 +180,7 @@ function uniqStr(list) {
 function normalizeRoomStatus(matchReqStatus) {
   const s = toStr(matchReqStatus);
   if (s === "accepted") return "accepted";
+  if (s === "awaiting_venue_approval") return "awaiting_venue_approval";
   if (s === "proposed") return "proposed";
   if (s === "confirmed") return "confirmed";
   if (s === "finished") return "finished";
@@ -557,6 +558,7 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
     const st = toStr(r?.status);
     return (
       st === "accepted" ||
+      st === "awaiting_venue_approval" ||
       st === "proposed" ||
       st === "confirmed" ||
       st === "finished" ||

@@ -653,6 +653,70 @@ export async function listReservations({ venueId, date = "", courtId = "" } = {}
   return rows;
 }
 
+/* ── 매칭 예약(승인대기) 상태 변화를 매칭룸(match_requests) + 양 팀장 알림에 반영 (예약승인제) ── */
+
+// 양 팀 팀장(clubs.ownerUid)에게 매칭 알림 발송
+async function notifyMatchTeamLeaders(matchId, clubIds, { subType, type, title, body }) {
+  const mid = safeStr(matchId);
+  const ids = Array.from(new Set((clubIds || []).map(safeStr).filter(Boolean)));
+  for (const cid of ids) {
+    try {
+      const clubSnap = await getDoc(doc(db, "clubs", cid));
+      const ownerUid = safeStr(clubSnap.exists() ? clubSnap.data()?.ownerUid : "");
+      if (!ownerUid) continue;
+      await addDoc(collection(db, "notifications"), {
+        kind: "match", subType, type, title, body,
+        targetType: "USER", targetIds: [ownerUid],
+        linkType: "match", linkTargetId: mid,
+        meta: { matchId: mid, deepLink: `/match-roomdetail/${mid}` },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "match", createdAt: serverTimestamp(), updatedAt: serverTimestamp(), readBy: {},
+      });
+    } catch (e) {
+      console.warn("[notifyMatchTeamLeaders] failed:", e?.message || e);
+    }
+  }
+}
+
+// 예약 문서(matchId 보유)의 상태 변화 → 매칭 확정/복귀 동기화
+//  action: "approved"(구장주 승인 → 경기 확정) | "rejected"(반려 → 조율중 복귀)
+async function syncMatchOnReservationChange(data, action) {
+  const matchId = safeStr(data?.matchId);
+  if (!matchId) return;
+  const clubIds = [safeStr(data.teamAClubId), safeStr(data.teamBClubId)];
+
+  if (action === "approved") {
+    await updateDoc(doc(db, "match_requests", matchId), {
+      status: "confirmed",
+      "partnerBooking.approvalState": "approved",
+      "partnerBooking.finalized": true,
+      confirmedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await notifyMatchTeamLeaders(matchId, clubIds, {
+      subType: "venueReservationApproved", type: "venue_reservation_approved",
+      title: "구장 예약 승인 🎉 경기 확정!",
+      body: `${safeStr(data.date)} ${safeStr(data.startTime)}~${safeStr(data.endTime)} · ${safeStr(data.courtName)} 예약이 승인돼 경기가 확정됐어요!`,
+    });
+  } else if (action === "rejected") {
+    // 조율중(accepted)으로 되돌리고 제안 정보 비움 → 다른 구장·시간 재제안 가능
+    await updateDoc(doc(db, "match_requests", matchId), {
+      status: "accepted",
+      partnerBooking: null,
+      scheduledAt: null,
+      field: null,
+      proposedByClubId: "",
+      proposedAt: null,
+      updatedAt: serverTimestamp(),
+    });
+    await notifyMatchTeamLeaders(matchId, clubIds, {
+      subType: "venueReservationRejected", type: "venue_reservation_rejected",
+      title: "구장 예약이 반려됐어요",
+      body: `${safeStr(data.courtName)} 예약이 구장 사정으로 반려됐어요. 다른 구장·시간을 다시 제안해 주세요.`,
+    });
+  }
+}
+
 /** 예약 상태 변경 (승인/거절/완료/노쇼) */
 export async function setReservationStatus(reservationId, status) {
   const rid = safeStr(reservationId);
@@ -660,10 +724,21 @@ export async function setReservationStatus(reservationId, status) {
   const next = ["requested", "confirmed", "rejected", "cancelled", "done", "noshow"].includes(status)
     ? status
     : "requested";
-  await updateDoc(doc(db, "venueReservations", rid), {
+  const dref = doc(db, "venueReservations", rid);
+  await updateDoc(dref, {
     status: next,
     updatedAt: serverTimestamp(),
   });
+  // 매칭 예약 승인(구장주 확정) → 경기 확정 동기화 + 양 팀장 알림
+  if (next === "confirmed") {
+    try {
+      const snap = await getDoc(dref);
+      const data = snap.exists() ? snap.data() : null;
+      if (data && safeStr(data.matchId)) await syncMatchOnReservationChange(data, "approved");
+    } catch (e) {
+      console.warn("[setReservationStatus] match sync failed:", e?.message || e);
+    }
+  }
 }
 
 /**
@@ -710,6 +785,14 @@ async function refundAndSetStatus(reservationId, nextStatus) {
     refundedAmount: refunded,
     updatedAt: serverTimestamp(),
   });
+  // 매칭 예약 반려 → 매칭룸 조율중(accepted) 복귀 + 재제안 유도 알림
+  if (safeStr(data.matchId) && nextStatus === "rejected") {
+    try {
+      await syncMatchOnReservationChange(data, "rejected");
+    } catch (e) {
+      console.warn("[refundAndSetStatus] match sync failed:", e?.message || e);
+    }
+  }
   return { refunded };
 }
 
@@ -1054,6 +1137,72 @@ export async function acceptPartnerProposal({ matchId, acceptedByClubId } = {}) 
     updatedAt: serverTimestamp(),
   });
   return true;
+}
+
+/**
+ * (예약승인제) 상대팀이 제휴구장 제안을 수락 → 구장주 승인 대기 예약 생성.
+ *  - 결제 없음(현장 정산). venueReservations/m_{matchId} 를 status="requested"(승인대기)로 생성.
+ *  - match_requests.status="awaiting_venue_approval", partnerBooking.approvalState="requested".
+ *  - 구장주에게 예약요청 알림 → OwnerHomePage 승인 대기 큐에 노출됨.
+ *  - 멱등: 이미 requested/pending/confirmed 예약이 있으면 재생성하지 않음.
+ */
+export async function requestVenueReservationForMatch({ matchId, requestedByClubId } = {}) {
+  const id = safeStr(matchId);
+  if (!id) throw new Error("matchId가 필요합니다.");
+
+  const msnap = await getDoc(doc(db, "match_requests", id));
+  const pb = msnap.exists() ? msnap.data()?.partnerBooking : null;
+  if (!pb) throw new Error("제안된 구장 정보가 없습니다.");
+
+  const resRef = doc(db, "venueReservations", `m_${id}`);
+  const pre = await getDoc(resRef);
+  const preActive = pre.exists() && ["requested", "pending", "confirmed"].includes(safeStr(pre.data()?.status));
+
+  if (!preActive) {
+    await assertSlotFree({ venueId: pb.venueId, courtId: pb.courtId, date: pb.date, startTime: pb.startTime, endTime: pb.endTime });
+    await setDoc(resRef, {
+      venueId: safeStr(pb.venueId), venueName: safeStr(pb.venueName), ownerUid: safeStr(pb.ownerUid),
+      courtId: safeStr(pb.courtId), courtName: safeStr(pb.courtName),
+      date: safeStr(pb.date), startTime: safeStr(pb.startTime), endTime: safeStr(pb.endTime),
+      userId: safeStr(pb.proposerUid), userName: safeStr(pb.proposerTeamName), teamName: safeStr(pb.proposerTeamName),
+      price: toNum(pb.totalPrice) ?? 0, paid: false, paymentMethod: "onsite", source: "match",
+      status: "requested",
+      matchId: id, splitTotal: toNum(pb.totalPrice) ?? 0,
+      shareA: toNum(pb.shareA) ?? 0, shareB: toNum(pb.shareB) ?? 0,
+      teamAClubId: safeStr(pb.proposerClubId), teamBClubId: safeStr(pb.opponentClubId),
+      teamAName: safeStr(pb.proposerTeamName), teamBName: safeStr(pb.opponentTeamName),
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+  }
+
+  await updateDoc(doc(db, "match_requests", id), {
+    status: "awaiting_venue_approval",
+    "partnerBooking.accepted": true,
+    "partnerBooking.acceptedByClubId": safeStr(requestedByClubId),
+    "partnerBooking.acceptedAt": serverTimestamp(),
+    "partnerBooking.approvalState": "requested",
+    "partnerBooking.reservationId": resRef.id,
+    updatedAt: serverTimestamp(),
+  });
+
+  if (pb.ownerUid) {
+    try {
+      await addDoc(collection(db, "notifications"), {
+        kind: "venue", subType: "venueReservationRequested", type: "venue_reservation",
+        title: "새 구장 예약 요청이 들어왔어요",
+        body: `${safeStr(pb.date)} ${safeStr(pb.startTime)}~${safeStr(pb.endTime)} · ${safeStr(pb.courtName)} (${safeStr(pb.proposerTeamName)} vs ${safeStr(pb.opponentTeamName)}) — 승인해 주세요`,
+        targetType: "USER", targetIds: [safeStr(pb.ownerUid)],
+        linkType: "venue", linkTargetId: safeStr(pb.venueId),
+        meta: { venueId: safeStr(pb.venueId), reservationId: resRef.id, matchId: id, deepLink: "/owner/home" },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "venue", createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn("[requestVenueReservationForMatch] notify failed:", e?.message || e);
+    }
+  }
+
+  return { reservationId: resRef.id, status: "requested" };
 }
 
 // 분할결제 마감 시간 (한 팀 결제 후 2시간)
