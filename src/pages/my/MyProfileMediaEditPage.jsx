@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { updateUserProfile } from "../../services/userService";
 import {
   uploadCompressedImageMedia,
@@ -29,6 +30,13 @@ export default function MyProfileMediaEditPage() {
   const [ytError, setYtError] = useState("");
 
   const [capOpen, setCapOpen] = useState(false);
+
+  // 안드로이드 뒤로가기 → 열린 시트/모달부터 닫기
+  useBackInterceptor(addPickerOpen || ytOpen || capOpen, () => {
+    if (ytOpen) setYtOpen(false);
+    else if (capOpen) setCapOpen(false);
+    else if (addPickerOpen) setAddPickerOpen(false);
+  });
   const [capText, setCapText] = useState("");
   const [capTargetId, setCapTargetId] = useState("");
 

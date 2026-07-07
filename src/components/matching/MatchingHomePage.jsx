@@ -2,6 +2,7 @@
 // src/pages/matching/MatchingHomePage.jsx
 import React, { useMemo, useState } from "react";
 import styled from "styled-components";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { TEAMS } from "../../mock/teamsMock";
 import { images, playerAvatars, teamLogoSrc } from "../../utils/imageAssets";
 
@@ -425,6 +426,13 @@ export default function MatchingHomePage() {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [showRegionModal, setShowRegionModal] = useState(false);
   const [showOpponentModal, setShowOpponentModal] = useState(false);
+
+  // 안드로이드 뒤로가기 → 열린 모달부터 닫기
+  useBackInterceptor(showMemberModal || showRegionModal || showOpponentModal, () => {
+    if (showOpponentModal) setShowOpponentModal(false);
+    else if (showRegionModal) setShowRegionModal(false);
+    else if (showMemberModal) setShowMemberModal(false);
+  });
 
   const opponentTeams = useMemo(
     () => TEAMS.filter((t) => t.clubId !== myTeam.clubId),

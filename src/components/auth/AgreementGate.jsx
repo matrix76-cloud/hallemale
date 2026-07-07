@@ -9,9 +9,12 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { saveUserConsents } from "../../services/userService";
 import { images } from "../../utils/imageAssets";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 export default function AgreementGate() {
   const navigate = useNavigate();
+  // 동의 게이트 표시 중엔 안드로이드 뒤로가기를 소비(게이트 위에 "앱 종료?" 모달이 뜨는 문제 방지).
+  useBackInterceptor(true, () => {});
   const { firebaseUser, userDoc, refreshUser } = useAuth();
   // ⚠️ 전화인증에서 같은 번호의 기존 계정과 병합되면 게이트가 읽는 실제 문서는 userDoc.id(병합된 문서)다.
   //    firebaseUser.uid(방금 삭제된 소셜 uid)에 저장하면 phoneVerified 없는 고아 문서를 재생성해

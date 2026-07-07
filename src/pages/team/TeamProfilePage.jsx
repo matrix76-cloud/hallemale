@@ -21,6 +21,7 @@ import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip"
 import Spinner from "../../components/common/Spinner";
 
 import { useAuth } from "../../hooks/useAuth";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { setFavoriteTeam } from "../../services/favoriteService";
 import { createMatchRequest } from "../../services/matchingService";
 
@@ -1039,6 +1040,17 @@ export default function TeamProfilePage({ teamId: propTeamId, embed = false } = 
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
+
+  // 안드로이드 뒤로가기 → 열린 모달(신고/확인/라인업/미디어)부터 닫기
+  useBackInterceptor(
+    reportOpen || showMatchConfirm || showLineupSelectModal || mediaModalOpen,
+    () => {
+      if (reportOpen) setReportOpen(false);
+      else if (showMatchConfirm) setShowMatchConfirm(false);
+      else if (showLineupSelectModal) setShowLineupSelectModal(false);
+      else if (mediaModalOpen) setMediaModalOpen(false);
+    }
+  );
 
   const openReport = () => {
     if (!myUid) {

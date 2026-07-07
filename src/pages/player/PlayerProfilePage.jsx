@@ -14,6 +14,7 @@ import { getPlayerRankMap } from "../../services/rankingService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 
 import { useAuth } from "../../hooks/useAuth";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { setFavoritePlayer } from "../../services/favoriteService";
 import { createUserReport } from "../../services/userReportService";
 import { blockAuthorAndHidePost } from "../../services/userBlockService";
@@ -752,6 +753,12 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
+
+  // 안드로이드 뒤로가기 → 열린 오버레이(신고/미디어)부터 닫기
+  useBackInterceptor(reportOpen || mediaModalOpen, () => {
+    if (reportOpen) setReportOpen(false);
+    else if (mediaModalOpen) setMediaModalOpen(false);
+  });
 
   useEffect(() => {
     let alive = true;

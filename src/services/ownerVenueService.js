@@ -24,6 +24,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -954,7 +955,8 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user }
         linkTargetId: venueId,
         meta: { venueId, reservationId, deepLink: "/owner/home" },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
-        prefsCategory: "match",
+        // 구장주 예약 알림 — "match" 토글과 분리(별도 카테고리라 매칭 알림 꺼도 안 꺼짐)
+        prefsCategory: "venue",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -1226,7 +1228,7 @@ export async function payPartnerShare({ matchId, side, payerUid, payerTeamName, 
         linkType: "venue", linkTargetId: safeStr(pb.venueId),
         meta: { venueId: pb.venueId, reservationId: resRef.id, deepLink: "/owner/home" },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
-        prefsCategory: "match", createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        prefsCategory: "venue", createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
     } catch (e) { console.warn("[payPartnerShare] notify failed", e?.message || e); }
   }

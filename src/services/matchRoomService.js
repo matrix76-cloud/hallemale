@@ -2007,26 +2007,40 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
     });
   });
 
-  // ✅ 결과 확정 알림 (양 팀)
+  // ✅ 결과 확정 알림 (양 팀 전원 — 팀장 포함)
+  //    ⚠️ 발송은 targetIds(uid)로만 된다. 예전엔 clubId를 넣어 아무에게도 안 갔음 → 실제 멤버 uid로 수정.
   try {
     const mrSnap = await getDoc(mrRef);
     const mr = mrSnap.exists() ? mrSnap.data() || {} : {};
-    const aClubId = toStr(mr.actorClubId);
-    const tClubId = toStr(mr.targetClubId);
-    const teamIds = [aClubId, tClubId].filter(Boolean);
-    if (teamIds.length) {
+    const clubIds = [toStr(mr.actorClubId), toStr(mr.targetClubId)].filter(Boolean);
+
+    const uidSet = new Set();
+    for (const cid of clubIds) {
+      try {
+        const members = await listClubMemberUidsExceptOwner(cid);
+        members.forEach((u) => u && uidSet.add(toStr(u)));
+      } catch {}
+      try {
+        const cSnap = await getDoc(doc(db, "clubs", cid));
+        const owner = toStr(cSnap.exists() ? cSnap.data()?.ownerUid : "");
+        if (owner) uidSet.add(owner);
+      } catch {}
+    }
+    const targetIds = [...uidSet].filter(Boolean);
+
+    if (targetIds.length) {
       await addDoc(collection(db, "notifications"), {
         kind: "match",
         subType: "matchResultConfirmed",
         type: "match_result_confirmed",
         title: "경기 결과가 확정되었어요",
         body: "경기 결과가 양 팀 모두 확정되었습니다.",
-        targetType: "TEAM",
-        targetIds: teamIds,
+        targetType: "USER",
+        targetIds,
         actorClubId: confirmer,
         linkType: "match",
         linkTargetId: id,
-        meta: { matchId: id, deepLink: `/matchroom/${id}` },
+        meta: { matchId: id, deepLink: `/match-roomdetail/${id}` },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
         prefsCategory: "match",
         createdAt: serverTimestamp(),

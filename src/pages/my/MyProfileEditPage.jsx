@@ -17,6 +17,9 @@ import { getNameChangeStatus } from "../../utils/nameChange";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 import { FiChevronRight } from "react-icons/fi";
+import { useUI } from "../../hooks/useUI";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { goBackOrHome } from "../../utils/navigation";
 
 const POSITION_LABEL = {
   guard: "가드",
@@ -60,6 +63,28 @@ export default function MyProfileEditPage() {
 
   const [didInit, setDidInit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // 수정 중 안드로이드 뒤로가기 → 변경사항 유실 방지 확인.
+  // (지역 선택 시트가 열려 있으면 그쪽 인터셉터가 LIFO 최상단이라 시트부터 닫힘)
+  const { showModal, hideModal } = useUI();
+  const dirty =
+    didInit &&
+    !isSaving &&
+    (!!avatarFile ||
+      nickChanged ||
+      String(regionSido || "") !== String(userDoc?.regionSido || "") ||
+      String(regionGu || "") !== String(userDoc?.regionGu || ""));
+  useBackInterceptor(dirty && !regionOpen, () => {
+    showModal({
+      title: "수정 취소",
+      message: "변경한 내용이 저장되지 않습니다. 나가시겠어요?",
+      onConfirm: () => {
+        hideModal();
+        goBackOrHome(nav);
+      },
+      onCancel: () => hideModal(),
+    });
+  });
 
   const sidoOptions = useMemo(
     () => (Array.isArray(KR_AREAS) ? KR_AREAS.map((a) => a.sido) : []),

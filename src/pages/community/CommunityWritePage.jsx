@@ -9,6 +9,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { createCommunityPost, updateCommunityPost } from "../../services/communityService";
 import { images } from "../../utils/imageAssets";
+import { useUI } from "../../hooks/useUI";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { goBackOrHome } from "../../utils/navigation";
 
 // 프로필 사진(실제 업로드본) 보유 여부 — 기본 로고/기본아바타는 '없음'으로 처리
 const hasProfilePhoto = (u) => {
@@ -265,6 +268,25 @@ export default function CommunityWritePage() {
   const isValid = useMemo(() => {
     return String(title || "").trim().length > 0 && String(content || "").trim().length > 0;
   }, [title, content]);
+
+  // 작성/수정 중 안드로이드 뒤로가기 → 내용 유실 방지 확인.
+  const { showModal, hideModal } = useUI();
+  const dirty =
+    !busy &&
+    (String(title || "").trim() !== String(editState.initTitle || "").trim() ||
+      String(content || "").trim() !== String(editState.initContent || "").trim() ||
+      images.length > 0);
+  useBackInterceptor(dirty, () => {
+    showModal({
+      title: isEdit ? "수정 취소" : "작성 취소",
+      message: "작성 중인 내용이 사라집니다. 나가시겠어요?",
+      onConfirm: () => {
+        hideModal();
+        goBackOrHome(nav);
+      },
+      onCancel: () => hideModal(),
+    });
+  });
 
   const handlePickImages = () => {
     if (busy) return;

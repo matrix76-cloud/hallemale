@@ -12,6 +12,7 @@ import { getPrimaryUidByPhone, linkPhoneToUid } from "../../services/phoneServic
 import { linkSocialToExistingUser, getUserProfileByUid } from "../../services/userService";
 import { db } from "../../services/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 const CODE_LEN = 6;
 const DEFAULT_SEC = 180; // 3분
@@ -41,6 +42,19 @@ export default function PhoneVerifyPage() {
   const phoneDigits = phone.replace(/\D/g, "");
   const phoneValid = phoneDigits.length >= 10 && phoneDigits.length <= 11;
   const expired = step === "code" && secondsLeft <= 0;
+
+  // 안드로이드 하드웨어 뒤로가기 처리(전화인증 게이트).
+  //  - 코드 입력 단계: 전화번호 입력 단계로 되돌림
+  //  - 전화번호 단계: 뒤로가기를 '소비'만 함(게이트 위에 "앱 종료?" 모달이 뜨는 문제 방지)
+  useBackInterceptor(true, () => {
+    if (step === "code") {
+      setStep("phone");
+      setInput("");
+      setError("");
+      setNotice("");
+    }
+    // phone 단계에서는 아무것도 하지 않음(게이트 유지). '다른 계정으로 로그인'은 화면 버튼으로.
+  });
 
   // 카운트다운 타이머 (code 스텝 진입 중에만)
   useEffect(() => {
