@@ -176,6 +176,7 @@ export default function TeamSelectModal({
 
         <HeaderSub>{subtitle}</HeaderSub>
 
+        <Body>
         <SearchWrap>
           <FiSearch size={16} />
           <SearchInput
@@ -259,6 +260,7 @@ export default function TeamSelectModal({
           placeholder="예) 주말 저녁 경기 위주로 참여 가능합니다."
           rows={4}
         />
+        </Body>
 
         <BottomRow>
           <GhostBtn type="button" onClick={onClose} disabled={loading}>
@@ -292,6 +294,17 @@ const Sheet = styled.div`
   border-radius: 8px;
   padding: 18px 18px 16px;
   box-shadow: ${({ theme }) => theme.shadows.card};
+  /* 화면이 작아도 시트가 뷰포트를 넘지 않게 제한 → 하단 버튼 잘림 방지 */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+`;
+
+/* 헤더/하단 버튼은 고정하고 중간 내용만 스크롤 */
+const Body = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 `;
 
 const HeaderRow = styled.div`
@@ -500,6 +513,7 @@ const BottomRow = styled.div`
   margin-top: 14px;
   display: flex;
   gap: 10px;
+  flex-shrink: 0;
 `;
 
 const GhostBtn = styled.button`
