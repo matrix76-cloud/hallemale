@@ -23,7 +23,7 @@ import {
 } from "../../services/matchRoomService";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
-import { payPartnerShare, getMatchReservationStatus, requestVenueReservationForMatch } from "../../services/ownerVenueService";
+import { getMatchReservationStatus, requestVenueReservationForMatch } from "../../services/ownerVenueService";
 import { doc as fsDoc, getDoc as fsGetDoc } from "firebase/firestore";
 import { db as fsDb } from "../../services/firebase";
 import { useUIContext } from "../../context/UIContext";
@@ -3025,7 +3025,6 @@ export default function MatchRoomDetailPage() {
 
   // 제휴구장 분할결제 상태 (partnerBooking + 예약 결제현황)
   const [partnerPay, setPartnerPay] = useState(null); // { pb, resv }
-  const [partnerPaying, setPartnerPaying] = useState(false);
 
   const roomId = toStr(params?.roomId || params?.matchId);
 
@@ -3079,7 +3078,6 @@ export default function MatchRoomDetailPage() {
   const [showAcceptAnim, setShowAcceptAnim] = useState(false); // 매칭 성사(수락) 축하 애니메이션
   const [showLineupDoneAnim, setShowLineupDoneAnim] = useState(false); // 양 팀 라인업 확정 축하
   const lineupBothRef = useRef(null); // 양 팀 라인업 확정 상태(전환 감지용, null=미초기화)
-  const [showPayPromptAnim, setShowPayPromptAnim] = useState(false); // 제휴구장 제안 수락 → 결제 안내 축하
   const acceptedAnimRef = useRef(null); // 제휴구장 수락 상태(전환 감지용, null=미초기화)
   const loadPartnerPayRef = useRef(null); // 실시간 구독에서 최신 loadPartnerPay 호출용
   const acceptAnimRef = useRef(false);
@@ -3237,18 +3235,6 @@ export default function MatchRoomDetailPage() {
     if (!prev && both) setShowLineupDoneAnim(true); // false→true 전환에만 축하
   }, [room, myClubId]);
 
-  // ✅ 제휴구장 제안이 "수락됨"으로 전환되는 순간 → 결제 안내 축하 화면 1회 표시(양 팀).
-  //    (수락자: 즉시 / 제안자: 실시간 구독으로 partnerPay 갱신되며 트리거)
-  useEffect(() => {
-    const accepted = !!partnerPay?.pb?.accepted;
-    const prev = acceptedAnimRef.current;
-    acceptedAnimRef.current = accepted;
-    if (prev === null) return; // 첫 로드 기준값만 기록(이미 수락된 방 재방문 시 축하 안 함)
-    // ✅ 'proposed'(수락~결제 전) 단계에서만 표시. 결제 완료(confirmed) 후엔 절대 안 뜨게.
-    //    (결제 후 매칭룸 재진입 시 partnerPay가 null→로드되며 false→true로 보여 오작동하는 것 방지)
-    if (!prev && accepted && toStr(room?.status) === "proposed") setShowPayPromptAnim(true);
-  }, [partnerPay?.pb?.accepted, room?.status]);
-
   // 매칭 수락 직후(수락한 사람) / 수락 푸시알림 클릭 진입(요청한 사람) 시
   // "매칭 성사" 축하 애니메이션을 1회 표시. 조율중(accepted/proposed)일 때만.
   useEffect(() => {
@@ -3297,7 +3283,6 @@ export default function MatchRoomDetailPage() {
     confirmedRef.current = isConfirmedNow;
     if (prev === null) return; // 첫 로드: 기준값만 기록(이미 확정된 방 재방문 시 축하 안 함)
     if (!prev && isConfirmedNow && !finalAnimRef.current) {
-      setShowPayPromptAnim(false); // 확정되면 '제안 수락 완료' 창은 닫고 경기 확정 축하만
       finalAnimRef.current = true;
       setShowFinalAnim(true);
     }
@@ -4009,28 +3994,6 @@ export default function MatchRoomDetailPage() {
     } catch (e) {
       showAlert(e?.message || "예약 요청에 실패했습니다.");
     }
-  };
-
-  const handlePayShare = async () => {
-    if (partnerPaying || !partnerPay?.pb) return;
-    const pb = partnerPay.pb;
-    const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
-    setPartnerPaying(true);
-    try {
-      const res = await payPartnerShare({
-        matchId: room.id, side, payerUid: myUid,
-        payerTeamName: side === "A" ? pb.proposerTeamName : pb.opponentTeamName,
-      });
-      await loadPartnerPay();
-      const msg = res?.state === "confirmed"
-        ? "두 팀 결제 완료! 구장 예약이 확정됐어요."
-        : res?.already
-        ? "이미 우리 팀은 결제했어요. 상대팀 결제를 기다리는 중이에요."
-        : "결제 완료! 상대팀이 2시간 내 결제하면 예약이 확정돼요.";
-      showToast && showToast({ message: msg });
-    } catch (e) {
-      showToast && showToast({ message: e?.message || "결제에 실패했어요." });
-    } finally { setPartnerPaying(false); }
   };
 
   // 취소 사유 선택 시트에서 확정 → 사유/환불(구조)와 함께 취소
@@ -6270,27 +6233,6 @@ export default function MatchRoomDetailPage() {
         }}
         onLater={() => setShowLineupDoneAnim(false)}
         onClose={() => setShowLineupDoneAnim(false)}
-      />
-
-      {/* ✅ 제휴구장 제안 수락 → 결제 안내 축하(양 팀). 매칭 수락 화면과 동일 톤 */}
-      <MatchAcceptedCelebration
-        open={showPayPromptAnim}
-        title="제안 수락 완료!"
-        sub={"구장·일정 제안이 수락됐어요.\n이제 구장비를 결제해 주세요!"}
-        primaryLabel="결제 바로가기  ›"
-        laterLabel="나중에 하기"
-        myName={toStr(myTeamView?.name) || "우리팀"}
-        myLogoUrl={teamLogoSrc(myTeamView?.logoUrl)}
-        myRank={myRank}
-        oppName={oppName}
-        oppLogoUrl={teamLogoSrc(oppTeamView?.logoUrl)}
-        oppRank={oppRank}
-        onStart={() => {
-          setShowPayPromptAnim(false);
-          navigate(`/match-pay/${roomId}`);
-        }}
-        onLater={() => setShowPayPromptAnim(false)}
-        onClose={() => setShowPayPromptAnim(false)}
       />
 
       {/* 라인업 보기 모달 — 우리/상대 라인업을 한 창에서 확인. X 또는 바깥 클릭으로 닫힘 */}

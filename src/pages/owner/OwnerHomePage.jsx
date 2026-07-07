@@ -188,7 +188,8 @@ export default function OwnerHomePage(){
     setBusy(true);try{await setReservationStatus(r.id,"confirmed");await load();toast("예약을 승인했어요.");}catch(e){toast(e?.message||"승인에 실패했어요.");}finally{setBusy(false);}
   };
   const rejectResv=async(r)=>{
-    if(!await ask({title:"예약 반려·환불",message:`${nm(r)} 예약을 반려할까요?\n결제된 금액은 자동으로 환불돼요.`,confirmLabel:"반려·환불",danger:true}))return;
+    const isMatch=!!r.matchId;
+    if(!await ask({title:isMatch?"예약 반려":"예약 반려·환불",message:`${nm(r)} 예약을 반려할까요?${isMatch?"\n두 팀에 반려 알림이 가고, 다른 구장·시간으로 다시 제안할 수 있어요.":"\n결제된 금액은 자동으로 환불돼요."}`,confirmLabel:isMatch?"반려":"반려·환불",danger:true}))return;
     setBusy(true);try{const {refunded}=await rejectReservationWithRefund(r.id);await load();toast(refunded>0?`예약을 반려하고 ${Number(refunded).toLocaleString()}피지를 환불했어요.`:"예약을 반려했어요.");}catch(e){toast(e?.message||"반려에 실패했어요.");}finally{setBusy(false);}
   };
   const markDone=async(r)=>{
@@ -273,26 +274,26 @@ export default function OwnerHomePage(){
 
       <Card>
         <SecTitle>승인 대기 {requested.length>0&&`(${requested.length})`}</SecTitle>
-        {requested.length===0?<Empty>승인 대기 중인 예약이 없어요.</Empty>:requested.map(r=>(
+        {requested.length===0?<Empty>승인 대기 중인 예약이 없어요.</Empty>:requested.map(r=>{const isMatch=!!r.matchId;return(
           <Resv key={r.id}>
             <ResvTop>
-              <ResvName>{r.teamName||r.userName||"예약자"}</ResvName>
-              <StatBadge $tone="pending"><LuHourglass size={11}/>승인대기</StatBadge>
+              <ResvName>{isMatch?`${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`:(r.teamName||r.userName||"예약자")}</ResvName>
+              <StatBadge $tone="pending"><LuHourglass size={11}/>{isMatch?"매칭 승인대기":"승인대기"}</StatBadge>
             </ResvTop>
-            <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원`:""}{r.phone?` · ${r.phone}`:""}</ResvMeta>
+            <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원${isMatch?" (현장 정산)":""}`:""}{!isMatch&&r.phone?` · ${r.phone}`:""}</ResvMeta>
             <Acts>
               <SBtn $primary onClick={()=>approveResv(r)} disabled={busy}>승인</SBtn>
-              <SBtn $danger onClick={()=>rejectResv(r)} disabled={busy}>반려·환불</SBtn>
+              <SBtn $danger onClick={()=>rejectResv(r)} disabled={busy}>{isMatch?"반려":"반려·환불"}</SBtn>
             </Acts>
           </Resv>
-        ))}
+        );})}
       </Card>
 
       {detailResv && (()=>{
         const r=detailResv;
         const isMatch=!!r.matchId;
-        const label=r.status==="confirmed"?"예약 확정":r.status==="pending"?"결제 대기":r.status==="done"?"이용 완료":r.status;
-        const tone=r.status==="confirmed"?"confirmed":r.status==="pending"?"pending":"done";
+        const label=r.status==="confirmed"?"예약 확정":r.status==="requested"?"승인 대기":r.status==="pending"?"결제 대기":r.status==="done"?"이용 완료":r.status;
+        const tone=r.status==="confirmed"?"confirmed":(r.status==="requested"||r.status==="pending")?"pending":"done";
         return (
           <Overlay onClick={()=>setDetailResv(null)}>
             <Sheet onClick={e=>e.stopPropagation()}>
@@ -303,7 +304,7 @@ export default function OwnerHomePage(){
               <DRow><span>상태</span><StatBadge $tone={tone}>{label}</StatBadge></DRow>
               <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
               <DRow><span>코트</span><b>{r.courtName||court?.name||"-"}</b></DRow>
-              <DRow><span>금액</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원{isMatch?" (두 팀 반반)":""}</b></DRow>
+              <DRow><span>금액</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원{isMatch?" (현장 정산)":""}</b></DRow>
               {!isMatch&&r.source==="owner"&&<DRow><span>결제수단</span><b>{PAYMENT_METHOD_LABELS[r.paymentMethod]||"현장결제"}</b></DRow>}
               {!isMatch&&r.memo&&<DRow><span>메모</span><b style={{fontWeight:600}}>{r.memo}</b></DRow>}
 
@@ -311,15 +312,16 @@ export default function OwnerHomePage(){
                 <>
                   <DRow style={{marginTop:2}}><span style={{fontWeight:700,color:C.slate800}}>매칭 · 두 팀</span></DRow>
                   {[
-                    {name:r.teamAName||"팀A", who:r.teamAPayerName, phone:r.teamAPayerPhone, paid:r.paidByA},
-                    {name:r.teamBName||"팀B", who:r.teamBPayerName, phone:r.teamBPayerPhone, paid:r.paidByB},
+                    {name:r.teamAName||"팀A", who:r.teamAPayerName, phone:r.teamAPayerPhone},
+                    {name:r.teamBName||"팀B", who:r.teamBPayerName, phone:r.teamBPayerPhone},
                   ].map((t,i)=>(
                     <TeamBlock key={i}>
-                      <TeamName>{t.name}<StatBadge $tone={t.paid?"done":"pending"}>{t.paid?"결제완료":"대기"}</StatBadge></TeamName>
-                      <DRow><span>대화명</span><b>{t.who||"-"}</b></DRow>
-                      <DRow><span>연락처</span>{t.phone?<MiniCall href={`tel:${t.phone}`}><LuPhone size={13}/> {t.phone}</MiniCall>:<b style={{color:C.slate400}}>미등록</b>}</DRow>
+                      <TeamName>{t.name}</TeamName>
+                      {t.who&&<DRow><span>대화명</span><b>{t.who}</b></DRow>}
+                      {t.phone&&<DRow><span>연락처</span><MiniCall href={`tel:${t.phone}`}><LuPhone size={13}/> {t.phone}</MiniCall></DRow>}
                     </TeamBlock>
                   ))}
+                  <DRow><span>정산</span><b>현장에서 두 팀이 직접 정산</b></DRow>
                 </>
               ) : (
                 <>

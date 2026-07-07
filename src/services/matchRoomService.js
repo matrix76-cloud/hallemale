@@ -1271,50 +1271,6 @@ export async function sendLineupReminder({ matchRequestId, fromClubId } = {}) {
   return { ok: true };
 }
 
-// 제휴구장 분할결제: 한 팀이 먼저 결제한 뒤, 미결제 상대팀에게 결제 독촉 푸시
-export async function sendPaymentReminder({ matchRequestId, fromClubId } = {}) {
-  const id = toStr(matchRequestId);
-  const from = toStr(fromClubId);
-  if (!id) throw new Error("sendPaymentReminder: matchRequestId is required");
-
-  const oppClubId = await getOpponentClubId(id, from);
-  if (!oppClubId) throw new Error("상대 팀을 찾을 수 없습니다.");
-
-  // 요청(독촉) 보낸 팀 정보 — 상단 배너에 팀 프로필 사진/이름 노출용
-  let fromTeamName = "";
-  let fromTeamLogoUrl = "";
-  try {
-    const fc = await getDoc(doc(db, "clubs", from));
-    if (fc.exists()) {
-      fromTeamName = toStr(fc.data()?.name);
-      fromTeamLogoUrl = toStr(fc.data()?.logoUrl);
-    }
-  } catch (e) {}
-
-  await notifyMatchRoomEvent({
-    matchId: id,
-    recipientClubId: oppClubId,
-    subType: "matchPaymentReminder",
-    type: "match_payment_reminder",
-    title: fromTeamName ? `${fromTeamName} · 구장비 결제 요청` : "구장비 결제 요청",
-    body: "상대팀이 결제를 완료했어요. 구장비 결제를 진행해 경기를 확정해 주세요.",
-    deepLink: `/match-pay/${id}`,
-    actorTeamLogoUrl: fromTeamLogoUrl,
-  });
-
-  try {
-    await sendSystemMessage({
-      chatId: `match_${id}`,
-      text: "상대팀에 구장비 결제를 요청했어요.",
-      meta: { type: "payment_reminder", clubId: from },
-    });
-  } catch (e) {
-    console.warn("[sendPaymentReminder] system message failed:", e?.message || e);
-  }
-
-  return { ok: true };
-}
-
 // ── 매칭룸 미확인 배지: 상세 열람 시 "본 시각" 기록(배지 해제) ──
 export async function markMatchRoomSeen({ matchRequestId, uid } = {}) {
   const id = toStr(matchRequestId);

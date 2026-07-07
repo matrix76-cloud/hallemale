@@ -149,7 +149,6 @@ export default function MainLayout({ hideHeader = false }) {
     if (p.startsWith("/records")) return "전적";
     if (p === "/venues") return "구장 예약";
     if (p.startsWith("/venue-book")) return "구장 예약";
-    if (p.startsWith("/match-pay")) return "구장비 결제";
     if (p === "/matching/region") return "지역 선택";
     if (p === "/matching/opponent") return "매칭 상대";
     if (p === "/matching") return "매칭하기";
@@ -222,7 +221,6 @@ export default function MainLayout({ hideHeader = false }) {
     p === "/matching/opponent" ||
     p === "/venues" ||
     p.startsWith("/venue-book") ||
-    p.startsWith("/match-pay") ||
     p.startsWith("/matching/analysis") ||
     p.startsWith("/team") ||
     p.startsWith("/player") ||

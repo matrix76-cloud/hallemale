@@ -29,7 +29,6 @@ import PhoneVerifyPage from "../pages/auth/PhoneVerifyPage";
 import SignupCompletePage from "../pages/auth/SignupCompletePage";
 import MatchRoomListPage from "../pages/matching/MatchRoomListPage";
 import MatchRoomDetailPage from "../pages/matching/MatchRoomDetailPage";
-import MatchPayPage from "../pages/matching/MatchPayPage";
 import MyProfilePage from "../pages/my/MyProfilePage";
 import MyProfileDetailPage from "../pages/my/MyProfileDetailPage";
 import MyPostsPage from "../pages/my/MyPostsPage";
@@ -422,7 +421,6 @@ export default function AppRoutes() {
           <Route path="/matching/opponent" element={<MatchOpponentRevealPage />} />
           <Route path="/match-roomlist" element={<MatchRoomListPage />} />
           <Route path="/match-roomdetail/:roomId" element={<MatchRoomDetailPage />} />
-          <Route path="/match-pay/:id" element={<MatchPayPage />} />
           <Route path="/match-roomdetail/:roomId/venue" element={<MatchRoomDetailPage />} />
 
           <Route path="/venues" element={<VenueListPage />} />
