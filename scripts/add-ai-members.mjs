@@ -35,7 +35,6 @@ const COUNT = Math.max(1, Math.min(12, parseInt(getArg("count", "6"), 10) || 6))
 const APPLY = args.includes("--apply");
 
 if (!TEAM_KEYWORD) { console.error("❌ --team=<팀이름키워드> 필요"); process.exit(1); }
-if (!EMAIL || !PW) { console.error("❌ --email= 과 --pw=(또는 HALLE_PW) 필요 (로그인해야 규칙 통과)"); process.exit(1); }
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -54,9 +53,14 @@ const POOL = [
 ];
 const ZERO = { wins: 0, losses: 0, draws: 0, totalMatches: 0, winRate: 0, recentResults: [] };
 
-console.log(`🔑 로그인: ${EMAIL}`);
-await signInWithEmailAndPassword(auth, EMAIL, PW);
-console.log("   ✓ 로그인 성공\n");
+// 규칙이 allow-all이면 로그인 불필요. 강화 규칙에서는 --email/--pw 로 로그인해야 쓰기 통과.
+if (EMAIL && PW) {
+  console.log(`🔑 로그인: ${EMAIL}`);
+  await signInWithEmailAndPassword(auth, EMAIL, PW);
+  console.log("   ✓ 로그인 성공\n");
+} else {
+  console.log("ℹ️  비로그인 모드 (규칙 allow-all 전제). 강화 규칙이면 --email/--pw 필요.\n");
+}
 
 const allSnap = await getDocs(collection(db, "clubs"));
 const matches = allSnap.docs.filter((d) => String(d.data()?.name || "").includes(TEAM_KEYWORD));
