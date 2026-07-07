@@ -23,7 +23,7 @@ import {
 } from "../../services/matchRoomService";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
-import { payPartnerShare, getMatchReservationStatus, acceptPartnerProposal } from "../../services/ownerVenueService";
+import { payPartnerShare, getMatchReservationStatus, requestVenueReservationForMatch } from "../../services/ownerVenueService";
 import { doc as fsDoc, getDoc as fsGetDoc } from "firebase/firestore";
 import { db as fsDb } from "../../services/firebase";
 import { useUIContext } from "../../context/UIContext";
@@ -3797,7 +3797,7 @@ export default function MatchRoomDetailPage() {
   const mySubPlayers = (isActor ? room.myLineup?.subPlayers : room.oppLineup?.subPlayers) || [];
   const oppSubPlayers = (isActor ? room.oppLineup?.subPlayers : room.myLineup?.subPlayers) || [];
 
-  const isAdjusting = status === "accepted" || status === "proposed";
+  const isAdjusting = status === "accepted" || status === "proposed" || status === "awaiting_venue_approval";
   const proposerClubId = toStr(room.proposedByClubId);
   const iAmProposer = !!myClubId && !!proposerClubId && myClubId === proposerClubId;
   // "구장 정하기 방식 선택" 게이트(제휴/직접) 노출 조건:
@@ -3846,6 +3846,7 @@ export default function MatchRoomDetailPage() {
         ? ["done", "cur", "todo"]
         : ["cur", "todo", "todo"];
     if (status === "proposed") return ["done", "done", "cur"];
+    if (status === "awaiting_venue_approval") return ["done", "done", "cur"];
     if (status === "confirmed") return ["done", "done", "done"];
     if (status === "finished") return ["done", "done", "done"];
     if (status === "cancelled") return ["todo", "todo", "todo"];
@@ -3857,6 +3858,7 @@ export default function MatchRoomDetailPage() {
     if (isVoided) return "무효 처리";
     if (status === "finished") return "경기 종료";
     if (status === "cancelled") return "취소된 매칭";
+    if (status === "awaiting_venue_approval") return "구장 승인 대기 중";
     if (status === "confirmed") return "3/3 · 확정 완료";
     const labelNote = {
       라인업: "라인업 확정 중",
@@ -3996,16 +3998,16 @@ export default function MatchRoomDetailPage() {
     }
   };
 
-  // 제휴구장 제안 수락(결제 전) — 양 팀에 결제 안내 축하창을 띄우고, 양 팀 결제 버튼 잠금 해제
+  // 제휴구장 제안 수락 → 구장주 승인 대기(예약 요청 생성). 결제 없음(현장 정산).
   const handleAcceptPartnerProposal = async () => {
     if (!myClubId || !room?.id) return;
     try {
-      await acceptPartnerProposal({ matchId: room.id, acceptedByClubId: myClubId });
+      await requestVenueReservationForMatch({ matchId: room.id, requestedByClubId: myClubId });
       await refresh();
       await loadPartnerPay();
-      setShowPayPromptAnim(true); // 수락자 즉시 표시(제안자는 실시간 구독으로 표시)
+      showToast && showToast({ message: "구장 예약을 요청했어요. 구장주 승인을 기다려 주세요." });
     } catch (e) {
-      showAlert(e?.message || "제안 수락에 실패했습니다.");
+      showAlert(e?.message || "예약 요청에 실패했습니다.");
     }
   };
 
@@ -4428,41 +4430,60 @@ export default function MatchRoomDetailPage() {
               <PropV>{venueDurLabel}</PropV>
             </PropRow>
           )}
-          {partnerPay?.pb && (() => {
-            const pb = partnerPay.pb;
-            const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
-            const myShare = side === "A" ? pb.shareA : pb.shareB;
-            const myPaid = partnerPay.resv ? (side === "A" ? partnerPay.resv.paidByA : partnerPay.resv.paidByB) : false;
-            return (
-              <>
-                <PropRow>
-                  <PropK>구장비</PropK>
-                  <PropV>
-                    총 {Number(pb.totalPrice).toLocaleString()}원
-                    <span style={{ color: "#6b7280", fontWeight: 600 }}> · 우리 팀 {Number(myShare).toLocaleString()}원</span>
-                  </PropV>
-                </PropRow>
-                {myPaid ? (
-                  <PropPayNote>우리 팀 결제완료 · 상대팀 결제 대기 중</PropPayNote>
-                ) : pb.accepted ? (
-                  // 상대팀이 제안을 수락 → 양 팀 결제 잠금 해제
-                  <PropPayBtn type="button" onClick={(e) => { e.stopPropagation(); navigate(`/match-pay/${roomId}`); }}>
-                    구장비 결제하기 ({Number(myShare).toLocaleString()}원) →
-                  </PropPayBtn>
-                ) : (
-                  <>
-                    {/* 상대팀이 제안을 수락해야 구장비 결제가 열린다 */}
-                    <PropPayBtn type="button" disabled onClick={(e) => e.stopPropagation()}>
-                      구장비 결제하기 ({Number(myShare).toLocaleString()}원)
-                    </PropPayBtn>
-                    <PropPayNote style={{ color: "#6b7280" }}>
-                      제안이 수락되면 결제할 수 있어요
-                    </PropPayNote>
-                  </>
-                )}
-              </>
-            );
-          })()}
+          {partnerPay?.pb && (
+            <>
+              <PropRow>
+                <PropK>구장비</PropK>
+                <PropV>
+                  총 {Number(partnerPay.pb.totalPrice).toLocaleString()}원
+                  <span style={{ color: "#6b7280", fontWeight: 600 }}> · 현장 정산</span>
+                </PropV>
+              </PropRow>
+              <PropPayNote style={{ color: "#6b7280" }}>
+                상대팀이 제안을 수락하면 구장주에게 예약을 요청해요
+              </PropPayNote>
+            </>
+          )}
+        </PropBody>
+      </PropCard>
+    ) : status === "awaiting_venue_approval" ? (
+      <PropCard
+        onClick={openVenueDetail}
+        role={propVenueId ? "button" : undefined}
+        style={{ cursor: propVenueId ? "pointer" : "default" }}
+      >
+        <PropMapWrap>
+          <PropBadge>⏳ 구장 승인 대기</PropBadge>
+          {propVenueImage ? (
+            <PropVenueImg src={propVenueImage} alt={toStr(fieldAddress) || "구장 사진"} />
+          ) : (
+            <VenueMiniMap latLng={fieldLatLng} height={84} />
+          )}
+        </PropMapWrap>
+        <PropBody>
+          <PropName>{toStr(fieldAddress) || "선택한 구장"}</PropName>
+          <PropRow>
+            <PropK>일시</PropK>
+            <PropV>{venueWhenLabel}</PropV>
+          </PropRow>
+          {venueDurLabel && (
+            <PropRow>
+              <PropK>경기 시간</PropK>
+              <PropV>{venueDurLabel}</PropV>
+            </PropRow>
+          )}
+          {partnerPay?.pb && (
+            <PropRow>
+              <PropK>구장비</PropK>
+              <PropV>
+                총 {Number(partnerPay.pb.totalPrice).toLocaleString()}원
+                <span style={{ color: "#6b7280", fontWeight: 600 }}> · 현장 정산</span>
+              </PropV>
+            </PropRow>
+          )}
+          <PropPayNote style={{ color: "#2563eb" }}>
+            구장주 승인을 기다리는 중이에요 · 승인되면 경기가 확정돼요
+          </PropPayNote>
         </PropBody>
       </PropCard>
     ) : status === "confirmed" ? (
@@ -4492,33 +4513,15 @@ export default function MatchRoomDetailPage() {
               <PropV>{venueDurLabel}</PropV>
             </PropRow>
           )}
-          {partnerPay?.pb && (() => {
-            const pb = partnerPay.pb;
-            const resv = partnerPay.resv;
-            const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
-            const myPaid = resv ? (side === "A" ? resv.paidByA : resv.paidByB) : false;
-            const confirmed = resv?.status === "confirmed";
-            const myShare = side === "A" ? pb.shareA : pb.shareB;
-            const rm = resv?.deadline ? Math.max(0, Math.round((new Date(resv.deadline).getTime() - Date.now()) / 60000)) : null;
-            return (
-              <PayBox>
-                <PayTitle>구장비 결제 · 총 {Number(pb.totalPrice).toLocaleString()}원 (두 팀 반반)</PayTitle>
-                <PayTeams>
-                  <span>{pb.proposerTeamName}: {resv?.paidByA ? "✓ 결제완료" : "대기"}</span>
-                  <span>{pb.opponentTeamName}: {resv?.paidByB ? "✓ 결제완료" : "대기"}</span>
-                </PayTeams>
-                {confirmed ? (
-                  <PayDone>✅ 양 팀 결제완료 · 예약 확정</PayDone>
-                ) : myPaid ? (
-                  <PayWait>우리 팀 결제완료 · 상대팀 결제 대기 중{rm != null ? ` (${rm}분 남음)` : ""}</PayWait>
-                ) : (
-                  <PayBtn type="button" onClick={(e) => { e.stopPropagation(); handlePayShare(); }} disabled={partnerPaying}>
-                    {partnerPaying ? "결제 중…" : `우리 팀 몫 ${Number(myShare).toLocaleString()}원 결제하기`}
-                  </PayBtn>
-                )}
-              </PayBox>
-            );
-          })()}
+          {partnerPay?.pb && (
+            <PropRow>
+              <PropK>구장비</PropK>
+              <PropV>
+                총 {Number(partnerPay.pb.totalPrice).toLocaleString()}원
+                <span style={{ color: "#6b7280", fontWeight: 600 }}> · 현장 정산</span>
+              </PropV>
+            </PropRow>
+          )}
         </PropBody>
       </PropCard>
     ) : null;
@@ -4695,6 +4698,12 @@ export default function MatchRoomDetailPage() {
           {partnerPay?.pb ? "제안 수락" : "수락하고 확정"}
         </ActPrimary>
       </ActBar>
+    );
+  } else if (status === "awaiting_venue_approval") {
+    chatTopBar = (
+      <ActStack>
+        <ActNote>⏳ 구장주 승인을 기다리는 중이에요 · 승인되면 경기가 확정돼요</ActNote>
+      </ActStack>
     );
   }
 
