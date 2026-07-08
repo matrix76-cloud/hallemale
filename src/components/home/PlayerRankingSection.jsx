@@ -389,7 +389,7 @@ export default function PlayerRankingSection({ rows = [] }) {
                 <PlayerMeta>
                   <NameRow>
                     <PlayerName>{p.name || p.nickname || "사용자"}</PlayerName>
-                    <PositionChip label={positionLabel(p.mainPosition)} size="sm" />
+                    <PositionChip label={positionLabel(p.mainPosition)} size="sm" tone="text" />
                   </NameRow>
 
                   <StatRow>
