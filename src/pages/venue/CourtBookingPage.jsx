@@ -17,7 +17,7 @@ import {
 } from "../../services/ownerVenueService";
 import Spinner from "../../components/common/Spinner";
 import CourtNotices from "./CourtNotices";
-import { FiCalendar, FiClock, FiMapPin } from "react-icons/fi";
+import { FiCalendar, FiClock, FiMapPin, FiCheckCircle } from "react-icons/fi";
 
 function toMin(hhmm) { const [h, m] = String(hhmm || "0:0").split(":").map((x) => parseInt(x, 10) || 0); return h * 60 + m; }
 function toHHMM(min) { return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`; }
@@ -211,6 +211,9 @@ export default function CourtBookingPage() {
         <CourtName>{court.name}</CourtName>
         <CourtMeta>{court.type === "outdoor" ? "실외" : "실내"} · {(Number(court.pricePerHour) || 0).toLocaleString()}원/시간</CourtMeta>
         <VenueRow><FiMapPin size={13} /> {venue.name} · {venue.address}</VenueRow>
+        {venue.business?.status === "verified" && (
+          <VerifiedRow><FiCheckCircle size={13} /> 국세청 인증 구장</VerifiedRow>
+        )}
       </Head>
 
       <CourtNotices court={court} />
@@ -302,6 +305,7 @@ const Head = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const CourtName = styled.div`font-size: 20px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
 const CourtMeta = styled.div`font-size: 13.5px; font-weight: 700; color: ${({ theme }) => theme.colors.primary};`;
 const VenueRow = styled.div`font-size: 13px; color: ${({ theme }) => theme.colors.textWeak}; display: flex; align-items: center; gap: 4px;`;
+const VerifiedRow = styled.div`margin-top: 4px; font-size: 12.5px; font-weight: 800; color: #059669; display: inline-flex; align-items: center; gap: 4px;`;
 const Section = styled.div`display: flex; flex-direction: column; gap: 13px;`;
 const SecTitle = styled.div`
   font-size: 16px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};

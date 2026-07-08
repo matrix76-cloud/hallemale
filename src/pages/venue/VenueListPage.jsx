@@ -8,7 +8,7 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiChevronLeft, FiList, FiMap } from "react-icons/fi";
+import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiChevronLeft, FiList, FiMap, FiCheckCircle } from "react-icons/fi";
 import { listBookableVenues, listReservations, listBlocks } from "../../services/ownerVenueService";
 import Spinner from "../../components/common/Spinner";
 import { FacilityIcon } from "./facilityIcons";
@@ -437,6 +437,7 @@ export default function VenueListPage() {
                     <CardAddr><FiMapPin size={12} /> {v.address}</CardAddr>
                     <CardBottom>
                       <CardTags>
+                        {v.business?.status === "verified" && <VerifiedTag><FiCheckCircle size={11} /> 국세청 인증</VerifiedTag>}
                         <Tag>{v.type === "outdoor" ? "실외" : "실내"}</Tag>
                         <Tag>코트 {v.courts?.length || 0}개</Tag>
                       </CardTags>
@@ -467,6 +468,7 @@ export default function VenueListPage() {
                     <CardName>{v.name}</CardName>
                     <CardAddr><FiMapPin size={12} /> {v.address}</CardAddr>
                     <CardTags>
+                      {v.business?.status === "verified" && <VerifiedTag><FiCheckCircle size={11} /> 국세청 인증</VerifiedTag>}
                       <Tag>{v.type === "outdoor" ? "실외" : "실내"}</Tag>
                       <Tag>코트 {v.courts?.length || 0}개</Tag>
                       {(v.facilities || []).slice(0, 3).map((f) => (
@@ -657,6 +659,13 @@ const Tag = styled.span`
   background: ${({ theme }) => theme.colors.surface};
   border: 1px solid ${({ theme }) => theme.colors.border};
   color: ${({ theme }) => theme.colors.textNormal};
+`;
+const VerifiedTag = styled.span`
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11.5px; font-weight: 800; padding: 4px 9px; border-radius: 7px;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(16,185,129,0.16)" : "#ecfdf5")};
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(16,185,129,0.4)" : "#a7f3d0")};
+  color: #059669;
 `;
 const CardPrice = styled.div`flex-shrink: 0; font-size: 14px; font-weight: 800; color: #7c5cc9;`;
 

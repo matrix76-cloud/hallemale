@@ -285,6 +285,9 @@ export default function VenueBookingPage() {
       <Head>
         <VName>{venue.name}</VName>
         <MetaRow>
+          {venue.business?.status === "verified" ? (
+            <VerifiedChip><FiCheckCircle size={12} /> 국세청 인증</VerifiedChip>
+          ) : null}
           {venue.rating ? (
             <RatingChip>
               <FiStar size={12} /> {Number(venue.rating).toFixed(1)}
@@ -588,6 +591,13 @@ const TagChip = styled.span`
   background: ${({ theme }) => theme.colors.surface};
   border: 1px solid ${({ theme }) => theme.colors.border};
   color: ${({ $muted, theme }) => ($muted ? theme.colors.textWeak : theme.colors.textNormal)};
+`;
+const VerifiedChip = styled.span`
+  display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 800;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(16,185,129,0.16)" : "#ecfdf5")};
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(16,185,129,0.4)" : "#a7f3d0")};
+  color: #059669;
 `;
 const Notice = styled.div`
   display: flex; align-items: flex-start; gap: 8px;
