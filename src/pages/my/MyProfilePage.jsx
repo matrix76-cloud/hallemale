@@ -710,7 +710,17 @@ export default function MyProfilePage() {
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
+            </MenuList>
+          </SectionBody>
+        </Section>
 
+        <Section>
+          <SectionInner>
+            <SectionIcon src={images.emoji3dShield} alt="" />
+            <SectionTitle>약관 · 계정 관리</SectionTitle>
+          </SectionInner>
+          <SectionBody>
+            <MenuList>
               <MenuItemButton onClick={() => handleSettingMenuClick("privacy")}>
                 <MenuTextWrap>
                   <MenuTitle>개인정보처리방침</MenuTitle>
