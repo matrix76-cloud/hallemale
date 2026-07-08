@@ -78,12 +78,11 @@ const ToastWrap = styled.div`
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 `;
 
-const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/settlement", "/owner/venue"];
+const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/venue"];
 
 function getTitle(p) {
   if (p.startsWith("/owner/home")) return "예약관리";
-  if (p.startsWith("/owner/sales")) return "매출분석";
-  if (p.startsWith("/owner/settlement")) return "정산";
+  if (p.startsWith("/owner/sales")) return "예약통계";
   if (p.startsWith("/owner/venue")) return "구장정보";
   if (p.startsWith("/owner/my")) return "내정보";
   if (p.startsWith("/owner/register")) return "구장 등록";

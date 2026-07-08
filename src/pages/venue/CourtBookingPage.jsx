@@ -1,6 +1,6 @@
 /* eslint-disable */
 // src/pages/venue/CourtBookingPage.jsx
-// 코트 상세 — 날짜·시간(빈 슬롯) 선택 → 결제/예약 또는 매칭룸 구장·일정 제안
+// 코트 상세 — 날짜·시간(빈 슬롯) 선택 → 예약 요청(현장 정산·구장 승인) 또는 매칭룸 구장·일정 제안
 // 진입: /venue-book/:id/court/:courtId  (구장 상세 → 코트 카드 클릭)
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
@@ -15,7 +15,6 @@ import {
   getVenue, listReservations, listBlocks, bookVenue, writePartnerBooking,
   calcSlotPrice, dowToKey,
 } from "../../services/ownerVenueService";
-import { getFizzBalance, chargeFizz } from "../../services/fizzService";
 import Spinner from "../../components/common/Spinner";
 import CourtNotices from "./CourtNotices";
 import { FiCalendar, FiClock, FiMapPin } from "react-icons/fi";
@@ -53,7 +52,6 @@ export default function CourtBookingPage() {
   const [blocks, setBlocks] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [balance, setBalance] = useState(0);
   const [payOpen, setPayOpen] = useState(false);
   const [paying, setPaying] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null);
@@ -107,12 +105,11 @@ export default function CourtBookingPage() {
     if (!venue?.id || !court?.id) return;
     setSlotsLoading(true);
     try {
-      const [rs, bs, bal] = await Promise.all([
+      const [rs, bs] = await Promise.all([
         listReservations({ venueId: venue.id, date, courtId: court.id }),
         listBlocks({ venueId: venue.id, date, courtId: court.id }),
-        uid ? getFizzBalance(uid) : Promise.resolve(0),
       ]);
-      setReservations(rs); setBlocks(bs); setBalance(bal);
+      setReservations(rs); setBlocks(bs);
     } catch (e) { console.warn("[CourtBooking] loadSlots failed", e); }
     finally { setSlotsLoading(false); }
   };
@@ -152,16 +149,10 @@ export default function CourtBookingPage() {
   };
 
   const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date) : 0;
-  const need = Math.max(0, price - balance);
-  const handleCharge = async (amount) => {
-    if (!uid) return;
-    try { setBalance(await chargeFizz(uid, amount)); } catch (e) { toast(e?.message || "충전 실패"); }
-  };
 
-  const handlePay = async () => {
+  const handleRequest = async () => {
     if (!uid) return toast("로그인이 필요해요.");
     if (!selected || !court) return;
-    if (balance < price) return toast("잔액이 부족해요. 충전해주세요.");
     setPaying(true);
     try {
       await bookVenue({
@@ -169,10 +160,10 @@ export default function CourtBookingPage() {
         user: { uid, userName: userDoc?.nickname || "", teamName: userDoc?.activeTeamName || userDoc?.teamName || "", phone: userDoc?.phoneE164 || userDoc?.phone || "" },
       });
       setPayOpen(false); setSelected(null); await loadSlots();
-      toast("예약이 확정됐어요! 구장 관리자에게 알림이 전송됐어요.");
+      toast("예약 요청을 보냈어요! 구장 승인 후 확정돼요.");
     } catch (e) {
       if (e?.code === "slot_taken") { await loadSlots(); }
-      toast(e?.message || "예약에 실패했어요.");
+      toast(e?.message || "예약 요청에 실패했어요.");
     } finally { setPaying(false); }
   };
 
@@ -271,12 +262,12 @@ export default function CourtBookingPage() {
         <BottomBar>
           <div>
             <BbDate>{date} {selected.start}~{selected.end}</BbDate>
-            <BbPrice>{price.toLocaleString()}원{matchId ? <span> · 두 팀 반반</span> : null}</BbPrice>
+            <BbPrice>{price.toLocaleString()}원{matchId ? <span> · 두 팀 반반</span> : <span> · 현장 정산</span>}</BbPrice>
           </div>
           {matchId ? (
             <BookBtn onClick={handlePropose} disabled={paying}>구장·일정 제안하기</BookBtn>
           ) : (
-            <BookBtn onClick={() => setPayOpen(true)}>예약하기</BookBtn>
+            <BookBtn onClick={() => setPayOpen(true)}>예약 요청</BookBtn>
           )}
         </BottomBar>
       )}
@@ -284,24 +275,17 @@ export default function CourtBookingPage() {
       {payOpen && selected && (
         <Sheet onClick={(e) => { if (e.target === e.currentTarget) setPayOpen(false); }}>
           <SheetCard onClick={(e) => e.stopPropagation()}>
-            <SheetTitle>결제</SheetTitle>
+            <SheetTitle>예약 요청</SheetTitle>
             <PayRow><span>{venue.name} · {court.name}</span></PayRow>
             <PayRow><span>{date} {selected.start}~{selected.end}</span></PayRow>
             <Divider />
-            <PayRow $big><span>결제 금액</span><b>{price.toLocaleString()} 원</b></PayRow>
-            <PayRow><span>보유 금액</span><b style={{ color: balance >= price ? "inherit" : "#dc2626" }}>{balance.toLocaleString()} 원</b></PayRow>
-            {need > 0 && (
-              <ChargeBox>
-                <small>금액이 {need.toLocaleString()}원 부족해요. 충전해주세요.</small>
-                <ChargeBtns>
-                  <Cb onClick={() => handleCharge(10000)}>+1만</Cb>
-                  <Cb onClick={() => handleCharge(50000)}>+5만</Cb>
-                  <Cb onClick={() => handleCharge(need)}>필요한 만큼 (+{need.toLocaleString()})</Cb>
-                </ChargeBtns>
-              </ChargeBox>
-            )}
-            <PayBtn disabled={paying || balance < price} onClick={handlePay}>
-              {paying ? "결제 중…" : `${price.toLocaleString()} 원 결제하고 예약`}
+            <PayRow $big><span>이용료</span><b>{price.toLocaleString()} 원</b></PayRow>
+            <PayRow><span>결제 방식</span><b>현장 정산</b></PayRow>
+            <ChargeBox>
+              <small>결제 없이 예약을 요청해요. 구장주가 승인하면 예약이 확정되고, 이용료는 현장에서 정산해요.</small>
+            </ChargeBox>
+            <PayBtn disabled={paying} onClick={handleRequest}>
+              {paying ? "요청 중…" : "예약 요청하기"}
             </PayBtn>
             <CancelBtn onClick={() => setPayOpen(false)} disabled={paying}>취소</CancelBtn>
           </SheetCard>
@@ -385,8 +369,6 @@ const PayRow = styled.div`
 `;
 const Divider = styled.div`height: 1px; background: ${({ theme }) => theme.colors.border}; margin: 4px 0;`;
 const ChargeBox = styled.div`display: flex; flex-direction: column; gap: 8px; background: ${({ theme }) => theme.colors.surface}; border-radius: 12px; padding: 12px; & small { font-size: 12px; color: ${({ theme }) => theme.colors.textWeak}; }`;
-const ChargeBtns = styled.div`display: flex; gap: 8px; flex-wrap: wrap;`;
-const Cb = styled.button`flex: 1; min-width: 70px; height: 40px; border-radius: 9px; border: 1px solid ${({ theme }) => theme.colors.border}; background: ${({ theme }) => theme.colors.card}; color: ${({ theme }) => theme.colors.textNormal}; font-size: 12.5px; font-weight: 700; cursor: pointer;`;
 const PayBtn = styled.button`
   height: 52px; border-radius: 12px; border: none; cursor: pointer; margin-top: 6px;
   background: ${({ theme }) => theme.colors.primary}; color: #fff; font-size: 15px; font-weight: 800;

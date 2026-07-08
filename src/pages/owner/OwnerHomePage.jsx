@@ -7,9 +7,8 @@ import { LuChevronLeft, LuChevronRight, LuLock, LuHourglass, LuCheck, LuPhone } 
 import { useOwner } from "../../context/OwnerContext";
 import {
   listReservations, listBlocks, addBlock, removeBlock, setReservationStatus,
-  rejectReservationWithRefund, createOwnerReservation,
-  cancelReservationWithRefund, markReservationNoshow,
-  PAYMENT_METHODS, PAYMENT_METHOD_LABELS,
+  rejectReservation, createOwnerReservation,
+  cancelReservation, markReservationNoshow,
   dowToKey, expireMatchReservationIfNeeded, resolveSlotPrice,
 } from "../../services/ownerVenueService";
 import { useUI } from "../../hooks/useUI";
@@ -164,7 +163,7 @@ export default function OwnerHomePage(){
   };
   // 빈 슬롯 액션: 직접 예약 / 시간 막기
   const doBlock=async(s)=>{setSlotSheet(null);setBusy(true);try{await addBlock({venueId:venue.id,courtId:court.id,date,startTime:s.start,endTime:s.end});await load();}catch(e){}finally{setBusy(false);}};
-  const openBookForm=(s)=>{const p=resolveSlotPrice(court,date,s.start);setSlotSheet(null);setBookForm({s,name:"",phone:"",price:String(p||0),method:"onsite_card",weeks:1,memo:""});};
+  const openBookForm=(s)=>{const p=resolveSlotPrice(court,date,s.start);setSlotSheet(null);setBookForm({s,name:"",phone:"",price:String(p||0),weeks:1,memo:""});};
   const submitBook=async()=>{
     const f=bookForm; if(!f)return;
     setBusy(true);
@@ -172,7 +171,7 @@ export default function OwnerHomePage(){
       const {created,skipped}=await createOwnerReservation({
         venue,court,date,startTime:f.s.start,endTime:f.s.end,
         customerName:f.name,phone:f.phone,memo:f.memo,
-        price:Number(f.price)||0,paymentMethod:f.method,repeatWeeks:Number(f.weeks)||1,
+        price:Number(f.price)||0,repeatWeeks:Number(f.weeks)||1,
       });
       setBookForm(null);
       await load();
@@ -189,21 +188,20 @@ export default function OwnerHomePage(){
   };
   const rejectResv=async(r)=>{
     const isMatch=!!r.matchId;
-    if(!await ask({title:isMatch?"예약 반려":"예약 반려·환불",message:`${nm(r)} 예약을 반려할까요?${isMatch?"\n두 팀에 반려 알림이 가고, 다른 구장·시간으로 다시 제안할 수 있어요.":"\n결제된 금액은 자동으로 환불돼요."}`,confirmLabel:isMatch?"반려":"반려·환불",danger:true}))return;
-    setBusy(true);try{const {refunded}=await rejectReservationWithRefund(r.id);await load();toast(refunded>0?`예약을 반려하고 ${Number(refunded).toLocaleString()}피지를 환불했어요.`:"예약을 반려했어요.");}catch(e){toast(e?.message||"반려에 실패했어요.");}finally{setBusy(false);}
+    if(!await ask({title:"예약 반려",message:`${nm(r)} 예약을 반려할까요?${isMatch?"\n두 팀에 반려 알림이 가고, 다른 구장·시간으로 다시 제안할 수 있어요.":""}`,confirmLabel:"반려",danger:true}))return;
+    setBusy(true);try{await rejectReservation(r.id);await load();toast("예약을 반려했어요.");}catch(e){toast(e?.message||"반려에 실패했어요.");}finally{setBusy(false);}
   };
   const markDone=async(r)=>{
     if(!await ask({title:"이용 완료 처리",message:`${nm(r)} 예약을 이용 완료로 처리할까요?`,confirmLabel:"완료 처리"}))return;
     setBusy(true);try{await setReservationStatus(r.id,"done");await load();setDetailResv(null);toast("이용 완료로 처리했어요.");}catch(e){toast(e?.message||"처리에 실패했어요.");}finally{setBusy(false);}
   };
   const noshowResv=async(r)=>{
-    if(!await ask({title:"노쇼 처리",message:`${nm(r)} 예약을 노쇼로 처리할까요?\n예약금은 환불되지 않아요.`,confirmLabel:"노쇼 처리",danger:true}))return;
+    if(!await ask({title:"노쇼 처리",message:`${nm(r)} 예약을 노쇼로 처리할까요?\n노쇼 이력이 기록돼요.`,confirmLabel:"노쇼 처리",danger:true}))return;
     setBusy(true);try{await markReservationNoshow(r.id);await load();setDetailResv(null);toast("노쇼로 처리했어요.");}catch(e){toast(e?.message||"처리에 실패했어요.");}finally{setBusy(false);}
   };
   const cancelResv=async(r)=>{
-    const willRefund=r.source!=="owner";
-    if(!await ask({title:"예약 취소",message:`${nm(r)} 예약을 취소할까요?${willRefund?"\n결제된 금액은 자동으로 환불돼요.":""}`,confirmLabel:"예약 취소",danger:true}))return;
-    setBusy(true);try{const {refunded}=await cancelReservationWithRefund(r.id);await load();setDetailResv(null);toast(refunded>0?`예약을 취소하고 ${Number(refunded).toLocaleString()}피지를 환불했어요.`:"예약을 취소했어요.");}catch(e){toast(e?.message||"취소에 실패했어요.");}finally{setBusy(false);}
+    if(!await ask({title:"예약 취소",message:`${nm(r)} 예약을 취소할까요?`,confirmLabel:"예약 취소",danger:true}))return;
+    setBusy(true);try{await cancelReservation(r.id);await load();setDetailResv(null);toast("예약을 취소했어요.");}catch(e){toast(e?.message||"취소에 실패했어요.");}finally{setBusy(false);}
   };
 
   if(ownerLoading)return <Page><OwnerSpinner label="불러오는 중…"/></Page>;
@@ -260,7 +258,7 @@ export default function OwnerHomePage(){
                 <SlotS $k={info.k}>
                   {info.k==="confirmed"?<><LuCheck size={12}/>확정</>
                   :info.k==="done"?<><LuCheck size={12}/>사용</>
-                  :info.k==="pending"?<><LuHourglass size={12}/>{info.r?.status==="pending"?"결제대기":"승인대기"}</>
+                  :info.k==="pending"?<><LuHourglass size={12}/>승인대기</>
                   :info.k==="blocked"?<><LuLock size={12}/>막힘</>
                   :info.k==="past"?"지남"
                   :<>예약가능 · {(()=>{const p=resolveSlotPrice(court,date,s.start);return p?Number(p).toLocaleString()+"원":"무료";})()}</>}
@@ -280,10 +278,10 @@ export default function OwnerHomePage(){
               <ResvName>{isMatch?`${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`:(r.teamName||r.userName||"예약자")}</ResvName>
               <StatBadge $tone="pending"><LuHourglass size={11}/>{isMatch?"매칭 승인대기":"승인대기"}</StatBadge>
             </ResvTop>
-            <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원${isMatch?" (현장 정산)":""}`:""}{!isMatch&&r.phone?` · ${r.phone}`:""}</ResvMeta>
+            <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원 (현장 정산)`:""}{!isMatch&&r.phone?` · ${r.phone}`:""}</ResvMeta>
             <Acts>
               <SBtn $primary onClick={()=>approveResv(r)} disabled={busy}>승인</SBtn>
-              <SBtn $danger onClick={()=>rejectResv(r)} disabled={busy}>{isMatch?"반려":"반려·환불"}</SBtn>
+              <SBtn $danger onClick={()=>rejectResv(r)} disabled={busy}>반려</SBtn>
             </Acts>
           </Resv>
         );})}
@@ -292,7 +290,7 @@ export default function OwnerHomePage(){
       {detailResv && (()=>{
         const r=detailResv;
         const isMatch=!!r.matchId;
-        const label=r.status==="confirmed"?"예약 확정":r.status==="requested"?"승인 대기":r.status==="pending"?"결제 대기":r.status==="done"?"이용 완료":r.status;
+        const label=r.status==="confirmed"?"예약 확정":r.status==="requested"?"승인 대기":r.status==="pending"?"승인 대기":r.status==="done"?"이용 완료":r.status;
         const tone=r.status==="confirmed"?"confirmed":(r.status==="requested"||r.status==="pending")?"pending":"done";
         return (
           <Overlay onClick={()=>setDetailResv(null)}>
@@ -304,8 +302,7 @@ export default function OwnerHomePage(){
               <DRow><span>상태</span><StatBadge $tone={tone}>{label}</StatBadge></DRow>
               <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
               <DRow><span>코트</span><b>{r.courtName||court?.name||"-"}</b></DRow>
-              <DRow><span>금액</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원{isMatch?" (현장 정산)":""}</b></DRow>
-              {!isMatch&&r.source==="owner"&&<DRow><span>결제수단</span><b>{PAYMENT_METHOD_LABELS[r.paymentMethod]||"현장결제"}</b></DRow>}
+              <DRow><span>이용료</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원 (현장 정산)</b></DRow>
               {!isMatch&&r.memo&&<DRow><span>메모</span><b style={{fontWeight:600}}>{r.memo}</b></DRow>}
 
               {isMatch ? (
@@ -338,7 +335,7 @@ export default function OwnerHomePage(){
                   <DoneBtn onClick={()=>markDone(r)} disabled={busy}>이용 완료 처리</DoneBtn>
                   <SheetBtns>
                     <GhostBtn style={{flex:1}} onClick={()=>noshowResv(r)} disabled={busy}>노쇼 처리</GhostBtn>
-                    <DangerBtn style={{flex:1}} onClick={()=>cancelResv(r)} disabled={busy}>예약 취소{!isMatch&&r.source==="owner"?"":"·환불"}</DangerBtn>
+                    <DangerBtn style={{flex:1}} onClick={()=>cancelResv(r)} disabled={busy}>예약 취소</DangerBtn>
                   </SheetBtns>
                 </>
               )}
@@ -372,15 +369,8 @@ export default function OwnerHomePage(){
             <Field>연락처
               <Input value={bookForm.phone} onChange={e=>setBookForm(f=>({...f,phone:e.target.value}))} placeholder="010-0000-0000" inputMode="tel" />
             </Field>
-            <Field>금액(원)
+            <Field>이용료(원)
               <Input value={bookForm.price} onChange={e=>setBookForm(f=>({...f,price:e.target.value.replace(/[^0-9]/g,"")}))} inputMode="numeric" />
-            </Field>
-            <Field>결제수단
-              <PickRow>
-                {PAYMENT_METHODS.map(m=>(
-                  <SmallChip key={m} $on={bookForm.method===m} onClick={()=>setBookForm(f=>({...f,method:m}))}>{PAYMENT_METHOD_LABELS[m]}</SmallChip>
-                ))}
-              </PickRow>
             </Field>
             <Field>정기대관 (매주 반복)
               <PickRow>

@@ -742,12 +742,11 @@ export async function setReservationStatus(reservationId, status) {
 }
 
 /**
- * 예약을 지정 상태로 바꾸며 결제금액 환불 (구장주 반려/취소 공용).
- * - 앱 결제(fizz)된 예약이면 결제자(들)에게 환불. 현장/현금 등 owner 수동예약은 앱 환불 없음.
- * - 매칭 분할결제: 결제한 팀 각각 자기 몫 환불. 일반 예약: 결제자 전액 환불.
- * - 멱등: 이미 종료(rejected/cancelled/noshow)됐거나 refunded 표시면 재환불하지 않음.
+ * 예약을 종료 상태로 변경 (구장주 반려/취소 공용).
+ * - 예약 전용(현장 정산) 전환: 앱 결제/환불 없음 → 상태만 변경.
+ * - 멱등: 이미 종료(rejected/cancelled/noshow)됐으면 재처리하지 않음.
  */
-async function refundAndSetStatus(reservationId, nextStatus) {
+async function setReservationEndStatus(reservationId, nextStatus) {
   const rid = safeStr(reservationId);
   if (!rid) throw new Error("reservationId가 비어있습니다.");
   const dref = doc(db, "venueReservations", rid);
@@ -755,34 +754,13 @@ async function refundAndSetStatus(reservationId, nextStatus) {
   if (!snap.exists()) throw new Error("예약을 찾을 수 없습니다.");
   const data = snap.data() || {};
 
-  // 이미 종료 처리됐거나 환불 완료된 예약이면 재처리 안 함
-  if (["rejected", "cancelled", "noshow"].includes(safeStr(data.status)) || data.refunded === true) {
-    return { refunded: 0, alreadyDone: true };
-  }
-
-  // 환불 대상 산정 (앱 결제분만)
-  const refunds = [];
-  if (safeStr(data.matchId)) {
-    // 매칭 분할결제 — 낸 팀만 각자 몫 환불
-    if (data.paidByA && safeStr(data.teamAPayerUid)) refunds.push([safeStr(data.teamAPayerUid), toNum(data.shareA) ?? 0]);
-    if (data.paidByB && safeStr(data.teamBPayerUid)) refunds.push([safeStr(data.teamBPayerUid), toNum(data.shareB) ?? 0]);
-  } else if (data.paid && safeStr(data.userId) && safeStr(data.paymentMethod) === "fizz") {
-    // 일반 앱 예약 — 결제자 전액 환불 (현장결제 owner 예약은 제외)
-    refunds.push([safeStr(data.userId), toNum(data.paidFizz) ?? (toNum(data.price) ?? 0)]);
-  }
-
-  let refunded = 0;
-  for (const [uid, amt] of refunds) {
-    if (uid && amt > 0) {
-      try { await payFizz(uid, -amt); refunded += amt; }
-      catch (e) { console.warn("[refundAndSetStatus] refund failed", e?.message || e); }
-    }
+  // 이미 종료 처리된 예약이면 재처리 안 함
+  if (["rejected", "cancelled", "noshow"].includes(safeStr(data.status))) {
+    return { alreadyDone: true };
   }
 
   await updateDoc(dref, {
     status: nextStatus,
-    refunded: true,
-    refundedAmount: refunded,
     updatedAt: serverTimestamp(),
   });
   // 매칭 예약 반려 → 매칭룸 조율중(accepted) 복귀 + 재제안 유도 알림
@@ -790,20 +768,20 @@ async function refundAndSetStatus(reservationId, nextStatus) {
     try {
       await syncMatchOnReservationChange(data, "rejected");
     } catch (e) {
-      console.warn("[refundAndSetStatus] match sync failed:", e?.message || e);
+      console.warn("[setReservationEndStatus] match sync failed:", e?.message || e);
     }
   }
-  return { refunded };
+  return { ok: true };
 }
 
-/** 예약 반려 + 환불 (승인대기 예약 거절) — status=rejected */
-export async function rejectReservationWithRefund(reservationId) {
-  return refundAndSetStatus(reservationId, "rejected");
+/** 예약 반려 (승인대기 예약 거절) — status=rejected */
+export async function rejectReservation(reservationId) {
+  return setReservationEndStatus(reservationId, "rejected");
 }
 
-/** 확정 예약 취소 + 환불 (구장주 사정·우천 등) — status=cancelled */
-export async function cancelReservationWithRefund(reservationId) {
-  return refundAndSetStatus(reservationId, "cancelled");
+/** 확정 예약 취소 (구장주 사정·우천 등) — status=cancelled */
+export async function cancelReservation(reservationId) {
+  return setReservationEndStatus(reservationId, "cancelled");
 }
 
 /** 노쇼 처리 — 환불 없이 status=noshow (예약금 몰수) */
@@ -952,11 +930,10 @@ export function calcSlotPrice(court, startTime, endTime, date) {
 }
 
 /**
- * 구장 예약 + 피지 결제 + 구장주 푸시 알림.
+ * 구장 예약 요청 + 구장주 푸시 알림 (예약 전용·현장 정산 · 결제 없음).
  * 1) 해당 슬롯이 비었는지 재검증(다른 예약/블록 겹침 확인)
- * 2) 피지 차감(payFizz)
- * 3) venueReservations 생성 (status=confirmed, paid=true)
- * 4) 구장주에게 notifications 문서 생성(push queued → sendPushTick 발송)
+ * 2) venueReservations 생성 (status=requested · 승인대기, paid=false)
+ * 3) 구장주에게 notifications 문서 생성(push queued → sendPushTick 발송)
  */
 export async function bookVenue({ venue, court, date, startTime, endTime, user }) {
   const venueId = safeStr(venue?.id);
@@ -988,50 +965,39 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user }
 
   const price = calcSlotPrice(court, startTime, endTime, date);
 
-  // 2) 피지 결제 (잔액 부족 시 에러 전파)
-  await payFizz(uid, price);
-
-  // 3) 예약 생성 (결제 완료 → 확정)
+  // 2) 예약 요청 생성 (결제 없음 → 구장주 승인 대기)
   const ownerUid = safeStr(venue?.ownerUid);
-  let reservationId = "";
-  try {
-    const ref = await addDoc(collection(db, "venueReservations"), {
-      venueId,
-      courtId,
-      ownerUid,
-      courtName: safeStr(court?.name),
-      venueName: safeStr(venue?.name),
-      date: safeStr(date),
-      startTime: safeStr(startTime),
-      endTime: safeStr(endTime),
-      userId: uid,
-      userName: safeStr(user?.userName),
-      teamName: safeStr(user?.teamName),
-      phone: safeStr(user?.phone),
-      price,
-      paid: true,
-      paidFizz: price,
-      paymentMethod: "fizz",
-      status: "confirmed",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    reservationId = ref.id;
-  } catch (e) {
-    // 예약 저장 실패 시 결제 롤백(환불)
-    try { await payFizz(uid, -price); } catch {}
-    throw e;
-  }
+  const ref = await addDoc(collection(db, "venueReservations"), {
+    venueId,
+    courtId,
+    ownerUid,
+    courtName: safeStr(court?.name),
+    venueName: safeStr(venue?.name),
+    date: safeStr(date),
+    startTime: safeStr(startTime),
+    endTime: safeStr(endTime),
+    userId: uid,
+    userName: safeStr(user?.userName),
+    teamName: safeStr(user?.teamName),
+    phone: safeStr(user?.phone),
+    price,
+    paid: false,
+    paymentMethod: "onsite",
+    status: "requested",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  const reservationId = ref.id;
 
-  // 4) 구장주 푸시 알림 (실패해도 예약은 유지)
+  // 3) 구장주 푸시 알림 (실패해도 예약 요청은 유지)
   if (ownerUid) {
     try {
       await addDoc(collection(db, "notifications"), {
         kind: "venue",
         subType: "venueReservationCreated",
         type: "venue_reservation",
-        title: "새 구장 예약이 들어왔어요",
-        body: `${date} ${startTime}~${endTime} · ${safeStr(court?.name)} (${safeStr(user?.userName) || "예약자"})`,
+        title: "새 예약 요청이 들어왔어요",
+        body: `${date} ${startTime}~${endTime} · ${safeStr(court?.name)} (${safeStr(user?.userName) || "예약자"}) · 승인 대기`,
         targetType: "USER",
         targetIds: [ownerUid],
         linkType: "venue",

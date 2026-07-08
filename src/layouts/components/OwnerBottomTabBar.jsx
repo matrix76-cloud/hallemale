@@ -1,9 +1,9 @@
 /* eslint-disable */
 // src/layouts/components/OwnerBottomTabBar.jsx
-// 구장 관리자 바텀탭 (4탭) — 예약관리 / 매출분석 / 정산 / 구장정보
+// 구장 관리자 바텀탭 (3탭) — 예약관리 / 예약통계 / 구장정보
 import React from "react";
 import styled from "styled-components";
-import { LuCalendar, LuChartColumn, LuWallet, LuSettings } from "react-icons/lu";
+import { LuCalendar, LuChartColumn, LuSettings } from "react-icons/lu";
 import { C } from "../../pages/owner/components/od";
 
 const Wrap = styled.nav`
@@ -60,8 +60,7 @@ const IconWrap = styled.span`
 
 const TABS = [
   { key: "home", Icon: LuCalendar, label: "예약관리", path: "/owner/home" },
-  { key: "sales", Icon: LuChartColumn, label: "매출분석", path: "/owner/sales" },
-  { key: "settlement", Icon: LuWallet, label: "정산", path: "/owner/settlement" },
+  { key: "sales", Icon: LuChartColumn, label: "예약통계", path: "/owner/sales" },
   { key: "venue", Icon: LuSettings, label: "구장정보", path: "/owner/venue" },
 ];
 

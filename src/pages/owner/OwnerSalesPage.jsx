@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/owner/OwnerSalesPage.jsx
-// 매출분석 — 실제 확정 예약 기준 (P1: 합계/요일별 기본, 추후 보강)
+// 예약통계 — 확정·완료 예약 기준. 예약 전용(현장 정산) 전환으로 '매출' 대신 예약 건수 중심.
+// 금액은 '예상 이용료(참고·현장 정산)'로만 표기 — 앱이 대금을 수금하지 않음.
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { LuChartColumn, LuTrendingUp, LuReceipt, LuChevronLeft, LuChevronRight, LuActivity, LuBan } from "react-icons/lu";
@@ -94,7 +95,7 @@ export default function OwnerSalesPage() {
   const monthKey = `${ym.y}-${String(ym.m).padStart(2, "0")}`;
   // 그 달 전체(모든 상태) — 취소·노쇼 집계용
   const monthAll = useMemo(() => filtered.filter((r) => (r.date || "").startsWith(monthKey)), [filtered, monthKey]);
-  // 매출 대상(확정·완료)
+  // 통계 대상(확정·완료)
   const monthRows = useMemo(() => monthAll.filter((r) => ["confirmed", "done"].includes(r.status)), [monthAll]);
 
   const total = monthRows.reduce((s, r) => s + (r.price || 0), 0);
@@ -111,17 +112,18 @@ export default function OwnerSalesPage() {
   }, [courts, courtId, ym]);
   const occupancy = operMin > 0 ? Math.round((bookedMin / operMin) * 100) : 0;
 
+  // 요일별 예약 분포(건수)
   const byDow = useMemo(() => {
     const m = [0, 0, 0, 0, 0, 0, 0];
     monthRows.forEach((r) => {
       const d = r.date ? new Date(`${r.date}T00:00:00`).getDay() : null;
-      if (d != null && !Number.isNaN(d)) m[d] += r.price || 0;
+      if (d != null && !Number.isNaN(d)) m[d] += 1;
     });
     return m;
   }, [monthRows]);
   const maxDow = Math.max(1, ...byDow);
 
-  // 그 달 매출 내역 (최근순)
+  // 그 달 예약 내역 (최근순)
   const history = useMemo(
     () => [...monthRows].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.startTime < b.startTime ? 1 : -1))),
     [monthRows]
@@ -133,7 +135,7 @@ export default function OwnerSalesPage() {
 
   return (
     <Page>
-      <ScreenTitle>매출분석</ScreenTitle>
+      <ScreenTitle>예약통계</ScreenTitle>
 
       {courts.length > 1 && (
         <ChipRow>
@@ -151,9 +153,9 @@ export default function OwnerSalesPage() {
       </MonthNav>
 
       <Card>
-        <SecTitle><LuTrendingUp size={16} /> {ym.y}년 {ym.m}월 매출</SecTitle>
-        <Money $lg>{total.toLocaleString()}원</Money>
-        <Caption>확정·완료 예약 {count}건</Caption>
+        <SecTitle><LuTrendingUp size={16} /> {ym.y}년 {ym.m}월 예약</SecTitle>
+        <Money $lg>{count}건</Money>
+        <Caption>확정·완료 예약 · 예상 이용료 {total.toLocaleString()}원 (참고·현장 정산)</Caption>
       </Card>
 
       <Card>
@@ -175,18 +177,18 @@ export default function OwnerSalesPage() {
       </Card>
 
       <Card>
-        <SecTitle><LuChartColumn size={16} /> 요일별 매출</SecTitle>
+        <SecTitle><LuChartColumn size={16} /> 요일별 예약</SecTitle>
         {loading ? (
           <Caption>불러오는 중…</Caption>
-        ) : total === 0 ? (
-          <Caption>아직 확정된 예약 매출이 없어요.</Caption>
+        ) : count === 0 ? (
+          <Caption>아직 확정된 예약이 없어요.</Caption>
         ) : (
           <Bars>
             {byDow.map((v, i) => (
               <BarRow key={i}>
                 <span style={{ color: i === 0 ? C.red500 : i === 6 ? C.violet600 : C.slate500, fontWeight: 700, textAlign: "center" }}>{WEEK[i]}</span>
                 <Bar $pct={Math.round((v / maxDow) * 100)}><i /></Bar>
-                <span style={{ textAlign: "right", color: C.slate800, fontWeight: 700 }}>{v.toLocaleString()}</span>
+                <span style={{ textAlign: "right", color: C.slate800, fontWeight: 700 }}>{v}건</span>
               </BarRow>
             ))}
           </Bars>
@@ -194,11 +196,11 @@ export default function OwnerSalesPage() {
       </Card>
 
       <Card>
-        <SecTitle><LuReceipt size={16} /> 매출 내역 {history.length > 0 && `(${history.length})`}</SecTitle>
+        <SecTitle><LuReceipt size={16} /> 예약 내역 {history.length > 0 && `(${history.length})`}</SecTitle>
         {loading ? (
           <Caption>불러오는 중…</Caption>
         ) : history.length === 0 ? (
-          <Caption>아직 매출 내역이 없어요.</Caption>
+          <Caption>아직 예약 내역이 없어요.</Caption>
         ) : (
           history.map((r) => (
             <ClickItem key={r.id} onClick={() => setDetail(r)}>
@@ -212,7 +214,7 @@ export default function OwnerSalesPage() {
         )}
         {history.length > 0 && (
           <TotalRow>
-            <span>{ym.m}월 매출 합계</span>
+            <span>{ym.m}월 예상 이용료</span>
             <b>{total.toLocaleString()}원</b>
           </TotalRow>
         )}
@@ -224,11 +226,11 @@ export default function OwnerSalesPage() {
         return (
           <Overlay onClick={() => setDetail(null)}>
             <Sheet onClick={(e) => e.stopPropagation()}>
-              <SheetTitle>매출 세부 내역 <X onClick={() => setDetail(null)}>×</X></SheetTitle>
+              <SheetTitle>예약 세부 내역 <X onClick={() => setDetail(null)}>×</X></SheetTitle>
               <DRow><span>상태</span><b>{r.status === "done" ? "이용 완료" : "예약 확정"}</b></DRow>
               <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
               <DRow><span>코트</span><b>{r.courtName || "-"}</b></DRow>
-              <DRow><span>금액</span><b>{(r.price || r.splitTotal || 0).toLocaleString()}원{isMatch ? " (두 팀 반반)" : ""}</b></DRow>
+              <DRow><span>이용료</span><b>{(r.price || r.splitTotal || 0).toLocaleString()}원 (현장 정산)</b></DRow>
               {isMatch ? (
                 <>
                   <DRow style={{ marginTop: 2 }}><span style={{ fontWeight: 700, color: C.slate800 }}>매칭 · 두 팀</span></DRow>

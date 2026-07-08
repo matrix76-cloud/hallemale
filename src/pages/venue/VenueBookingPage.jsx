@@ -1,6 +1,6 @@
 /* eslint-disable */
 // src/pages/venue/VenueBookingPage.jsx
-// 구장 예약 — 코트/날짜/빈 슬롯 선택 → 원(가짜) 결제 → 예약 확정 + 구장주 푸시
+// 구장 상세 — 코트 목록 → 코트 선택 시 예약 페이지(CourtBookingPage)로 이동. 예약은 현장 정산·구장 승인제.
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
@@ -21,7 +21,6 @@ import {
   dowToKey,
   FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
-import { getFizzBalance, chargeFizz } from "../../services/fizzService";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome } from "react-icons/fi";
@@ -94,7 +93,6 @@ export default function VenueBookingPage() {
   const [blocks, setBlocks] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [balance, setBalance] = useState(0);
   const [payOpen, setPayOpen] = useState(false);
   const [paying, setPaying] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null); // 매칭 두 팀 정보
@@ -164,12 +162,11 @@ export default function VenueBookingPage() {
     if (!venue?.id || !court?.id) return;
     setSlotsLoading(true);
     try {
-      const [rs, bs, bal] = await Promise.all([
+      const [rs, bs] = await Promise.all([
         listReservations({ venueId: venue.id, date, courtId: court.id }),
         listBlocks({ venueId: venue.id, date, courtId: court.id }),
-        uid ? getFizzBalance(uid) : Promise.resolve(0),
       ]);
-      setReservations(rs); setBlocks(bs); setBalance(bal);
+      setReservations(rs); setBlocks(bs);
     } catch (e) {
       console.warn("[VenueBooking] loadSlots failed", e);
     } finally { setSlotsLoading(false); }
@@ -185,15 +182,6 @@ export default function VenueBookingPage() {
   };
 
   const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date) : 0;
-  const need = Math.max(0, price - balance);
-
-  const handleCharge = async (amount) => {
-    if (!uid) return;
-    try {
-      const next = await chargeFizz(uid, amount);
-      setBalance(next);
-    } catch (e) { toast(e?.message || "충전 실패"); }
-  };
 
   const copyAddress = async () => {
     const full = `${venue?.address || ""}${venue?.addressDetail ? ` ${venue.addressDetail}` : ""}`.trim();
@@ -206,10 +194,9 @@ export default function VenueBookingPage() {
     }
   };
 
-  const handlePay = async () => {
+  const handleRequest = async () => {
     if (!uid) return toast("로그인이 필요해요.");
     if (!selected || !court) return;
-    if (balance < price) return toast("잔액이 부족해요. 충전해주세요.");
     setPaying(true);
     try {
       await bookVenue({
@@ -225,10 +212,10 @@ export default function VenueBookingPage() {
       setPayOpen(false);
       setSelected(null);
       await loadSlots();
-      toast("예약이 확정됐어요! 구장 관리자에게 알림이 전송됐어요.");
+      toast("예약 요청을 보냈어요! 구장 승인 후 확정돼요.");
     } catch (e) {
       if (e?.code === "slot_taken") { await loadSlots(); }
-      toast(e?.message || "예약에 실패했어요.");
+      toast(e?.message || "예약 요청에 실패했어요.");
     } finally { setPaying(false); }
   };
 
@@ -316,8 +303,8 @@ export default function VenueBookingPage() {
       <Notice>
         <FiInfo size={15} />
         <span>
-          예약 전 <b>운영 시간·환불 정책</b>을 확인해주세요. 결제 후 노쇼 시 환불
-          규정이 적용될 수 있어요.
+          예약 전 <b>운영 시간·이용 안내</b>를 확인해주세요. 예약 요청 후 구장주가
+          승인하면 확정되며, 이용료는 현장에서 정산해요.
         </span>
       </Notice>
 

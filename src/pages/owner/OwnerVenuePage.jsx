@@ -332,7 +332,7 @@ export default function OwnerVenuePage() {
 
       <PrimaryBtn type="button" onClick={save} disabled={saving}>{saving ? "저장 중…" : "구장정보 저장"}</PrimaryBtn>
 
-      {/* 사업자 인증 / 통신판매업 / 정산 계좌 (명세서 2) */}
+      {/* 사업자 인증 (신뢰 배지) */}
       <BusinessSection venue={venue} refresh={refresh} />
 
       <LogoutRow type="button" onClick={handleLogout}><LuLogOut size={16} /> 로그아웃</LogoutRow>

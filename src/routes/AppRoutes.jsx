@@ -132,7 +132,6 @@ import OwnerHomePage from "../pages/owner/OwnerHomePage";
 import OwnerVenuePage from "../pages/owner/OwnerVenuePage";
 import OwnerMyPage from "../pages/owner/OwnerMyPage";
 import OwnerSalesPage from "../pages/owner/OwnerSalesPage";
-import OwnerSettlementPage from "../pages/owner/OwnerSettlementPage";
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -509,7 +508,6 @@ export default function AppRoutes() {
           {/* 소프트 게이트: 막지 않고 입장 → 각 탭에서 등록/심사 안내 */}
           <Route path="/owner/home" element={<OwnerHomePage />} />
           <Route path="/owner/sales" element={<OwnerSalesPage />} />
-          <Route path="/owner/settlement" element={<OwnerSettlementPage />} />
           <Route path="/owner/venue" element={<OwnerVenuePage />} />
           <Route path="/owner/my" element={<OwnerMyPage />} />
         </Route>
