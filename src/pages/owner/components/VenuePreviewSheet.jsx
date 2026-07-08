@@ -130,7 +130,7 @@ export default function VenuePreviewSheet({ venue, onClose }) {
           )}
           {venue.refundPolicy && (
             <Sec>
-              <SecTit>환불 정책</SecTit>
+              <SecTit>취소·노쇼 안내</SecTit>
               <Pre>{venue.refundPolicy}</Pre>
             </Sec>
           )}

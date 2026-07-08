@@ -635,7 +635,7 @@ export default function AdminVenuesPage() {
                   <FormSecTitle>안내</FormSecTitle>
                   <FormField><FLabel>구장 소개</FLabel><FTextarea value={form.description} onChange={(e) => updateForm({ description: e.target.value })} placeholder="구장 특징, 바닥 재질, 주차 안내 등" /></FormField>
                   <FormField><FLabel>이용 규칙</FLabel><FTextarea value={form.rules} onChange={(e) => updateForm({ rules: e.target.value })} placeholder="예: 실내화 필수, 음식물 반입 금지" /></FormField>
-                  <FormField><FLabel>환불 정책</FLabel><FTextarea value={form.refundPolicy} onChange={(e) => updateForm({ refundPolicy: e.target.value })} placeholder="환불 규정" /></FormField>
+                  <FormField><FLabel>취소·노쇼 안내</FLabel><FTextarea value={form.refundPolicy} onChange={(e) => updateForm({ refundPolicy: e.target.value })} placeholder="취소·노쇼 안내" /></FormField>
                 </>
               )}
 

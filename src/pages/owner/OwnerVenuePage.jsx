@@ -304,16 +304,16 @@ export default function OwnerVenuePage() {
         <FacWrap>{FACILITY_OPTIONS.map((f) => <Fac key={f} $on={facilities.includes(f)} onClick={() => toggleFac(f)}><FacilityIcon name={f} size={15} /> {f}</Fac>)}</FacWrap>
       </Card>
 
-      {/* 이용 안내·환불 정책 — 사용자 예약화면 '이용 안내'/'환불 정책'에 노출 */}
+      {/* 이용 안내·취소 안내 — 사용자 예약화면 '이용 안내'/'취소·노쇼 안내'에 노출 */}
       <Card>
         <SecTitle><LuFileText size={16} /> 이용 안내</SecTitle>
         <Caption>상시 이용 규칙 (예: 실내화 필수, 음식물 반입 금지).</Caption>
         <Textarea value={rules} onChange={(e) => setRules(e.target.value)} placeholder="예: 실내화 필수, 음식물 반입 금지 등" />
       </Card>
       <Card>
-        <SecTitle><LuReceipt size={16} /> 환불 정책</SecTitle>
-        <Caption>예약 취소·노쇼 시 적용되는 환불 규정.</Caption>
-        <Textarea value={refundPolicy} onChange={(e) => setRefundPolicy(e.target.value)} placeholder={"• 이용 7일 전: 100% 환불\n• 이용 1일 전~당일: 환불 불가"} />
+        <SecTitle><LuReceipt size={16} /> 취소·노쇼 안내</SecTitle>
+        <Caption>예약 취소·노쇼 시 지켜야 할 안내 (현장 정산이라 별도 환불은 없어요).</Caption>
+        <Textarea value={refundPolicy} onChange={(e) => setRefundPolicy(e.target.value)} placeholder={"• 이용 1일 전까지 취소해 주세요.\n• 당일 취소·노쇼는 삼가주세요."} />
       </Card>
 
       {/* 노출 모드 */}

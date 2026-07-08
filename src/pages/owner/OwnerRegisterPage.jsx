@@ -23,7 +23,7 @@ import CourtHoursEditor from "./components/CourtHoursEditor";
 import { openDaumPostcode } from "./components/addressSearch";
 
 const DEFAULT_REFUND =
-  "• 이용 7일 전: 100% 환불\n• 이용 3일 전: 50% 환불\n• 이용 1일 전 ~ 당일: 환불 불가\n• 우천/천재지변 시 협의 후 일정 변경 가능";
+  "• 이용 1일 전까지 취소해 주세요.\n• 당일 취소·노쇼는 삼가주세요. 반복 시 예약이 제한될 수 있어요.\n• 우천/천재지변 시 협의 후 일정 변경 가능";
 
 function makeCourt(idx) {
   return {
@@ -382,7 +382,7 @@ export default function OwnerRegisterPage() {
           <Textarea value={form.rules} onChange={(e) => set({ rules: e.target.value })} placeholder="예: 실내화 필수, 음식물 반입 금지 등" />
         </Field>
         <Field>
-          <Label>환불 정책</Label>
+          <Label>취소·노쇼 안내</Label>
           <Textarea value={form.refundPolicy} onChange={(e) => set({ refundPolicy: e.target.value })} />
         </Field>
       </Card>

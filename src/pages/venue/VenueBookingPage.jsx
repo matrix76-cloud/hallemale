@@ -402,7 +402,7 @@ export default function VenueBookingPage() {
       )}
       {venue.refundPolicy && (
         <Section>
-          <SecTitle><FiCreditCard size={17} />환불 정책</SecTitle>
+          <SecTitle><FiCreditCard size={17} />취소·노쇼 안내</SecTitle>
           <InfoPre>{venue.refundPolicy}</InfoPre>
         </Section>
       )}
