@@ -10,7 +10,7 @@
 //   2) 서버(deleteAccount, Admin SDK)로 users 문서 + Auth 계정 삭제 (requires-recent-login 없음)
 //      실패 시 클라이언트 deleteUser 폴백
 
-import { db, ownerAuth } from "./firebase";
+import { db, storage, ownerAuth } from "./firebase";
 import {
   collection,
   query,
@@ -19,6 +19,7 @@ import {
   deleteDoc,
   doc,
 } from "firebase/firestore";
+import { ref, deleteObject } from "firebase/storage";
 import { deleteUser, signOut } from "firebase/auth";
 
 const DELETE_ACCOUNT_URL =
@@ -102,18 +103,51 @@ async function deleteByField(col, field, value) {
   }
 }
 
-/** 내 구장·예약·차단 데이터 삭제 (계정 삭제 전 실행) */
+/** Storage 파일 삭제 (best-effort) */
+async function deleteStoragePaths(paths) {
+  const uniq = Array.from(new Set((paths || []).map(s).filter(Boolean)));
+  await Promise.all(uniq.map(async (p) => {
+    try {
+      await deleteObject(ref(storage, p));
+    } catch (e) {
+      // 이미 없거나 권한 문제 — 탈퇴를 막지 않음
+      console.warn(`[ownerWithdraw] delete storage ${p} failed:`, e?.code || e?.message || e);
+    }
+  }));
+}
+
+/** 내 구장·예약·차단 데이터 + 구장 사진(Storage) 삭제 (계정 삭제 전 실행) */
 async function purgeOwnerData(uid) {
-  const venueIds = await listOwnerVenueIds(uid);
+  // 구장 목록 + 사진 storagePath 수집
+  const venueIds = [];
+  const photoPaths = [];
+  try {
+    const snap = await getDocs(query(collection(db, "venues"), where("ownerUid", "==", uid)));
+    snap.forEach((d) => {
+      venueIds.push(d.id);
+      const data = d.data() || {};
+      if (Array.isArray(data.storagePaths)) data.storagePaths.forEach((p) => photoPaths.push(p));
+      if (data.storagePath) photoPaths.push(data.storagePath);
+    });
+  } catch (e) {
+    console.warn("[ownerWithdraw] list venues failed:", e?.message || e);
+  }
+
+  // 예약·차단 삭제
   for (const vid of venueIds) {
     await deleteByField("venueReservations", "venueId", vid);
     await deleteByField("venueBlocks", "venueId", vid);
   }
   // ownerUid로 걸린 잔여 예약(venueId 누락 등) 정리
   await deleteByField("venueReservations", "ownerUid", uid);
+
+  // 구장 문서 삭제 → 사용자 앱 목록·상세에서 즉시 사라짐
   for (const vid of venueIds) {
     await safeDelete(doc(db, "venues", vid), `venues/${vid}`);
   }
+
+  // 구장 사진(Storage) 삭제
+  await deleteStoragePaths(photoPaths);
 }
 
 /** Auth 계정 삭제 — 서버(Admin SDK) 우선, 실패 시 클라이언트 폴백 */
