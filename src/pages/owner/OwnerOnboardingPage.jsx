@@ -54,6 +54,8 @@ export default function OwnerOnboardingPage() {
   const [parking, setParking] = useState({ available: false, fee: "free", info: "" });
   const [keywords, setKeywords] = useState([]);
   const [keywordInput, setKeywordInput] = useState("");
+  const [displayMode, setDisplayMode] = useState("grouped");
+  const [displayName, setDisplayName] = useState("");
   const [courts, setCourts] = useState([makeCourt(0)]);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,6 +79,8 @@ export default function OwnerOnboardingPage() {
       info: venue.parking?.info || "",
     });
     setKeywords(venue.keywords || []);
+    setDisplayMode(venue.displayMode || "grouped");
+    setDisplayName(venue.displayName || venue.name || "");
     setCourts(
       (venue.courts || []).length
         ? venue.courts.map((c) => ({
@@ -150,7 +154,7 @@ export default function OwnerOnboardingPage() {
     try {
       const payload = {
         ownerUid: uid, ...form,
-        sportTypes, parking, keywords,
+        sportTypes, parking, keywords, displayMode, displayName,
         photos: photos.map((p) => p.url), storagePaths: photos.map((p) => p.storagePath),
         facilities, courts,
       };
@@ -308,6 +312,24 @@ export default function OwnerOnboardingPage() {
               </CourtCard>
             ))}
             <GhostBtn type="button" onClick={addCourt}>＋ 코트 추가</GhostBtn>
+
+            {courts.length > 1 && (
+              <>
+                <SubHead>사용자 노출 방식</SubHead>
+                <ChipWrap>
+                  <Chip type="button" $on={displayMode === "grouped"} onClick={() => setDisplayMode("grouped")}>한 장소로 묶기</Chip>
+                  <Chip type="button" $on={displayMode === "separate"} onClick={() => setDisplayMode("separate")}>코트별 독립</Chip>
+                </ChipWrap>
+                {displayMode === "grouped" ? (
+                  <Field>
+                    <Label>대표 장소명</Label>
+                    <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={form.name || "예: 용산 더베이스"} />
+                  </Field>
+                ) : (
+                  <StepHint>코트별로 검색·목록에 개별 노출돼요.</StepHint>
+                )}
+              </>
+            )}
           </>
         )}
 

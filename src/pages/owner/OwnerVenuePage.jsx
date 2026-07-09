@@ -78,6 +78,7 @@ export default function OwnerVenuePage() {
   const [directions, setDirections] = useState("");
   const [keywords, setKeywords] = useState([]);
   const [keywordInput, setKeywordInput] = useState("");
+  const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
   const [region, setRegion] = useState("");
@@ -109,6 +110,7 @@ export default function OwnerVenuePage() {
     });
     setDirections(venue.directions || "");
     setKeywords(venue.keywords || []);
+    setName(venue.name || "");
     setAddress(venue.address || "");
     setAddressDetail(venue.addressDetail || "");
     setRegion(venue.region || "");
@@ -165,11 +167,12 @@ export default function OwnerVenuePage() {
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
 
   const save = async () => {
+    if (!name.trim()) { showAlert("구장명을 입력해 주세요."); return; }
     if (courts.some((c) => !c.name.trim())) { showAlert("코트 이름을 입력해 주세요."); return; }
     setSaving(true);
     try {
       await updateMyVenue(venue.id, {
-        courts, facilities, displayMode, displayName,
+        name, courts, facilities, displayMode, displayName,
         sportTypes, parking, directions, keywords,
         address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
         photos: photos.map((p) => p.url),
@@ -189,6 +192,7 @@ export default function OwnerVenuePage() {
   // 미리보기용 — 저장 전 편집 내용까지 반영해 사용자 화면을 재현
   const previewVenue = {
     ...venue,
+    name,
     photos: photos.map((p) => p.url).filter(Boolean),
     imageUrl: photos[0]?.url || venue.imageUrl,
     facilities, description, phone, rules, refundPolicy,
@@ -225,7 +229,7 @@ export default function OwnerVenuePage() {
       </Card>
 
       <Card>
-        <VName>{venue.name}</VName>
+        <Field><Lbl>구장명</Lbl><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 용산 더베이스 농구장" /></Field>
         <SecTitle><LuMapPin size={16} /> 위치</SecTitle>
         <Caption>지도를 움직여 구장 위치에 핀을 맞추면 주소가 자동 입력돼요.</Caption>
         <VenueMapPicker

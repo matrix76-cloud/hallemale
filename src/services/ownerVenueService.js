@@ -288,6 +288,8 @@ export async function registerVenue({
   ownerName,
   contactPhone,
   courts = [],
+  displayMode,
+  displayName,
 }) {
   if (!safeStr(ownerUid)) throw new Error("로그인이 필요합니다.");
   if (!safeStr(name)) throw new Error("구장명을 입력해주세요.");
@@ -336,6 +338,10 @@ export async function registerVenue({
     contactPhone: safeStr(contactPhone),
 
     courts: cleanCourts,
+
+    // 사용자 노출 방식 (멀티코트 묶기 vs 독립)
+    displayMode: displayMode === "separate" ? "separate" : "grouped",
+    displayName: safeStr(displayName) || safeStr(name),
 
     // 승인 전까지 사용자에게 노출 안 함
     active: false,
