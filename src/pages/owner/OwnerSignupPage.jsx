@@ -56,7 +56,7 @@ export default function OwnerSignupPage() {
 
       <Hero>
         <Logo>🏟️</Logo>
-        <Title>구장 관리자 회원가입</Title>
+        <Title>할래말래 사장님 회원가입</Title>
         <Sub>이메일과 비밀번호로 가입하세요</Sub>
       </Hero>
 

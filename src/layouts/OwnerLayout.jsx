@@ -90,7 +90,7 @@ function getTitle(p) {
   if (p.startsWith("/owner/register")) return "구장 등록";
   if (p.startsWith("/owner/onboarding")) return "구장 등록";
   if (p.startsWith("/owner/pending")) return "심사 현황";
-  return "구장 관리자";
+  return "할래말래 사장님";
 }
 
 // 구장 미등록(venue 없음) 오너는 워크스페이스로 못 들어가고 온보딩에 머문다.

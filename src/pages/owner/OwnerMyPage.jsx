@@ -80,7 +80,7 @@ export default function OwnerMyPage() {
     navigate("/owner/login", { replace: true });
   };
 
-  const name = userDoc?.nickname || venue?.ownerName || "구장 관리자";
+  const name = userDoc?.nickname || venue?.ownerName || "사장님";
   const email = userDoc?.email || firebaseUser?.email || "";
 
   return (

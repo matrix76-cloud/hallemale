@@ -68,7 +68,7 @@ export default function OwnerLoginPage() {
     }
   };
 
-  const title = mode === "reset" ? "비밀번호 찾기" : "할래말래 구장 관리자";
+  const title = mode === "reset" ? "비밀번호 찾기" : "할래말래 사장님";
   const sub =
     mode === "reset"
       ? "가입한 이메일로 재설정 링크를 보내드려요"
@@ -129,7 +129,7 @@ export default function OwnerLoginPage() {
           )}
         </Links>
 
-        <Notice>구장 관리자 전용 로그인입니다.</Notice>
+        <Notice>할래말래 사장님 전용 로그인입니다.</Notice>
       </Bottom>
     </Wrap>
   );
