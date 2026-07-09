@@ -132,6 +132,8 @@ import OwnerHomePage from "../pages/owner/OwnerHomePage";
 import OwnerVenuePage from "../pages/owner/OwnerVenuePage";
 import OwnerMyPage from "../pages/owner/OwnerMyPage";
 import OwnerWithdrawPage from "../pages/owner/OwnerWithdrawPage";
+import OwnerSignupPage from "../pages/owner/OwnerSignupPage";
+import OwnerOnboardingPage from "../pages/owner/OwnerOnboardingPage";
 import OwnerSalesPage from "../pages/owner/OwnerSalesPage";
 
 function RequireAuth({ children }) {
@@ -496,6 +498,7 @@ export default function AppRoutes() {
 
         {/* ✅ 구장 관리자(구장주) 워크스페이스 — 별도 라우트 트리 */}
         <Route path="/owner/login" element={<OwnerLoginPage />} />
+        <Route path="/owner/signup" element={<OwnerSignupPage />} />
         <Route
           element={
             <RequireOwnerAuth>
@@ -504,6 +507,7 @@ export default function AppRoutes() {
           }
         >
           <Route path="/owner" element={<OwnerEntry />} />
+          <Route path="/owner/onboarding" element={<OwnerOnboardingPage />} />
           <Route path="/owner/register" element={<OwnerRegisterPage />} />
           <Route path="/owner/pending" element={<OwnerStatusPage />} />
           {/* 소프트 게이트: 막지 않고 입장 → 각 탭에서 등록/심사 안내 */}

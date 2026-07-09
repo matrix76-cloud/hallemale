@@ -87,6 +87,7 @@ function getTitle(p) {
   if (p.startsWith("/owner/withdraw")) return "회원탈퇴";
   if (p.startsWith("/owner/my")) return "내정보";
   if (p.startsWith("/owner/register")) return "구장 등록";
+  if (p.startsWith("/owner/onboarding")) return "구장 등록";
   if (p.startsWith("/owner/pending")) return "심사 현황";
   return "구장 관리자";
 }

@@ -99,7 +99,7 @@ export default function OwnerMyPage() {
         <Card>
           <SectionTitle>내 구장</SectionTitle>
           <SectionDesc>아직 등록한 구장이 없어요. 구장을 등록하면 예약을 받을 수 있어요.</SectionDesc>
-          <PrimaryBtn type="button" onClick={() => navigate("/owner/register")}>구장 등록하기</PrimaryBtn>
+          <PrimaryBtn type="button" onClick={() => navigate("/owner/onboarding")}>구장 등록하기</PrimaryBtn>
         </Card>
       )}
 

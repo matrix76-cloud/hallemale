@@ -135,6 +135,7 @@ function normalizeCourt(c, idx = 0) {
     id: safeStr(o.id) || makeCourtId(),
     name: safeStr(o.name) || `${idx + 1}코트`,
     type: o.type === "outdoor" ? "outdoor" : "indoor",
+    surface: safeStr(o.surface), // 바닥재질 (마루/우레탄/인조잔디 등)
     pricePerHour: toNum(o.pricePerHour) ?? 0, // 기본요금(통일)
     slotMinutes: toNum(o.slotMinutes) || 60,
     hours: normalizeHours(o.hours, o.openTime, o.closeTime),
@@ -197,6 +198,15 @@ export function venueRow(d) {
     storagePaths: arr(data.storagePaths).map((p) => safeStr(p)).filter(Boolean),
 
     facilities: arr(data.facilities).map((f) => safeStr(f)).filter(Boolean),
+    // 네이버 플레이스식 상세정보
+    sportTypes: arr(data.sportTypes).map((s) => safeStr(s)).filter(Boolean), // 종목(농구/풋살 등)
+    parking: {
+      available: data.parking?.available === true,
+      fee: ["free", "paid"].includes(data.parking?.fee) ? data.parking.fee : "free",
+      info: safeStr(data.parking?.info),
+    },
+    directions: safeStr(data.directions), // 찾아오는 길(대중교통·입구 안내)
+    keywords: arr(data.keywords).map((k) => safeStr(k)).filter(Boolean), // 대표키워드(검색)
     description: safeStr(data.description) || safeStr(data.memo),
     rules: safeStr(data.rules),
     refundPolicy: safeStr(data.refundPolicy),
@@ -266,6 +276,10 @@ export async function registerVenue({
   photos = [],
   storagePaths = [],
   facilities = [],
+  sportTypes = [],
+  parking,
+  directions,
+  keywords = [],
   description,
   rules,
   refundPolicy,
@@ -304,6 +318,14 @@ export async function registerVenue({
     storagePaths: arr(storagePaths).map((p) => safeStr(p)).filter(Boolean),
 
     facilities: arr(facilities).map((f) => safeStr(f)).filter(Boolean),
+    sportTypes: arr(sportTypes).map((s) => safeStr(s)).filter(Boolean),
+    parking: {
+      available: parking?.available === true,
+      fee: ["free", "paid"].includes(parking?.fee) ? parking.fee : "free",
+      info: safeStr(parking?.info),
+    },
+    directions: safeStr(directions),
+    keywords: arr(keywords).map((k) => safeStr(k)).filter(Boolean),
     description: safeStr(description),
     rules: safeStr(rules),
     refundPolicy: safeStr(refundPolicy),
@@ -382,6 +404,17 @@ export async function updateMyVenue(id, patch = {}) {
     update.storagePaths = arr(patch.storagePaths).map((p) => safeStr(p)).filter(Boolean);
   if (patch.facilities !== undefined)
     update.facilities = arr(patch.facilities).map((f) => safeStr(f)).filter(Boolean);
+  if (patch.sportTypes !== undefined)
+    update.sportTypes = arr(patch.sportTypes).map((s) => safeStr(s)).filter(Boolean);
+  if (patch.parking !== undefined)
+    update.parking = {
+      available: patch.parking?.available === true,
+      fee: ["free", "paid"].includes(patch.parking?.fee) ? patch.parking.fee : "free",
+      info: safeStr(patch.parking?.info),
+    };
+  if (patch.directions !== undefined) update.directions = safeStr(patch.directions);
+  if (patch.keywords !== undefined)
+    update.keywords = arr(patch.keywords).map((k) => safeStr(k)).filter(Boolean);
   if (patch.description !== undefined) update.description = safeStr(patch.description);
   if (patch.rules !== undefined) update.rules = safeStr(patch.rules);
   if (patch.refundPolicy !== undefined) update.refundPolicy = safeStr(patch.refundPolicy);
@@ -1269,6 +1302,28 @@ export const FACILITY_OPTIONS = [
   "냉난방",
   "관람석",
   "와이파이",
+];
+
+// 종목 (네이버 플레이스 업종/스포츠 카테고리 참고 — 검색·필터용)
+export const SPORT_OPTIONS = [
+  "농구",
+  "풋살",
+  "배드민턴",
+  "테니스",
+  "족구",
+  "배구",
+  "탁구",
+  "다목적",
+];
+
+// 코트 바닥재질 (스포츠 구장 핵심 정보)
+export const SURFACE_OPTIONS = [
+  "마루",
+  "우레탄",
+  "인조잔디",
+  "타폴린",
+  "고무바닥",
+  "기타",
 ];
 
 /* ============================================================

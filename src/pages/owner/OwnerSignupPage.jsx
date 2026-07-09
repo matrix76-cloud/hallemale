@@ -1,65 +1,42 @@
 /* eslint-disable */
-// src/pages/owner/OwnerLoginPage.jsx
-// 구장 관리자 로그인 — 이메일/비밀번호 (사용자 앱 소셜 로그인과 분리)
-// 로그인 / 비밀번호 찾기 2모드. 회원가입은 전용 페이지(/owner/signup).
+// src/pages/owner/OwnerSignupPage.jsx
+// 구장 관리자 전용 회원가입 — 이메일/비밀번호. 가입 후 구장 온보딩으로 이동.
 import { showAlert } from "../../utils/appDialog";
 import React, { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
-import {
-  ownerSignInEmail,
-  ownerSendPasswordReset,
-} from "../../services/ownerAuthService";
+import { ownerSignUpEmail } from "../../services/ownerAuthService";
 import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
 
-export default function OwnerLoginPage() {
+export default function OwnerSignupPage() {
   const navigate = useNavigate();
-  // 사용자 앱과 분리된 구장주 전용 세션(ownerAuth) 기준
   const { isLoggedIn, uid } = useOwnerAuth();
-  const [mode, setMode] = useState("login"); // login | reset
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // 구장주 인증이 끝나면 즉시 /owner 로 이동한다.
+  // 가입/로그인 완료되면 구장 온보딩으로 이동
   useEffect(() => {
     if (isLoggedIn && uid) {
       markUserAsOwner(uid).catch(() => {});
-      navigate("/owner", { replace: true });
+      navigate("/owner/onboarding", { replace: true });
     }
   }, [isLoggedIn, uid, navigate]);
-
-  const switchMode = (m) => {
-    setMode(m);
-    setPassword("");
-  };
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     if (busy) return;
-
-    if (mode === "reset") {
-      setBusy(true);
-      try {
-        const res = await ownerSendPasswordReset(email);
-        if (res.success) {
-          showAlert("비밀번호 재설정 메일을 보냈어요.\n메일함(스팸함 포함)을 확인해주세요.");
-          switchMode("login");
-        } else {
-          showAlert(res.error_message || "메일 발송에 실패했어요.");
-        }
-      } finally {
-        setBusy(false);
-      }
+    if (password !== password2) {
+      showAlert("비밀번호가 일치하지 않아요.");
       return;
     }
-
     setBusy(true);
     try {
-      const res = await ownerSignInEmail({ email, password, keepLogin: true });
+      const res = await ownerSignUpEmail({ email, password, keepLogin: true });
       if (!res || res.success !== true) {
-        showAlert(res?.error_message || "요청을 처리하지 못했어요.");
+        showAlert(res?.error_message || "가입에 실패했어요.");
         return;
       }
       // 성공 시 화면 전환은 위 useEffect(인증 상태 변화 감지)에 일임한다.
@@ -68,26 +45,19 @@ export default function OwnerLoginPage() {
     }
   };
 
-  const title = mode === "reset" ? "비밀번호 찾기" : "할래말래 구장 관리자";
-  const sub =
-    mode === "reset"
-      ? "가입한 이메일로 재설정 링크를 보내드려요"
-      : "내 구장을 등록하고 예약을 관리하세요";
-  const submitLabel = mode === "reset" ? "재설정 메일 보내기" : "로그인";
-
   return (
     <Wrap>
       {busy && (
         <Overlay>
           <Spinner />
-          <OverlayText>처리 중…</OverlayText>
+          <OverlayText>가입 처리 중…</OverlayText>
         </Overlay>
       )}
 
       <Hero>
         <Logo>🏟️</Logo>
-        <Title>{title}</Title>
-        <Sub>{sub}</Sub>
+        <Title>구장 관리자 회원가입</Title>
+        <Sub>이메일과 비밀번호로 가입하세요</Sub>
       </Hero>
 
       <Spacer />
@@ -102,34 +72,32 @@ export default function OwnerLoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           disabled={busy}
         />
-        {mode !== "reset" && (
-          <Input
-            type="password"
-            autoComplete="current-password"
-            placeholder="비밀번호"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-          />
-        )}
+        <Input
+          type="password"
+          autoComplete="new-password"
+          placeholder="비밀번호 (6자 이상)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          disabled={busy}
+        />
+        <Input
+          type="password"
+          autoComplete="new-password"
+          placeholder="비밀번호 확인"
+          value={password2}
+          onChange={(e) => setPassword2(e.target.value)}
+          disabled={busy}
+        />
 
-        <SubmitBtn type="submit" disabled={busy}>
-          {submitLabel}
-        </SubmitBtn>
+        <SubmitBtn type="submit" disabled={busy}>가입하기</SubmitBtn>
 
         <Links>
-          {mode === "login" ? (
-            <>
-              <LinkBtn type="button" onClick={() => navigate("/owner/signup")}>회원가입</LinkBtn>
-              <Dot>·</Dot>
-              <LinkBtn type="button" onClick={() => switchMode("reset")}>비밀번호 찾기</LinkBtn>
-            </>
-          ) : (
-            <LinkBtn type="button" onClick={() => switchMode("login")}>로그인으로 돌아가기</LinkBtn>
-          )}
+          <LinkBtn type="button" onClick={() => navigate("/owner/login")}>
+            이미 계정이 있어요 · 로그인
+          </LinkBtn>
         </Links>
 
-        <Notice>구장 관리자 전용 로그인입니다.</Notice>
+        <Notice>가입 후 구장 정보를 등록하면 예약을 받을 수 있어요.</Notice>
       </Bottom>
     </Wrap>
   );
@@ -222,7 +190,6 @@ const Links = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   padding: 4px 0;
 `;
 
@@ -235,8 +202,6 @@ const LinkBtn = styled.button`
   cursor: pointer;
   padding: 4px;
 `;
-
-const Dot = styled.span`color: ${({ theme }) => theme.colors.textWeak};`;
 
 const Notice = styled.div`
   text-align: center;

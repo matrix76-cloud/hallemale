@@ -145,7 +145,7 @@ export default function VenueGateNotice({ venue, refresh }) {
           </Reject>
         ) : null}
         <Btns>
-          <CtaBtn type="button" onClick={() => navigate("/owner/register")}>
+          <CtaBtn type="button" onClick={() => navigate("/owner/onboarding")}>
             정보 수정하고 다시 신청 <FiArrowRight size={17} />
           </CtaBtn>
         </Btns>
@@ -160,7 +160,7 @@ export default function VenueGateNotice({ venue, refresh }) {
       <Title>아직 등록한 구장이 없어요</Title>
       <Desc>{"구장을 등록하면\n예약을 받고 시간대·가격을 관리할 수 있어요."}</Desc>
       <Btns>
-        <CtaBtn type="button" onClick={() => navigate("/owner/register")}>
+        <CtaBtn type="button" onClick={() => navigate("/owner/onboarding")}>
           구장 등록하기 <FiArrowRight size={17} />
         </CtaBtn>
       </Btns>

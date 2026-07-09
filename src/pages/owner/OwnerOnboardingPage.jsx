@@ -1,0 +1,627 @@
+/* eslint-disable */
+// src/pages/owner/OwnerOnboardingPage.jsx
+// 구장 등록 온보딩 — 에어비앤비식 단계별 위저드.
+// 페이지마다 한 주제씩(종목→이름→위치→사진→편의/주차→코트→안내→키워드→연락처→검토).
+// 네이버 플레이스 상세정보(종목·주차·찾아오는길·바닥재질·대표키워드) 반영.
+import { showAlert } from "../../utils/appDialog";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import styled from "styled-components";
+import { useOwner } from "../../context/OwnerContext";
+import { uploadVenueImage } from "../../services/venuesService";
+import {
+  registerVenue,
+  updateMyVenue,
+  resubmitVenue,
+  defaultCourtHours,
+  FACILITY_OPTIONS,
+  SPORT_OPTIONS,
+  SURFACE_OPTIONS,
+} from "../../services/ownerVenueService";
+import {
+  Field, Label, Input, Textarea, Select, Row, Chip, ChipWrap, GhostBtn,
+} from "./components/ownerUi";
+import OwnerSpinner from "./components/OwnerSpinner";
+import CourtHoursEditor from "./components/CourtHoursEditor";
+import { openDaumPostcode } from "./components/addressSearch";
+
+const DEFAULT_REFUND =
+  "• 이용 1일 전까지 취소해 주세요.\n• 당일 취소·노쇼는 삼가주세요. 반복 시 예약이 제한될 수 있어요.\n• 우천/천재지변 시 협의 후 일정 변경 가능";
+
+function makeCourt(idx) {
+  return { name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60, hours: defaultCourtHours() };
+}
+
+// 단계 정의 (intro 제외한 본문 단계 순서)
+const STEPS = ["intro", "sport", "name", "location", "photos", "facilities", "courts", "notice", "keywords", "contact", "review"];
+const CONTENT_TOTAL = STEPS.length - 1; // intro 제외
+
+export default function OwnerOnboardingPage() {
+  const navigate = useNavigate();
+  const { uid, venue, loading: ownerLoading, refresh } = useOwner();
+  const fileRef = useRef(null);
+
+  const editingId = venue ? venue.id : null;
+
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState({
+    name: "", address: "", addressDetail: "", region: "", lat: "", lng: "",
+    phone: "", directions: "", description: "", rules: "", refundPolicy: DEFAULT_REFUND,
+    bizName: "", bizNo: "", ownerName: "", contactPhone: "",
+  });
+  const [sportTypes, setSportTypes] = useState([]);
+  const [photos, setPhotos] = useState([]); // [{url, storagePath}]
+  const [facilities, setFacilities] = useState([]);
+  const [parking, setParking] = useState({ available: false, fee: "free", info: "" });
+  const [keywords, setKeywords] = useState([]);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [courts, setCourts] = useState([makeCourt(0)]);
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // 재신청(반려 등): 기존 값 프리필
+  useEffect(() => {
+    if (!editingId) return;
+    setForm({
+      name: venue.name || "", address: venue.address || "", addressDetail: venue.addressDetail || "",
+      region: venue.region || "", lat: venue.lat ?? "", lng: venue.lng ?? "",
+      phone: venue.phone || "", directions: venue.directions || "",
+      description: venue.description || "", rules: venue.rules || "", refundPolicy: venue.refundPolicy || DEFAULT_REFUND,
+      bizName: venue.bizName || "", bizNo: venue.bizNo || "", ownerName: venue.ownerName || "", contactPhone: venue.contactPhone || "",
+    });
+    setSportTypes(venue.sportTypes || []);
+    setPhotos((venue.photos || []).map((url, i) => ({ url, storagePath: venue.storagePaths?.[i] || "" })));
+    setFacilities(venue.facilities || []);
+    setParking({
+      available: venue.parking?.available === true,
+      fee: venue.parking?.fee === "paid" ? "paid" : "free",
+      info: venue.parking?.info || "",
+    });
+    setKeywords(venue.keywords || []);
+    setCourts(
+      (venue.courts || []).length
+        ? venue.courts.map((c) => ({
+            name: c.name, type: c.type, surface: c.surface || "",
+            pricePerHour: String(c.pricePerHour ?? ""), slotMinutes: c.slotMinutes,
+            hours: c.hours || defaultCourtHours(),
+          }))
+        : [makeCourt(0)]
+    );
+  }, [editingId]); // eslint-disable-line
+
+  const set = (patch) => setForm((p) => ({ ...p, ...patch }));
+
+  const handleAddressSearch = () => {
+    openDaumPostcode(({ address, region, lat, lng }) =>
+      set({ address, region, lat: lat ?? "", lng: lng ?? "" })
+    );
+  };
+
+  const toggle = (setter, val) =>
+    setter((prev) => (prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]));
+
+  const setCourt = (i, patch) => setCourts((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  const addCourt = () => setCourts((prev) => [...prev, makeCourt(prev.length)]);
+  const removeCourt = (i) => setCourts((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploading(true);
+    try {
+      const { imageUrl, storagePath } = await uploadVenueImage(file);
+      setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
+    } catch (err) {
+      showAlert(err?.message || "사진 업로드에 실패했어요.");
+    } finally {
+      setUploading(false);
+    }
+  };
+  const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+
+  const addKeyword = () => {
+    const k = keywordInput.trim().replace(/^#/, "");
+    if (!k) return;
+    if (keywords.length >= 5) return showAlert("대표키워드는 최대 5개예요.");
+    if (keywords.includes(k)) { setKeywordInput(""); return; }
+    setKeywords((prev) => [...prev, k]);
+    setKeywordInput("");
+  };
+
+  const id = STEPS[step];
+
+  // 단계별 다음 진행 가능 여부
+  const canNext = (() => {
+    if (id === "name") return !!form.name.trim();
+    if (id === "location") return !!form.address.trim();
+    if (id === "courts") return courts.length > 0 && courts.every((c) => c.name.trim());
+    return true;
+  })();
+
+  const goNext = () => {
+    if (!canNext) {
+      if (id === "name") return showAlert("구장명을 입력해주세요.");
+      if (id === "location") return showAlert("주소를 검색해주세요.");
+      if (id === "courts") return showAlert("코트 이름을 모두 입력해주세요.");
+      return;
+    }
+    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+  };
+  const goBack = () => (step === 0 ? navigate(-1) : setStep((s) => s - 1));
+
+  const handleSubmit = async () => {
+    if (!form.name.trim()) { setStep(STEPS.indexOf("name")); return showAlert("구장명을 입력해주세요."); }
+    if (!form.address.trim()) { setStep(STEPS.indexOf("location")); return showAlert("주소를 입력해주세요."); }
+    setBusy(true);
+    try {
+      const payload = {
+        ownerUid: uid, ...form,
+        sportTypes, parking, keywords,
+        photos: photos.map((p) => p.url), storagePaths: photos.map((p) => p.storagePath),
+        facilities, courts,
+      };
+      if (editingId) {
+        await updateMyVenue(editingId, payload);
+        await resubmitVenue(editingId);
+      } else {
+        await registerVenue(payload);
+      }
+      await refresh();
+      navigate("/owner/home", { replace: true });
+    } catch (e) {
+      showAlert(e?.message || "신청에 실패했어요. 잠시 후 다시 시도해주세요.");
+      setBusy(false);
+    }
+  };
+
+  if (ownerLoading) return <OwnerSpinner label="불러오는 중…" />;
+
+  // ── 인트로 ──
+  if (id === "intro") {
+    return (
+      <Shell>
+        <Intro>
+          <IntroLogo>🏟️</IntroLogo>
+          <IntroTitle>{editingId ? "구장 정보를 다시 등록해요" : "구장 등록을 시작해요"}</IntroTitle>
+          <IntroSub>
+            몇 단계만 거치면 예약을 받을 수 있어요.{"\n"}
+            사진·종목·코트·이용요금을 차근차근 입력해 주세요.
+          </IntroSub>
+        </Intro>
+        <Footer>
+          <NextBtn type="button" onClick={goNext}>시작하기</NextBtn>
+        </Footer>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <Progress><Bar style={{ width: `${(step / CONTENT_TOTAL) * 100}%` }} /></Progress>
+
+      <Scroll>
+        <StepTitle>{TITLES[id]}</StepTitle>
+        {SUBS[id] && <StepSub>{SUBS[id]}</StepSub>}
+
+        {id === "sport" && (
+          <ChipWrap>
+            {SPORT_OPTIONS.map((s) => (
+              <Chip key={s} type="button" $on={sportTypes.includes(s)} onClick={() => toggle(setSportTypes, s)}>{s}</Chip>
+            ))}
+          </ChipWrap>
+        )}
+
+        {id === "name" && (
+          <Field>
+            <Label>구장명</Label>
+            <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="예: 용산 더베이스 농구장" autoFocus />
+          </Field>
+        )}
+
+        {id === "location" && (
+          <>
+            <Field>
+              <Label>주소</Label>
+              <AddressBtn type="button" onClick={handleAddressSearch} $filled={!!form.address}>
+                <span>{form.address || "주소 검색하기"}</span>
+                <span className="search">🔍 검색</span>
+              </AddressBtn>
+            </Field>
+            <Field>
+              <Label>상세 주소</Label>
+              <Input value={form.addressDetail} onChange={(e) => set({ addressDetail: e.target.value })} placeholder="예: 지하 2층 / B동" />
+            </Field>
+            <Field>
+              <Label>찾아오는 길 <Opt>(선택)</Opt></Label>
+              <Textarea value={form.directions} onChange={(e) => set({ directions: e.target.value })} placeholder="예: 6호선 이태원역 3번 출구 도보 5분, 건물 뒤편 입구로 들어오세요" />
+            </Field>
+          </>
+        )}
+
+        {id === "photos" && (
+          <>
+            <PhotoGrid>
+              {photos.map((p, i) => (
+                <PhotoBox key={i}>
+                  <PhotoImg src={p.url} alt={`구장 사진 ${i + 1}`} />
+                  {i === 0 && <MainTag>대표</MainTag>}
+                  <RemovePhoto type="button" onClick={() => removePhoto(i)}>×</RemovePhoto>
+                </PhotoBox>
+              ))}
+              <AddPhoto type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                {uploading ? "업로드 중…" : <><span style={{ fontSize: 26 }}>＋</span><span>사진 추가</span></>}
+              </AddPhoto>
+            </PhotoGrid>
+            <HiddenFile ref={fileRef} type="file" accept="image/*" onChange={handleFile} />
+            <StepHint>첫 번째 사진이 대표 사진으로 사용돼요.</StepHint>
+          </>
+        )}
+
+        {id === "facilities" && (
+          <>
+            <ChipWrap>
+              {FACILITY_OPTIONS.map((f) => (
+                <Chip key={f} type="button" $on={facilities.includes(f)} onClick={() => toggle(setFacilities, f)}>{f}</Chip>
+              ))}
+            </ChipWrap>
+            <SubHead>🅿️ 주차</SubHead>
+            <ChipWrap>
+              <Chip type="button" $on={!parking.available} onClick={() => setParking((p) => ({ ...p, available: false }))}>주차 불가</Chip>
+              <Chip type="button" $on={parking.available && parking.fee === "free"} onClick={() => setParking({ available: true, fee: "free", info: parking.info })}>무료 주차</Chip>
+              <Chip type="button" $on={parking.available && parking.fee === "paid"} onClick={() => setParking({ available: true, fee: "paid", info: parking.info })}>유료 주차</Chip>
+            </ChipWrap>
+            {parking.available && (
+              <Field>
+                <Label>주차 안내 <Opt>(선택)</Opt></Label>
+                <Input value={parking.info} onChange={(e) => setParking((p) => ({ ...p, info: e.target.value }))} placeholder="예: 건물 내 10대, 2시간 무료 / 이후 시간당 2,000원" />
+              </Field>
+            )}
+          </>
+        )}
+
+        {id === "courts" && (
+          <>
+            {courts.map((c, i) => (
+              <CourtCard key={i}>
+                <CourtHead>
+                  <Label>코트 {i + 1}</Label>
+                  {courts.length > 1 && <DelLink type="button" onClick={() => removeCourt(i)}>삭제</DelLink>}
+                </CourtHead>
+                <Row>
+                  <Field><Label>이름</Label><Input value={c.name} onChange={(e) => setCourt(i, { name: e.target.value })} placeholder="예: A코트" /></Field>
+                  <Field>
+                    <Label>실내/실외</Label>
+                    <Select value={c.type} onChange={(e) => setCourt(i, { type: e.target.value })}>
+                      <option value="indoor">실내</option>
+                      <option value="outdoor">실외</option>
+                    </Select>
+                  </Field>
+                </Row>
+                <Field>
+                  <Label>바닥재질</Label>
+                  <Select value={c.surface} onChange={(e) => setCourt(i, { surface: e.target.value })}>
+                    <option value="">선택 안 함</option>
+                    {SURFACE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </Select>
+                </Field>
+                <Row>
+                  <Field><Label>시간당 가격(원)</Label><Input type="number" value={c.pricePerHour} onChange={(e) => setCourt(i, { pricePerHour: e.target.value })} placeholder="예: 40000" /></Field>
+                  <Field>
+                    <Label>슬롯 단위(분)</Label>
+                    <Select value={c.slotMinutes} onChange={(e) => setCourt(i, { slotMinutes: Number(e.target.value) })}>
+                      <option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option>
+                    </Select>
+                  </Field>
+                </Row>
+                <Field>
+                  <Label>요일별 운영시간</Label>
+                  <CourtHoursEditor hours={c.hours} onChange={(hours) => setCourt(i, { hours })} />
+                </Field>
+              </CourtCard>
+            ))}
+            <GhostBtn type="button" onClick={addCourt}>＋ 코트 추가</GhostBtn>
+          </>
+        )}
+
+        {id === "notice" && (
+          <>
+            <Field><Label>구장 소개 <Opt>(선택)</Opt></Label><Textarea value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="구장 특징, 규모, 바닥·시설 안내 등" /></Field>
+            <Field><Label>이용 규칙 <Opt>(선택)</Opt></Label><Textarea value={form.rules} onChange={(e) => set({ rules: e.target.value })} placeholder="예: 실내화 필수, 음식물 반입 금지 등" /></Field>
+            <Field><Label>취소·노쇼 안내</Label><Textarea value={form.refundPolicy} onChange={(e) => set({ refundPolicy: e.target.value })} /></Field>
+          </>
+        )}
+
+        {id === "keywords" && (
+          <>
+            <KeywordRow>
+              <Input value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
+                placeholder="예: 이태원 농구장" maxLength={20} />
+              <AddKw type="button" onClick={addKeyword}>추가</AddKw>
+            </KeywordRow>
+            <ChipWrap>
+              {keywords.map((k) => (
+                <Chip key={k} type="button" $on onClick={() => setKeywords((prev) => prev.filter((x) => x !== k))}>#{k} ×</Chip>
+              ))}
+            </ChipWrap>
+            <StepHint>지역명 + 종목을 넣으면 검색에 잘 노출돼요. (최대 5개)</StepHint>
+          </>
+        )}
+
+        {id === "contact" && (
+          <>
+            <Field><Label>구장 연락처</Label><Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" /></Field>
+            <SubHead>🧾 사업자 / 관리자 정보 <Opt>(심사용 · 비공개)</Opt></SubHead>
+            <Row>
+              <Field><Label>대표자명</Label><Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder="예: 홍길동" /></Field>
+              <Field><Label>관리자 연락처</Label><Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" /></Field>
+            </Row>
+            <Row>
+              <Field><Label>상호(사업자명)</Label><Input value={form.bizName} onChange={(e) => set({ bizName: e.target.value })} placeholder="예: ○○스포츠" /></Field>
+              <Field><Label>사업자등록번호</Label><Input value={form.bizNo} onChange={(e) => set({ bizNo: e.target.value })} placeholder="예: 123-45-67890" /></Field>
+            </Row>
+          </>
+        )}
+
+        {id === "review" && (
+          <ReviewList>
+            <ReviewRow><b>종목</b><span>{sportTypes.length ? sportTypes.join(", ") : "-"}</span></ReviewRow>
+            <ReviewRow><b>구장명</b><span>{form.name || "-"}</span></ReviewRow>
+            <ReviewRow><b>주소</b><span>{form.address || "-"}{form.addressDetail ? ` ${form.addressDetail}` : ""}</span></ReviewRow>
+            <ReviewRow><b>사진</b><span>{photos.length}장</span></ReviewRow>
+            <ReviewRow><b>편의시설</b><span>{facilities.length ? facilities.join(", ") : "-"}</span></ReviewRow>
+            <ReviewRow><b>주차</b><span>{parking.available ? (parking.fee === "paid" ? "유료" : "무료") : "불가"}</span></ReviewRow>
+            <ReviewRow><b>코트</b><span>{courts.length}면</span></ReviewRow>
+            <ReviewRow><b>대표키워드</b><span>{keywords.length ? keywords.map((k) => `#${k}`).join(" ") : "-"}</span></ReviewRow>
+            <StepHint style={{ marginTop: 4 }}>등록 신청 후 관리자 승인을 거쳐 사용자에게 노출돼요.</StepHint>
+          </ReviewList>
+        )}
+      </Scroll>
+
+      <Footer>
+        <BackText type="button" onClick={goBack} disabled={busy}>뒤로</BackText>
+        {id === "review" ? (
+          <NextBtn type="button" onClick={handleSubmit} disabled={busy || uploading}>
+            {busy ? "신청 중…" : editingId ? "수정하고 다시 신청" : "구장 등록 신청"}
+          </NextBtn>
+        ) : (
+          <NextBtn type="button" onClick={goNext} disabled={uploading}>다음</NextBtn>
+        )}
+      </Footer>
+    </Shell>
+  );
+}
+
+const TITLES = {
+  sport: "어떤 종목의 구장인가요?",
+  name: "구장 이름을 알려주세요",
+  location: "구장이 어디에 있나요?",
+  photos: "구장 사진을 올려주세요",
+  facilities: "어떤 편의시설이 있나요?",
+  courts: "예약받을 코트를 등록해요",
+  notice: "이용 안내를 적어주세요",
+  keywords: "검색에 뜰 키워드를 골라주세요",
+  contact: "연락처와 사업자 정보를 입력해요",
+  review: "입력한 내용을 확인해요",
+};
+const SUBS = {
+  sport: "여러 개 선택할 수 있어요.",
+  location: "주소를 검색하면 지도에 자동으로 표시돼요.",
+  photos: "구장 전경, 코트, 시설 사진을 올려주세요. (여러 장 가능)",
+  facilities: "이용자가 구장을 고를 때 참고해요.",
+  courts: "코트마다 종류·바닥·가격·운영시간을 따로 설정해요.",
+  notice: "이용자에게 보여지는 안내예요.",
+  keywords: "이용자가 검색할 만한 단어를 넣어주세요.",
+  contact: "사업자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+};
+
+const Shell = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: ${({ theme }) => theme.layout.maxWidth}px;
+  margin: 0 auto;
+`;
+const Progress = styled.div`
+  height: 4px;
+  background: ${({ theme }) => theme.colors.border};
+  flex-shrink: 0;
+`;
+const Bar = styled.div`
+  height: 100%;
+  background: ${({ theme }) => theme.colors.primary};
+  border-radius: 0 4px 4px 0;
+  transition: width 0.3s ease;
+`;
+const Scroll = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px max(18px, env(safe-area-inset-left)) 20px max(18px, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`;
+const StepTitle = styled.h2`
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: ${({ theme }) => theme.colors.textStrong};
+  line-height: 1.35;
+`;
+const StepSub = styled.div`
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  line-height: 1.5;
+  margin-top: -6px;
+`;
+const StepHint = styled.div`
+  font-size: 12.5px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  line-height: 1.5;
+`;
+const SubHead = styled.div`
+  font-size: 14px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  margin-top: 6px;
+`;
+const Opt = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+const Footer = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px max(18px, env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-right));
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.bg};
+`;
+const BackText = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 8px 4px;
+  &:disabled { opacity: 0.4; }
+`;
+const NextBtn = styled.button`
+  flex: 1;
+  height: 52px;
+  border: none;
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+const Intro = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+  padding: 24px;
+`;
+const IntroLogo = styled.div`font-size: 84px; line-height: 1;`;
+const IntroTitle = styled.div`
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+const IntroSub = styled.div`
+  font-size: 15px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  line-height: 1.6;
+  white-space: pre-line;
+`;
+
+const AddressBtn = styled.button`
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ $filled, theme }) => ($filled ? theme.colors.textStrong : theme.colors.textWeak)};
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  &:active { transform: translateY(1px); }
+  & .search { color: ${({ theme }) => theme.colors.primary}; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+`;
+
+const PhotoGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+`;
+const PhotoBox = styled.div`
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+const PhotoImg = styled.img`width: 100%; height: 100%; object-fit: cover;`;
+const MainTag = styled.span`
+  position: absolute; left: 6px; bottom: 6px;
+  padding: 2px 8px; border-radius: 999px;
+  background: ${({ theme }) => theme.colors.primary}; color: #fff;
+  font-size: 11px; font-weight: 700;
+`;
+const RemovePhoto = styled.button`
+  position: absolute; top: 6px; right: 6px;
+  width: 24px; height: 24px; border-radius: 999px; border: none;
+  background: rgba(0,0,0,0.6); color: #fff; font-size: 14px; cursor: pointer; line-height: 1;
+`;
+const AddPhoto = styled.button`
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  border: 1.5px dashed ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 13px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+`;
+const HiddenFile = styled.input`display: none;`;
+
+const CourtCard = styled.div`
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+const CourtHead = styled.div`display: flex; align-items: center; justify-content: space-between;`;
+const DelLink = styled.button`
+  border: none; background: transparent; color: ${({ theme }) => theme.colors.danger};
+  font-size: 12.5px; font-weight: 600; cursor: pointer;
+`;
+
+const KeywordRow = styled.div`display: flex; gap: 8px; & > *:first-child { flex: 1; }`;
+const AddKw = styled.button`
+  flex-shrink: 0;
+  height: 44px; padding: 0 18px; border-radius: 10px; border: none;
+  background: ${({ theme }) => theme.colors.primary}; color: #fff;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+`;
+
+const ReviewList = styled.div`
+  display: flex; flex-direction: column;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px;
+  overflow: hidden;
+`;
+const ReviewRow = styled.div`
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  font-size: 13.5px;
+  &:last-of-type { border-bottom: none; }
+  & b { color: ${({ theme }) => theme.colors.textWeak}; font-weight: 600; flex-shrink: 0; }
+  & span { color: ${({ theme }) => theme.colors.textStrong}; font-weight: 600; text-align: right; word-break: break-all; }
+`;
