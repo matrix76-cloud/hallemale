@@ -7,6 +7,7 @@ import styled from "styled-components";
 import { OwnerProvider, useOwner } from "../context/OwnerContext";
 import OwnerBottomTabBar from "./components/OwnerBottomTabBar";
 import OwnerSpinner from "../pages/owner/components/OwnerSpinner";
+import OwnerNotifBell from "../pages/owner/components/OwnerNotifBell";
 import OwnerAgreementGate from "../pages/owner/OwnerAgreementGate";
 import { C } from "../pages/owner/components/od";
 import { useUI } from "../hooks/useUI";
@@ -112,6 +113,7 @@ function getTitle(p) {
   if (p.startsWith("/owner/venue")) return "구장정보";
   if (p.startsWith("/owner/withdraw")) return "회원탈퇴";
   if (p.startsWith("/owner/inquiry")) return "1:1 문의";
+  if (p.startsWith("/owner/notifications")) return "알림";
   if (p.startsWith("/owner/my")) return "내정보";
   if (p.startsWith("/owner/register")) return "구장 등록";
   if (p.startsWith("/owner/onboarding")) return "구장 등록";
@@ -134,7 +136,7 @@ function OwnerGate() {
   const { loading, venue } = useOwner();
   const { pathname } = useLocation();
   const p = (pathname || "").toLowerCase();
-  const exempt = /\/owner\/(onboarding|register|withdraw|my|inquiry)(\/|$)/.test(p);
+  const exempt = /\/owner\/(onboarding|register|withdraw|my|inquiry|notifications)(\/|$)/.test(p);
   if (loading) return <OwnerSpinner label="불러오는 중…" />;
   if (!venue && !exempt) return <Navigate to="/owner/onboarding" replace />;
   return <Outlet />;
@@ -175,6 +177,7 @@ function OwnerShell() {
             <BrandName>할래말래</BrandName>
           </Brand>
           <CenterTitle>{getTitle(p)}</CenterTitle>
+          {hasTab && <OwnerNotifBell onClick={() => navigate("/owner/notifications")} />}
         </Header>
 
         <Main $hasTab={hasTab}>

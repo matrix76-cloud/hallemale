@@ -137,6 +137,7 @@ import OwnerOnboardingPage from "../pages/owner/OwnerOnboardingPage";
 import OwnerSalesPage from "../pages/owner/OwnerSalesPage";
 import OwnerLegalPage from "../pages/owner/OwnerLegalPage";
 import OwnerInquiryPage from "../pages/owner/OwnerInquiryPage";
+import OwnerNotificationsPage from "../pages/owner/OwnerNotificationsPage";
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -520,6 +521,7 @@ export default function AppRoutes() {
           <Route path="/owner/sales" element={<OwnerSalesPage />} />
           <Route path="/owner/venue" element={<OwnerVenuePage />} />
           <Route path="/owner/my" element={<OwnerMyPage />} />
+          <Route path="/owner/notifications" element={<OwnerNotificationsPage />} />
           <Route path="/owner/inquiry" element={<OwnerInquiryPage />} />
           <Route path="/owner/withdraw" element={<OwnerWithdrawPage />} />
         </Route>
