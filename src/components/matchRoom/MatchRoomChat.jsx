@@ -101,6 +101,23 @@ const Bubble = styled.div`
   align-items: ${({ $me }) => ($me ? "flex-end" : "flex-start")};
 `;
 
+/* 구장·일정 제안 카드를 말풍선처럼 대화 끝에 끼워 넣는 줄 */
+const CardLine = styled.div`
+  width: 88%;
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  align-self: ${({ $me }) => ($me ? "flex-end" : "flex-start")};
+`;
+
+const CardBody = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+`;
+
 /* 말풍선 + 시각(또는 읽음/시각)을 한 줄에: 말풍선 안쪽 하단 모서리에 시각 */
 const BubbleInner = styled.div`
   display: flex;
@@ -183,7 +200,8 @@ const InputBar = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  /* 하단 인셋(iOS 홈 인디케이터 / 안드로이드 제스처바)만큼 더 띄워 입력창이 가리지 않게 */
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   border-top: 0.5px solid ${({ theme }) => mrp(theme.mode).line};
   background: ${({ theme }) => mrp(theme.mode).bg2};
 `;
@@ -277,6 +295,8 @@ const fmtTime = (v) => {
  * @param {string} myUid          내 uid
  * @param {string} opponentName   상대 표시명 (상대 팀명 등)
  * @param {string} [systemNotice] 상단 시스템 메시지 (예: "패스트브레이가 매칭을 수락했어요")
+ * @param {node}   [trailingCard]     대화 끝에 말풍선처럼 붙는 카드 (구장·일정 제안 등)
+ * @param {boolean}[trailingCardMine] trailingCard를 내가 보냈는지 (우측 정렬 여부)
  */
 export default function MatchRoomChat({
   chatId,
@@ -289,6 +309,8 @@ export default function MatchRoomChat({
   noticeIcon = "",
   pinnedCard = null,
   aboveInput = null,
+  trailingCard = null,
+  trailingCardMine = false,
 }) {
   const fileRef = useRef(null);
   const scrollRef = useRef(null);
@@ -358,7 +380,7 @@ export default function MatchRoomChat({
       cancelAnimationFrame(raf);
       clearTimeout(t);
     };
-  }, [messages, chatId]);
+  }, [messages, chatId, !!trailingCard]);
 
   const rows = useMemo(() => {
     const arr = [];
@@ -420,6 +442,11 @@ export default function MatchRoomChat({
 
   const disabled = !chatId;
 
+  const whoLabel = [opponentName, opponentLeaderName]
+    .map((s) => String(s || "").trim())
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <Wrap>
       <ChatScroll ref={scrollRef}>
@@ -440,10 +467,6 @@ export default function MatchRoomChat({
           const imgs = Array.isArray(row.images) ? row.images.slice(0, 4) : [];
           const tm = fmtTime(row.createdAt);
           const isRead = me && oppReadMs > 0 && toMs(row.createdAt) <= oppReadMs;
-          const whoLabel = [opponentName, opponentLeaderName]
-            .map((s) => String(s || "").trim())
-            .filter(Boolean)
-            .join(" · ");
           const bubble = (
             <Msg $me={me}>
               {!!row.text && <div>{row.text}</div>}
@@ -483,6 +506,24 @@ export default function MatchRoomChat({
             </Line>
           );
         })}
+
+        {trailingCard && (
+          <CardLine $me={trailingCardMine}>
+            {!trailingCardMine && (
+              <Avatar>
+                {opponentAvatarUrl ? (
+                  <img src={opponentAvatarUrl} alt={whoLabel || opponentName} />
+                ) : (
+                  <AvatarPlaceholder size={34} />
+                )}
+              </Avatar>
+            )}
+            <CardBody>
+              {!trailingCardMine && <Who>{whoLabel || opponentName}</Who>}
+              {trailingCard}
+            </CardBody>
+          </CardLine>
+        )}
       </ChatScroll>
 
       {aboveInput}

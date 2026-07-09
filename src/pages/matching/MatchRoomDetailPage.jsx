@@ -1577,11 +1577,6 @@ const DarkHeader = styled.div`
   padding: 8px 12px 0;
 `;
 
-/* 제안 단계: 상단 고정 영역(지도+제안 카드) — 채팅 스크롤에 밀리지 않음 */
-const PinnedTop = styled.div`
-  padding: 2px 0 8px;
-`;
-
 const MatchInfoBar = styled.button`
   width: 100%;
   display: flex;
@@ -4361,7 +4356,8 @@ export default function MatchRoomDetailPage() {
     if (propVenueId) navigate(`/venue-book/${propVenueId}?view=1`);
   };
 
-  const chatPinnedCard =
+  // 구장·일정 제안 카드 — 채팅 대화 끝에 말풍선처럼 붙는다(제안자 쪽 정렬)
+  const proposalCard =
     status === "proposed" ? (
       <PropCard
         onClick={openVenueDetail}
@@ -4612,7 +4608,7 @@ export default function MatchRoomDetailPage() {
       partnerPay?.pb?.accepted ? (
         // 제휴구장: 상대팀이 수락함 → 결제는 위 구장 카드의 버튼으로 (중복 버튼 제거)
         <ActStack>
-          <ActNote>✅ 상대팀이 제안을 수락했어요 · 위 구장 카드에서 구장비를 결제해 주세요</ActNote>
+          <ActNote>✅ 상대팀이 제안을 수락했어요 · 아래 구장 카드에서 구장비를 결제해 주세요</ActNote>
         </ActStack>
       ) : (
         <ActStack>
@@ -4639,7 +4635,7 @@ export default function MatchRoomDetailPage() {
     ) : partnerPay?.pb?.accepted ? (
       // 제휴구장: 내가 수락함 → 결제는 위 구장 카드의 버튼으로 (중복 버튼 제거)
       <ActStack>
-        <ActNote>✅ 제안을 수락했어요 · 위 구장 카드에서 구장비를 결제해 주세요</ActNote>
+        <ActNote>✅ 제안을 수락했어요 · 아래 구장 카드에서 구장비를 결제해 주세요</ActNote>
       </ActStack>
     ) : (
       <ActBar>
@@ -5167,8 +5163,6 @@ export default function MatchRoomDetailPage() {
                 </VsCard>
               )}
 
-              {/* 제안/확정 단계: 지도+제안 카드 상단 고정 (펼친 스텝퍼/매치업 아래) */}
-              {chatPinnedCard && <PinnedTop>{chatPinnedCard}</PinnedTop>}
           </DarkHeader>
         )}
 
@@ -5495,6 +5489,8 @@ export default function MatchRoomDetailPage() {
               otherUid={oppLeader.uid}
               systemNotice={chatSystemNotice}
               noticeIcon={status === "accepted" ? "🤝" : ""}
+              trailingCard={proposalCard}
+              trailingCardMine={iAmProposer}
             />
           </>
         ) : (
