@@ -174,12 +174,12 @@ export const saveOwnerConsents = async ({
   uid,
   ownerTerms,
   privacy,
-  ageOver14,
+  adult,
   marketing = false,
 }) => {
   if (!uid) throw new Error("saveOwnerConsents: uid is required");
-  if (!ownerTerms || !privacy || !ageOver14) {
-    throw new Error("필수 항목(구장 관리자 이용약관·개인정보처리방침·만 14세 이상)에 모두 동의해야 합니다.");
+  if (!ownerTerms || !privacy || !adult) {
+    throw new Error("필수 항목(구장 관리자 이용약관·개인정보처리방침·만 19세 이상)에 모두 동의해야 합니다.");
   }
   const ref = doc(db, "users", uid);
   await setDoc(
@@ -187,7 +187,7 @@ export const saveOwnerConsents = async ({
     {
       ownerTermsConsent: true,
       ownerPrivacyConsent: true,
-      ownerAgeOver14Consent: true,
+      ownerAdultConsent: true,
       ownerMarketingConsent: !!marketing,
       ownerConsentAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

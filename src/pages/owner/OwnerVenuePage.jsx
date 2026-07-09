@@ -15,7 +15,6 @@ import { uploadVenueImage } from "../../services/venuesService";
 import CourtHoursEditor from "./components/CourtHoursEditor";
 import VenueMapPicker from "./components/VenueMapPicker";
 import PriceBandsEditor from "./components/PriceBandsEditor";
-import BusinessSection from "./components/BusinessSection";
 import VenuePreviewSheet from "./components/VenuePreviewSheet";
 import { FacilityIcon } from "../venue/facilityIcons";
 import {
@@ -409,9 +408,6 @@ export default function OwnerVenuePage() {
       </Card>
 
       <PrimaryBtn type="button" onClick={save} disabled={saving}>{saving ? "저장 중…" : "구장정보 저장"}</PrimaryBtn>
-
-      {/* 사업자 인증 (신뢰 배지) */}
-      <BusinessSection venue={venue} refresh={refresh} />
 
       <div style={{ height: 8 }} />
 

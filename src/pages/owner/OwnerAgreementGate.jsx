@@ -1,7 +1,8 @@
 /* eslint-disable */
 // src/pages/owner/OwnerAgreementGate.jsx
 // 구장 관리자 최초 진입 시 1회 노출되는 동의 게이트.
-// 필수: 만 14세 이상 / 구장 관리자 이용약관 / 개인정보처리방침. 선택: 마케팅 수신.
+// 필수: 만 19세 이상 사업자 / 구장 관리자 이용약관 / 개인정보처리방침. 선택: 마케팅 수신.
+// 구장 관리자는 사업자만 가입하므로 사용자 앱의 "만 14세 이상"이 아닌 성인 확인을 받는다.
 // 동의 내역은 users 문서(owner* 필드)에 기록된다.
 import React, { useState } from "react";
 import styled from "styled-components";
@@ -15,18 +16,18 @@ export default function OwnerAgreementGate() {
   const navigate = useNavigate();
   const { uid, refresh, signOut } = useOwner();
 
-  const [age, setAge] = useState(false);
+  const [adult, setAdult] = useState(false);
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const allChecked = age && terms && privacy && marketing;
-  const requiredOk = age && terms && privacy;
+  const allChecked = adult && terms && privacy && marketing;
+  const requiredOk = adult && terms && privacy;
 
   const toggleAll = () => {
     const next = !allChecked;
-    setAge(next);
+    setAdult(next);
     setTerms(next);
     setPrivacy(next);
     setMarketing(next);
@@ -40,7 +41,7 @@ export default function OwnerAgreementGate() {
     }
     setBusy(true);
     try {
-      await saveOwnerConsents({ uid, ownerTerms: terms, privacy, ageOver14: age, marketing });
+      await saveOwnerConsents({ uid, ownerTerms: terms, privacy, adult, marketing });
       await refresh();
       // refresh 후 userDoc이 갱신되면 상위 게이트가 통과시켜 워크스페이스로 진입한다.
     } catch (e) {
@@ -72,9 +73,9 @@ export default function OwnerAgreementGate() {
         <Divider />
 
         <Item>
-          <CheckArea onClick={() => setAge((v) => !v)} role="button" tabIndex={0}>
-            <Check $on={age}>{age ? "✓" : ""}</Check>
-            <ItemText><ReqTag>[필수]</ReqTag> 만 14세 이상입니다.</ItemText>
+          <CheckArea onClick={() => setAdult((v) => !v)} role="button" tabIndex={0}>
+            <Check $on={adult}>{adult ? "✓" : ""}</Check>
+            <ItemText><ReqTag>[필수]</ReqTag> 만 19세 이상 사업자 본인입니다.</ItemText>
           </CheckArea>
         </Item>
 

@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { useOwner } from "../../context/OwnerContext";
 import { Page, Card, SectionTitle, SectionDesc, GhostBtn, PrimaryBtn, Badge } from "./components/ownerUi";
+import BusinessSection from "./components/BusinessSection";
 
 // 스토어 배포 버전과 함께 올린다.
 const APP_VERSION = "1.0.0";
@@ -101,7 +102,7 @@ const WithdrawRow = styled.button`
 
 export default function OwnerMyPage() {
   const navigate = useNavigate();
-  const { userDoc, firebaseUser, signOut, venue } = useOwner();
+  const { userDoc, firebaseUser, signOut, venue, refresh } = useOwner();
   const [busy, setBusy] = useState(false);
 
   const handleLogout = async () => {
@@ -151,6 +152,8 @@ export default function OwnerMyPage() {
           <GhostBtn type="button" onClick={() => navigate("/owner/venue")}>구장 정보 관리</GhostBtn>
         </Card>
       )}
+
+      {venue && <BusinessSection venue={venue} refresh={refresh} />}
 
       <Card>
         <SectionTitle>고객지원</SectionTitle>
