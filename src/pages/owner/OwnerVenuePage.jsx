@@ -362,25 +362,6 @@ export default function OwnerVenuePage() {
         )}
       </Card>
 
-      {/* 대표키워드 — 사용자 검색 노출 */}
-      <Card>
-        <SecTitle>대표키워드</SecTitle>
-        <Caption>지역명+종목을 넣으면 검색에 잘 노출돼요. (최대 5개)</Caption>
-        <Row>
-          <Input value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
-            placeholder="예: 이태원 농구장" maxLength={20} style={{ flex: 1 }} />
-          <GhostBtn type="button" onClick={addKeyword} style={{ flex: "0 0 auto" }}>추가</GhostBtn>
-        </Row>
-        {keywords.length > 0 && (
-          <FacWrap>
-            {keywords.map((k) => (
-              <Fac key={k} $on onClick={() => setKeywords((prev) => prev.filter((x) => x !== k))}>#{k} ×</Fac>
-            ))}
-          </FacWrap>
-        )}
-      </Card>
-
       {/* 이용 안내·취소 안내 — 사용자 예약화면 '이용 안내'/'취소·노쇼 안내'에 노출 */}
       <Card>
         <SecTitle><LuFileText size={16} /> 이용 안내</SecTitle>
