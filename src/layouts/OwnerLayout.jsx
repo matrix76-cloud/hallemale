@@ -30,8 +30,20 @@ const Header = styled.header`
   align-items: center;
   gap: 6px;
   padding: 0 12px;
+  position: relative;
   background: ${C.white};
   border-bottom: 1px solid ${C.slate200};
+`;
+
+const CenterTitle = styled.div`
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 16px;
+  font-weight: 700;
+  color: ${C.slate800};
+  pointer-events: none;
 `;
 
 const Brand = styled.div`
@@ -93,6 +105,20 @@ const ToastWrap = styled.div`
 
 const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/venue", "/owner/my"];
 
+// 상단 헤더 중앙에 표시할 현재 페이지 이름 (하단탭/서브페이지별)
+function getTitle(p) {
+  if (p.startsWith("/owner/home")) return "예약관리";
+  if (p.startsWith("/owner/sales")) return "예약통계";
+  if (p.startsWith("/owner/venue")) return "구장정보";
+  if (p.startsWith("/owner/withdraw")) return "회원탈퇴";
+  if (p.startsWith("/owner/inquiry")) return "1:1 문의";
+  if (p.startsWith("/owner/my")) return "내정보";
+  if (p.startsWith("/owner/register")) return "구장 등록";
+  if (p.startsWith("/owner/onboarding")) return "구장 등록";
+  if (p.startsWith("/owner/pending")) return "심사 현황";
+  return "";
+}
+
 // 필수 동의(만 19세 이상 사업자 · 구장 관리자 이용약관 · 개인정보처리방침) 완료 여부
 function hasOwnerConsent(userDoc) {
   return (
@@ -146,8 +172,9 @@ function OwnerShell() {
           )}
           <Brand>
             <BrandLogo src={images.logo} alt="할래말래 로고" />
-            <BrandName>할래말래 사장님</BrandName>
+            <BrandName>할래말래</BrandName>
           </Brand>
+          <CenterTitle>{getTitle(p)}</CenterTitle>
         </Header>
 
         <Main $hasTab={hasTab}>
