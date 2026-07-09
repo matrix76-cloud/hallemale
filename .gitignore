@@ -9,3 +9,6 @@ dist
 
 # web/ 랜딩을 빌드/실행 전 자동복사한 결과물 (원본은 web/)
 /public/landing
+
+# 일회성 마이그레이션 스크립트가 남기는 Firestore 백업 (이메일·전화번호 포함)
+/scripts/.backup-*.json
