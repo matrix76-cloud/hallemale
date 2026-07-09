@@ -228,6 +228,7 @@ function BridgeNavSync() {
     showModal,
     blockingCount,
     runTopBackInterceptor,
+    headerConfig,
   } = useUI();
 
   // 최신 UI 상태를 ref로 유지 (subscribe 콜백 안에서 stale closure 방지)
@@ -239,6 +240,7 @@ function BridgeNavSync() {
     hideBottomSheet,
     showModal,
     runTopBackInterceptor,
+    headerConfig,
   };
 
   // 자체 오버레이(RegionPickerSheet 등)가 등록한 인터셉터도 블로킹 UI로 취급
@@ -273,6 +275,13 @@ function BridgeNavSync() {
       const p = (typeof window !== "undefined" ? window.location.pathname : "").toLowerCase();
       if (FOOTER_NON_HOME.includes(p)) {
         navigate("/home");
+        return;
+      }
+      // ✅ 페이지가 지정한 뒤로가기가 있으면 그대로 사용 (헤더 백버튼과 동작 일치).
+      //    없을 때만 히스토리 pop. 확정 경기·구장 정하기처럼 목적지가 정해진 화면에서
+      //    HW 뒤로가기가 조율 중 히스토리로 되돌아가는 것을 막는다.
+      if (ui.headerConfig?.onBack) {
+        ui.headerConfig.onBack();
         return;
       }
       goBackOrHome(navigate);

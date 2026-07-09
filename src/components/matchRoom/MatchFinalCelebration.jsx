@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/components/matchRoom/MatchFinalCelebration.jsx
 // 최종 "경기 확정!" 축하 — 라이트 테마 매치 티켓 (목업: ㅇㅈㅇㅈ / MATCH CONFIRMED)
-// - 양 팀 결제 완료(제휴구장) / 직접입력 일정 확정 공통. 1~3위 팀은 프로필 위 왕관.
+// - 구장 예약 완료(제휴구장) / 직접입력 일정 확정 공통. 1~3위 팀은 프로필 위 왕관.
 // - 절제된 등장 모션: 좌우 팀이 가운데로 모이고 → VS 바운스로 꽂히고 → 티켓이 아래에서 시차로 올라옴.
 //   색종이는 강조색+흰색만 소량.
 // - open=true 시 표시. CTA/X/배경 탭으로 닫힘(autoMs>0이면 자동 닫힘).
@@ -128,7 +128,7 @@ export default function MatchFinalCelebration({
               </Cell>
               {payText ? (
                 <Cell $full>
-                  <K>결제</K>
+                  <K>예약</K>
                   <PayV>
                     <PayCheck>✓</PayCheck>
                     {payText}

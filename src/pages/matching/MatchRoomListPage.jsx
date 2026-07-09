@@ -94,20 +94,23 @@ const formatMatchedTime = (v) => {
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 };
 
-// 조율 진행 단계 (라인업 확정 → 구장·일정 제안 → [제휴구장은 결제] → 확정)
+// 확정 전 '조율중'으로 묶이는 상태들 (awaiting_venue_approval = 구장주 승인 대기)
+const ADJUSTING_STATUSES = ["accepted", "proposed", "awaiting_venue_approval"];
+
+// 조율 진행 단계 (라인업 확정 → 구장·일정 제안 → [제휴구장은 구장주 승인] → 확정)
 const buildAdjustSteps = (room) => {
   const lineupDone = !!room?.myLineupConfirmed && !!room?.oppLineupConfirmed;
   // 구장·일정은 제안 시 함께 설정됨(proposeMatchSchedule) → proposed/confirmed면 완료
   const proposeDone = !!toStr(room?.fieldAddress) && !!room?.scheduledAt;
   const confirmDone = toStr(room?.status) === "confirmed";
   const pb = room?.partnerBooking || null;
-  // ✅ 제휴구장 예약이면 '결제' 단계 추가
+  // ✅ 제휴구장 예약이면 '예약승인' 단계 추가 (앱 결제 없음, 구장주 승인으로 확정)
   if (pb) {
-    const payDone = pb.payState === "paid" || pb.finalized === true || confirmDone;
+    const approveDone = pb.approvalState === "approved" || pb.finalized === true || confirmDone;
     return [
       { label: "라인업", done: lineupDone },
       { label: "구장·일정", done: proposeDone },
-      { label: "결제", done: payDone },
+      { label: "예약승인", done: approveDone },
       { label: "확정", done: confirmDone },
     ];
   }
@@ -131,15 +134,14 @@ const getVsStatus = (room) => {
       : { text: "라인업 확정 대기", tone: "accepted" };
   }
   if (status === "proposed") {
-    if (pb) {
-      // 제휴구장 예약: 수락 → 결제 흐름
-      if (!pb.accepted) return { text: "상대 수락 대기", tone: "proposed" };
-      if (pb.payState !== "paid" && !pb.finalized) {
-        return { text: pb.payState === "half" ? "결제 대기 (1/2)" : "결제 대기", tone: "accepted" };
-      }
-      return { text: "확정 대기", tone: "proposed" };
-    }
+    // 제휴구장 예약: 상대 수락 → 구장주 승인(awaiting_venue_approval) 흐름
+    if (pb && !pb.accepted) return { text: "상대 수락 대기", tone: "proposed" };
     return { text: "확정 대기", tone: "proposed" };
+  }
+
+  // 상대 수락 후 구장주 승인 대기 (제휴구장 예약 경로)
+  if (status === "awaiting_venue_approval") {
+    return { text: "구장 승인 대기", tone: "accepted" };
   }
 
   if (status === "confirmed") {
@@ -1278,7 +1280,7 @@ export default function MatchRoomListPage() {
   const adjustingRooms = useMemo(
     () =>
       rooms
-        .filter((r) => r.status === "accepted" || r.status === "proposed")
+        .filter((r) => ADJUSTING_STATUSES.includes(r.status))
         .sort(byLatest),
     [rooms]
   );
@@ -1425,7 +1427,7 @@ export default function MatchRoomListPage() {
     // 지난 경기(경기 종료 or finished) = 상태칩 숨김
     const isPast = isEnded(room) || toStr(room?.status) === "finished";
     // 조율중(제안 필요/확정 대기) 카드 = 새 구성(상태 배지 + 성사 시각 + 진행 단계 + 마지막 메시지)
-    const isAdjusting = room?.status === "accepted" || room?.status === "proposed";
+    const isAdjusting = ADJUSTING_STATUSES.includes(toStr(room?.status));
     const needsAttn = roomNeedsAttention(room, { myUid, myClubId });
 
     const oppName = toStr(oppTeam?.name) || "상대팀";

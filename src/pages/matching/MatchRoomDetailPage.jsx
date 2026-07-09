@@ -1221,17 +1221,8 @@ const PaidRow = styled.div`
   color: ${({ theme }) => mrp(theme.mode).t2};
   & > b { font-weight: 800; color: ${({ theme }) => mrp(theme.mode).t1}; }
 `;
-const PaidDone = styled.span`
-  font-size: 12.5px; font-weight: 700;
-  color: ${({ $on, theme }) => ($on ? "#16a34a" : mrp(theme.mode).t3)};
-`;
 const PaidDivider = styled.div`height: 1px; background: ${({ theme }) => mrp(theme.mode).line}; margin: 8px 0 2px;`;
-const PaidNote = styled.div`margin-top: 4px; font-size: 12px; color: ${({ theme }) => mrp(theme.mode).t3};`;
-const ReceiptBtn = styled.button`
-  width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px; cursor: pointer;
-  border: 1px solid ${({ theme }) => mrp(theme.mode).line2}; background: transparent;
-  color: ${({ theme }) => mrp(theme.mode).t2}; font-size: 13.5px; font-weight: 700;
-`;
+const PaidNote = styled.div`margin-top: 8px; font-size: 12px; line-height: 1.5; color: ${({ theme }) => mrp(theme.mode).t3};`;
 
 /* ───── 경기 취소(cancelled) 전용 화면 ───── */
 const CancelIcon = styled.div`
@@ -3440,6 +3431,11 @@ export default function MatchRoomDetailPage() {
     setHeaderConfig({
       title: oppN,
       avatarUrl: teamLogoSrc(oppT?.logoUrl),
+      // 확정 경기: 뒤로가기 → 확정 탭 목록으로 치환.
+      // navigate(-1)이면 조율 중 쌓인 히스토리(제안·구장 선택)로 되돌아가 혼란스럽다.
+      ...(toStr(room.status) === "confirmed"
+        ? { onBack: () => navigate("/match-roomlist?tab=confirmed", { replace: true }) }
+        : null),
       onMenu: () => {
         if (!showBottomSheet) return;
         showBottomSheet(() => (
@@ -3967,12 +3963,8 @@ export default function MatchRoomDetailPage() {
       finalAnimRef.current = true;
       setShowConfirmAnim(true); // (2-7) 확정 애니메이션
       await refresh();
-      // ✅ 뒤로가기 스택 정리: 확정 카드 → (뒤로) 매칭룸 목록 → (뒤로) 홈.
-      //    기존엔 조율(제안) 화면이 스택에 남아 뒤로가기가 그쪽으로 되돌아가 혼란스러웠음.
-      //    같은 카드 경로로 끝나므로 축하 애니메이션(로컬 state)은 그대로 유지된다.
-      navigate("/home", { replace: true });
-      navigate("/match-roomlist");
-      navigate(`/match-roomdetail/${roomId}`);
+      // 확정 후에도 같은 경로(/match-roomdetail/:roomId)에 머문다. 화면은 status로 전환되므로
+      // 추가 navigate가 필요 없다. 확정 화면의 뒤로가기는 headerConfig.onBack에서 처리한다.
     } catch (e) {
       showAlert(e?.message || "일정 확정에 실패했습니다.");
     }
@@ -5246,7 +5238,7 @@ export default function MatchRoomDetailPage() {
                   <ConfBannerTitle>경기 확정!</ConfBannerTitle>
                   <ConfBannerSub>
                     {partnerPay?.pb
-                      ? "구장 결제까지 완료됐어요. 경기장에서 만나요!"
+                      ? "구장 예약까지 완료됐어요. 경기장에서 만나요!"
                       : "상대 팀과 일정이 확정됐어요. 경기장에서 만나요!"}
                   </ConfBannerSub>
                 </ConfBannerText>
@@ -5424,32 +5416,24 @@ export default function MatchRoomDetailPage() {
               </TicketBody>
             </Ticket>
 
-            {/* ✅ 제휴구장 예약: 예약완료 + 구장 결제완료 카드 */}
+            {/* ✅ 제휴구장 예약: 예약완료 + 현장 결제 예정 금액 카드 (앱 결제 없음, 현장 정산) */}
             {partnerPay?.pb && (() => {
               const pb = partnerPay.pb;
-              const resv = partnerPay.resv;
               const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
               const myShare = side === "A" ? pb.shareA : pb.shareB;
-              const aPaid = pb.finalized || resv?.paidByA;
-              const bPaid = pb.finalized || resv?.paidByB;
               return (
-                <>
-                  <PaidCard>
-                    <PaidHead>
-                      <PaidTitle>🧾 구장 결제 완료</PaidTitle>
-                      <PaidBadge>예약확정</PaidBadge>
-                    </PaidHead>
-                    <PaidRow><span>대관료 (양 팀 공동)</span><b>{Number(pb.totalPrice || 0).toLocaleString()}원</b></PaidRow>
-                    <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><PaidDone $on={!!aPaid}>{aPaid ? "✓ 결제완료" : "대기"}</PaidDone></PaidRow>
-                    <PaidRow><span>{toStr(pb.opponentTeamName) || "B팀"}</span><PaidDone $on={!!bPaid}>{bPaid ? "✓ 결제완료" : "대기"}</PaidDone></PaidRow>
-                    <PaidDivider />
-                    <PaidRow $big><span>{isTeamLeader ? "내 결제 금액 (1/2)" : "우리 팀 결제 금액 (1/2)"}</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
-                    {!isTeamLeader ? <PaidNote>팀장이 일괄 결제했어요.</PaidNote> : null}
-                    <ReceiptBtn type="button" onClick={() => showToast && showToast({ message: "결제 영수증 기능은 준비 중이에요." })}>
-                      🧾 결제 영수증 보기
-                    </ReceiptBtn>
-                  </PaidCard>
-                </>
+                <PaidCard>
+                  <PaidHead>
+                    <PaidTitle>🎟️ 구장 예약 완료</PaidTitle>
+                    <PaidBadge>예약확정</PaidBadge>
+                  </PaidHead>
+                  <PaidRow><span>총 대관료 (양 팀 공동)</span><b>{Number(pb.totalPrice || 0).toLocaleString()}원</b></PaidRow>
+                  <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><b>{Number(pb.shareA || 0).toLocaleString()}원</b></PaidRow>
+                  <PaidRow><span>{toStr(pb.opponentTeamName) || "B팀"}</span><b>{Number(pb.shareB || 0).toLocaleString()}원</b></PaidRow>
+                  <PaidDivider />
+                  <PaidRow $big><span>우리 팀 현장 결제 예정 (1/2)</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
+                  <PaidNote>앱에서 결제되지 않아요. 경기 당일 구장에서 현장 정산합니다.</PaidNote>
+                </PaidCard>
               );
             })()}
 
@@ -6171,7 +6155,7 @@ export default function MatchRoomDetailPage() {
         dateText={confDateLabel}
         courtName={toStr(partnerPay?.pb?.courtName)}
         venueName={toStr(fieldAddress) || toStr(partnerPay?.pb?.venueName)}
-        payText={partnerPay?.pb ? "양 팀 완료" : ""}
+        payText={partnerPay?.pb ? "예약 완료 (현장 정산)" : ""}
       />
 
       {/* 직접입력 구장 확정도 제휴구장과 동일한 '경기 확정' 축하로 통일 */}
@@ -6187,7 +6171,7 @@ export default function MatchRoomDetailPage() {
         dateText={confDateLabel}
         courtName={toStr(partnerPay?.pb?.courtName)}
         venueName={toStr(fieldAddress) || toStr(partnerPay?.pb?.venueName)}
-        payText={partnerPay?.pb ? "양 팀 완료" : ""}
+        payText={partnerPay?.pb ? "예약 완료 (현장 정산)" : ""}
       />
 
       <MatchAcceptedCelebration
