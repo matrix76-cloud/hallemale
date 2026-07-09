@@ -95,6 +95,12 @@ function mapUserRow(docSnap) {
 
   const clubId = safeString(v?.clubId);
 
+  // 가입 시 수집하는 연락처 정보 (관리자 신원 확인용)
+  const email = safeString(v?.email);
+  const phoneE164 = safeString(v?.phoneE164);
+  const phoneVerified = !!v?.phoneVerified;
+  const provider = safeString(v?.provider);
+
   const isTeamCaptain = !!v?.isTeamCaptain;
 
   const createdAt = v?.createdAt || null;
@@ -118,6 +124,11 @@ function mapUserRow(docSnap) {
 
     nickname,
     avatarUrl,
+
+    email,
+    phoneE164,
+    phoneVerified,
+    provider,
 
     region,
     regionSido,
@@ -154,6 +165,9 @@ function mapUserRow(docSnap) {
     _createdAtMs: toDate(createdAt)?.getTime() || 0,
     _updatedAtMs: toDate(updatedAt)?.getTime() || 0,
     _nicknameLower: normalizeText(nickname),
+    _emailLower: normalizeText(email),
+    // 검색어를 숫자만 남겨 비교하므로 "010-1234", "+8210" 어느 쪽으로 쳐도 잡힌다
+    _phoneDigits: phoneE164.replace(/\D/g, ""),
   };
 }
 

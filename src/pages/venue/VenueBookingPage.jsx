@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { useUI } from "../../hooks/useUI";
+import { useUIActions } from "../../hooks/useUI";
 import { proposeMatchSchedule } from "../../services/matchRoomService";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
@@ -79,7 +79,7 @@ export default function VenueBookingPage() {
   const matchId = params.get("match") || ""; // 매칭룸에서 들어온 경우
   const viewOnly = params.get("view") === "1"; // 매칭 카드에서 들어온 읽기 전용
   const { firebaseUser, userDoc } = useAuth();
-  const { showToast } = useUI() || {};
+  const { showToast } = useUIActions() || {};
   const toast = (message) => { if (showToast) showToast({ message }); };
   const uid = firebaseUser?.uid || "";
   const suffix = matchId ? `?match=${matchId}` : viewOnly ? "?view=1" : "";

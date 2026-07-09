@@ -17,7 +17,7 @@ import { getNameChangeStatus } from "../../utils/nameChange";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 import { FiChevronRight } from "react-icons/fi";
-import { useUI } from "../../hooks/useUI";
+import { useUIActions } from "../../hooks/useUI";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { goBackOrHome } from "../../utils/navigation";
 
@@ -66,7 +66,7 @@ export default function MyProfileEditPage() {
 
   // 수정 중 안드로이드 뒤로가기 → 변경사항 유실 방지 확인.
   // (지역 선택 시트가 열려 있으면 그쪽 인터셉터가 LIFO 최상단이라 시트부터 닫힘)
-  const { showModal, hideModal } = useUI();
+  const { showModal, hideModal } = useUIActions();
   const dirty =
     didInit &&
     !isSaving &&

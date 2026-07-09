@@ -11,7 +11,8 @@ import {
   cancelReservation, markReservationNoshow,
   dowToKey, expireMatchReservationIfNeeded, resolveSlotPrice,
 } from "../../services/ownerVenueService";
-import { useUI } from "../../hooks/useUI";
+import { useUIActions } from "../../hooks/useUI";
+import { formatPhoneE164 as formatPhone } from "../../utils/phone";
 import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, Input, PrimaryBtn, GhostBtn, DangerBtn, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerFooter from "./components/OwnerFooter";
@@ -94,7 +95,7 @@ const RecurBadge=styled.span`display:inline-flex;align-items:center;gap:3px;bord
 
 export default function OwnerHomePage(){
   const {venue,loading:ownerLoading,refresh:ownerRefresh}=useOwner();
-  const {showToast}=useUI()||{};
+  const {showToast}=useUIActions()||{};
   const toast=(m)=>{if(showToast)showToast({message:m});};
   const {confirmState,ask,closeConfirm}=useConfirm();
   const nm=(r)=>r?.teamName||r?.userName||(r?.matchId?`${r?.teamAName||"팀A"} vs ${r?.teamBName||"팀B"}`:"이");
@@ -279,7 +280,7 @@ export default function OwnerHomePage(){
               <ResvName>{isMatch?`${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`:(r.teamName||r.userName||"예약자")}</ResvName>
               <StatBadge $tone="pending"><LuHourglass size={11}/>{isMatch?"매칭 승인대기":"승인대기"}</StatBadge>
             </ResvTop>
-            <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원 (현장 정산)`:""}{!isMatch&&r.phone?` · ${r.phone}`:""}</ResvMeta>
+            <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원 (현장 정산)`:""}{!isMatch&&r.phone?` · ${formatPhone(r.phone)}`:""}</ResvMeta>
             {date<nowMin.today ? (
               <Caption>지난 요청 · 처리할 수 없어요</Caption>
             ) : (
@@ -316,13 +317,15 @@ export default function OwnerHomePage(){
                 <>
                   <DRow style={{marginTop:2}}><span style={{fontWeight:700,color:C.slate800}}>매칭 · 두 팀</span></DRow>
                   {[
-                    {name:r.teamAName||"팀A", who:r.teamAPayerName, phone:r.teamAPayerPhone},
-                    {name:r.teamBName||"팀B", who:r.teamBPayerName, phone:r.teamBPayerPhone},
+                    {name:r.teamAName||"팀A", who:r.teamALeaderName, phone:r.teamALeaderPhone},
+                    {name:r.teamBName||"팀B", who:r.teamBLeaderName, phone:r.teamBLeaderPhone},
                   ].map((t,i)=>(
                     <TeamBlock key={i}>
                       <TeamName>{t.name}</TeamName>
-                      {t.who&&<DRow><span>대화명</span><b>{t.who}</b></DRow>}
-                      {t.phone&&<DRow><span>연락처</span><MiniCall href={`tel:${t.phone}`}><LuPhone size={13}/> {t.phone}</MiniCall></DRow>}
+                      <DRow><span>팀장</span><b>{t.who||"-"}</b></DRow>
+                      {t.phone
+                        ? <DRow><span>연락처</span><MiniCall href={`tel:${t.phone}`}><LuPhone size={13}/> {formatPhone(t.phone)}</MiniCall></DRow>
+                        : <DRow><span>연락처</span><b style={{color:C.slate400}}>미등록</b></DRow>}
                     </TeamBlock>
                   ))}
                   <DRow><span>정산</span><b>현장에서 두 팀이 직접 정산</b></DRow>
@@ -332,7 +335,7 @@ export default function OwnerHomePage(){
                   <DRow><span>팀명</span><b>{r.teamName||"-"}</b></DRow>
                   {r.userName && <DRow><span>예약자 (대화명)</span><b>{r.userName}</b></DRow>}
                   {r.phone
-                    ? <Call href={`tel:${r.phone}`}><LuPhone size={16}/> {r.phone} 전화걸기</Call>
+                    ? <Call href={`tel:${r.phone}`}><LuPhone size={16}/> {formatPhone(r.phone)} 전화걸기</Call>
                     : <DRow><span>연락처</span><b style={{color:C.slate400}}>미등록</b></DRow>}
                 </>
               )}

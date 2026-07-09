@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { useUI } from "../../hooks/useUI";
+import { useUIActions } from "../../hooks/useUI";
 import { proposeMatchSchedule } from "../../services/matchRoomService";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
@@ -41,7 +41,7 @@ export default function CourtBookingPage() {
   const matchId = params.get("match") || "";
   const viewOnly = params.get("view") === "1"; // 매칭 카드에서 들어온 읽기 전용(예약 불가)
   const { firebaseUser, userDoc } = useAuth();
-  const { showToast } = useUI() || {};
+  const { showToast } = useUIActions() || {};
   const toast = (m) => { if (showToast) showToast({ message: m }); };
   const uid = firebaseUser?.uid || "";
 

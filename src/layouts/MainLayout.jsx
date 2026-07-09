@@ -123,6 +123,12 @@ const SheetWrap = styled.div`
   z-index: 950;
 `;
 
+// ⚡ Outlet은 라우트 컨텍스트만 구독한다. memo로 감싸 두면 MainLayout이 토스트·배너·모달·
+//    배지 때문에 리렌더돼도 현재 페이지는 다시 그리지 않는다. (라우트가 바뀌면 정상 갱신됨)
+const RouteOutlet = React.memo(function RouteOutlet() {
+  return <Outlet />;
+});
+
 export default function MainLayout({ hideHeader = false }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -286,10 +292,10 @@ export default function MainLayout({ hideHeader = false }) {
 
       <Main>
         {isFullScreenPage ? (
-          <Outlet />
+          <RouteOutlet />
         ) : (
           <PageContainer>
-            <Outlet />
+            <RouteOutlet />
           </PageContainer>
         )}
       </Main>

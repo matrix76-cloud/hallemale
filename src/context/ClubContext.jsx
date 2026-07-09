@@ -6,7 +6,7 @@
 // - activeTeamId 있으면: clubs/{id} 로드 + members 로드
 // - members: clubs/{clubId}/members 서브컬렉션
 
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { db } from "../services/firebase";
 import {
@@ -127,7 +127,7 @@ export function ClubProvider({ children }) {
     return () => unsub();
   }, [uid]);
 
-  const refreshClub = async (reason = "effect") => {
+  const refreshClub = useCallback(async (reason = "effect") => {
     logGroup("[ClubContext] refreshClub: called", { reason, uid, activeTeamId });
 
     if (!uid) {
@@ -194,16 +194,18 @@ export function ClubProvider({ children }) {
     } finally {
       if (myGen === genRef.current) setLoading(false);
     }
-  };
+  }, [uid, activeTeamId]);
 
-  const refreshMembers = async () => {
-    if (!club?.id) {
+  const clubId = club?.id || "";
+
+  const refreshMembers = useCallback(async () => {
+    if (!clubId) {
       setMembers([]);
       return;
     }
-    const ms = await loadClubMembers(club.id);
+    const ms = await loadClubMembers(clubId);
     setMembers(ms);
-  };
+  }, [clubId]);
 
   // ✅ activeTeamId가 바뀌면 즉시 club 로드
   useEffect(() => {
@@ -219,15 +221,21 @@ export function ClubProvider({ children }) {
     return !!ownerUid && ownerUid === uid;
   }, [uid, activeTeamId, club]);
 
-  const value = {
-    club,
-    members,
-    loading,
-    isTeamLeader,
-    activeTeamId, // (디버그/표시용) 필요하면 사용
-    refreshClub: () => refreshClub("manual"),
-    refreshMembers,
-  };
+  const refreshClubManual = useCallback(() => refreshClub("manual"), [refreshClub]);
+
+  // ⚡ 메모하지 않으면 club/members/loading 중 무엇이 바뀌든 useClub() 소비자가 전부 리렌더된다.
+  const value = useMemo(
+    () => ({
+      club,
+      members,
+      loading,
+      isTeamLeader,
+      activeTeamId, // (디버그/표시용) 필요하면 사용
+      refreshClub: refreshClubManual,
+      refreshMembers,
+    }),
+    [club, members, loading, isTeamLeader, activeTeamId, refreshClubManual, refreshMembers]
+  );
 
   return <ClubContext.Provider value={value}>{children}</ClubContext.Provider>;
 }

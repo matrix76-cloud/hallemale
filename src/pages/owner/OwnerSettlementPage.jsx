@@ -6,7 +6,7 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { LuWallet } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
-import { useUI } from "../../hooks/useUI";
+import { useUIActions } from "../../hooks/useUI";
 import { listReservations } from "../../services/ownerVenueService";
 import { Page, Card, ScreenTitle, SecTitle, Caption, PrimaryBtn, StatBadge, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
@@ -38,7 +38,7 @@ const ItemS = styled.div`font-size: 11.5px; color: ${C.slate500};`;
 export default function OwnerSettlementPage() {
   const navigate = useNavigate();
   const { venue, loading: ownerLoading, refresh } = useOwner();
-  const { showToast } = useUI() || {};
+  const { showToast } = useUIActions() || {};
   const toast = (m) => { if (showToast) showToast({ message: m }); };
   const { confirmState, ask, closeConfirm } = useConfirm();
   const [rows, setRows] = useState([]);

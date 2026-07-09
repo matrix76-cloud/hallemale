@@ -9,6 +9,7 @@ import AdminLoading from "../../components/admin/AdminLoading";
 import AdminPager from "../../components/admin/AdminPager";
 import { fetchPlayersAdminView } from "../../services/adminPlayersService";
 import { blockUser } from "../../services/adminUserBlockService";
+import { formatPhoneE164 } from "../../utils/phone";
 import PlayerProfilePage from "../player/PlayerProfilePage";
 
 const Page = styled.div`
@@ -37,10 +38,13 @@ const TableWrap = styled.div`
 `;
 
 const Table = styled.div`
-  min-width: 2040px;
+  min-width: 2540px;
 `;
 
-const COLS = "72px 160px 100px 210px 160px 120px 120px 260px 110px 110px 240px 160px 170px 120px";
+const COLS = "72px 160px 100px 210px 150px 220px 100px 160px 120px 120px 260px 110px 110px 240px 160px 170px 120px";
+
+// users.provider → 표시용 가입경로
+const PROVIDER_LABEL = { kakao: "카카오", google: "구글", apple: "애플", password: "이메일" };
 
 const Head = styled.div`
   display: grid;
@@ -624,10 +628,18 @@ export default function AdminPlayersListPage() {
 
   const keywordLower = useMemo(() => normalizeText(keyword), [keyword]);
 
+  // 닉네임 · 이메일 · 전화번호(숫자만) 부분일치
+  const keywordDigits = useMemo(() => keyword.replace(/\D/g, ""), [keyword]);
+
   const filteredRows = useMemo(() => {
     if (!keywordLower) return rows;
-    return rows.filter((r) => normalizeText(r?.nickname).includes(keywordLower));
-  }, [rows, keywordLower]);
+    return rows.filter(
+      (r) =>
+        normalizeText(r?.nickname).includes(keywordLower) ||
+        normalizeText(r?.email).includes(keywordLower) ||
+        (!!keywordDigits && String(r?._phoneDigits || "").includes(keywordDigits))
+    );
+  }, [rows, keywordLower, keywordDigits]);
 
   useEffect(() => {
     setPage(1);
@@ -727,7 +739,7 @@ export default function AdminPlayersListPage() {
     <Page>
       <AdminFilterSummaryBar
         title="선수 목록"
-        subtitle={`users 컬렉션 기준 · 페이지당 ${pageSize}개 · 팀명/로고는 clubs에서 채움 · 닉네임 검색은 클라 필터`}
+        subtitle={`users 컬렉션 기준 · 페이지당 ${pageSize}개 · 팀명/로고는 clubs에서 채움 · 닉네임/이메일/전화번호 검색은 클라 필터`}
         dateFrom=""
         dateTo=""
         onChangeDateFrom={() => {}}
@@ -758,6 +770,9 @@ export default function AdminPlayersListPage() {
               <div>닉네임</div>
               <div>회원 정보</div>
               <div>uid</div>
+              <div>전화번호</div>
+              <div>이메일</div>
+              <div>가입경로</div>
               <div>지역</div>
               <div>포지션</div>
               <div>레벨</div>
@@ -837,6 +852,24 @@ export default function AdminPlayersListPage() {
                     <Mono>
                       <Trunc>{uid || "-"}</Trunc>
                     </Mono>
+                  </Cell>
+
+                  <Cell title={r?.phoneE164 || ""}>
+                    <Mono>
+                      <Trunc>
+                        {r?.phoneE164
+                          ? `${formatPhoneE164(r.phoneE164)}${r?.phoneVerified ? "" : " (미인증)"}`
+                          : "-"}
+                      </Trunc>
+                    </Mono>
+                  </Cell>
+
+                  <Cell title={r?.email || ""}>
+                    <Trunc>{r?.email || "-"}</Trunc>
+                  </Cell>
+
+                  <Cell title={r?.provider || ""}>
+                    <Trunc>{PROVIDER_LABEL[r?.provider] || r?.provider || "-"}</Trunc>
                   </Cell>
 
                   <Cell title={region}>

@@ -4,7 +4,7 @@
 // 화면 상단에 인앱 배너(UIContext.showBanner)를 띄운다. (인스타식 푸시 배너)
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { useUI } from "./useUI";
+import { useUIActions } from "./useUI";
 import { subscribeNotificationsForUser } from "../services/notificationService";
 
 const MAX_AGE_MS = 120000; // 2분 — 오래된(백필) 알림은 배너로 띄우지 않음
@@ -17,7 +17,7 @@ function toMillis(v) {
 }
 
 export default function useNotificationBanner({ uid, clubId } = {}) {
-  const { showBanner } = useUI();
+  const { showBanner } = useUIActions();
   const location = useLocation();
 
   // 콜백 안에서 항상 최신 경로/함수를 보도록 ref로 보관

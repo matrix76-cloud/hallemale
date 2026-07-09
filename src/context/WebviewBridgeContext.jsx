@@ -3,6 +3,7 @@ import React, {
   useContext,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
 } from "react";
 import {
@@ -93,11 +94,14 @@ export function WebviewBridgeProvider({ children }) {
     });
   }, []);
 
-  const value = {
-    sendToApp,
-    subscribe,
-    isWebView: isInWebView(),
-  };
+  const value = useMemo(
+    () => ({
+      sendToApp,
+      subscribe,
+      isWebView: isInWebView(),
+    }),
+    [sendToApp, subscribe]
+  );
 
   return (
     <WebviewBridgeContext.Provider value={value}>

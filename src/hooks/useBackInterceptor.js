@@ -13,10 +13,10 @@
 //  useBackInterceptor(true, () => { /* consume, no-op */ });    // 게이트: 뒤로가기 소비
 //  useBackInterceptor(dirty, () => showLeaveConfirm());         // 작성 이탈 확인
 import { useEffect, useRef } from "react";
-import { useUI } from "./useUI";
+import { useUIActions } from "./useUI";
 
 export function useBackInterceptor(active, closeFn) {
-  const ui = useUI();
+  const ui = useUIActions();
   const registerBackInterceptor = ui?.registerBackInterceptor;
   const fnRef = useRef(closeFn);
   fnRef.current = closeFn;

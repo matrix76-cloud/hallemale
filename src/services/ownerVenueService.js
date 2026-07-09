@@ -672,6 +672,13 @@ function reservationRow(d) {
     teamAPayerPhone: safeStr(data.teamAPayerPhone),
     teamBPayerName: safeStr(data.teamBPayerName),
     teamBPayerPhone: safeStr(data.teamBPayerPhone),
+    // 예약 요청 시점의 각 팀 팀장 연락처 스냅샷 (구장주 승인 시 확인용)
+    teamALeaderUid: safeStr(data.teamALeaderUid),
+    teamALeaderName: safeStr(data.teamALeaderName),
+    teamALeaderPhone: safeStr(data.teamALeaderPhone),
+    teamBLeaderUid: safeStr(data.teamBLeaderUid),
+    teamBLeaderName: safeStr(data.teamBLeaderName),
+    teamBLeaderPhone: safeStr(data.teamBLeaderPhone),
     paymentDeadline: safeStr(data.paymentDeadline),
     createdAt: toDate(data.createdAt),
   };
@@ -693,6 +700,31 @@ export async function listReservations({ venueId, date = "", courtId = "" } = {}
 }
 
 /* ── 매칭 예약(승인대기) 상태 변화를 매칭룸(match_requests) + 양 팀장 알림에 반영 (예약승인제) ── */
+
+/**
+ * 팀장(clubs.ownerUid)의 이름·전화번호 스냅샷.
+ * 구장주가 예약을 승인할 때 각 팀 팀장에게 연락할 수 있도록 예약 문서에 비정규화 저장한다.
+ * (구장주가 users 문서를 직접 읽지 않아도 되게 하려는 목적)
+ */
+async function loadClubLeaderContact(clubId) {
+  const cid = safeStr(clubId);
+  if (!cid) return { uid: "", name: "", phone: "" };
+  try {
+    const clubSnap = await getDoc(doc(db, "clubs", cid));
+    const uid = safeStr(clubSnap.exists() ? clubSnap.data()?.ownerUid : "");
+    if (!uid) return { uid: "", name: "", phone: "" };
+    const userSnap = await getDoc(doc(db, "users", uid));
+    const u = userSnap.exists() ? userSnap.data() || {} : {};
+    return {
+      uid,
+      name: safeStr(u.nickname || u.displayName),
+      phone: safeStr(u.phoneE164),
+    };
+  } catch (e) {
+    console.warn("[loadClubLeaderContact] failed:", e?.message || e);
+    return { uid: "", name: "", phone: "" };
+  }
+}
 
 // 양 팀 팀장(clubs.ownerUid)에게 매칭 알림 발송
 async function notifyMatchTeamLeaders(matchId, clubIds, { subType, type, title, body }) {
@@ -1141,6 +1173,10 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
 
   if (!preActive) {
     await assertSlotFree({ venueId: pb.venueId, courtId: pb.courtId, date: pb.date, startTime: pb.startTime, endTime: pb.endTime });
+    const [leaderA, leaderB] = await Promise.all([
+      loadClubLeaderContact(pb.proposerClubId),
+      loadClubLeaderContact(pb.opponentClubId),
+    ]);
     await setDoc(resRef, {
       venueId: safeStr(pb.venueId), venueName: safeStr(pb.venueName), ownerUid: safeStr(pb.ownerUid),
       courtId: safeStr(pb.courtId), courtName: safeStr(pb.courtName),
@@ -1152,6 +1188,9 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
       shareA: toNum(pb.shareA) ?? 0, shareB: toNum(pb.shareB) ?? 0,
       teamAClubId: safeStr(pb.proposerClubId), teamBClubId: safeStr(pb.opponentClubId),
       teamAName: safeStr(pb.proposerTeamName), teamBName: safeStr(pb.opponentTeamName),
+      // 구장주가 승인 시 각 팀 팀장에게 연락할 수 있도록 예약 시점 연락처를 저장
+      teamALeaderUid: leaderA.uid, teamALeaderName: leaderA.name, teamALeaderPhone: leaderA.phone,
+      teamBLeaderUid: leaderB.uid, teamBLeaderName: leaderB.name, teamBLeaderPhone: leaderB.phone,
       createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
     });
   }

@@ -3,10 +3,16 @@ import React, {
   useContext,
   useState,
   useCallback,
+  useMemo,
   useRef
 } from "react";
 
-const UIContext = createContext(null);
+// ⚡ 상태와 액션을 별도 컨텍스트로 나눈다.
+//    액션(showToast/showModal/…)은 마운트 후 identity가 절대 바뀌지 않으므로,
+//    액션만 구독하는 페이지는 토스트·시트가 열고 닫혀도 리렌더되지 않는다.
+//    (예전엔 value가 매 렌더 새 객체라, 토스트 하나에 현재 페이지 전체가 다시 그려졌다.)
+const UIStateContext = createContext(null);
+const UIActionsContext = createContext(null);
 
 export function UIProvider({ children }) {
   const [globalLoading, setGlobalLoading] = useState(false);
@@ -84,32 +90,64 @@ export function UIProvider({ children }) {
     return true;
   }, []);
 
-  const value = {
-    globalLoading,
-    setGlobalLoading,
-    toast,
-    showToast,
-    banner,
-    showBanner,
-    hideBanner,
-    modal,
-    showModal,
-    hideModal,
-    bottomSheet,
-    showBottomSheet,
-    hideBottomSheet,
-    headerSubtitle,
-    setHeaderSubtitle,
-    headerConfig,
-    setHeaderConfig,
-    blockingCount,
-    registerBackInterceptor,
-    runTopBackInterceptor
-  };
+  const state = useMemo(
+    () => ({
+      globalLoading,
+      toast,
+      banner,
+      modal,
+      bottomSheet,
+      headerSubtitle,
+      headerConfig,
+      blockingCount
+    }),
+    [globalLoading, toast, banner, modal, bottomSheet, headerSubtitle, headerConfig, blockingCount]
+  );
 
-  return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
+  // 전부 useCallback / setState setter 라서 이 객체의 identity는 마운트 이후 고정된다.
+  const actions = useMemo(
+    () => ({
+      setGlobalLoading,
+      showToast,
+      showBanner,
+      hideBanner,
+      showModal,
+      hideModal,
+      showBottomSheet,
+      hideBottomSheet,
+      setHeaderSubtitle,
+      setHeaderConfig,
+      registerBackInterceptor,
+      runTopBackInterceptor
+    }),
+    [
+      showToast,
+      showBanner,
+      hideBanner,
+      showModal,
+      hideModal,
+      showBottomSheet,
+      hideBottomSheet,
+      registerBackInterceptor,
+      runTopBackInterceptor
+    ]
+  );
+
+  return (
+    <UIActionsContext.Provider value={actions}>
+      <UIStateContext.Provider value={state}>{children}</UIStateContext.Provider>
+    </UIActionsContext.Provider>
+  );
 }
 
+/** UI 상태 + 액션 전부. 상태를 실제로 그리는 컴포넌트(레이아웃 등)만 사용할 것. */
 export function useUIContext() {
-  return useContext(UIContext);
+  const state = useContext(UIStateContext);
+  const actions = useContext(UIActionsContext);
+  return useMemo(() => ({ ...state, ...actions }), [state, actions]);
+}
+
+/** 액션만. UI 상태 변화에 리렌더되지 않는다. showToast/showModal 만 필요한 곳은 이걸 쓴다. */
+export function useUIActionsContext() {
+  return useContext(UIActionsContext);
 }

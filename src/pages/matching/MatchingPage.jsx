@@ -5,7 +5,7 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 
 import { useClubContext } from "../../context/ClubContext";
-import { useUI } from "../../hooks/useUI";
+import { useUIActions } from "../../hooks/useUI";
 
 import QuickMatchHero from "./components/QuickMatchHero";
 import AiRecommendedTeamsSection from "./components/AiRecommendedTeamsSection";
@@ -73,7 +73,7 @@ const LoadingCenter = styled.div`
 
 export default function MatchingPage() {
   const navigate = useNavigate();
-  const { showToast } = useUI();
+  const { showToast } = useUIActions();
   const { activeTeamId, loading: clubLoading } = useClubContext();
 
   const {

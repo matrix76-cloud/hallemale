@@ -7,7 +7,7 @@ import styled from "styled-components";
 import { LuShieldCheck, LuUpload, LuCircleCheck } from "react-icons/lu";
 import { uploadVenueImage } from "../../../services/venuesService";
 import { submitBusinessVerification, isValidBizNo, formatBizNo, verifyBusinessOnline } from "../../../services/ownerVenueService";
-import { useUI } from "../../../hooks/useUI";
+import { useUIActions } from "../../../hooks/useUI";
 import { Card, SecTitle, Caption, Input, PrimaryBtn, StatBadge, C } from "./od";
 
 const Field = styled.label`display:flex;flex-direction:column;gap:6px;`;
@@ -24,7 +24,7 @@ const Hidden = styled.input`display:none;`;
 const BIZ_STATUS = { none: ["미인증", "default"], pending: ["심사중", "pending"], verified: ["인증완료", "done"], rejected: ["반려", "refund"] };
 
 export default function BusinessSection({ venue, refresh }) {
-  const { showToast } = useUI() || {};
+  const { showToast } = useUIActions() || {};
   const toast = (m) => { if (showToast) showToast({ message: m }); };
   const b = venue.business || {};
   const verified = b.status === "verified";

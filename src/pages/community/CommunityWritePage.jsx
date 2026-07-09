@@ -9,7 +9,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { createCommunityPost, updateCommunityPost } from "../../services/communityService";
 import { images } from "../../utils/imageAssets";
-import { useUI } from "../../hooks/useUI";
+import { useUIActions } from "../../hooks/useUI";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { goBackOrHome } from "../../utils/navigation";
 
@@ -270,7 +270,7 @@ export default function CommunityWritePage() {
   }, [title, content]);
 
   // 작성/수정 중 안드로이드 뒤로가기 → 내용 유실 방지 확인.
-  const { showModal, hideModal } = useUI();
+  const { showModal, hideModal } = useUIActions();
   const dirty =
     !busy &&
     (String(title || "").trim() !== String(editState.initTitle || "").trim() ||
