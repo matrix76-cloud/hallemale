@@ -337,16 +337,16 @@ export default function OwnerHomePage(){
                 </>
               )}
 
-              {r.date<nowMin.today && (
-                <DRow style={{marginTop:4}}><span style={{color:C.slate400}}>지난 예약 · 기록 보기 전용</span></DRow>
+              {r.date<nowMin.today && r.status==="confirmed" && (
+                <Caption style={{marginTop:4}}>지난 예약이에요. 이용 결과(완료·노쇼)를 기록하면 통계에 반영돼요.</Caption>
               )}
 
-              {r.status==="confirmed" && r.date>=nowMin.today && (
+              {r.status==="confirmed" && (
                 <>
                   <DoneBtn onClick={()=>markDone(r)} disabled={busy}>이용 완료 처리</DoneBtn>
                   <SheetBtns>
                     <GhostBtn style={{flex:1}} onClick={()=>noshowResv(r)} disabled={busy}>노쇼 처리</GhostBtn>
-                    <DangerBtn style={{flex:1}} onClick={()=>cancelResv(r)} disabled={busy}>예약 취소</DangerBtn>
+                    {r.date>=nowMin.today && <DangerBtn style={{flex:1}} onClick={()=>cancelResv(r)} disabled={busy}>예약 취소</DangerBtn>}
                   </SheetBtns>
                 </>
               )}
