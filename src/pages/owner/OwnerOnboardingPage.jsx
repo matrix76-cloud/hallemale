@@ -15,7 +15,6 @@ import {
   resubmitVenue,
   defaultCourtHours,
   FACILITY_OPTIONS,
-  SPORT_OPTIONS,
   SURFACE_OPTIONS,
 } from "../../services/ownerVenueService";
 import {
@@ -23,8 +22,7 @@ import {
 } from "./components/ownerUi";
 import OwnerSpinner from "./components/OwnerSpinner";
 import CourtHoursEditor from "./components/CourtHoursEditor";
-import VenueLocationPicker from "./components/VenueLocationPicker";
-import { openDaumPostcode } from "./components/addressSearch";
+import VenueMapPicker from "./components/VenueMapPicker";
 
 const DEFAULT_REFUND =
   "• 이용 1일 전까지 취소해 주세요.\n• 당일 취소·노쇼는 삼가주세요. 반복 시 예약이 제한될 수 있어요.\n• 우천/천재지변 시 협의 후 일정 변경 가능";
@@ -33,8 +31,8 @@ function makeCourt(idx) {
   return { name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60, hours: defaultCourtHours() };
 }
 
-// 단계 정의 (intro 제외한 본문 단계 순서)
-const STEPS = ["intro", "sport", "name", "location", "photos", "facilities", "courts", "notice", "keywords", "contact", "review"];
+// 단계 정의 (intro 제외한 본문 단계 순서) — 농구 전용이라 종목 선택 단계 없음
+const STEPS = ["intro", "name", "location", "photos", "facilities", "courts", "notice", "keywords", "contact", "review"];
 const CONTENT_TOTAL = STEPS.length - 1; // intro 제외
 
 export default function OwnerOnboardingPage() {
@@ -50,7 +48,7 @@ export default function OwnerOnboardingPage() {
     phone: "", directions: "", description: "", rules: "", refundPolicy: DEFAULT_REFUND,
     bizName: "", bizNo: "", ownerName: "", contactPhone: "",
   });
-  const [sportTypes, setSportTypes] = useState([]);
+  const [sportTypes, setSportTypes] = useState(["농구"]); // 농구 전용
   const [photos, setPhotos] = useState([]); // [{url, storagePath}]
   const [facilities, setFacilities] = useState([]);
   const [parking, setParking] = useState({ available: false, fee: "free", info: "" });
@@ -70,7 +68,7 @@ export default function OwnerOnboardingPage() {
       description: venue.description || "", rules: venue.rules || "", refundPolicy: venue.refundPolicy || DEFAULT_REFUND,
       bizName: venue.bizName || "", bizNo: venue.bizNo || "", ownerName: venue.ownerName || "", contactPhone: venue.contactPhone || "",
     });
-    setSportTypes(venue.sportTypes || []);
+    setSportTypes(venue.sportTypes?.length ? venue.sportTypes : ["농구"]);
     setPhotos((venue.photos || []).map((url, i) => ({ url, storagePath: venue.storagePaths?.[i] || "" })));
     setFacilities(venue.facilities || []);
     setParking({
@@ -91,12 +89,6 @@ export default function OwnerOnboardingPage() {
   }, [editingId]); // eslint-disable-line
 
   const set = (patch) => setForm((p) => ({ ...p, ...patch }));
-
-  const handleAddressSearch = () => {
-    openDaumPostcode(({ address, region, lat, lng }) =>
-      set({ address, region, lat: lat ?? "", lng: lng ?? "" })
-    );
-  };
 
   const toggle = (setter, val) =>
     setter((prev) => (prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]));
@@ -143,7 +135,7 @@ export default function OwnerOnboardingPage() {
   const goNext = () => {
     if (!canNext) {
       if (id === "name") return showAlert("구장명을 입력해주세요.");
-      if (id === "location") return showAlert("주소를 검색해주세요.");
+      if (id === "location") return showAlert("지도에서 구장 위치에 핀을 맞춰주세요.");
       if (id === "courts") return showAlert("코트 이름을 모두 입력해주세요.");
       return;
     }
@@ -187,7 +179,7 @@ export default function OwnerOnboardingPage() {
           <IntroTitle>{editingId ? "구장 정보를 다시 등록해요" : "구장 등록을 시작해요"}</IntroTitle>
           <IntroSub>
             몇 단계만 거치면 예약을 받을 수 있어요.{"\n"}
-            사진·종목·코트·이용요금을 차근차근 입력해 주세요.
+            사진·위치·코트·이용요금을 차근차근 입력해 주세요.
           </IntroSub>
         </Intro>
         <Footer>
@@ -205,14 +197,6 @@ export default function OwnerOnboardingPage() {
         <StepTitle>{TITLES[id]}</StepTitle>
         {SUBS[id] && <StepSub>{SUBS[id]}</StepSub>}
 
-        {id === "sport" && (
-          <ChipWrap>
-            {SPORT_OPTIONS.map((s) => (
-              <Chip key={s} type="button" $on={sportTypes.includes(s)} onClick={() => toggle(setSportTypes, s)}>{s}</Chip>
-            ))}
-          </ChipWrap>
-        )}
-
         {id === "name" && (
           <Field>
             <Label>구장명</Label>
@@ -222,27 +206,19 @@ export default function OwnerOnboardingPage() {
 
         {id === "location" && (
           <>
+            <VenueMapPicker
+              value={{ lat: form.lat, lng: form.lng, address: form.address, region: form.region }}
+              onChange={({ lat, lng, address, region }) => set({ lat, lng, address, region })}
+              height={240}
+            />
             <Field>
-              <Label>주소</Label>
-              <AddressBtn type="button" onClick={handleAddressSearch} $filled={!!form.address}>
-                <span>{form.address || "주소 검색하기"}</span>
-                <span className="search">🔍 검색</span>
-              </AddressBtn>
+              <Label>주소 <Opt>(핀 위치에서 자동 입력돼요)</Opt></Label>
+              <AutoAddr>{form.address || "지도에서 구장 위치에 핀을 맞춰주세요"}</AutoAddr>
             </Field>
             <Field>
               <Label>상세 주소</Label>
               <Input value={form.addressDetail} onChange={(e) => set({ addressDetail: e.target.value })} placeholder="예: 지하 2층 / B동" />
             </Field>
-            {form.address && (
-              form.lat && form.lng ? (
-                <Field>
-                  <Label>지도 위치 <Opt>(핀을 드래그해 정확한 위치로 맞춰주세요)</Opt></Label>
-                  <VenueLocationPicker lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => set({ lat, lng })} height={200} />
-                </Field>
-              ) : (
-                <StepHint>이 주소는 지도 좌표를 찾지 못했어요. 상세 주소를 확인하거나 다른 형식으로 다시 검색해보세요.</StepHint>
-              )
-            )}
             <Field>
               <Label>찾아오는 길 <Opt>(선택)</Opt></Label>
               <Textarea value={form.directions} onChange={(e) => set({ directions: e.target.value })} placeholder="예: 6호선 이태원역 3번 출구 도보 5분, 건물 뒤편 입구로 들어오세요" />
@@ -377,7 +353,6 @@ export default function OwnerOnboardingPage() {
 
         {id === "review" && (
           <ReviewList>
-            <ReviewRow><b>종목</b><span>{sportTypes.length ? sportTypes.join(", ") : "-"}</span></ReviewRow>
             <ReviewRow><b>구장명</b><span>{form.name || "-"}</span></ReviewRow>
             <ReviewRow><b>주소</b><span>{form.address || "-"}{form.addressDetail ? ` ${form.addressDetail}` : ""}</span></ReviewRow>
             <ReviewRow><b>사진</b><span>{photos.length}장</span></ReviewRow>
@@ -405,7 +380,6 @@ export default function OwnerOnboardingPage() {
 }
 
 const TITLES = {
-  sport: "어떤 종목의 구장인가요?",
   name: "구장 이름을 알려주세요",
   location: "구장이 어디에 있나요?",
   photos: "구장 사진을 올려주세요",
@@ -417,8 +391,7 @@ const TITLES = {
   review: "입력한 내용을 확인해요",
 };
 const SUBS = {
-  sport: "여러 개 선택할 수 있어요.",
-  location: "주소를 검색하면 지도에 자동으로 표시돼요.",
+  location: "지도를 움직여 핀을 맞추면 주소가 자동으로 입력돼요.",
   photos: "구장 전경, 코트, 시설 사진을 올려주세요. (여러 장 가능)",
   facilities: "이용자가 구장을 고를 때 참고해요.",
   courts: "코트마다 종류·바닥·가격·운영시간을 따로 설정해요.",
@@ -545,22 +518,17 @@ const IntroSub = styled.div`
   white-space: pre-line;
 `;
 
-const AddressBtn = styled.button`
-  height: 48px;
-  padding: 0 14px;
+const AutoAddr = styled.div`
+  min-height: 48px;
+  padding: 13px 14px;
   border-radius: 10px;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.card};
-  color: ${({ $filled, theme }) => ($filled ? theme.colors.textStrong : theme.colors.textWeak)};
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
+  line-height: 1.4;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  &:active { transform: translateY(1px); }
-  & .search { color: ${({ theme }) => theme.colors.primary}; font-weight: 700; font-size: 13px; flex-shrink: 0; }
 `;
 
 const PhotoGrid = styled.div`

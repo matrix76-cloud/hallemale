@@ -2,10 +2,11 @@
 // src/layouts/OwnerLayout.jsx
 // 구장 관리자 워크스페이스 레이아웃 (헤더 + 본문 + 바텀탭)
 import React from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { OwnerProvider } from "../context/OwnerContext";
+import { OwnerProvider, useOwner } from "../context/OwnerContext";
 import OwnerBottomTabBar from "./components/OwnerBottomTabBar";
+import OwnerSpinner from "../pages/owner/components/OwnerSpinner";
 import { C } from "../pages/owner/components/od";
 import { useUI } from "../hooks/useUI";
 
@@ -92,6 +93,18 @@ function getTitle(p) {
   return "구장 관리자";
 }
 
+// 구장 미등록(venue 없음) 오너는 워크스페이스로 못 들어가고 온보딩에 머문다.
+// (예외: 온보딩/등록/내정보/탈퇴 — 가입 직후 앱 진입 방지 + 로그아웃/탈퇴 경로는 열어둠)
+function OwnerGate() {
+  const { loading, venue } = useOwner();
+  const { pathname } = useLocation();
+  const p = (pathname || "").toLowerCase();
+  const exempt = /\/owner\/(onboarding|register|withdraw|my)(\/|$)/.test(p);
+  if (loading) return <OwnerSpinner label="불러오는 중…" />;
+  if (!venue && !exempt) return <Navigate to="/owner/onboarding" replace />;
+  return <Outlet />;
+}
+
 export default function OwnerLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -114,7 +127,7 @@ export default function OwnerLayout() {
         </Header>
 
         <Main $hasTab={hasTab}>
-          <Outlet />
+          <OwnerGate />
         </Main>
 
         {hasTab && (
