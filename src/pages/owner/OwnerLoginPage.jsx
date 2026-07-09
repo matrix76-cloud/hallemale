@@ -12,6 +12,7 @@ import {
 } from "../../services/ownerAuthService";
 import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
+import { images } from "../../utils/imageAssets";
 
 export default function OwnerLoginPage() {
   const navigate = useNavigate();
@@ -85,7 +86,7 @@ export default function OwnerLoginPage() {
       )}
 
       <Hero>
-        <Logo>🏟️</Logo>
+        <Logo src={images.logo} alt="할래말래 로고" />
         <Title>{title}</Title>
         <Sub>{sub}</Sub>
       </Hero>
@@ -157,7 +158,7 @@ const Hero = styled.div`
   gap: 8px;
 `;
 
-const Logo = styled.div`font-size: 72px; line-height: 1;`;
+const Logo = styled.img`width: 96px; height: 96px; object-fit: contain;`;
 
 const Title = styled.div`
   margin-top: 8px;
