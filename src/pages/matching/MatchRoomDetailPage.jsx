@@ -4489,7 +4489,7 @@ export default function MatchRoomDetailPage() {
       </PropCard>
     ) : null;
 
-  // 진행 단계 스텝퍼 (재사용) — 제안 단계에선 접어두고 펼칠 때만 노출
+  // 진행 단계 스텝퍼 — 진행 단계 바를 펼칠 때만 노출
   const stepperEl = (
     <Stepper>
       {STEP_LABELS.map((lb, i) => (
@@ -5117,7 +5117,7 @@ export default function MatchRoomDetailPage() {
                 <MatchInfoToggle>{matchInfoOpen ? "▴" : "›"}</MatchInfoToggle>
               </MatchInfoBar>
 
-              {/* 펼치면 스텝퍼 노출 (제안 단계엔 평소 접혀 있음) — 제안 카드 위에 배치 */}
+              {/* 펼치면 스텝퍼 노출 — 제안 카드 위에 배치 */}
               {matchInfoOpen && stepperEl}
 
               {/* 펼치면 팀 매치업(VS) 상세 */}
@@ -5166,9 +5166,6 @@ export default function MatchRoomDetailPage() {
                   </VsRow>
                 </VsCard>
               )}
-
-              {/* 라인업 조율(제안 카드 없음) 단계: 접혀 있어도 스텝퍼 노출 */}
-              {!matchInfoOpen && !chatPinnedCard && stepperEl}
 
               {/* 제안/확정 단계: 지도+제안 카드 상단 고정 (펼친 스텝퍼/매치업 아래) */}
               {chatPinnedCard && <PinnedTop>{chatPinnedCard}</PinnedTop>}
