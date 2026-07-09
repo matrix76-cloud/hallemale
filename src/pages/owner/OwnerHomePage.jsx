@@ -150,7 +150,7 @@ export default function OwnerHomePage(){
     if(pd)return{k:"pending",r:pd};
     const bl=dayBlocks.find(b=>overlap(s.start,s.end,b.startTime,b.endTime));
     if(bl)return{k:"blocked",b:bl};
-    if(date===nowMin.today&&toMin(s.start)<=nowMin.min)return{k:"past"};
+    if(date<nowMin.today||(date===nowMin.today&&toMin(s.start)<=nowMin.min))return{k:"past"};
     return{k:"open"};
   };
   const slotTeam=(r)=>{ if(!r)return""; if(r.matchId)return `${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`; return r.teamName||r.userName||"예약"; };
@@ -160,7 +160,7 @@ export default function OwnerHomePage(){
     if(busy)return;
     if(info.k==="confirmed"||info.k==="pending"||info.k==="done"){ if(info.r) setDetailResv(info.r); return; }
     if(info.k==="open"){ setSlotSheet({s}); return; }
-    if(info.k==="blocked"){setBusy(true);try{await removeBlock(info.b.id);await load();}catch(e){}finally{setBusy(false);}}
+    if(info.k==="blocked"){if(date<nowMin.today)return;setBusy(true);try{await removeBlock(info.b.id);await load();}catch(e){}finally{setBusy(false);}}
   };
   // 빈 슬롯 액션: 직접 예약 / 시간 막기
   const doBlock=async(s)=>{setSlotSheet(null);setBusy(true);try{await addBlock({venueId:venue.id,courtId:court.id,date,startTime:s.start,endTime:s.end});await load();}catch(e){}finally{setBusy(false);}};
@@ -280,10 +280,14 @@ export default function OwnerHomePage(){
               <StatBadge $tone="pending"><LuHourglass size={11}/>{isMatch?"매칭 승인대기":"승인대기"}</StatBadge>
             </ResvTop>
             <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원 (현장 정산)`:""}{!isMatch&&r.phone?` · ${r.phone}`:""}</ResvMeta>
-            <Acts>
-              <SBtn $primary onClick={()=>approveResv(r)} disabled={busy}>승인</SBtn>
-              <SBtn $danger onClick={()=>rejectResv(r)} disabled={busy}>반려</SBtn>
-            </Acts>
+            {date<nowMin.today ? (
+              <Caption>지난 요청 · 처리할 수 없어요</Caption>
+            ) : (
+              <Acts>
+                <SBtn $primary onClick={()=>approveResv(r)} disabled={busy}>승인</SBtn>
+                <SBtn $danger onClick={()=>rejectResv(r)} disabled={busy}>반려</SBtn>
+              </Acts>
+            )}
           </Resv>
         );})}
       </Card>
@@ -333,7 +337,11 @@ export default function OwnerHomePage(){
                 </>
               )}
 
-              {r.status==="confirmed" && (
+              {r.date<nowMin.today && (
+                <DRow style={{marginTop:4}}><span style={{color:C.slate400}}>지난 예약 · 기록 보기 전용</span></DRow>
+              )}
+
+              {r.status==="confirmed" && r.date>=nowMin.today && (
                 <>
                   <DoneBtn onClick={()=>markDone(r)} disabled={busy}>이용 완료 처리</DoneBtn>
                   <SheetBtns>
