@@ -1,9 +1,9 @@
 /* eslint-disable */
 // src/layouts/components/OwnerBottomTabBar.jsx
-// 구장 관리자 바텀탭 (3탭) — 예약관리 / 예약통계 / 구장정보
+// 구장 관리자 바텀탭 (4탭) — 예약관리 / 예약통계 / 구장정보 / 내정보
 import React from "react";
 import styled from "styled-components";
-import { LuCalendar, LuChartColumn, LuSettings } from "react-icons/lu";
+import { LuCalendar, LuChartColumn, LuSettings, LuUser } from "react-icons/lu";
 import { C } from "../../pages/owner/components/od";
 
 const Wrap = styled.nav`
@@ -62,6 +62,7 @@ const TABS = [
   { key: "home", Icon: LuCalendar, label: "예약관리", path: "/owner/home" },
   { key: "sales", Icon: LuChartColumn, label: "예약통계", path: "/owner/sales" },
   { key: "venue", Icon: LuSettings, label: "구장정보", path: "/owner/venue" },
+  { key: "my", Icon: LuUser, label: "내정보", path: "/owner/my" },
 ];
 
 export default function OwnerBottomTabBar({ currentPath = "", onNavigate, pendingCount = 0 }) {

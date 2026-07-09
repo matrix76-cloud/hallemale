@@ -135,6 +135,8 @@ import OwnerWithdrawPage from "../pages/owner/OwnerWithdrawPage";
 import OwnerSignupPage from "../pages/owner/OwnerSignupPage";
 import OwnerOnboardingPage from "../pages/owner/OwnerOnboardingPage";
 import OwnerSalesPage from "../pages/owner/OwnerSalesPage";
+import OwnerLegalPage from "../pages/owner/OwnerLegalPage";
+import OwnerInquiryPage from "../pages/owner/OwnerInquiryPage";
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -499,6 +501,9 @@ export default function AppRoutes() {
         {/* ✅ 구장 관리자(구장주) 워크스페이스 — 별도 라우트 트리 */}
         <Route path="/owner/login" element={<OwnerLoginPage />} />
         <Route path="/owner/signup" element={<OwnerSignupPage />} />
+        {/* 약관은 로그인·동의 게이트에서도 열려야 하므로 인증 밖의 공개 라우트 */}
+        <Route path="/owner/terms" element={<OwnerLegalPage type="owner_terms" />} />
+        <Route path="/owner/privacy" element={<OwnerLegalPage type="privacy" />} />
         <Route
           element={
             <RequireOwnerAuth>
@@ -515,6 +520,7 @@ export default function AppRoutes() {
           <Route path="/owner/sales" element={<OwnerSalesPage />} />
           <Route path="/owner/venue" element={<OwnerVenuePage />} />
           <Route path="/owner/my" element={<OwnerMyPage />} />
+          <Route path="/owner/inquiry" element={<OwnerInquiryPage />} />
           <Route path="/owner/withdraw" element={<OwnerWithdrawPage />} />
         </Route>
 

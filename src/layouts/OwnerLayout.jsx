@@ -7,6 +7,7 @@ import styled from "styled-components";
 import { OwnerProvider, useOwner } from "../context/OwnerContext";
 import OwnerBottomTabBar from "./components/OwnerBottomTabBar";
 import OwnerSpinner from "../pages/owner/components/OwnerSpinner";
+import OwnerAgreementGate from "../pages/owner/OwnerAgreementGate";
 import { C } from "../pages/owner/components/od";
 import { useUI } from "../hooks/useUI";
 
@@ -79,13 +80,23 @@ const ToastWrap = styled.div`
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 `;
 
-const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/venue"];
+const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/venue", "/owner/my"];
+
+// 필수 동의(만 14세 이상 · 구장 관리자 이용약관 · 개인정보처리방침) 완료 여부
+function hasOwnerConsent(userDoc) {
+  return (
+    userDoc?.ownerTermsConsent === true &&
+    userDoc?.ownerPrivacyConsent === true &&
+    userDoc?.ownerAgeOver14Consent === true
+  );
+}
 
 function getTitle(p) {
   if (p.startsWith("/owner/home")) return "예약관리";
   if (p.startsWith("/owner/sales")) return "예약통계";
   if (p.startsWith("/owner/venue")) return "구장정보";
   if (p.startsWith("/owner/withdraw")) return "회원탈퇴";
+  if (p.startsWith("/owner/inquiry")) return "1:1 문의";
   if (p.startsWith("/owner/my")) return "내정보";
   if (p.startsWith("/owner/register")) return "구장 등록";
   if (p.startsWith("/owner/onboarding")) return "구장 등록";
@@ -94,28 +105,40 @@ function getTitle(p) {
 }
 
 // 구장 미등록(venue 없음) 오너는 워크스페이스로 못 들어가고 온보딩에 머문다.
-// (예외: 온보딩/등록/내정보/탈퇴 — 가입 직후 앱 진입 방지 + 로그아웃/탈퇴 경로는 열어둠)
+// (예외: 온보딩/등록/내정보/탈퇴/문의 — 가입 직후 앱 진입 방지 + 로그아웃/탈퇴/고객지원 경로는 열어둠)
 function OwnerGate() {
   const { loading, venue } = useOwner();
   const { pathname } = useLocation();
   const p = (pathname || "").toLowerCase();
-  const exempt = /\/owner\/(onboarding|register|withdraw|my)(\/|$)/.test(p);
+  const exempt = /\/owner\/(onboarding|register|withdraw|my|inquiry)(\/|$)/.test(p);
   if (loading) return <OwnerSpinner label="불러오는 중…" />;
   if (!venue && !exempt) return <Navigate to="/owner/onboarding" replace />;
   return <Outlet />;
 }
 
 export default function OwnerLayout() {
+  return (
+    <OwnerProvider>
+      <OwnerShell />
+    </OwnerProvider>
+  );
+}
+
+function OwnerShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useUI() || {};
+  const { loading, userDoc } = useOwner();
   const p = (location.pathname || "").toLowerCase();
 
   const hasTab = TAB_PATHS.some((t) => p.startsWith(t));
   const showBack = !hasTab && !p.endsWith("/owner") && !p.endsWith("/owner/");
 
+  // 필수 동의 전에는 워크스페이스 전체를 막고 동의 게이트를 띄운다.
+  if (!loading && !hasOwnerConsent(userDoc)) return <OwnerAgreementGate />;
+
   return (
-    <OwnerProvider>
+    <>
       <Wrap>
         <Header>
           {showBack && (
@@ -136,6 +159,6 @@ export default function OwnerLayout() {
 
         {toast && <ToastWrap>{toast.message}</ToastWrap>}
       </Wrap>
-    </OwnerProvider>
+    </>
   );
 }

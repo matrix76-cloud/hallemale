@@ -1,12 +1,16 @@
 /* eslint-disable */
 // src/pages/owner/OwnerMyPage.jsx
-// 내정보 — 계정 정보 + 로그아웃
+// 내정보 — 계정 정보 + 고객지원 + 약관/정책 + 로그아웃
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { useOwner } from "../../context/OwnerContext";
 import { Page, Card, SectionTitle, SectionDesc, GhostBtn, PrimaryBtn, Badge } from "./components/ownerUi";
+import OwnerFooter from "./components/OwnerFooter";
+
+// 스토어 배포 버전과 함께 올린다.
+const APP_VERSION = "1.0.0";
 
 const ProfRow = styled.div`
   display: flex;
@@ -52,6 +56,31 @@ const Logout = styled.button`
   font-weight: 700;
   cursor: pointer;
   &:active { transform: translateY(1px); }
+`;
+const NavRow = styled.button`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 14px;
+  cursor: pointer;
+  padding: 12px 2px;
+  & + & { border-top: 1px solid ${({ theme }) => theme.colors.border}; }
+  &:active { opacity: 0.7; }
+  & > span { color: ${({ theme }) => theme.colors.textWeak}; }
+`;
+const VersionRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.textNormal};
+  padding: 12px 2px;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  & > span { color: ${({ theme }) => theme.colors.textWeak}; }
 `;
 const WithdrawRow = styled.button`
   width: 100%;
@@ -125,12 +154,34 @@ export default function OwnerMyPage() {
       )}
 
       <Card>
+        <SectionTitle>고객지원</SectionTitle>
+        <NavRow type="button" onClick={() => navigate("/owner/inquiry")}>
+          1:1 문의 <span>›</span>
+        </NavRow>
+      </Card>
+
+      <Card>
+        <SectionTitle>약관 및 정책</SectionTitle>
+        <NavRow type="button" onClick={() => navigate("/owner/terms")}>
+          구장 관리자 이용약관 <span>›</span>
+        </NavRow>
+        <NavRow type="button" onClick={() => navigate("/owner/privacy")}>
+          개인정보처리방침 <span>›</span>
+        </NavRow>
+        <VersionRow>
+          앱 버전 <span>{APP_VERSION}</span>
+        </VersionRow>
+      </Card>
+
+      <Card>
         <SectionTitle>계정</SectionTitle>
         <Logout type="button" onClick={handleLogout} disabled={busy}>로그아웃</Logout>
         <WithdrawRow type="button" onClick={() => navigate("/owner/withdraw")}>
           회원탈퇴 <span>›</span>
         </WithdrawRow>
       </Card>
+
+      <OwnerFooter />
     </Page>
   );
 }

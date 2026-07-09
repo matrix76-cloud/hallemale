@@ -185,7 +185,6 @@ export default function OwnerVenuePage() {
     } finally { setSaving(false); }
   };
 
-  const handleLogout = async () => { if (!await showConfirm("로그아웃 하시겠어요?")) return; await signOut(); navigate("/owner/login", { replace: true }); };
 
   const configuredDates = Object.keys(court?.priceOverrides || {}).sort();
 
@@ -414,7 +413,6 @@ export default function OwnerVenuePage() {
       {/* 사업자 인증 (신뢰 배지) */}
       <BusinessSection venue={venue} refresh={refresh} />
 
-      <LogoutRow type="button" onClick={handleLogout}><LuLogOut size={16} /> 로그아웃</LogoutRow>
       <div style={{ height: 8 }} />
 
       {previewOpen && <VenuePreviewSheet venue={previewVenue} onClose={() => setPreviewOpen(false)} />}
