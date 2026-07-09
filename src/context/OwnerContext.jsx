@@ -6,6 +6,10 @@ import { useOwnerAuth } from "../hooks/useOwnerAuth";
 import { getMyVenue } from "../services/ownerVenueService";
 import { ownerSignOut } from "../services/ownerAuthService";
 import { getUserDoc } from "../services/userService";
+import { registerFcmToken } from "../services/fcmService";
+import { parseAppMessage, isInWebView, postToApp } from "../bridge/webviewBridge";
+import { db } from "../services/firebase";
+import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 
 const OwnerContext = createContext(null);
 
@@ -43,6 +47,48 @@ export function OwnerProvider({ children }) {
     if (authLoading) return;
     refresh();
   }, [authLoading, refresh]);
+
+  // 예약 알림 푸시 수신용 FCM 토큰 등록 (오너 uid = users 문서 id)
+  useEffect(() => {
+    if (!uid) return;
+
+    // 웹(비 WebView): 브라우저 알림 권한 → users/{uid}.fcmTokens
+    registerFcmToken(uid).catch(() => {});
+
+    // RN WebView(오너 네이티브 앱): 네이티브가 토큰 전달 → users/{uid}.fcmTokens(객체형)
+    const saveRnToken = async (payload) => {
+      const token = String(payload?.token || "").trim();
+      if (!token) return;
+      const platform = String(payload?.platform || payload?.os || "").toLowerCase() || "rn";
+      try {
+        await updateDoc(doc(db, "users", uid), {
+          fcmTokens: arrayUnion({ token, platform, updatedAt: new Date().toISOString() }),
+          updatedAt: serverTimestamp(),
+        });
+      } catch (e) {
+        console.warn("[OwnerContext] RN FCM token save failed:", e?.message || e);
+      }
+    };
+
+    const handler = (event) => {
+      const msg = parseAppMessage(event.data);
+      if (!msg) return;
+      if (msg.type !== "PUSH_TOKEN" && msg.type !== "FCM_TOKEN") return;
+      saveRnToken(msg.payload);
+    };
+
+    // iOS=window / Android=document 둘 다 등록
+    window.addEventListener("message", handler);
+    if (typeof document !== "undefined") document.addEventListener("message", handler);
+
+    // pull 모델 대비 토큰 명시 요청 (proactive면 no-op)
+    if (isInWebView()) postToApp("GET_PUSH_TOKEN", {});
+
+    return () => {
+      window.removeEventListener("message", handler);
+      if (typeof document !== "undefined") document.removeEventListener("message", handler);
+    };
+  }, [uid]);
 
   const signOut = useCallback(async () => {
     try { await ownerSignOut(); } catch {}
