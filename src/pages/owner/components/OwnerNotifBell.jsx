@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { LuBell } from "react-icons/lu";
 import { useOwner } from "../../../context/OwnerContext";
 import { subscribeNotificationsForUser, computeReadForUi } from "../../../services/notificationService";
+import { C } from "./od";
 
 export default function OwnerNotifBell({ onClick }) {
   const { uid } = useOwner();
@@ -37,7 +38,7 @@ const BellBtn = styled.button`
   height: 40px;
   border: none;
   background: transparent;
-  color: #fff;
+  color: ${C.slate800};
   cursor: pointer;
   display: flex;
   align-items: center;
