@@ -131,6 +131,7 @@ import OwnerStatusPage from "../pages/owner/OwnerStatusPage";
 import OwnerHomePage from "../pages/owner/OwnerHomePage";
 import OwnerVenuePage from "../pages/owner/OwnerVenuePage";
 import OwnerMyPage from "../pages/owner/OwnerMyPage";
+import OwnerWithdrawPage from "../pages/owner/OwnerWithdrawPage";
 import OwnerSalesPage from "../pages/owner/OwnerSalesPage";
 
 function RequireAuth({ children }) {
@@ -510,6 +511,7 @@ export default function AppRoutes() {
           <Route path="/owner/sales" element={<OwnerSalesPage />} />
           <Route path="/owner/venue" element={<OwnerVenuePage />} />
           <Route path="/owner/my" element={<OwnerMyPage />} />
+          <Route path="/owner/withdraw" element={<OwnerWithdrawPage />} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

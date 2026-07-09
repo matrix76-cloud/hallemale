@@ -53,6 +53,17 @@ const Logout = styled.button`
   cursor: pointer;
   &:active { transform: translateY(1px); }
 `;
+const WithdrawLink = styled.button`
+  width: 100%;
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 4px 0;
+`;
 
 export default function OwnerMyPage() {
   const navigate = useNavigate();
@@ -109,6 +120,9 @@ export default function OwnerMyPage() {
 
       <Card>
         <Logout type="button" onClick={handleLogout} disabled={busy}>로그아웃</Logout>
+        <WithdrawLink type="button" onClick={() => navigate("/owner/withdraw")}>
+          구장주 자격 해지
+        </WithdrawLink>
       </Card>
     </Page>
   );

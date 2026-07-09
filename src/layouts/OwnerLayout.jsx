@@ -84,6 +84,7 @@ function getTitle(p) {
   if (p.startsWith("/owner/home")) return "예약관리";
   if (p.startsWith("/owner/sales")) return "예약통계";
   if (p.startsWith("/owner/venue")) return "구장정보";
+  if (p.startsWith("/owner/withdraw")) return "구장주 해지";
   if (p.startsWith("/owner/my")) return "내정보";
   if (p.startsWith("/owner/register")) return "구장 등록";
   if (p.startsWith("/owner/pending")) return "심사 현황";
