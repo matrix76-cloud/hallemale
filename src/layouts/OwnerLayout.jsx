@@ -159,7 +159,6 @@ function OwnerShell() {
 
   const hasTab = TAB_PATHS.some((t) => p.startsWith(t));
   const showBack = !hasTab && !p.endsWith("/owner") && !p.endsWith("/owner/");
-  const isOnboarding = p.startsWith("/owner/onboarding");
 
   // 필수 동의 전에는 워크스페이스 전체를 막고 동의 게이트를 띄운다.
   if (!loading && !hasOwnerConsent(userDoc)) return <OwnerAgreementGate />;
@@ -173,13 +172,13 @@ function OwnerShell() {
               ‹
             </BackBtn>
           )}
-          {!isOnboarding && (
+          {hasTab && (
             <Brand>
               <BrandLogo src={images.logo} alt="할래말래 로고" />
               <BrandName>할래말래</BrandName>
             </Brand>
           )}
-          <CenterTitle>{getTitle(p)}</CenterTitle>
+          {!hasTab && <CenterTitle>{getTitle(p)}</CenterTitle>}
           {hasTab && <OwnerNotifBell onClick={() => navigate("/owner/notifications")} />}
         </Header>
 
