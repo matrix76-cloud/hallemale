@@ -23,6 +23,7 @@ import {
 } from "./components/ownerUi";
 import OwnerSpinner from "./components/OwnerSpinner";
 import CourtHoursEditor from "./components/CourtHoursEditor";
+import VenueLocationPicker from "./components/VenueLocationPicker";
 import { openDaumPostcode } from "./components/addressSearch";
 
 const DEFAULT_REFUND =
@@ -232,6 +233,16 @@ export default function OwnerOnboardingPage() {
               <Label>상세 주소</Label>
               <Input value={form.addressDetail} onChange={(e) => set({ addressDetail: e.target.value })} placeholder="예: 지하 2층 / B동" />
             </Field>
+            {form.address && (
+              form.lat && form.lng ? (
+                <Field>
+                  <Label>지도 위치 <Opt>(핀을 드래그해 정확한 위치로 맞춰주세요)</Opt></Label>
+                  <VenueLocationPicker lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => set({ lat, lng })} height={200} />
+                </Field>
+              ) : (
+                <StepHint>이 주소는 지도 좌표를 찾지 못했어요. 상세 주소를 확인하거나 다른 형식으로 다시 검색해보세요.</StepHint>
+              )
+            )}
             <Field>
               <Label>찾아오는 길 <Opt>(선택)</Opt></Label>
               <Textarea value={form.directions} onChange={(e) => set({ directions: e.target.value })} placeholder="예: 6호선 이태원역 3번 출구 도보 5분, 건물 뒤편 입구로 들어오세요" />

@@ -13,6 +13,8 @@ import { useOwner } from "../../context/OwnerContext";
 import { updateMyVenue, defaultCourtHours, FACILITY_OPTIONS, SPORT_OPTIONS, SURFACE_OPTIONS, DAY_KEYS, DAY_LABELS } from "../../services/ownerVenueService";
 import { uploadVenueImage } from "../../services/venuesService";
 import CourtHoursEditor from "./components/CourtHoursEditor";
+import VenueLocationPicker from "./components/VenueLocationPicker";
+import { openDaumPostcode } from "./components/addressSearch";
 import PriceBandsEditor from "./components/PriceBandsEditor";
 import BusinessSection from "./components/BusinessSection";
 import VenuePreviewSheet from "./components/VenuePreviewSheet";
@@ -25,6 +27,7 @@ import OwnerSpinner from "./components/OwnerSpinner";
 
 const VName = styled.div`font-size:18px;font-weight:800;color:${C.slate800};`;
 const VAddr = styled.div`font-size:13px;color:${C.slate500};`;
+const AddrBtn = styled.button`height:44px;padding:0 14px;border-radius:12px;border:1px solid ${C.slate200};background:#fff;color:${({$filled})=>$filled?C.slate800:C.slate400};font-size:14px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;& .s{color:${C.violet600};font-weight:700;font-size:13px;flex-shrink:0;}`;
 const ChipRow = styled.div`display:flex;gap:8px;overflow-x:auto;&::-webkit-scrollbar{display:none;}`;
 const Row = styled.div`display:flex;gap:10px;& > *{flex:1;min-width:0;}`;
 const Field = styled.label`display:flex;flex-direction:column;gap:6px;flex:1;`;
@@ -76,6 +79,10 @@ export default function OwnerVenuePage() {
   const [directions, setDirections] = useState("");
   const [keywords, setKeywords] = useState([]);
   const [keywordInput, setKeywordInput] = useState("");
+  const [address, setAddress] = useState("");
+  const [addressDetail, setAddressDetail] = useState("");
+  const [region, setRegion] = useState("");
+  const [latLng, setLatLng] = useState({ lat: "", lng: "" });
   const [displayMode, setDisplayMode] = useState("grouped");
   const [displayName, setDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -103,6 +110,10 @@ export default function OwnerVenuePage() {
     });
     setDirections(venue.directions || "");
     setKeywords(venue.keywords || []);
+    setAddress(venue.address || "");
+    setAddressDetail(venue.addressDetail || "");
+    setRegion(venue.region || "");
+    setLatLng({ lat: venue.lat ?? "", lng: venue.lng ?? "" });
     setDisplayMode(venue.displayMode || "grouped");
     setDisplayName(venue.displayName || venue.name || "");
     setPhotos((venue.photos || []).map((url, i) => ({ url, storagePath: venue.storagePaths?.[i] || "" })));
@@ -121,6 +132,9 @@ export default function OwnerVenuePage() {
   const removeCourt = () => { if (courts.length <= 1) return; setCourts((cs) => cs.filter((_, i) => i !== sel)); setSel(0); };
   const toggleFac = (f) => setFacilities((fs) => fs.includes(f) ? fs.filter((x) => x !== f) : [...fs, f]);
   const toggleSport = (s) => setSportTypes((ss) => ss.includes(s) ? ss.filter((x) => x !== s) : [...ss, s]);
+  const handleAddressSearch = () => openDaumPostcode(({ address, region, lat, lng }) => {
+    setAddress(address); setRegion(region); setLatLng({ lat: lat ?? "", lng: lng ?? "" });
+  });
   const addKeyword = () => {
     const k = keywordInput.trim().replace(/^#/, "");
     if (!k) return;
@@ -162,6 +176,7 @@ export default function OwnerVenuePage() {
       await updateMyVenue(venue.id, {
         courts, facilities, displayMode, displayName,
         sportTypes, parking, directions, keywords,
+        address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
         photos: photos.map((p) => p.url),
         storagePaths: photos.map((p) => p.storagePath),
         description, phone, rules, refundPolicy,
@@ -183,6 +198,7 @@ export default function OwnerVenuePage() {
     imageUrl: photos[0]?.url || venue.imageUrl,
     facilities, description, phone, rules, refundPolicy,
     sportTypes, parking, directions, keywords,
+    address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
     displayMode, displayName,
     courts: courts.map((c) => ({ ...c, pricePerHour: Number(c.pricePerHour) || 0 })),
   };
@@ -215,7 +231,18 @@ export default function OwnerVenuePage() {
 
       <Card>
         <VName>{venue.name}</VName>
-        <VAddr>{venue.address} {venue.addressDetail}</VAddr>
+        <SecTitle><LuMapPin size={16} /> 위치</SecTitle>
+        <Caption>주소 변경 후 지도에서 핀을 드래그해 정확한 위치로 맞춰주세요.</Caption>
+        <AddrBtn type="button" onClick={handleAddressSearch} $filled={!!address}>
+          <span>{address || "주소 검색하기"}</span>
+          <span className="s">🔍 검색</span>
+        </AddrBtn>
+        <Field><Lbl>상세 주소</Lbl><Input value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)} placeholder="예: 지하 2층 / B동" /></Field>
+        {latLng.lat && latLng.lng ? (
+          <VenueLocationPicker lat={latLng.lat} lng={latLng.lng} onChange={({ lat, lng }) => setLatLng({ lat, lng })} height={190} />
+        ) : (
+          <Caption>주소를 검색하면 지도에 위치가 표시돼요.</Caption>
+        )}
       </Card>
 
       {/* 종목 — 사용자 검색·필터 및 상세 상단 태그 */}
