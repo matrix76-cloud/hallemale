@@ -1,11 +1,16 @@
 /* eslint-disable */
 // src/pages/owner/OwnerLoginPage.jsx
-// 구장 관리자 로그인 — 소셜 로그인(카카오/구글) 재활용 + role=owner 마킹
-import { showAlert, showConfirm } from "../../utils/appDialog";
+// 구장 관리자 로그인 — 이메일/비밀번호 (사용자 앱 소셜 로그인과 분리)
+// 한 화면에서 로그인 / 회원가입 / 비밀번호 찾기 3모드.
+import { showAlert } from "../../utils/appDialog";
 import React, { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { ownerSignInWithSocial } from "../../services/ownerAuthService";
+import {
+  ownerSignInEmail,
+  ownerSignUpEmail,
+  ownerSendPasswordReset,
+} from "../../services/ownerAuthService";
 import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
 
@@ -13,9 +18,13 @@ export default function OwnerLoginPage() {
   const navigate = useNavigate();
   // 사용자 앱과 분리된 구장주 전용 세션(ownerAuth) 기준
   const { isLoggedIn, uid } = useOwnerAuth();
+  const [mode, setMode] = useState("login"); // login | signup | reset
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // 구장주 인증이 끝나면(팝업/redirect 복귀 모두) 즉시 /owner 로 이동한다.
+  // 구장주 인증이 끝나면 즉시 /owner 로 이동한다.
   useEffect(() => {
     if (isLoggedIn && uid) {
       markUserAsOwner(uid).catch(() => {});
@@ -23,56 +32,129 @@ export default function OwnerLoginPage() {
     }
   }, [isLoggedIn, uid, navigate]);
 
-  const doLogin = async (provider) => {
+  const switchMode = (m) => {
+    setMode(m);
+    setPassword("");
+    setPassword2("");
+  };
+
+  const handleSubmit = async (e) => {
+    e?.preventDefault?.();
     if (busy) return;
+
+    if (mode === "reset") {
+      setBusy(true);
+      try {
+        const res = await ownerSendPasswordReset(email);
+        if (res.success) {
+          showAlert("비밀번호 재설정 메일을 보냈어요.\n메일함(스팸함 포함)을 확인해주세요.");
+          switchMode("login");
+        } else {
+          showAlert(res.error_message || "메일 발송에 실패했어요.");
+        }
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (mode === "signup" && password !== password2) {
+      showAlert("비밀번호가 일치하지 않아요.");
+      return;
+    }
+
     setBusy(true);
     try {
-      const res = await ownerSignInWithSocial({ provider, keepLogin: true });
+      const res =
+        mode === "signup"
+          ? await ownerSignUpEmail({ email, password, keepLogin: true })
+          : await ownerSignInEmail({ email, password, keepLogin: true });
       if (!res || res.success !== true) {
-        const code = res?.error_code || "";
-        if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-          // 사용자가 닫음 — 무시
-        } else if (code === "web_unsupported" || code === "not_in_app") {
-          showAlert(`${provider === "kakao" ? "카카오" : "구글"} 로그인은 앱에서 이용해주세요.`);
-        } else {
-          showAlert("로그인에 실패했어요. 잠시 후 다시 시도해주세요.");
-        }
+        showAlert(res?.error_message || "요청을 처리하지 못했어요.");
         return;
       }
       // 성공 시 화면 전환은 위 useEffect(인증 상태 변화 감지)에 일임한다.
-      // 여기서 navigate 하면 isLoggedIn 반영 전이라 RequireOwnerAuth 가 다시
-      // /owner/login 으로 튕겨내는 레이스가 생긴다. (redirect 방식은 이미 페이지 이탈)
-    } catch (e) {
-      showAlert("로그인에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setBusy(false);
     }
   };
+
+  const title =
+    mode === "signup" ? "구장 관리자 회원가입" : mode === "reset" ? "비밀번호 찾기" : "할래말래 구장 관리자";
+  const sub =
+    mode === "signup"
+      ? "이메일과 비밀번호로 가입하세요"
+      : mode === "reset"
+      ? "가입한 이메일로 재설정 링크를 보내드려요"
+      : "내 구장을 등록하고 예약을 관리하세요";
+  const submitLabel =
+    mode === "signup" ? "가입하기" : mode === "reset" ? "재설정 메일 보내기" : "로그인";
 
   return (
     <Wrap>
       {busy && (
         <Overlay>
           <Spinner />
-          <OverlayText>로그인 중…</OverlayText>
+          <OverlayText>처리 중…</OverlayText>
         </Overlay>
       )}
 
       <Hero>
         <Logo>🏟️</Logo>
-        <Title>할래말래 구장 관리자</Title>
-        <Sub>내 구장을 등록하고 예약을 관리하세요</Sub>
+        <Title>{title}</Title>
+        <Sub>{sub}</Sub>
       </Hero>
 
       <Spacer />
 
-      <Bottom>
-        <KakaoBtn type="button" onClick={() => doLogin("kakao")} disabled={busy}>
-          카카오로 시작하기
-        </KakaoBtn>
-        <GoogleBtn type="button" onClick={() => doLogin("google")} disabled={busy}>
-          구글로 시작하기
-        </GoogleBtn>
+      <Bottom onSubmit={handleSubmit} as="form">
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="이메일"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={busy}
+        />
+        {mode !== "reset" && (
+          <Input
+            type="password"
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            placeholder="비밀번호"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={busy}
+          />
+        )}
+        {mode === "signup" && (
+          <Input
+            type="password"
+            autoComplete="new-password"
+            placeholder="비밀번호 확인"
+            value={password2}
+            onChange={(e) => setPassword2(e.target.value)}
+            disabled={busy}
+          />
+        )}
+
+        <SubmitBtn type="submit" disabled={busy}>
+          {submitLabel}
+        </SubmitBtn>
+
+        <Links>
+          {mode === "login" && (
+            <>
+              <LinkBtn type="button" onClick={() => switchMode("signup")}>회원가입</LinkBtn>
+              <Dot>·</Dot>
+              <LinkBtn type="button" onClick={() => switchMode("reset")}>비밀번호 찾기</LinkBtn>
+            </>
+          )}
+          {mode !== "login" && (
+            <LinkBtn type="button" onClick={() => switchMode("login")}>로그인으로 돌아가기</LinkBtn>
+          )}
+        </Links>
+
         <Notice>구장 관리자 전용 로그인입니다.</Notice>
       </Bottom>
     </Wrap>
@@ -94,7 +176,7 @@ const Wrap = styled.div`
 
 const Hero = styled.div`
   width: 100%;
-  padding: 80px 24px 40px;
+  padding: 72px 24px 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -106,19 +188,21 @@ const Logo = styled.div`font-size: 72px; line-height: 1;`;
 const Title = styled.div`
   margin-top: 8px;
   font-weight: 800;
-  font-size: 26px;
+  font-size: 24px;
   color: ${({ theme }) => theme.colors.textStrong};
   letter-spacing: -0.02em;
+  text-align: center;
 `;
 
 const Sub = styled.div`
   font-size: 15px;
   color: ${({ theme }) => theme.colors.textWeak};
+  text-align: center;
 `;
 
-const Spacer = styled.div`flex: 1 1 auto; min-height: 24px;`;
+const Spacer = styled.div`flex: 1 1 auto; min-height: 16px;`;
 
-const Bottom = styled.div`
+const Bottom = styled.form`
   width: 100%;
   max-width: 400px;
   padding: 20px 20px calc(36px + env(safe-area-inset-bottom));
@@ -129,33 +213,56 @@ const Bottom = styled.div`
   animation: ${fadeIn} 0.45s ease-out both;
 `;
 
-const KakaoBtn = styled.button`
+const Input = styled.input`
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 15px;
+  font-family: inherit;
+  &:focus { outline: none; border-color: ${({ theme }) => theme.colors.primary}; }
+  &::placeholder { color: ${({ theme }) => theme.colors.textWeak}; }
+  &:disabled { opacity: 0.6; }
+`;
+
+const SubmitBtn = styled.button`
   width: 100%;
   height: 52px;
   border-radius: 10px;
   border: none;
-  background: #fee500;
-  color: #191600;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
+  margin-top: 4px;
   &:active { transform: translateY(1px); }
-  &:disabled { opacity: 0.5; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
-const GoogleBtn = styled.button`
-  width: 100%;
-  height: 52px;
-  border-radius: 10px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: #fff;
-  color: #3c4043;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  &:active { transform: translateY(1px); }
-  &:disabled { opacity: 0.5; }
+const Links = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 0;
 `;
+
+const LinkBtn = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px;
+`;
+
+const Dot = styled.span`color: ${({ theme }) => theme.colors.textWeak};`;
 
 const Notice = styled.div`
   text-align: center;

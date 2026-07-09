@@ -15,6 +15,9 @@ import {
   getRedirectResult,
   signInWithCredential,
   signInWithCustomToken,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
 } from "firebase/auth";
 import { ensureUserDoc } from "./userService";
@@ -41,6 +44,76 @@ export function watchOwnerAuth(onChange) {
 export async function ownerSignOut() {
   await signOut(ownerAuth);
   return true;
+}
+
+/* ============================================================
+ * 이메일/비밀번호 로그인 (구장주 전용)
+ *  - 사용자 앱은 소셜 로그인, 구장주 앱은 아이디(이메일)/비번으로 분리.
+ *  - 소셜과 uid 네임스페이스가 분리되어, 구장주 회원탈퇴 시 계정을 통삭제해도
+ *    같은 사람의 '선수' 소셜 계정에는 영향이 없다.
+ * ========================================================== */
+
+const OWNER_PW_MIN = 6;
+
+function ownerAuthErrorMessage(code) {
+  switch (String(code || "")) {
+    case "auth/invalid-email": return "이메일 형식이 올바르지 않아요.";
+    case "auth/email-already-in-use": return "이미 가입된 이메일이에요. 로그인해주세요.";
+    case "auth/weak-password": return `비밀번호는 ${OWNER_PW_MIN}자 이상이어야 해요.`;
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential": return "이메일 또는 비밀번호가 올바르지 않아요.";
+    case "auth/too-many-requests": return "시도가 너무 많아요. 잠시 후 다시 시도해주세요.";
+    case "auth/network-request-failed": return "네트워크 오류예요. 연결을 확인해주세요.";
+    default: return "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.";
+  }
+}
+
+/** 구장주 이메일 회원가입 → users 문서 보장 + role=owner 마킹은 로그인 화면에서 처리 */
+export async function ownerSignUpEmail({ email, password, keepLogin = true }) {
+  const em = s(email).toLowerCase();
+  const pw = s(password);
+  if (!em) return { success: false, error_message: "이메일을 입력해주세요." };
+  if (pw.length < OWNER_PW_MIN) return { success: false, error_message: `비밀번호는 ${OWNER_PW_MIN}자 이상이어야 해요.` };
+  try {
+    await setPersistence(ownerAuth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
+    const cred = await createUserWithEmailAndPassword(ownerAuth, em, pw);
+    const uid = s(cred?.user?.uid);
+    if (!uid) return { success: false, error_code: "no_uid" };
+    await ensureUserDoc({ uid, email: em, provider: "password" });
+    return { success: true, uid };
+  } catch (e) {
+    return { success: false, error_code: e?.code, error_message: ownerAuthErrorMessage(e?.code) };
+  }
+}
+
+/** 구장주 이메일 로그인 */
+export async function ownerSignInEmail({ email, password, keepLogin = true }) {
+  const em = s(email).toLowerCase();
+  const pw = s(password);
+  if (!em || !pw) return { success: false, error_message: "이메일과 비밀번호를 입력해주세요." };
+  try {
+    await setPersistence(ownerAuth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
+    const cred = await signInWithEmailAndPassword(ownerAuth, em, pw);
+    const uid = s(cred?.user?.uid);
+    if (!uid) return { success: false, error_code: "no_uid" };
+    await ensureUserDoc({ uid, email: em, provider: "password" });
+    return { success: true, uid };
+  } catch (e) {
+    return { success: false, error_code: e?.code, error_message: ownerAuthErrorMessage(e?.code) };
+  }
+}
+
+/** 구장주 비밀번호 재설정 메일 발송 */
+export async function ownerSendPasswordReset(email) {
+  const em = s(email).toLowerCase();
+  if (!em) return { success: false, error_message: "이메일을 입력해주세요." };
+  try {
+    await sendPasswordResetEmail(ownerAuth, em);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error_code: e?.code, error_message: ownerAuthErrorMessage(e?.code) };
+  }
 }
 
 /** 구글 redirect 복귀 결과 소비(모바일 브라우저) */

@@ -121,7 +121,7 @@ export default function OwnerMyPage() {
       <Card>
         <Logout type="button" onClick={handleLogout} disabled={busy}>로그아웃</Logout>
         <WithdrawLink type="button" onClick={() => navigate("/owner/withdraw")}>
-          구장주 자격 해지
+          회원탈퇴
         </WithdrawLink>
       </Card>
     </Page>

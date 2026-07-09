@@ -1,12 +1,12 @@
 /* eslint-disable */
 // src/pages/owner/OwnerWithdrawPage.jsx
-// 구장주 자격 해지("회원탈퇴") — 오너 데이터 영구 삭제. 계정(로그인)은 유지.
+// 구장주 회원탈퇴 — 계정·오너 데이터 영구 삭제 (복구 불가).
 import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import { useOwner } from "../../context/OwnerContext";
-import { resignOwner } from "../../services/ownerWithdrawService";
+import { withdrawOwnerAccount } from "../../services/ownerWithdrawService";
 import { Page, Card, SectionTitle, Input, Field, Label } from "./components/ownerUi";
 
 const Notice = styled.div`
@@ -60,7 +60,7 @@ const DangerBtn = styled.button`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
-const CONFIRM_TEXT = "해지합니다";
+const CONFIRM_TEXT = "탈퇴합니다";
 
 export default function OwnerWithdrawPage() {
   const navigate = useNavigate();
@@ -73,14 +73,19 @@ export default function OwnerWithdrawPage() {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    if (!(await showConfirm("정말 구장주 자격을 해지하시겠습니까?\n등록한 구장과 예약 내역은 영구 삭제되며 복구할 수 없습니다."))) return;
+    if (!(await showConfirm("정말 탈퇴하시겠습니까?\n계정과 등록한 구장·예약 내역은 영구 삭제되며 복구할 수 없습니다."))) return;
     setBusy(true);
     try {
-      await resignOwner();
-      showAlert("구장주 자격 해지가 완료되었습니다.\n그동안 이용해주셔서 감사합니다.");
+      await withdrawOwnerAccount();
+      showAlert("회원탈퇴가 완료되었습니다.\n그동안 이용해주셔서 감사합니다.");
       navigate("/owner/login", { replace: true });
     } catch (e) {
-      showAlert(e?.message || "해지 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      const code = String(e?.code || "");
+      if (code === "auth/requires-recent-login") {
+        showAlert("보안을 위해 다시 로그인이 필요합니다.\n로그아웃 후 다시 로그인하시고 탈퇴를 진행해주세요.");
+      } else {
+        showAlert(e?.message || "탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      }
       setBusy(false);
     }
   };
@@ -88,19 +93,17 @@ export default function OwnerWithdrawPage() {
   return (
     <Page>
       <Card>
-        <SectionTitle>구장주 자격 해지</SectionTitle>
+        <SectionTitle>회원탈퇴</SectionTitle>
         <Notice>
-          해지 시 아래 데이터가 <b>영구 삭제</b>됩니다 (복구 불가).
+          탈퇴 시 <b>계정과 아래 데이터가 영구 삭제</b>됩니다 (복구 불가).
           <Bullet>
+            <li>구장 관리자 계정(로그인 정보)</li>
             <li>등록한 구장 정보{venue?.name ? ` (${venue.name})` : ""}·코트</li>
             <li>모든 예약 내역 (승인대기·확정 예약 포함)</li>
             <li>막아둔 시간, 정산 계좌 등 구장 설정</li>
           </Bullet>
           <div style={{ marginTop: 10, fontSize: 12, color: "#7f1d1d" }}>
-            ※ 승인대기·확정된 예약이 남아있다면 먼저 예약자에게 안내한 뒤 해지해주세요. 해지 시 예약도 함께 삭제됩니다.
-          </div>
-          <div style={{ marginTop: 6, fontSize: 12, color: "#7f1d1d" }}>
-            ※ 로그인 계정 자체는 삭제되지 않습니다. 같은 계정의 선수(사용자) 앱 이용에는 영향이 없습니다.
+            ※ 승인대기·확정된 예약이 남아있다면 먼저 예약자에게 안내한 뒤 탈퇴해주세요. 탈퇴 시 예약도 함께 삭제됩니다.
           </div>
         </Notice>
       </Card>
@@ -112,7 +115,7 @@ export default function OwnerWithdrawPage() {
             checked={agree}
             onChange={(e) => setAgree(e.target.checked)}
           />
-          위 내용을 확인했으며, 구장주 자격 해지에 동의합니다.
+          위 내용을 확인했으며, 회원탈퇴에 동의합니다.
         </Check>
         <Field>
           <Label>
@@ -130,7 +133,7 @@ export default function OwnerWithdrawPage() {
             취소
           </CancelBtn>
           <DangerBtn type="button" onClick={handleSubmit} disabled={!canSubmit}>
-            {busy ? "해지 처리중…" : "구장주 해지"}
+            {busy ? "탈퇴 처리중…" : "회원탈퇴"}
           </DangerBtn>
         </Actions>
       </Card>

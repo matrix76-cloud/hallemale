@@ -1,15 +1,14 @@
 /* eslint-disable */
 // src/services/ownerWithdrawService.js
-// 구장주 자격 해지("회원탈퇴") — 오너 데이터만 제거.
+// 구장주 회원탈퇴 — 계정 영구 삭제 (Apple 5.1.1(v) / Google Play 대응).
 //
-// ⚠️ 오너 로그인 uid는 사용자 앱과 같은 Firebase 프로젝트를 공유한다.
-//    그래서 여기서는 Firebase Auth 계정을 삭제하지 않는다.
-//    (계정을 지우면 같은 소셜 계정으로 쓰던 '선수' 데이터까지 사라짐)
-//    삭제 대상:
-//      - 내 구장(venues, ownerUid==uid)
-//      - 그 구장의 예약(venueReservations) / 막아둔 시간(venueBlocks)
-//      - users/{uid}.role="owner" 플래그 해제 (문서 자체는 유지)
-//    마지막으로 ownerAuth 세션만 로그아웃.
+// 구장주 계정은 이메일/비밀번호 로그인이라 uid가 사용자 앱(소셜)과 분리된다.
+// 따라서 계정을 통삭제해도 같은 사람의 '선수' 데이터에는 영향이 없다.
+//
+// 순서:
+//   1) 오너 데이터 삭제(구장·예약·차단) — 계정 삭제 전, 아직 인증이 살아있을 때
+//   2) 서버(deleteAccount, Admin SDK)로 users 문서 + Auth 계정 삭제 (requires-recent-login 없음)
+//      실패 시 클라이언트 deleteUser 폴백
 
 import { db, ownerAuth } from "./firebase";
 import {
@@ -19,10 +18,11 @@ import {
   getDocs,
   deleteDoc,
   doc,
-  updateDoc,
-  serverTimestamp,
 } from "firebase/firestore";
-import { ownerSignOut } from "./ownerAuthService";
+import { deleteUser, signOut } from "firebase/auth";
+
+const DELETE_ACCOUNT_URL =
+  "https://asia-northeast3-halle-bf789.cloudfunctions.net/deleteAccount";
 
 function s(v) {
   return String(v ?? "").trim();
@@ -36,30 +36,20 @@ async function safeDelete(ref, label) {
   }
 }
 
-// 특정 필드값으로 컬렉션 문서 조회 후 전량 삭제 (단일 where)
+// 단일 where 조회 후 전량 삭제
 async function deleteByField(col, field, value) {
   const v = s(value);
-  if (!v) return 0;
+  if (!v) return;
   try {
     const snap = await getDocs(query(collection(db, col), where(field, "==", v)));
     await Promise.all(snap.docs.map((d) => safeDelete(d.ref, `${col}/${d.id}`)));
-    return snap.size;
   } catch (e) {
     console.warn(`[ownerWithdraw] query ${col}.${field} failed:`, e?.message || e);
-    return 0;
   }
 }
 
-/**
- * 구장주 자격 해지 — 오너 데이터 제거 + 로그아웃 (계정은 유지).
- * best-effort: 각 단계 독립 처리, 일부 실패해도 해지를 막지 않는다.
- */
-export async function resignOwner() {
-  const user = ownerAuth.currentUser;
-  if (!user) throw new Error("로그인 상태가 아닙니다.");
-  const uid = s(user.uid);
-
-  // 1) 내 구장 목록 (ownerUid == uid)
+/** 내 구장·예약·차단 데이터 삭제 (계정 삭제 전 실행) */
+async function purgeOwnerData(uid) {
   let venueIds = [];
   try {
     const snap = await getDocs(
@@ -69,35 +59,54 @@ export async function resignOwner() {
   } catch (e) {
     console.warn("[ownerWithdraw] list venues failed:", e?.message || e);
   }
-
-  // 2) 각 구장의 예약 / 막아둔 시간 삭제
   for (const vid of venueIds) {
     await deleteByField("venueReservations", "venueId", vid);
     await deleteByField("venueBlocks", "venueId", vid);
   }
-  // 2-1) ownerUid로 걸린 잔여 예약(레거시 venueId 누락 등) 정리
+  // ownerUid로 걸린 잔여 예약(venueId 누락 등) 정리
   await deleteByField("venueReservations", "ownerUid", uid);
-
-  // 3) 구장 문서 삭제
   for (const vid of venueIds) {
     await safeDelete(doc(db, "venues", vid), `venues/${vid}`);
   }
+}
 
-  // 4) users 문서의 구장주 플래그 해제 (문서 자체는 유지 — 선수 계정 공유)
+/** Auth 계정 삭제 — 서버(Admin SDK) 우선, 실패 시 클라이언트 폴백 */
+async function deleteAuthAccount(user) {
   try {
-    await updateDoc(doc(db, "users", uid), {
-      role: "user",
-      isVenueOwner: false,
-      updatedAt: serverTimestamp(),
+    const idToken = await user.getIdToken();
+    const r = await fetch(DELETE_ACCOUNT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
     });
+    if (r.ok) {
+      await signOut(ownerAuth).catch(() => {});
+      return;
+    }
+    console.warn("[ownerWithdraw] server deleteAccount failed, fallback:", r.status);
   } catch (e) {
-    console.warn("[ownerWithdraw] clear owner role failed:", e?.message || e);
+    console.warn("[ownerWithdraw] server deleteAccount error, fallback:", e?.message || e);
   }
+  // 폴백: 클라이언트 삭제 (requires-recent-login 가능 → 상위에서 안내)
+  await deleteUser(user);
+}
 
-  // 5) ownerAuth 세션 로그아웃 (계정 삭제 아님)
-  try {
-    await ownerSignOut();
-  } catch (e) {
-    console.warn("[ownerWithdraw] signOut failed:", e?.message || e);
-  }
+/**
+ * 구장주 회원탈퇴 — 오너 데이터 삭제 + 계정 영구 삭제.
+ *
+ * 예외:
+ *  - "auth/requires-recent-login": 서버 삭제 실패 + 클라 폴백도 최근 로그인 요구 시
+ */
+export async function withdrawOwnerAccount() {
+  const user = ownerAuth.currentUser;
+  if (!user) throw new Error("로그인 상태가 아닙니다.");
+  const uid = s(user.uid);
+
+  // 1) 오너 데이터 삭제 (계정 살아있을 때)
+  await purgeOwnerData(uid);
+
+  // 2) Auth 계정 + users 문서 삭제 (서버 우선 / 클라 폴백)
+  await deleteAuthAccount(user);
 }
