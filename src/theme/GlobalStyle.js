@@ -2,50 +2,10 @@
 /* eslint-disable */
 import { createGlobalStyle } from "styled-components";
 
+// @font-face 는 public/fonts/pretendard.css 로 옮겼다 (scripts/subset-fonts.py 가 생성).
+// 굵기당 통짜 770KB 대신 상용 2,350자 subset(약 205KB) + 나머지 ext 로 나눠, 일반 화면은
+// subset 만 받는다. index.html 이 해당 CSS 를 <link> 로 로드한다.
 const GlobalStyle = createGlobalStyle`
-
-  @font-face {
-    font-family: "Pretendard";
-    font-style: normal;
-    font-weight: 400;
-    src: url("/fonts/Pretendard-Regular.woff2") format("woff2");
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Pretendard";
-    font-style: normal;
-    font-weight: 500;
-    src: url("/fonts/Pretendard-Medium.woff2") format("woff2");
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Pretendard";
-    font-style: normal;
-    font-weight: 600;
-    src: url("/fonts/Pretendard-SemiBold.woff2") format("woff2");
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Pretendard";
-    font-style: normal;
-    font-weight: 700;
-    src: url("/fonts/Pretendard-Bold.woff2") format("woff2");
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Pretendard";
-    font-style: normal;
-    font-weight: 800;
-    src: url("/fonts/Pretendard-ExtraBold.woff2") format("woff2");
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Pretendard";
-    font-style: normal;
-    font-weight: 900;
-    src: url("/fonts/Pretendard-Black.woff2") format("woff2");
-    font-display: swap;
-  }
 
   *, *::before, *::after {
     box-sizing: border-box;

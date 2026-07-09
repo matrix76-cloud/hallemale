@@ -25,11 +25,11 @@ export function hardScrollReset() {
         seen.add(el);
 
         try {
-            // 실제로 스크롤이 생기는 애들만 0으로
-            if (el.scrollHeight > el.clientHeight) {
-                el.scrollTop = 0;
-                el.scrollLeft = 0;
-            }
+            // scrollHeight/clientHeight 를 읽으면 강제 리플로우가 걸린다. 이 함수는 라우트가
+            // 바뀔 때마다 useLayoutEffect 안에서(=페인트 직전) 돌기 때문에 그 비용이 매 화면 전환에
+            // 얹힌다. 스크롤이 있는지 묻지 말고 그냥 0으로 쓴다 — 비스크롤 요소에는 no-op 이다.
+            el.scrollTop = 0;
+            el.scrollLeft = 0;
         } catch {
             // ignore
         }
