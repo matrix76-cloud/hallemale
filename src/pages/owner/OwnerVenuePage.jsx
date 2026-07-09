@@ -6,11 +6,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import {
   LuPlus, LuTrash2, LuPin, LuMegaphone, LuTriangleAlert, LuCoins, LuClock, LuLayoutGrid, LuBuilding2, LuLogOut,
-  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo, LuEye,
+  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo, LuEye, LuMapPin,
 } from "react-icons/lu";
 import { useNavigate } from "react-router-dom";
 import { useOwner } from "../../context/OwnerContext";
-import { updateMyVenue, defaultCourtHours, FACILITY_OPTIONS, DAY_KEYS, DAY_LABELS } from "../../services/ownerVenueService";
+import { updateMyVenue, defaultCourtHours, FACILITY_OPTIONS, SPORT_OPTIONS, SURFACE_OPTIONS, DAY_KEYS, DAY_LABELS } from "../../services/ownerVenueService";
 import { uploadVenueImage } from "../../services/venuesService";
 import CourtHoursEditor from "./components/CourtHoursEditor";
 import PriceBandsEditor from "./components/PriceBandsEditor";
@@ -55,6 +55,7 @@ const HiddenFile = styled.input`display:none;`;
 function courtForm(c, i) {
   return {
     id: c?.id, name: c?.name || `${i + 1}코트`, type: c?.type || "indoor",
+    surface: c?.surface || "",
     pricePerHour: String(c?.pricePerHour ?? ""), slotMinutes: c?.slotMinutes || 60,
     hours: c?.hours || defaultCourtHours(),
     priceBands: c?.priceBands || {}, priceOverrides: c?.priceOverrides || {},
@@ -70,6 +71,11 @@ export default function OwnerVenuePage() {
   const [courts, setCourts] = useState([]);
   const [sel, setSel] = useState(0);
   const [facilities, setFacilities] = useState([]);
+  const [sportTypes, setSportTypes] = useState([]);
+  const [parking, setParking] = useState({ available: false, fee: "free", info: "" });
+  const [directions, setDirections] = useState("");
+  const [keywords, setKeywords] = useState([]);
+  const [keywordInput, setKeywordInput] = useState("");
   const [displayMode, setDisplayMode] = useState("grouped");
   const [displayName, setDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -89,6 +95,14 @@ export default function OwnerVenuePage() {
     if (!venue) return;
     setCourts((venue.courts || []).map(courtForm));
     setFacilities(venue.facilities || []);
+    setSportTypes(venue.sportTypes || []);
+    setParking({
+      available: venue.parking?.available === true,
+      fee: venue.parking?.fee === "paid" ? "paid" : "free",
+      info: venue.parking?.info || "",
+    });
+    setDirections(venue.directions || "");
+    setKeywords(venue.keywords || []);
     setDisplayMode(venue.displayMode || "grouped");
     setDisplayName(venue.displayName || venue.name || "");
     setPhotos((venue.photos || []).map((url, i) => ({ url, storagePath: venue.storagePaths?.[i] || "" })));
@@ -106,6 +120,15 @@ export default function OwnerVenuePage() {
   const addCourt = () => { setCourts((cs) => [...cs, makeCourt(cs.length)]); setSel(courts.length); };
   const removeCourt = () => { if (courts.length <= 1) return; setCourts((cs) => cs.filter((_, i) => i !== sel)); setSel(0); };
   const toggleFac = (f) => setFacilities((fs) => fs.includes(f) ? fs.filter((x) => x !== f) : [...fs, f]);
+  const toggleSport = (s) => setSportTypes((ss) => ss.includes(s) ? ss.filter((x) => x !== s) : [...ss, s]);
+  const addKeyword = () => {
+    const k = keywordInput.trim().replace(/^#/, "");
+    if (!k) return;
+    if (keywords.length >= 5) { showAlert("대표키워드는 최대 5개예요."); return; }
+    if (keywords.includes(k)) { setKeywordInput(""); return; }
+    setKeywords((prev) => [...prev, k]);
+    setKeywordInput("");
+  };
 
   // 공지
   const addNotice = () => setCourt({ notices: [...(court.notices || []), { id: "nt_" + Date.now().toString(36), title: "", body: "", pinned: false }] });
@@ -138,6 +161,7 @@ export default function OwnerVenuePage() {
     try {
       await updateMyVenue(venue.id, {
         courts, facilities, displayMode, displayName,
+        sportTypes, parking, directions, keywords,
         photos: photos.map((p) => p.url),
         storagePaths: photos.map((p) => p.storagePath),
         description, phone, rules, refundPolicy,
@@ -158,6 +182,7 @@ export default function OwnerVenuePage() {
     photos: photos.map((p) => p.url).filter(Boolean),
     imageUrl: photos[0]?.url || venue.imageUrl,
     facilities, description, phone, rules, refundPolicy,
+    sportTypes, parking, directions, keywords,
     displayMode, displayName,
     courts: courts.map((c) => ({ ...c, pricePerHour: Number(c.pricePerHour) || 0 })),
   };
@@ -193,11 +218,23 @@ export default function OwnerVenuePage() {
         <VAddr>{venue.address} {venue.addressDetail}</VAddr>
       </Card>
 
+      {/* 종목 — 사용자 검색·필터 및 상세 상단 태그 */}
+      <Card>
+        <SecTitle>종목</SecTitle>
+        <Caption>이 구장에서 즐길 수 있는 종목을 모두 선택하세요.</Caption>
+        <FacWrap>
+          {SPORT_OPTIONS.map((s) => (
+            <Fac key={s} $on={sportTypes.includes(s)} onClick={() => toggleSport(s)}>{s}</Fac>
+          ))}
+        </FacWrap>
+      </Card>
+
       {/* 구장 소개·연락처 — 사용자 예약화면 '코트 소개'/'호스트 정보'에 노출 */}
       <Card>
         <SecTitle><LuInfo size={16} /> 구장 소개</SecTitle>
         <Caption>사용자 예약화면에 그대로 노출돼요. (특징·바닥 재질·주차 안내 등)</Caption>
         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="구장 특징, 바닥 재질, 주차 안내 등" />
+        <Field><Lbl><LuMapPin size={13} style={{ verticalAlign: -2, marginRight: 4 }} />찾아오는 길</Lbl><Textarea value={directions} onChange={(e) => setDirections(e.target.value)} placeholder="예: 6호선 이태원역 3번 출구 도보 5분, 건물 뒤편 입구" /></Field>
         <Field><Lbl><LuPhone size={13} style={{ verticalAlign: -2, marginRight: 4 }} />구장 연락처</Lbl><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="예: 02-1234-5678" /></Field>
       </Card>
 
@@ -215,8 +252,9 @@ export default function OwnerVenuePage() {
             <Field><Lbl>코트 이름</Lbl><Input value={court.name} onChange={(e) => setCourt({ name: e.target.value })} placeholder="A코트" /></Field>
             <Row>
               <Field><Lbl>종류</Lbl><Sel value={court.type} onChange={(e) => setCourt({ type: e.target.value })}><option value="indoor">실내</option><option value="outdoor">실외</option></Sel></Field>
-              <Field><Lbl>예약 시간 단위</Lbl><Sel value={court.slotMinutes} onChange={(e) => setCourt({ slotMinutes: Number(e.target.value) })}><option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option></Sel></Field>
+              <Field><Lbl>바닥재질</Lbl><Sel value={court.surface} onChange={(e) => setCourt({ surface: e.target.value })}><option value="">선택 안 함</option>{SURFACE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}</Sel></Field>
             </Row>
+            <Field><Lbl>예약 시간 단위</Lbl><Sel value={court.slotMinutes} onChange={(e) => setCourt({ slotMinutes: Number(e.target.value) })}><option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option></Sel></Field>
             {courts.length > 1 && <GhostBtn type="button" onClick={removeCourt} style={{ color: C.red500, borderColor: C.red200 }}>이 코트 삭제</GhostBtn>}
           </Card>
 
@@ -302,6 +340,34 @@ export default function OwnerVenuePage() {
       <Card>
         <SecTitle>편의시설</SecTitle>
         <FacWrap>{FACILITY_OPTIONS.map((f) => <Fac key={f} $on={facilities.includes(f)} onClick={() => toggleFac(f)}><FacilityIcon name={f} size={15} /> {f}</Fac>)}</FacWrap>
+        <Lbl style={{ marginTop: 4 }}>🅿️ 주차</Lbl>
+        <FacWrap>
+          <Fac $on={!parking.available} onClick={() => setParking((p) => ({ ...p, available: false }))}>주차 불가</Fac>
+          <Fac $on={parking.available && parking.fee === "free"} onClick={() => setParking((p) => ({ ...p, available: true, fee: "free" }))}>무료 주차</Fac>
+          <Fac $on={parking.available && parking.fee === "paid"} onClick={() => setParking((p) => ({ ...p, available: true, fee: "paid" }))}>유료 주차</Fac>
+        </FacWrap>
+        {parking.available && (
+          <Input value={parking.info} onChange={(e) => setParking((p) => ({ ...p, info: e.target.value }))} placeholder="주차 안내 (예: 건물 내 10대, 2시간 무료)" />
+        )}
+      </Card>
+
+      {/* 대표키워드 — 사용자 검색 노출 */}
+      <Card>
+        <SecTitle>대표키워드</SecTitle>
+        <Caption>지역명+종목을 넣으면 검색에 잘 노출돼요. (최대 5개)</Caption>
+        <Row>
+          <Input value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
+            placeholder="예: 이태원 농구장" maxLength={20} style={{ flex: 1 }} />
+          <GhostBtn type="button" onClick={addKeyword} style={{ flex: "0 0 auto" }}>추가</GhostBtn>
+        </Row>
+        {keywords.length > 0 && (
+          <FacWrap>
+            {keywords.map((k) => (
+              <Fac key={k} $on onClick={() => setKeywords((prev) => prev.filter((x) => x !== k))}>#{k} ×</Fac>
+            ))}
+          </FacWrap>
+        )}
       </Card>
 
       {/* 이용 안내·취소 안내 — 사용자 예약화면 '이용 안내'/'취소·노쇼 안내'에 노출 */}

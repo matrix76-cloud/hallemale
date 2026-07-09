@@ -36,6 +36,10 @@ const Sec = styled.div`padding: 16px; display: flex; flex-direction: column; gap
 const Name = styled.div`font-size: 20px; font-weight: 800; color: ${C.slate800};`;
 const Tags = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 const Tag = styled.span`border: 1px solid ${C.slate200}; color: ${C.slate500}; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700;`;
+const SportTag = styled.span`background: ${C.violet50}; color: ${C.violet600}; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 800;`;
+const ParkLine = styled.div`font-size: 12.5px; font-weight: 600; color: ${C.slate500};`;
+const KwRow = styled.div`display: flex; flex-wrap: wrap; gap: 6px;`;
+const Kw = styled.span`font-size: 12px; font-weight: 600; color: ${C.slate400};`;
 const Addr = styled.div`font-size: 13px; color: ${C.slate500}; display: flex; align-items: center; gap: 5px;`;
 const Price = styled.div`font-size: 16px; font-weight: 800; color: ${C.violet600};`;
 const SecTit = styled.div`font-size: 14.5px; font-weight: 800; color: ${C.slate800};`;
@@ -81,11 +85,19 @@ export default function VenuePreviewSheet({ venue, onClose }) {
             <Name>{venue.name || "구장 이름"}</Name>
             <Tags>
               {venue.rating ? <Tag><LuStar size={11} style={{ verticalAlign: -1 }} /> {Number(venue.rating).toFixed(1)}</Tag> : null}
+              {(venue.sportTypes || []).map((s) => <SportTag key={s}>{s}</SportTag>)}
               <Tag>{venue.type === "outdoor" ? "실외" : "실내"}</Tag>
               <Tag>{venue.cost === "free" ? "무료" : "유료"}</Tag>
               {venue.region ? <Tag>{venue.region}</Tag> : null}
             </Tags>
             {(venue.address) && <Addr><LuMapPin size={13} /> {venue.address} {venue.addressDetail}</Addr>}
+            <ParkLine>🅿️ {venue.parking?.available
+              ? `주차 가능 · ${venue.parking.fee === "paid" ? "유료" : "무료"}${venue.parking.info ? ` · ${venue.parking.info}` : ""}`
+              : "주차 불가"}</ParkLine>
+            {venue.directions ? <Pre><b style={{ color: C.slate800 }}>찾아오는 길</b>{"\n"}{venue.directions}</Pre> : null}
+            {(venue.keywords || []).length > 0 && (
+              <KwRow>{venue.keywords.map((k) => <Kw key={k}>#{k}</Kw>)}</KwRow>
+            )}
             <Price>{priceLabel}</Price>
           </Sec>
 
@@ -114,7 +126,7 @@ export default function VenuePreviewSheet({ venue, onClose }) {
                 <CourtRow key={c.id}>
                   <div>
                     <CourtName>{c.name}</CourtName>
-                    <CourtSub>{c.type === "outdoor" ? "실외" : "실내"} · {c.slotMinutes || 60}분 단위</CourtSub>
+                    <CourtSub>{c.type === "outdoor" ? "실외" : "실내"} · {c.slotMinutes || 60}분 단위{c.surface ? ` · ${c.surface}` : ""}</CourtSub>
                   </div>
                   <CourtPrice>{Number(c.pricePerHour) > 0 ? `${Number(c.pricePerHour).toLocaleString()}원` : (venue.cost === "free" ? "무료" : "-")}</CourtPrice>
                 </CourtRow>

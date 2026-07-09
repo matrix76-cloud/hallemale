@@ -294,11 +294,15 @@ export default function VenueBookingPage() {
               {venue.reviewCount ? <em> ({venue.reviewCount})</em> : null}
             </RatingChip>
           ) : null}
+          {(venue.sportTypes || []).map((s) => <SportChip key={s}>{s}</SportChip>)}
           <TagChip>{venue.type === "outdoor" ? "실외" : "실내"}</TagChip>
           <TagChip>{venue.cost === "free" ? "무료" : "유료"}</TagChip>
           {venue.region ? <TagChip $muted>{venue.region}</TagChip> : null}
         </MetaRow>
         <VAddr>{venue.address} {venue.addressDetail}</VAddr>
+        {(venue.keywords || []).length > 0 && (
+          <KeywordRow>{venue.keywords.map((k) => <Kw key={k}>#{k}</Kw>)}</KeywordRow>
+        )}
       </Head>
 
       <CourtNotices court={court} />
@@ -343,7 +347,7 @@ export default function VenueBookingPage() {
               </CourtThumb>
               <CourtBody>
                 <CourtCName>{c.name}</CourtCName>
-                <CourtCSub>{c.type === "outdoor" ? "실외" : "실내"} 코트</CourtCSub>
+                <CourtCSub>{c.type === "outdoor" ? "실외" : "실내"} 코트{c.surface ? ` · ${c.surface}` : ""}</CourtCSub>
                 <CourtCPrice>{(Number(c.pricePerHour) || 0).toLocaleString()}원<small> / 시간</small></CourtCPrice>
               </CourtBody>
               <CourtBadge>예약 가능 ›</CourtBadge>
@@ -377,6 +381,14 @@ export default function VenueBookingPage() {
         </AddrRow>
         {venuePhone ? (
           <PhoneLink href={`tel:${venuePhone}`}><FiPhone size={13} /> {venuePhone}</PhoneLink>
+        ) : null}
+        <ParkRow $off={!venue.parking?.available}>
+          🅿️ {venue.parking?.available
+            ? `주차 가능 · ${venue.parking.fee === "paid" ? "유료" : "무료"}${venue.parking.info ? ` · ${venue.parking.info}` : ""}`
+            : "주차 불가"}
+        </ParkRow>
+        {venue.directions ? (
+          <DirBox><b>찾아오는 길</b><InfoPre>{venue.directions}</InfoPre></DirBox>
         ) : null}
       </Section>
 
@@ -598,6 +610,29 @@ const VerifiedChip = styled.span`
   background: ${({ theme }) => (theme.mode === "dark" ? "rgba(16,185,129,0.16)" : "#ecfdf5")};
   border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(16,185,129,0.4)" : "#a7f3d0")};
   color: #059669;
+`;
+/* 종목 칩 (강조) */
+const SportChip = styled.span`
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 800;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff")};
+  color: ${({ theme }) => theme.colors.primary};
+`;
+/* 대표키워드 */
+const KeywordRow = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;`;
+const Kw = styled.span`
+  font-size: 12px; font-weight: 600;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+/* 주차 안내 */
+const ParkRow = styled.div`
+  font-size: 13px; font-weight: 600; line-height: 1.5;
+  color: ${({ $off, theme }) => ($off ? theme.colors.textWeak : theme.colors.textNormal)};
+`;
+/* 찾아오는 길 */
+const DirBox = styled.div`
+  display: flex; flex-direction: column; gap: 4px;
+  & > b { font-size: 12.5px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong}; }
 `;
 const Notice = styled.div`
   display: flex; align-items: flex-start; gap: 8px;
