@@ -1,143 +1,145 @@
 /* eslint-disable */
 // src/routes/AppRoutes.jsx
-import React, { useEffect, useRef } from "react";
+import React, { lazy, Suspense, useEffect, useRef } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useWebviewBridgeContext } from "../context/WebviewBridgeContext";
 import { useUI } from "../hooks/useUI";
 import { goBackOrHome } from "../utils/navigation";
 
+// ⚡ 아래 모듈만 메인 번들에 남긴다. 앱 부팅(/ → /login)과 카카오 콜백(/oauth/kakao)의
+//    임계 경로라서, 청크를 한 번 더 받으러 가면 그만큼 로그인이 늦어진다.
 import MainLayout from "../layouts/MainLayout";
 import AuthLayout from "../layouts/AuthLayout";
-
-import HomePage from "../pages/home/HomePage";
-import LoginPage from "../pages/auth/LoginPage";
-import ClubOnboardingPage from "../pages/auth/ClubOnboardingPage";
-
-import InvitesPage from "../pages/invites/InvitesPage";
-
 import NotFoundPage from "../pages/system/NotFoundPage";
 import AppLoadingPage from "../pages/system/AppLoadingPage";
-import AgreementGate from "../components/auth/AgreementGate";
 import SplashPage from "../pages/system/SplashPage";
+import LoginPage from "../pages/auth/LoginPage";
+import WelcomePage from "../pages/auth/WelcomePage";
+import KakaoCallbackPage from "../pages/auth/KakaoCallbackPage";
 
 import { useAuth } from "../hooks/useAuth";
 import { useOwnerAuth } from "../hooks/useOwnerAuth";
 import { useClub } from "../hooks/useClub";
-import WelcomePage from "../pages/auth/WelcomePage";
-import KakaoCallbackPage from "../pages/auth/KakaoCallbackPage";
-import PhoneVerifyPage from "../pages/auth/PhoneVerifyPage";
-import SignupCompletePage from "../pages/auth/SignupCompletePage";
-import MatchRoomListPage from "../pages/matching/MatchRoomListPage";
-import MatchRoomDetailPage from "../pages/matching/MatchRoomDetailPage";
-import MyProfilePage from "../pages/my/MyProfilePage";
-import MyProfileDetailPage from "../pages/my/MyProfileDetailPage";
-import MyPostsPage from "../pages/my/MyPostsPage";
-import MyReportsPage from "../pages/my/MyReportsPage";
-import MyPersonalMatchesPage from "../pages/my/MyPersonalMatchesPage";
-import InquiryPage from "../pages/my/InquiryPage";
-
-import PlayerProfilePage from "../pages/player/PlayerProfilePage";
-import TeamProfilePage from "../pages/team/TeamProfilePage";
-import MatchingPage from "../pages/matching/MatchingPage";
-import MatchRegionSelectPage from "../pages/matching/MatchRegionSelectPage";
-import MatchSearchingPage from "../pages/matching/MatchSearchingPage";
-import MatchOpponentRevealPage from "../pages/matching/MatchOpponentRevealPage";
-import MatchingManagePage from "../pages/matching/MatchingManagePage";
-
-import NotificationsPage from "../pages/notifications/NotificationsPage";
-import ChatListPage from "../pages/chat/ChatListPage";
-import NotificationSettingsPage from "../pages/settings/NotificationSettingsPage";
-import NoticeListPage from "../pages/settings/NoticeListPage";
-import SettingsBlockedPage from "../pages/settings/SettingsBlockedPage";
-import WithdrawPage from "../pages/settings/WithdrawPage";
-import FAQPage from "../pages/settings/FAQPage";
-
-import NotificationDetailPage from "../pages/notifications/NotificationDetailPage";
-import ChatRoomPage from "../pages/chat/ChatRoomPage";
-import CommunityListPage from "../pages/community/CommunityListPage";
-import CommunityWritePage from "../pages/community/CommunityWritePage";
-import CommunityDetailPage from "../pages/community/CommunityDetailPage";
-
-import TeamCreatePage from "../pages/team/TeamCreatePage";
-import TeamManagePage from "../pages/team/TeamManagePage";
-
-import MyProfileEditPage from "../pages/my/MyProfileEditPage";
-import MyProfileSkillsEditPage from "../pages/my/MyProfileSkillsEditPage";
-import MyProfileBodyEditPage from "../pages/my/MyProfileBodyEditPage";
-import MyProfileIntroEditPage from "../pages/my/MyProfileIntroEditPage";
-import MyProfileMediaEditPage from "../pages/my/MyProfileMediaEditPage";
-import MyProfileTeamJoinEditPage from "../pages/my/MyProfileTeamJoinEditPage";
 import { hardScrollReset } from "../utils/hardScrollReset";
-import MyTeamInvitesPage from "../pages/my/MyTeamInvitesPage";
-import MyTeamInviteDetailPage from "../pages/my/MyTeamInviteDetailPage";
-import TeamJoinRequestsPage from "../components/team/TeamJoinRequestsPage";
-import TeamJoinRequestDetailPage from "../components/team/TeamJoinRequestDetailPage";
 
-import TermsPage from "../pages/legal/TermsPage";
-import PrivacyPage from "../pages/legal/PrivacyPage";
-import OperationPage from "../pages/legal/OperationPage";
-import PlayerRankingFullPage from "../pages/player/PlayerRankingFullPage";
-import TeamRankingFullPage from "../pages/team/TeamRankingFullPage";
-import TeamMatchHistoryFullPage from "../pages/team/TeamMatchHistoryFullPage";
-import PlayerMatchHistoryFullPage from "../pages/player/PlayerMatchHistoryFullPage";
-import ImpactCampaignPage from "../pages/home/ImpactCampaignPage";
-import MatchAnalysisPage from "../pages/matching/MatchAnalysisPage";
+// ── 나머지 페이지는 전부 라우트 단위 청크로 분리 ──
+const HomePage = lazy(() => import("../pages/home/HomePage"));
+const ClubOnboardingPage = lazy(() => import("../pages/auth/ClubOnboardingPage"));
+const InvitesPage = lazy(() => import("../pages/invites/InvitesPage"));
+const AgreementGate = lazy(() => import("../components/auth/AgreementGate"));
+const PhoneVerifyPage = lazy(() => import("../pages/auth/PhoneVerifyPage"));
+const SignupCompletePage = lazy(() => import("../pages/auth/SignupCompletePage"));
+const MatchRoomListPage = lazy(() => import("../pages/matching/MatchRoomListPage"));
+const MatchRoomDetailPage = lazy(() => import("../pages/matching/MatchRoomDetailPage"));
+const MyProfilePage = lazy(() => import("../pages/my/MyProfilePage"));
+const MyProfileDetailPage = lazy(() => import("../pages/my/MyProfileDetailPage"));
+const MyPostsPage = lazy(() => import("../pages/my/MyPostsPage"));
+const MyReportsPage = lazy(() => import("../pages/my/MyReportsPage"));
+const MyPersonalMatchesPage = lazy(() => import("../pages/my/MyPersonalMatchesPage"));
+const InquiryPage = lazy(() => import("../pages/my/InquiryPage"));
+
+const PlayerProfilePage = lazy(() => import("../pages/player/PlayerProfilePage"));
+const TeamProfilePage = lazy(() => import("../pages/team/TeamProfilePage"));
+const MatchingPage = lazy(() => import("../pages/matching/MatchingPage"));
+const MatchRegionSelectPage = lazy(() => import("../pages/matching/MatchRegionSelectPage"));
+const MatchSearchingPage = lazy(() => import("../pages/matching/MatchSearchingPage"));
+const MatchOpponentRevealPage = lazy(() => import("../pages/matching/MatchOpponentRevealPage"));
+const MatchingManagePage = lazy(() => import("../pages/matching/MatchingManagePage"));
+
+const NotificationsPage = lazy(() => import("../pages/notifications/NotificationsPage"));
+const ChatListPage = lazy(() => import("../pages/chat/ChatListPage"));
+const NotificationSettingsPage = lazy(() => import("../pages/settings/NotificationSettingsPage"));
+const NoticeListPage = lazy(() => import("../pages/settings/NoticeListPage"));
+const SettingsBlockedPage = lazy(() => import("../pages/settings/SettingsBlockedPage"));
+const WithdrawPage = lazy(() => import("../pages/settings/WithdrawPage"));
+const FAQPage = lazy(() => import("../pages/settings/FAQPage"));
+
+const NotificationDetailPage = lazy(() => import("../pages/notifications/NotificationDetailPage"));
+const ChatRoomPage = lazy(() => import("../pages/chat/ChatRoomPage"));
+const CommunityListPage = lazy(() => import("../pages/community/CommunityListPage"));
+const CommunityWritePage = lazy(() => import("../pages/community/CommunityWritePage"));
+const CommunityDetailPage = lazy(() => import("../pages/community/CommunityDetailPage"));
+
+const TeamCreatePage = lazy(() => import("../pages/team/TeamCreatePage"));
+const TeamManagePage = lazy(() => import("../pages/team/TeamManagePage"));
+
+const MyProfileEditPage = lazy(() => import("../pages/my/MyProfileEditPage"));
+const MyProfileSkillsEditPage = lazy(() => import("../pages/my/MyProfileSkillsEditPage"));
+const MyProfileBodyEditPage = lazy(() => import("../pages/my/MyProfileBodyEditPage"));
+const MyProfileIntroEditPage = lazy(() => import("../pages/my/MyProfileIntroEditPage"));
+const MyProfileMediaEditPage = lazy(() => import("../pages/my/MyProfileMediaEditPage"));
+const MyProfileTeamJoinEditPage = lazy(() => import("../pages/my/MyProfileTeamJoinEditPage"));
+const MyTeamInvitesPage = lazy(() => import("../pages/my/MyTeamInvitesPage"));
+const MyTeamInviteDetailPage = lazy(() => import("../pages/my/MyTeamInviteDetailPage"));
+const TeamJoinRequestsPage = lazy(() => import("../components/team/TeamJoinRequestsPage"));
+const TeamJoinRequestDetailPage = lazy(() => import("../components/team/TeamJoinRequestDetailPage"));
+
+const TermsPage = lazy(() => import("../pages/legal/TermsPage"));
+const PrivacyPage = lazy(() => import("../pages/legal/PrivacyPage"));
+const OperationPage = lazy(() => import("../pages/legal/OperationPage"));
+const PlayerRankingFullPage = lazy(() => import("../pages/player/PlayerRankingFullPage"));
+const TeamRankingFullPage = lazy(() => import("../pages/team/TeamRankingFullPage"));
+const TeamMatchHistoryFullPage = lazy(() => import("../pages/team/TeamMatchHistoryFullPage"));
+const PlayerMatchHistoryFullPage = lazy(() => import("../pages/player/PlayerMatchHistoryFullPage"));
+const ImpactCampaignPage = lazy(() => import("../pages/home/ImpactCampaignPage"));
+const MatchAnalysisPage = lazy(() => import("../pages/matching/MatchAnalysisPage"));
 
 // ✅ Admin
-import AdminShell from "../admin/layout/AdminShell";
-import AdminLoginPage from "../pages/admin/AdminLoginPage";
-import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
-import AdminUsersReportsPage from "../pages/admin/AdminUsersReportsPage";
-import AdminUsersBlocksPage from "../pages/admin/AdminUsersBlocksPage";
-import AdminTeamsListPage from "../pages/admin/AdminTeamsListPage";
-import AdminTeamsReportsPage from "../pages/admin/AdminTeamsReportsPage";
-import AdminTeamsBlocksPage from "../pages/admin/AdminTeamsBlocksPage";
-import AdminMatchesListPage from "../pages/admin/AdminMatchesListPage";
-import AdminMatchesIssuesPage from "../pages/admin/AdminMatchesIssuesPage";
-import AdminCommunityPostsPage from "../pages/admin/AdminCommunityPostsPage";
-import AdminCommunityPostDetailPage from "../pages/admin/AdminCommunityPostDetailPage";
-import AdminCommunityReportsPage from "../pages/admin/AdminCommunityReportsPage";
-import AdminNotifyNoticesPage from "../pages/admin/AdminNotifyNoticesPage";
-import AdminNotifyPushPage from "../pages/admin/AdminNotifyPushPage";
-import AdminInquiriesPage from "../pages/admin/AdminInquiriesPage";
-import AdminSettingsAdminsPage from "../pages/admin/AdminSettingsAdminsPage";
-import AdminSettingsPolicyPage from "../pages/admin/AdminSettingsPolicyPage";
-import AdminGamesUpcomingPage from "../pages/admin/AdminGamesUpcomingPage";
-import AdminGamesPastPage from "../pages/admin/AdminGamesPastPage";
-import AdminPlayersListPage from "../pages/admin/AdminPlayersListPage";
-import AdminPlayersRankingPage from "../pages/admin/AdminPlayersRankingPage";
-import AdminTeamsRankingPage from "../pages/admin/AdminTeamsRankingPage";
-import AdminChatListPage from "../pages/admin/AdminChatListPage";
-import AdminChatRoomDetailPage from "../pages/admin/AdminChatRoomDetailPage";
-import AdminBannersPage from "../pages/admin/AdminBannersPage";
-import AdminVenuesPage from "../pages/admin/AdminVenuesPage";
-import AdminSettlementsPage from "../pages/admin/AdminSettlementsPage";
-import AdminRefundsPage from "../pages/admin/AdminRefundsPage";
-import AdminUpdatesPage from "../pages/admin/AdminUpdatesPage";
-import FinishedMatchesPage from "../pages/matching/FinishedMatchesPage";
-import MyTeamMatchesPage from "../pages/matching/MyTeamMatchesPage";
-import EventPage from "../pages/event/EventPage";
-import AdminEventPopupsPage from "../pages/admin/AdminEventPopupsPage";
-import VenueListPage from "../pages/venue/VenueListPage";
-import VenueBookingPage from "../pages/venue/VenueBookingPage";
-import CourtBookingPage from "../pages/venue/CourtBookingPage";
+const AdminShell = lazy(() => import("../admin/layout/AdminShell"));
+const AdminLoginPage = lazy(() => import("../pages/admin/AdminLoginPage"));
+const AdminDashboardPage = lazy(() => import("../pages/admin/AdminDashboardPage"));
+const AdminUsersReportsPage = lazy(() => import("../pages/admin/AdminUsersReportsPage"));
+const AdminUsersBlocksPage = lazy(() => import("../pages/admin/AdminUsersBlocksPage"));
+const AdminTeamsListPage = lazy(() => import("../pages/admin/AdminTeamsListPage"));
+const AdminTeamsReportsPage = lazy(() => import("../pages/admin/AdminTeamsReportsPage"));
+const AdminTeamsBlocksPage = lazy(() => import("../pages/admin/AdminTeamsBlocksPage"));
+const AdminMatchesListPage = lazy(() => import("../pages/admin/AdminMatchesListPage"));
+const AdminMatchesIssuesPage = lazy(() => import("../pages/admin/AdminMatchesIssuesPage"));
+const AdminCommunityPostsPage = lazy(() => import("../pages/admin/AdminCommunityPostsPage"));
+const AdminCommunityPostDetailPage = lazy(() => import("../pages/admin/AdminCommunityPostDetailPage"));
+const AdminCommunityReportsPage = lazy(() => import("../pages/admin/AdminCommunityReportsPage"));
+const AdminNotifyNoticesPage = lazy(() => import("../pages/admin/AdminNotifyNoticesPage"));
+const AdminNotifyPushPage = lazy(() => import("../pages/admin/AdminNotifyPushPage"));
+const AdminInquiriesPage = lazy(() => import("../pages/admin/AdminInquiriesPage"));
+const AdminSettingsAdminsPage = lazy(() => import("../pages/admin/AdminSettingsAdminsPage"));
+const AdminSettingsPolicyPage = lazy(() => import("../pages/admin/AdminSettingsPolicyPage"));
+const AdminGamesUpcomingPage = lazy(() => import("../pages/admin/AdminGamesUpcomingPage"));
+const AdminGamesPastPage = lazy(() => import("../pages/admin/AdminGamesPastPage"));
+const AdminPlayersListPage = lazy(() => import("../pages/admin/AdminPlayersListPage"));
+const AdminPlayersRankingPage = lazy(() => import("../pages/admin/AdminPlayersRankingPage"));
+const AdminTeamsRankingPage = lazy(() => import("../pages/admin/AdminTeamsRankingPage"));
+const AdminChatListPage = lazy(() => import("../pages/admin/AdminChatListPage"));
+const AdminChatRoomDetailPage = lazy(() => import("../pages/admin/AdminChatRoomDetailPage"));
+const AdminBannersPage = lazy(() => import("../pages/admin/AdminBannersPage"));
+const AdminVenuesPage = lazy(() => import("../pages/admin/AdminVenuesPage"));
+const AdminSettlementsPage = lazy(() => import("../pages/admin/AdminSettlementsPage"));
+const AdminRefundsPage = lazy(() => import("../pages/admin/AdminRefundsPage"));
+const AdminUpdatesPage = lazy(() => import("../pages/admin/AdminUpdatesPage"));
+const AdminEventPopupsPage = lazy(() => import("../pages/admin/AdminEventPopupsPage"));
+
+const FinishedMatchesPage = lazy(() => import("../pages/matching/FinishedMatchesPage"));
+const MyTeamMatchesPage = lazy(() => import("../pages/matching/MyTeamMatchesPage"));
+const EventPage = lazy(() => import("../pages/event/EventPage"));
+const VenueListPage = lazy(() => import("../pages/venue/VenueListPage"));
+const VenueBookingPage = lazy(() => import("../pages/venue/VenueBookingPage"));
+const CourtBookingPage = lazy(() => import("../pages/venue/CourtBookingPage"));
 
 // ✅ 구장 관리자(구장주) 워크스페이스
-import OwnerLayout from "../layouts/OwnerLayout";
-import OwnerLoginPage from "../pages/owner/OwnerLoginPage";
-import OwnerEntry from "../pages/owner/OwnerEntry";
-import OwnerRegisterPage from "../pages/owner/OwnerRegisterPage";
-import OwnerStatusPage from "../pages/owner/OwnerStatusPage";
-import OwnerHomePage from "../pages/owner/OwnerHomePage";
-import OwnerVenuePage from "../pages/owner/OwnerVenuePage";
-import OwnerMyPage from "../pages/owner/OwnerMyPage";
-import OwnerWithdrawPage from "../pages/owner/OwnerWithdrawPage";
-import OwnerSignupPage from "../pages/owner/OwnerSignupPage";
-import OwnerOnboardingPage from "../pages/owner/OwnerOnboardingPage";
-import OwnerSalesPage from "../pages/owner/OwnerSalesPage";
-import OwnerLegalPage from "../pages/owner/OwnerLegalPage";
-import OwnerInquiryPage from "../pages/owner/OwnerInquiryPage";
-import OwnerNotificationsPage from "../pages/owner/OwnerNotificationsPage";
+const OwnerLayout = lazy(() => import("../layouts/OwnerLayout"));
+const OwnerLoginPage = lazy(() => import("../pages/owner/OwnerLoginPage"));
+const OwnerEntry = lazy(() => import("../pages/owner/OwnerEntry"));
+const OwnerRegisterPage = lazy(() => import("../pages/owner/OwnerRegisterPage"));
+const OwnerStatusPage = lazy(() => import("../pages/owner/OwnerStatusPage"));
+const OwnerHomePage = lazy(() => import("../pages/owner/OwnerHomePage"));
+const OwnerVenuePage = lazy(() => import("../pages/owner/OwnerVenuePage"));
+const OwnerMyPage = lazy(() => import("../pages/owner/OwnerMyPage"));
+const OwnerWithdrawPage = lazy(() => import("../pages/owner/OwnerWithdrawPage"));
+const OwnerSignupPage = lazy(() => import("../pages/owner/OwnerSignupPage"));
+const OwnerOnboardingPage = lazy(() => import("../pages/owner/OwnerOnboardingPage"));
+const OwnerSalesPage = lazy(() => import("../pages/owner/OwnerSalesPage"));
+const OwnerLegalPage = lazy(() => import("../pages/owner/OwnerLegalPage"));
+const OwnerInquiryPage = lazy(() => import("../pages/owner/OwnerInquiryPage"));
+const OwnerNotificationsPage = lazy(() => import("../pages/owner/OwnerNotificationsPage"));
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -317,11 +319,48 @@ function ScrollToTop() {
   return null;
 }
 
+/**
+ * 유휴 시점에 하단 탭 청크를 미리 받아둔다. 탭 전환 때 네트워크를 기다리지 않게 하는 용도라
+ * 사용자 앱 경로에서만 돈다. (어드민/구장주는 탭 구성이 달라 받아봐야 버려짐)
+ * /oauth/kakao 도 제외 — 콜백 페이지가 흐름에 맞는 도착지를 직접 워밍하고, 여기서 끼어들면
+ * 진행 중인 토큰 발급 요청과 대역폭을 다툰다.
+ */
+function PrefetchTabChunks() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const p = pathname.toLowerCase();
+    if (p.startsWith("/admin") || p.startsWith("/owner")) return;
+    if (p.startsWith("/oauth/")) return;
+
+    const idle =
+      window.requestIdleCallback || ((cb) => window.setTimeout(cb, 1500));
+    const cancel =
+      window.cancelIdleCallback || window.clearTimeout;
+
+    const handle = idle(() => {
+      import("../pages/home/HomePage");
+      import("../pages/matching/MatchingManagePage");
+      import("../pages/matching/MyTeamMatchesPage");
+      import("../pages/community/CommunityListPage");
+      import("../pages/my/MyProfilePage");
+    });
+
+    return () => {
+      try { cancel(handle); } catch {}
+    };
+  }, [pathname]);
+
+  return null;
+}
+
 export default function AppRoutes() {
   return (
     <>
       <ScrollToTop />
       <BridgeNavSync />
+      <PrefetchTabChunks />
+      <Suspense fallback={<AppLoadingPage />}>
       <Routes>
         <Route path="/" element={<SplashPage />} />
 
@@ -528,6 +567,7 @@ export default function AppRoutes() {
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </Suspense>
     </>
   );
 }

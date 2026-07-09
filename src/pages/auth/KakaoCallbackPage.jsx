@@ -35,6 +35,15 @@ export default function KakaoCallbackPage() {
       let ownerFlow = false;
       try { ownerFlow = localStorage.getItem(LS_OWNER_KAKAO_FLOW) === "1"; } catch {}
 
+      // 커스텀 토큰 발급이 도는 동안 도착지 청크를 병렬로 받아둔다.
+      // 실패해도 무시 — 라우팅 시 Suspense가 다시 받는다.
+      if (ownerFlow) {
+        import("../../layouts/OwnerLayout").catch(() => {});
+        import("../owner/OwnerEntry").catch(() => {});
+      } else {
+        import("../home/HomePage").catch(() => {});
+      }
+
       if (ownerFlow) {
         const res = await completeOwnerWebKakaoLogin(code);
         if (res?.success) {
