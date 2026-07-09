@@ -166,6 +166,38 @@ export const saveUserConsents = async ({
 };
 
 /**
+ * ✅ 구장 관리자(구장주) 동의 저장
+ * 구장주는 회원(선수)과 별도 약관(구장 관리자 이용약관)에 동의한다.
+ * ownerAuth uid는 사용자 앱 uid와 네임스페이스가 분리되므로 같은 users 컬렉션에 저장해도 충돌하지 않는다.
+ */
+export const saveOwnerConsents = async ({
+  uid,
+  ownerTerms,
+  privacy,
+  ageOver14,
+  marketing = false,
+}) => {
+  if (!uid) throw new Error("saveOwnerConsents: uid is required");
+  if (!ownerTerms || !privacy || !ageOver14) {
+    throw new Error("필수 항목(구장 관리자 이용약관·개인정보처리방침·만 14세 이상)에 모두 동의해야 합니다.");
+  }
+  const ref = doc(db, "users", uid);
+  await setDoc(
+    ref,
+    {
+      ownerTermsConsent: true,
+      ownerPrivacyConsent: true,
+      ownerAgeOver14Consent: true,
+      ownerMarketingConsent: !!marketing,
+      ownerConsentAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+  return { uid };
+};
+
+/**
  * ✅ 회원가입 완료 화면 노출 완료 표시 — 이후 재노출 방지
  */
 export const markWelcomeSeen = async ({ uid }) => {

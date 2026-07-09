@@ -53,16 +53,22 @@ const Logout = styled.button`
   cursor: pointer;
   &:active { transform: translateY(1px); }
 `;
-const WithdrawLink = styled.button`
+const WithdrawRow = styled.button`
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   background: none;
   border: none;
-  color: ${({ theme }) => theme.colors.textWeak};
-  font-size: 12.5px;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  padding: 4px 0;
+  padding: 14px 2px 4px;
+  margin-top: 4px;
+  &:active { opacity: 0.7; }
+  & > span { color: ${({ theme }) => theme.colors.textWeak}; font-weight: 400; }
 `;
 
 export default function OwnerMyPage() {
@@ -119,10 +125,11 @@ export default function OwnerMyPage() {
       )}
 
       <Card>
+        <SectionTitle>계정</SectionTitle>
         <Logout type="button" onClick={handleLogout} disabled={busy}>로그아웃</Logout>
-        <WithdrawLink type="button" onClick={() => navigate("/owner/withdraw")}>
-          회원탈퇴
-        </WithdrawLink>
+        <WithdrawRow type="button" onClick={() => navigate("/owner/withdraw")}>
+          회원탈퇴 <span>›</span>
+        </WithdrawRow>
       </Card>
     </Page>
   );
