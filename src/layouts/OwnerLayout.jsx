@@ -10,6 +10,7 @@ import OwnerSpinner from "../pages/owner/components/OwnerSpinner";
 import OwnerAgreementGate from "../pages/owner/OwnerAgreementGate";
 import { C } from "../pages/owner/components/od";
 import { useUI } from "../hooks/useUI";
+import { images } from "../utils/imageAssets";
 
 const Wrap = styled.div`
   min-height: 100vh;
@@ -27,28 +28,38 @@ const Header = styled.header`
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  position: relative;
-  background: ${C.violet600};
+  gap: 6px;
+  padding: 0 12px;
+  background: ${C.white};
+  border-bottom: 1px solid ${C.slate200};
 `;
 
-const HeaderTitle = styled.div`
+const Brand = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const BrandLogo = styled.img`
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+`;
+
+const BrandName = styled.div`
   font-size: 16px;
-  font-weight: 700;
-  color: #fff;
+  font-weight: 800;
+  color: ${C.slate800};
 `;
 
 const BackBtn = styled.button`
-  position: absolute;
-  left: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 40px;
+  width: 32px;
   height: 40px;
+  margin-left: -6px;
   border: none;
   background: transparent;
   font-size: 24px;
-  color: #fff;
+  color: ${C.slate800};
   cursor: pointer;
 `;
 
@@ -82,26 +93,13 @@ const ToastWrap = styled.div`
 
 const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/venue", "/owner/my"];
 
-// 필수 동의(만 14세 이상 · 구장 관리자 이용약관 · 개인정보처리방침) 완료 여부
+// 필수 동의(만 19세 이상 사업자 · 구장 관리자 이용약관 · 개인정보처리방침) 완료 여부
 function hasOwnerConsent(userDoc) {
   return (
     userDoc?.ownerTermsConsent === true &&
     userDoc?.ownerPrivacyConsent === true &&
-    userDoc?.ownerAgeOver14Consent === true
+    userDoc?.ownerAdultConsent === true
   );
-}
-
-function getTitle(p) {
-  if (p.startsWith("/owner/home")) return "예약관리";
-  if (p.startsWith("/owner/sales")) return "예약통계";
-  if (p.startsWith("/owner/venue")) return "구장정보";
-  if (p.startsWith("/owner/withdraw")) return "회원탈퇴";
-  if (p.startsWith("/owner/inquiry")) return "1:1 문의";
-  if (p.startsWith("/owner/my")) return "내정보";
-  if (p.startsWith("/owner/register")) return "구장 등록";
-  if (p.startsWith("/owner/onboarding")) return "구장 등록";
-  if (p.startsWith("/owner/pending")) return "심사 현황";
-  return "할래말래 사장님";
 }
 
 // 구장 미등록(venue 없음) 오너는 워크스페이스로 못 들어가고 온보딩에 머문다.
@@ -146,7 +144,10 @@ function OwnerShell() {
               ‹
             </BackBtn>
           )}
-          <HeaderTitle>{getTitle(p)}</HeaderTitle>
+          <Brand>
+            <BrandLogo src={images.logo} alt="할래말래 로고" />
+            <BrandName>할래말래 사장님</BrandName>
+          </Brand>
         </Header>
 
         <Main $hasTab={hasTab}>
