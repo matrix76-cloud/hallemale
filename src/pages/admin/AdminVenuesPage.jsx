@@ -259,6 +259,9 @@ export default function AdminVenuesPage() {
   const [page, setPage] = useState(0);
   const [busy, setBusy] = useState(false);
 
+  // 읽기전용 상세보기(구장주 입력 전체 정보 검토) 모달 대상 row
+  const [detail, setDetail] = useState(null);
+
   // 구장 등록/수정 폼 (추천구장 + 구장주구장 공통, 전체 데이터 편집)
   const [form, setForm] = useState(emptyForm());
   const [photos, setPhotos] = useState([]);       // [{url, storagePath}]
@@ -300,17 +303,26 @@ export default function AdminVenuesPage() {
     let reason = "";
     if (status === "rejected") {
       reason = window.prompt(`"${row.name}" 반려 사유 (구장주에게 표시):`, row.rejectReason || "");
-      if (reason === null) return;
+      if (reason === null) return false;
     } else if (status === "approved") {
-      if (!await showConfirm(`"${row.name}" 승인할까요? 승인 시 사용자에게 노출됩니다.`)) return;
+      if (!await showConfirm(`"${row.name}" 승인할까요? 승인 시 사용자에게 노출됩니다.`)) return false;
     }
     setBusy(true);
     try {
       await setVenueStatus(row.id, status, reason);
       await load();
+      return true;
     } catch (e) {
       showAlert(e?.message || "상태 변경 실패");
+      return false;
     } finally { setBusy(false); }
+  };
+
+  // 상세 모달 안에서 승인/반려/대기 → 처리 성공 시 모달 닫기
+  const decideFromDetail = async (status) => {
+    if (!detail) return;
+    const ok = await changeStatus(detail, status);
+    if (ok) setDetail(null);
   };
 
   const handleBizStatus = async (row, status) => {
@@ -504,6 +516,7 @@ export default function AdminVenuesPage() {
                   <Hide>{row.courts?.length ? `${row.courts.length}개` : "-"}</Hide>
                   <Hide>{fmtYmd(row.createdAt)}</Hide>
                   <Actions>
+                    <SBtn onClick={() => setDetail(row)}>상세</SBtn>
                     {row.status !== "approved" && <SBtn $primary onClick={() => changeStatus(row, "approved")} disabled={busy}>승인</SBtn>}
                     {row.status !== "rejected" && <SBtn $danger onClick={() => changeStatus(row, "rejected")} disabled={busy}>반려</SBtn>}
                     {row.status !== "pending" && <SBtn onClick={() => changeStatus(row, "pending")} disabled={busy}>대기</SBtn>}
@@ -689,6 +702,122 @@ export default function AdminVenuesPage() {
           </Modal>
         </Overlay>
       )}
+
+      {/* 읽기전용 상세보기 — 승인 전 구장주 입력 정보 검토 */}
+      {detail && (() => {
+        const sm = STATUS_META[detail.status] || STATUS_META.approved;
+        const isOwner = !!detail.ownerUid;
+        const imgs = detail.photos?.length ? detail.photos : (detail.imageUrl ? [detail.imageUrl] : []);
+        const biz = detail.business || null;
+        return (
+          <Overlay onClick={(e) => { if (e.target === e.currentTarget) setDetail(null); }}>
+            <Modal onClick={(e) => e.stopPropagation()}>
+              <ModalHead>
+                <ModalTitle>
+                  {detail.name || "(이름 없음)"}
+                  <StatusBadge $bg={sm.bg} $c={sm.color}>{sm.label}</StatusBadge>
+                  <SourceTag $owner={isOwner} style={{ marginLeft: 2 }}>{isOwner ? "구장주 신청" : "추천"}</SourceTag>
+                </ModalTitle>
+                <Close type="button" onClick={() => setDetail(null)}>×</Close>
+              </ModalHead>
+
+              {imgs.length > 0 && (
+                <Gallery>
+                  {imgs.map((src, i) => <GImg key={i} src={src} alt={`사진 ${i + 1}`} />)}
+                </Gallery>
+              )}
+
+              <Sec>
+                <SecTitle>기본 정보</SecTitle>
+                <DRow><b>주소</b><span>{detail.address || "-"}{detail.addressDetail ? ` ${detail.addressDetail}` : ""}</span></DRow>
+                <DRow><b>지역</b><span>{detail.region || "-"}</span></DRow>
+                <DRow><b>구장 연락처</b><span>{detail.phone || "-"}</span></DRow>
+                <DRow><b>종류</b><span>{detail.type === "outdoor" ? "실외" : "실내"}</span></DRow>
+                <DRow><b>이용 비용</b><span>{detail.cost === "paid" ? "유료" : "무료"}</span></DRow>
+                <DRow><b>좌표</b><span>{detail.lat != null && detail.lat !== "" ? `${detail.lat}, ${detail.lng}` : "-"}</span></DRow>
+                <DRow><b>노출</b><span>{detail.active !== false ? "노출 중(활성)" : "숨김(비활성)"}</span></DRow>
+                <DRow><b>등록일</b><span>{fmtYmd(detail.createdAt)}</span></DRow>
+                {detail.status === "rejected" && detail.rejectReason && (
+                  <DRow><b>반려사유</b><span style={{ color: "#b91c1c" }}>{detail.rejectReason}</span></DRow>
+                )}
+              </Sec>
+
+              <Sec>
+                <SecTitle>사업자 / 관리자 정보</SecTitle>
+                <DRow><b>대표자명</b><span>{detail.ownerName || "-"}</span></DRow>
+                <DRow><b>관리자 연락처</b><span>{detail.contactPhone || "-"}</span></DRow>
+                <DRow><b>상호</b><span>{detail.bizName || biz?.bizName || "-"}</span></DRow>
+                <DRow><b>사업자번호</b><span>{detail.bizNo || biz?.bizNo || "-"}</span></DRow>
+                {biz && (
+                  <>
+                    <DRow><b>인증상태</b>
+                      <span><BizStatus $s={biz.status}>
+                        {biz.status === "verified" ? "인증완료" : biz.status === "pending" ? "심사중" : biz.status === "rejected" ? "반려" : "미제출"}
+                      </BizStatus></span>
+                    </DRow>
+                    {biz.openDate && <DRow><b>개업일자</b><span>{biz.openDate}</span></DRow>}
+                    {biz.taxType && <DRow><b>과세유형</b><span>{biz.taxType === "general" ? "일반과세자" : "간이과세자"}</span></DRow>}
+                    {biz.licenseUrl && <DRow><b>등록증</b><span><a href={biz.licenseUrl} target="_blank" rel="noreferrer" style={{ color: "#4f46e5" }}>사본 보기</a></span></DRow>}
+                    {biz.rejectReason && <DRow><b>인증반려</b><span style={{ color: "#b91c1c" }}>{biz.rejectReason}</span></DRow>}
+                  </>
+                )}
+              </Sec>
+
+              {detail.facilities?.length > 0 && (
+                <Sec>
+                  <SecTitle>편의시설</SecTitle>
+                  <Chips>
+                    {detail.facilities.map((f) => {
+                      const Ic = FACILITY_ICONS[f] || MdCheckCircle;
+                      return <FacChip key={f}><Ic style={{ marginRight: 5, verticalAlign: "-2px" }} />{f}</FacChip>;
+                    })}
+                  </Chips>
+                </Sec>
+              )}
+
+              <Sec>
+                <SecTitle>예약 대상 (코트 {detail.courts?.length || 0}개)</SecTitle>
+                {detail.courts?.length ? detail.courts.map((c, i) => (
+                  <CourtBox key={i}>
+                    <CourtTop>
+                      <span>{c.name || `${i + 1}코트`} · {c.type === "outdoor" ? "실외" : "실내"}</span>
+                      <span>{won(c.pricePerHour)} / {c.slotMinutes || 60}분</span>
+                    </CourtTop>
+                    <Hours>
+                      {DAY_KEYS.map((d) => {
+                        const h = c.hours?.[d] || {};
+                        return (
+                          <HourCell key={d} $closed={h.closed}>
+                            <b>{DAY_LABELS[d]}</b>
+                            {h.closed ? "휴무" : `${h.open || "-"}~${h.close || "-"}`}
+                          </HourCell>
+                        );
+                      })}
+                    </Hours>
+                  </CourtBox>
+                )) : <DRow><span style={{ color: "#9ca3af" }}>등록된 코트가 없습니다.</span></DRow>}
+              </Sec>
+
+              {(detail.description || detail.rules || detail.refundPolicy) && (
+                <Sec>
+                  <SecTitle>안내</SecTitle>
+                  {detail.description && <><DRow><b>구장 소개</b></DRow><Pre>{detail.description}</Pre></>}
+                  {detail.rules && <><DRow style={{ marginTop: 8 }}><b>이용 규칙</b></DRow><Pre>{detail.rules}</Pre></>}
+                  {detail.refundPolicy && <><DRow style={{ marginTop: 8 }}><b>취소·노쇼 안내</b></DRow><Pre>{detail.refundPolicy}</Pre></>}
+                </Sec>
+              )}
+
+              <ModalActions>
+                {detail.status !== "approved" && <SBtn $primary onClick={() => decideFromDetail("approved")} disabled={busy}>승인</SBtn>}
+                {detail.status !== "rejected" && <SBtn $danger onClick={() => decideFromDetail("rejected")} disabled={busy}>반려</SBtn>}
+                {detail.status !== "pending" && <SBtn onClick={() => decideFromDetail("pending")} disabled={busy}>대기로</SBtn>}
+                <SBtn onClick={() => { const r = detail; setDetail(null); editVenue(r); }}>수정</SBtn>
+                <SBtn onClick={() => setDetail(null)}>닫기</SBtn>
+              </ModalActions>
+            </Modal>
+          </Overlay>
+        );
+      })()}
     </Page>
   );
 }
