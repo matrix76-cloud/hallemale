@@ -12,6 +12,7 @@ import {
   limit,
 } from "firebase/firestore";
 import { listPlayerRankingTopApprox } from "./rankingService";
+import { getAllClubDocs } from "./clubsSnapshot";
 
 // 랭킹 신규 진입자 판정(NEW): rankings/playerTop 스냅샷에 "처음 진입 시각" 기록.
 // - 일주일 전엔 이 순위에 없던 사람만 isNew=true (진입 후 7일간)
@@ -42,13 +43,14 @@ async function applyPlayerRankingNew(players) {
       Object.keys(nextFirstSeen).some(
         (k) => Number(prev[k]) !== Number(nextFirstSeen[k])
       );
-    // ⚠️ 읽기 경로에서의 쓰기 — 규칙에 막혀도 NEW 뱃지 계산에는 영향 주지 않도록 격리
+    // ⚠️ 읽기 경로에서의 쓰기 — 규칙에 막혀도 NEW 뱃지 계산에는 영향 주지 않도록 격리.
+    //    await 하지 않는다: 이 스냅샷은 "다음 방문"의 NEW 판정에 쓰이고, 아래 반환값은
+    //    이미 메모리에 있는 nextFirstSeen 으로 계산하므로 쓰기 완료를 기다릴 이유가 없다.
+    //    (홈 첫 화면이 이 왕복 하나를 통째로 기다리고 있었다)
     if (changed) {
-      try {
-        await setDoc(ref, { firstSeen: nextFirstSeen, updatedAt: now }, { merge: false });
-      } catch (e) {
-        console.warn("[homeService] rankings/playerTop write skipped:", e?.message || e);
-      }
+      setDoc(ref, { firstSeen: nextFirstSeen, updatedAt: now }, { merge: false }).catch((e) =>
+        console.warn("[homeService] rankings/playerTop write skipped:", e?.message || e)
+      );
     }
 
     return list.map((p) => {
@@ -232,11 +234,10 @@ async function safeGetClubDoc(db, clubId) {
   return normalizeClubDoc(snap.id, snap.data());
 }
 
-async function listAllClubs(db) {
-  const snap = await getDocs(collection(db, "clubs"));
-  const rows = [];
-  snap.forEach((d) => rows.push(normalizeClubDoc(d.id, d.data())));
-  return rows;
+async function listAllClubs() {
+  // 매칭 프리로드와 동시에 뜨면 clubs 전체 스캔이 하나로 합쳐진다. (clubsSnapshot 참고)
+  const docs = await getAllClubDocs();
+  return docs.map((d) => normalizeClubDoc(d.id, d.data()));
 }
 
 /* =========================
@@ -361,36 +362,75 @@ async function buildPlayerRankingTop5(db) {
 export async function loadHomePageData({ uid } = {}) {
   if (!uid) throw new Error("loadHomePageData: uid is required");
 
-  const me = await safeGetUserDoc(db, uid);
+  // ⚡ 예전엔 8단계가 전부 직렬 await 였다(내 문서 → 전체 팀 → 내 팀 → 멤버수 → 랭킹 →
+  //    NEW 판정 → 즐겨찾기 팀 → 즐겨찾기 선수). 실제 의존 관계는 그렇지 않다.
+  //
+  //    · me / allClubs / playerRanking : 서로 무관 → 즉시 동시 시작
+  //    · myTeam · 즐겨찾기 : me 만 필요 → me 나오는 즉시 동시 시작
+  //
+  //    임계 경로가 8홉에서 3홉(me → 내 팀 → 멤버수)으로 줄어든다.
+  const mePromise = safeGetUserDoc(db, uid);
+  const clubsPromise = listAllClubs();
+  const rankingPromise = listPlayerRankingTopApprox({
+    top: 5,
+    candidateSize: 200,
+    debugLog: false,
+  }).then(applyPlayerRankingNew);
+
+  // me 조회가 먼저 실패하면 위 두 promise 가 unhandled rejection 이 된다 → 미리 표시만 해 둔다.
+  // (아래 Promise.all 이 원래 promise 를 await 하므로 에러는 그대로 전파된다)
+  clubsPromise.catch(() => {});
+  rankingPromise.catch(() => {});
+
+  const me = await mePromise;
   // logJson("[homeService] me(userDoc)", me);
 
   const activeTeamId = String(me?.activeTeamId || "").trim();
   // logJson("[homeService] activeTeamId", { activeTeamId, clubId: activeTeamId });
 
-  const allClubs = await listAllClubs(db);
+  // ✅ 즐겨찾기 SSOT: users/{uid}.favoriteTeamIds / favoritePlayerIds
+  const favoriteTeamIds = Array.isArray(me?.favoriteTeamIds)
+    ? me.favoriteTeamIds.filter(Boolean).map(String)
+    : [];
 
-  // 내 팀
-  // 전체 팀 랭킹 순위 맵 (clubId -> 1-based 순위) — 연승팀/내 팀 순위 공용
+  const favoritePlayerIds = Array.isArray(me?.favoritePlayerIds)
+    ? me.favoritePlayerIds.filter(Boolean).map(String)
+    : [];
+
+  const myTeamPromise = (async () => {
+    if (!activeTeamId) return null;
+    const t = await safeGetClubDoc(db, activeTeamId);
+    if (!t) return null;
+    const memberCount = await getMembersCount(db, t.clubId);
+    return { ...t, memberCount };
+  })();
+
+  const favoriteTeamsPromise = Promise.all(
+    favoriteTeamIds.slice(0, 30).map((cid) => safeGetClubDoc(db, cid))
+  );
+  const favoritePlayersPromise = Promise.all(
+    favoritePlayerIds.slice(0, 30).map((puid) => safeGetUserDoc(db, puid))
+  );
+
+  const [allClubs, playerRankingTop5, myTeam, favoriteTeamsRaw, favoritePlayersRaw] =
+    await Promise.all([
+      clubsPromise,
+      rankingPromise,
+      myTeamPromise,
+      favoriteTeamsPromise,
+      favoritePlayersPromise,
+    ]);
+
+  // 전체 팀 랭킹 순위 맵 (clubId -> 1-based 순위) — 연승팀/내 팀 순위/Top5 공용
   const rankedTeams = [...allClubs].sort(teamRankingComparator);
   const rankByClubId = new Map(rankedTeams.map((t, i) => [t.clubId, i + 1]));
 
-  let myTeam = null;
-  let myTeamRank = null;
-
-  if (activeTeamId) {
-    myTeam = await safeGetClubDoc(db, activeTeamId);
-    if (myTeam) {
-      const memberCount = await getMembersCount(db, myTeam.clubId);
-      myTeam = { ...myTeam, memberCount };
-      myTeamRank = rankByClubId.get(myTeam.clubId) || null;
-    }
-  }
+  const myTeamRank = myTeam ? rankByClubId.get(myTeam.clubId) || null : null;
 
   // logJson("[homeService] myTeam(clubDoc)", myTeam);
 
-  // 팀 랭킹 Top5 (전체보기와 동일 기준)
-  const teamRankingTop5 = [...allClubs]
-    .sort(teamRankingComparator)
+  // 팀 랭킹 Top5 (전체보기와 동일 기준 — rankedTeams 가 이미 같은 comparator 로 정렬돼 있다)
+  const teamRankingTop5 = rankedTeams
     .slice(0, 5)
     .map((t, idx) => ({
       rank: idx + 1,
@@ -440,30 +480,7 @@ export async function loadHomePageData({ uid } = {}) {
       streakLabel: `${winStreak}연승 중`,
     }));
 
-  // 개인 랭킹 Top5
-  // const playerRankingTop5 = await buildPlayerRankingTop5(db);
-
-
-  let playerRankingTop5 = await listPlayerRankingTopApprox({
-    top: 5,
-    candidateSize: 200,
-    debugLog: false,
-  });
-  // 랭킹 신규 진입자(NEW): 7일 전엔 이 순위에 없던 사람만 isNew=true
-  playerRankingTop5 = await applyPlayerRankingNew(playerRankingTop5);
-
-  // ✅ 즐겨찾기 로드
-  const favoriteTeamIds = Array.isArray(me?.favoriteTeamIds)
-    ? me.favoriteTeamIds.filter(Boolean).map(String)
-    : [];
-
-  const favoritePlayerIds = Array.isArray(me?.favoritePlayerIds)
-    ? me.favoritePlayerIds.filter(Boolean).map(String)
-    : [];
-
-  const favoriteTeamsRaw = await Promise.all(
-    favoriteTeamIds.slice(0, 30).map((cid) => safeGetClubDoc(db, cid))
-  );
+  // (개인 랭킹 Top5 · NEW 판정 · 즐겨찾기는 위에서 이미 병렬로 받아 왔다)
 
   const favoriteTeams = favoriteTeamsRaw
     .filter(Boolean)
@@ -477,10 +494,6 @@ export async function loadHomePageData({ uid } = {}) {
       regionGu: t.regionGu,
       winRate: t.stats?.winRate || 0,
     }));
-
-  const favoritePlayersRaw = await Promise.all(
-    favoritePlayerIds.slice(0, 30).map((puid) => safeGetUserDoc(db, puid))
-  );
 
   const favoritePlayers = favoritePlayersRaw
     .filter(Boolean)

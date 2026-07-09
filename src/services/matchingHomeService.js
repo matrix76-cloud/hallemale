@@ -7,6 +7,7 @@
 
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
+import { getAllClubDocs } from "./clubsSnapshot";
 import { getTeamProfile } from "./teamService";
 import { images } from "../utils/imageAssets";
 
@@ -95,6 +96,14 @@ export async function loadMatchingHomeData({
 } = {}) {
   const teamId = String(activeTeamId || "").trim();
 
+  // ⚠️ orderBy("createdAt")로 쿼리하면 createdAt 필드가 없는 팀(스크립트/구버전 생성 등)이
+  //    Firestore에서 조용히 제외되어 매칭 리스트에 안 보인다.
+  //    → 랭킹(listAllTeamsForRanking)과 동일하게 전체를 가져와 클라이언트에서 최신순 정렬한다.
+  //
+  // 내 팀 조회와 서로 의존하지 않으므로 먼저 띄워 두고 병렬로 진행한다.
+  const clubDocsPromise = getAllClubDocs();
+  clubDocsPromise.catch(() => {}); // 아래에서 조기 return 해도 unhandled rejection 이 되지 않도록
+
   // ✅ 팀 없는 사용자(둘러보기): 내 팀 없이 전체 팀 목록만 반환
   let myTeam = null;
   if (teamId) {
@@ -107,13 +116,9 @@ export async function loadMatchingHomeData({
     }
   }
 
-  // ⚠️ orderBy("createdAt")로 쿼리하면 createdAt 필드가 없는 팀(스크립트/구버전 생성 등)이
-  //    Firestore에서 조용히 제외되어 매칭 리스트에 안 보인다.
-  //    → 랭킹(listAllTeamsForRanking)과 동일하게 전체를 가져와 클라이언트에서 최신순 정렬한다.
-  const col = collection(db, "clubs");
-  const snap = await getDocs(col);
+  const clubDocs = await clubDocsPromise;
 
-  const opponentTeams = snap.docs
+  const opponentTeams = clubDocs
     .map((d) => ({ club: normalizeOpponentClubDoc(d), createdAtSec: toCreatedAtSec(d.data()) }))
     .filter((x) => x.club && x.club.clubId && x.club.clubId !== teamId)
     .sort((a, b) => b.createdAtSec - a.createdAtSec) // 최신순 (createdAt 없으면 0 → 뒤로)
