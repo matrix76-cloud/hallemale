@@ -14,6 +14,7 @@ import {
 import { useUI } from "../../hooks/useUI";
 import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, Input, PrimaryBtn, GhostBtn, DangerBtn, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
+import OwnerFooter from "./components/OwnerFooter";
 import OwnerSpinner from "./components/OwnerSpinner";
 import ConfirmDialog from "./components/ConfirmDialog";
 import { useConfirm } from "./components/useConfirm";
@@ -286,6 +287,8 @@ export default function OwnerHomePage(){
           </Resv>
         );})}
       </Card>
+
+      <OwnerFooter />
 
       {detailResv && (()=>{
         const r=detailResv;

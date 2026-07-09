@@ -7,7 +7,6 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { useOwner } from "../../context/OwnerContext";
 import { Page, Card, SectionTitle, SectionDesc, GhostBtn, PrimaryBtn, Badge } from "./components/ownerUi";
-import OwnerFooter from "./components/OwnerFooter";
 
 // 스토어 배포 버전과 함께 올린다.
 const APP_VERSION = "1.0.0";
@@ -180,8 +179,6 @@ export default function OwnerMyPage() {
           회원탈퇴 <span>›</span>
         </WithdrawRow>
       </Card>
-
-      <OwnerFooter />
     </Page>
   );
 }
