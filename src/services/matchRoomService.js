@@ -1333,6 +1333,17 @@ export async function proposeMatchSchedule({
     ...activityPatch(),
   });
 
+  // 제안 시점을 채팅에 남긴다 → 채팅에서 이 메시지 자리에 제안 카드가 렌더된다.
+  try {
+    await sendSystemMessage({
+      chatId: `match_${id}`,
+      text: "구장·일정을 제안했어요 📍",
+      meta: { type: "schedule_proposed", clubId: proposer },
+    });
+  } catch (e) {
+    console.warn("[match] propose system message failed:", e?.message || e);
+  }
+
   // (1-13) 제의 알림 → 상대 팀장
   const oppForPropose = await getOpponentClubId(id, proposer);
   if (oppForPropose) {
@@ -1369,6 +1380,17 @@ export async function cancelProposedSchedule({ matchRequestId, cancelledByClubId
     updatedAt: serverTimestamp(),
     ...activityPatch(),
   });
+
+  // 제안 카드는 status가 proposed일 때만 뜬다 → 취소 사실도 채팅에 남겨 흐름이 끊기지 않게
+  try {
+    await sendSystemMessage({
+      chatId: `match_${id}`,
+      text: "구장·일정 제안을 취소했어요",
+      meta: { type: "schedule_proposal_cancelled", clubId: canceller },
+    });
+  } catch (e) {
+    console.warn("[match] cancel-proposal system message failed:", e?.message || e);
+  }
 
   // 상대 팀에 제안 철회 알림
   const opp = canceller ? await getOpponentClubId(id, canceller) : "";

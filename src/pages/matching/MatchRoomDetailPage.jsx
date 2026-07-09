@@ -1200,7 +1200,7 @@ const ResvSubOv = styled.div`
   text-shadow: 0 1px 3px rgba(0,0,0,0.3);
 `;
 
-/* ───── 제휴구장 확정: 구장 결제완료 카드 ───── */
+/* ───── 제휴구장 확정: 구장 예약완료 카드 ───── */
 const PaidCard = styled.div`
   width: 100%; max-width: 360px; margin: 14px 0 0;
   border-radius: 16px; padding: 16px;
@@ -4356,7 +4356,7 @@ export default function MatchRoomDetailPage() {
     if (propVenueId) navigate(`/venue-book/${propVenueId}?view=1`);
   };
 
-  // 구장·일정 제안 카드 — 채팅 대화 끝에 말풍선처럼 붙는다(제안자 쪽 정렬)
+  // 구장·일정 제안 카드 — 채팅의 제안 시점 자리에 말풍선처럼 놓인다(제안자 쪽 정렬)
   const proposalCard =
     status === "proposed" ? (
       <PropCard
@@ -5489,8 +5489,8 @@ export default function MatchRoomDetailPage() {
               otherUid={oppLeader.uid}
               systemNotice={chatSystemNotice}
               noticeIcon={status === "accepted" ? "🤝" : ""}
-              trailingCard={proposalCard}
-              trailingCardMine={iAmProposer}
+              proposalCard={proposalCard}
+              proposalCardMine={iAmProposer}
             />
           </>
         ) : (

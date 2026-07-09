@@ -295,8 +295,9 @@ const fmtTime = (v) => {
  * @param {string} myUid          내 uid
  * @param {string} opponentName   상대 표시명 (상대 팀명 등)
  * @param {string} [systemNotice] 상단 시스템 메시지 (예: "패스트브레이가 매칭을 수락했어요")
- * @param {node}   [trailingCard]     대화 끝에 말풍선처럼 붙는 카드 (구장·일정 제안 등)
- * @param {boolean}[trailingCardMine] trailingCard를 내가 보냈는지 (우측 정렬 여부)
+ * @param {node}   [proposalCard]     구장·일정 제안 카드. "제안했어요" 시스템 메시지 자리에
+ *                                    말풍선처럼 렌더된다(그 메시지가 없는 옛 방은 대화 끝에).
+ * @param {boolean}[proposalCardMine] 제안을 내가 보냈는지 (우측 정렬 여부)
  */
 export default function MatchRoomChat({
   chatId,
@@ -309,8 +310,8 @@ export default function MatchRoomChat({
   noticeIcon = "",
   pinnedCard = null,
   aboveInput = null,
-  trailingCard = null,
-  trailingCardMine = false,
+  proposalCard = null,
+  proposalCardMine = false,
 }) {
   const fileRef = useRef(null);
   const scrollRef = useRef(null);
@@ -380,7 +381,7 @@ export default function MatchRoomChat({
       cancelAnimationFrame(raf);
       clearTimeout(t);
     };
-  }, [messages, chatId, !!trailingCard]);
+  }, [messages, chatId, !!proposalCard]);
 
   const rows = useMemo(() => {
     const arr = [];
@@ -394,6 +395,15 @@ export default function MatchRoomChat({
       arr.push({ type: "msg", ...m });
     });
     return arr;
+  }, [messages]);
+
+  // 제안 카드를 붙일 자리 = 가장 최근 "구장·일정을 제안했어요" 시스템 메시지.
+  // (취소 후 재제안하면 메시지가 여러 개 → 마지막 것에만 카드가 붙는다)
+  const proposalAnchorId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.meta?.type === "schedule_proposed") return messages[i].id;
+    }
+    return "";
   }, [messages]);
 
   const handleSendText = async () => {
@@ -447,6 +457,24 @@ export default function MatchRoomChat({
     .filter(Boolean)
     .join(" · ");
 
+  const proposalCardRow = (key) => (
+    <CardLine key={key} $me={proposalCardMine}>
+      {!proposalCardMine && (
+        <Avatar>
+          {opponentAvatarUrl ? (
+            <img src={opponentAvatarUrl} alt={whoLabel || opponentName} />
+          ) : (
+            <AvatarPlaceholder size={34} />
+          )}
+        </Avatar>
+      )}
+      <CardBody>
+        {!proposalCardMine && <Who>{whoLabel || opponentName}</Who>}
+        {proposalCard}
+      </CardBody>
+    </CardLine>
+  );
+
   return (
     <Wrap>
       <ChatScroll ref={scrollRef}>
@@ -458,6 +486,10 @@ export default function MatchRoomChat({
         {rows.map((row) => {
           if (row.type === "date") {
             return <DateDivider key={row.id}>{row.label}</DateDivider>;
+          }
+          // 제안 카드는 "제안했어요" 안내문을 대체해 그 시각 자리에 놓인다
+          if (proposalCard && row.id === proposalAnchorId) {
+            return proposalCardRow(row.id);
           }
           // 시스템 메시지(라인업 확정 등)는 말풍선 대신 가운데 안내로 표시
           if (row.kind === "system") {
@@ -507,23 +539,8 @@ export default function MatchRoomChat({
           );
         })}
 
-        {trailingCard && (
-          <CardLine $me={trailingCardMine}>
-            {!trailingCardMine && (
-              <Avatar>
-                {opponentAvatarUrl ? (
-                  <img src={opponentAvatarUrl} alt={whoLabel || opponentName} />
-                ) : (
-                  <AvatarPlaceholder size={34} />
-                )}
-              </Avatar>
-            )}
-            <CardBody>
-              {!trailingCardMine && <Who>{whoLabel || opponentName}</Who>}
-              {trailingCard}
-            </CardBody>
-          </CardLine>
-        )}
+        {/* 이 기능 이전에 제안된 방엔 앵커 메시지가 없다 → 대화 끝에 붙인다 */}
+        {proposalCard && !proposalAnchorId && proposalCardRow("proposal-fallback")}
       </ChatScroll>
 
       {aboveInput}
