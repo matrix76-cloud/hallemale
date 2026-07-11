@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-
-# TODO: 실제 배포 도메인으로 교체하세요
-Sitemap: https://hallaemallae.com/sitemap.xml

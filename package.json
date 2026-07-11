@@ -20,9 +20,10 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "build-landing-data": "node scripts/build-landing-data.mjs",
     "copy-landing": "node scripts/copy-landing.mjs",
-    "prestart": "npm run copy-landing",
-    "prebuild": "npm run copy-landing",
+    "prestart": "npm run build-landing-data && npm run copy-landing",
+    "prebuild": "npm run build-landing-data && npm run copy-landing",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",

@@ -1,0 +1,361 @@
+{
+  "generatedAt": "2026-07-11T14:30:02.136Z",
+  "counts": {
+    "teams": 22,
+    "members": 101,
+    "regions": 7
+  },
+  "wall": [
+    {
+      "name": "하프라인즈",
+      "region": "인천 부평구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/media%2Fclubs%2F882vSfljqd8ktRmbknF9%2Fbf64d8c8-b213-406b-ada6-d49a1d60447c_1766314497356.jpg?alt=media&token=3574df6a-c8af-4899-b1ec-7bf9334d34a8"
+    },
+    {
+      "name": "코트메이츠",
+      "region": "광주 광산구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/media%2Fclubs%2F8N0egSVN5lcUhcyR0LoA%2F85413b85-b9bf-4d9b-a783-6657db495ed7_1766124345088.jpg?alt=media&token=ea116677-278d-44e5-836e-e20c01d4d4f2"
+    },
+    {
+      "name": "잠실드래곤",
+      "region": "서울 송파구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FEUAoRAGEYKgAa0ABgOpW%2Flogo_1783082810031_c.png?alt=media&token=291b7d0a-3cb1-4c3b-bf16-65f2244bee25"
+    },
+    {
+      "name": "다산왕",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FEj2fnm7WPFq5xROaDXb1%2Flogo_1783082815230_c.jpg?alt=media&token=3cef8a22-4c34-4882-a67a-7585fd361b26"
+    },
+    {
+      "name": "홍대스윙패스",
+      "region": "울산 울주군",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/media%2Fclubs%2FGEUtaemGxET3NywHOQHJ%2Fd231081d-1e4a-417f-82a1-b9e9af12b8ae_1766124467129.jpg?alt=media&token=b3b0cb52-1daa-40ae-a74c-6f05100917f5"
+    },
+    {
+      "name": "패스트브레이",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FHrtEMQ7VtlpoguNa972s%2Flogo_1766316212744.jpg?alt=media&token=66be84a6-b5bb-4df0-a605-5d1acebb489f"
+    },
+    {
+      "name": "한강불독",
+      "region": "대전 유성구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FK7G0wsfoAGW1ZJR3ynk3%2Flogo_1783082820710_c.png?alt=media&token=5e689594-a6f7-44a4-b934-bce9a6d30321"
+    },
+    {
+      "name": "리바운드5",
+      "region": "대구 동구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FQi3p8WeTw8nhdls1ViFC%2Flogo_1766314805815.jpg?alt=media&token=133686e2-ab42-471d-ae11-41875e5981ea"
+    },
+    {
+      "name": "블랙비어",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FTfhKRnqdb2tjp6e8zDWB%2Flogo_1783082828446_c.jpg?alt=media&token=09cdeb9c-e20a-49fb-916b-416a47823cbf"
+    },
+    {
+      "name": "팀 블랙비어",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/media%2Fclubs%2FYngwm5rRRZBxNUhCMz3t%2F38812c63-e962-45d3-bc6d-575a3ff77f33_1782126753936.jpg?alt=media&token=c6702fe4-f4ee-42d1-a4f6-2264dab8cf4e"
+    },
+    {
+      "name": "박스코리아",
+      "region": "인천 미추홀구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fb4aUEJEGanZSbVgnUVLI%2Flogo_1766141136950.png?alt=media&token=467f9adf-2114-47aa-b844-bb9ae5733420"
+    },
+    {
+      "name": "잠실오픈코트",
+      "region": "서울 강남구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fdv7X55lv2SblLg0PM4jX%2Flogo_1783082833171_c.png?alt=media&token=47d98ee8-58e1-447b-b234-b0e70d9b3dfb"
+    },
+    {
+      "name": "메가더쓰로우",
+      "region": "서울 서초구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeiTqOAwqmbyB5uazDPGU%2Flogo_1766311177118.jpg?alt=media&token=524c5d1e-93fa-483e-b7e1-787fbab14fed"
+    },
+    {
+      "name": "팀응원갈래",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Ff82jK32bEmbjOJeTM5Z7%2Flogo_1783507959318.jpg?alt=media&token=7dc7ae43-c438-44d9-a1a0-6d16b3ef69a5"
+    },
+    {
+      "name": "코트러너스",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fm4wVyuozSU6bYyvvkWbx%2Flogo_1766094026667.png?alt=media&token=c344f25e-4530-414d-aaae-ed965e081358"
+    },
+    {
+      "name": "블랙코트",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FniscAHJJ5EvoOTmmMC0Q%2Flogo_1766312787959.jpg?alt=media&token=ed56624f-911e-4ef0-bbdb-8aaeff3ee964"
+    },
+    {
+      "name": "치킨덕소팀",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fw7PT6dZ0C2PPMz53jyvM%2Flogo_1783082842250_c.jpg?alt=media&token=063ba000-0d54-4ff4-9418-d31c53a0c894"
+    },
+    {
+      "name": "날쎈초급dl",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FzCRxFJvE0WsZUamgQryy%2Flogo_1783082845561_c.png?alt=media&token=0e479b05-8a09-4fd6-bb59-e6541b7e9eee"
+    }
+  ],
+  "all": [
+    {
+      "name": "팀청춘",
+      "region": "경기 남양주시",
+      "logoUrl": ""
+    },
+    {
+      "name": "하프라인즈",
+      "region": "인천 부평구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/media%2Fclubs%2F882vSfljqd8ktRmbknF9%2Fbf64d8c8-b213-406b-ada6-d49a1d60447c_1766314497356.jpg?alt=media&token=3574df6a-c8af-4899-b1ec-7bf9334d34a8"
+    },
+    {
+      "name": "코트메이츠",
+      "region": "광주 광산구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/media%2Fclubs%2F8N0egSVN5lcUhcyR0LoA%2F85413b85-b9bf-4d9b-a783-6657db495ed7_1766124345088.jpg?alt=media&token=ea116677-278d-44e5-836e-e20c01d4d4f2"
+    },
+    {
+      "name": "청춘사자",
+      "region": "경기 수원시 영통구",
+      "logoUrl": ""
+    },
+    {
+      "name": "잠실드래곤",
+      "region": "서울 송파구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FEUAoRAGEYKgAa0ABgOpW%2Flogo_1783082810031_c.png?alt=media&token=291b7d0a-3cb1-4c3b-bf16-65f2244bee25"
+    },
+    {
+      "name": "다산왕",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FEj2fnm7WPFq5xROaDXb1%2Flogo_1783082815230_c.jpg?alt=media&token=3cef8a22-4c34-4882-a67a-7585fd361b26"
+    },
+    {
+      "name": "홍대스윙패스",
+      "region": "울산 울주군",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/media%2Fclubs%2FGEUtaemGxET3NywHOQHJ%2Fd231081d-1e4a-417f-82a1-b9e9af12b8ae_1766124467129.jpg?alt=media&token=b3b0cb52-1daa-40ae-a74c-6f05100917f5"
+    },
+    {
+      "name": "패스트브레이",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FHrtEMQ7VtlpoguNa972s%2Flogo_1766316212744.jpg?alt=media&token=66be84a6-b5bb-4df0-a605-5d1acebb489f"
+    },
+    {
+      "name": "한강불독",
+      "region": "대전 유성구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FK7G0wsfoAGW1ZJR3ynk3%2Flogo_1783082820710_c.png?alt=media&token=5e689594-a6f7-44a4-b934-bce9a6d30321"
+    },
+    {
+      "name": "스윗한나라",
+      "region": "서울 도봉구",
+      "logoUrl": ""
+    },
+    {
+      "name": "리바운드5",
+      "region": "대구 동구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FQi3p8WeTw8nhdls1ViFC%2Flogo_1766314805815.jpg?alt=media&token=133686e2-ab42-471d-ae11-41875e5981ea"
+    },
+    {
+      "name": "블랙비어",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FTfhKRnqdb2tjp6e8zDWB%2Flogo_1783082828446_c.jpg?alt=media&token=09cdeb9c-e20a-49fb-916b-416a47823cbf"
+    },
+    {
+      "name": "팀 블랙비어",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/media%2Fclubs%2FYngwm5rRRZBxNUhCMz3t%2F38812c63-e962-45d3-bc6d-575a3ff77f33_1782126753936.jpg?alt=media&token=c6702fe4-f4ee-42d1-a4f6-2264dab8cf4e"
+    },
+    {
+      "name": "박스코리아",
+      "region": "인천 미추홀구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fb4aUEJEGanZSbVgnUVLI%2Flogo_1766141136950.png?alt=media&token=467f9adf-2114-47aa-b844-bb9ae5733420"
+    },
+    {
+      "name": "잠실오픈코트",
+      "region": "서울 강남구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fdv7X55lv2SblLg0PM4jX%2Flogo_1783082833171_c.png?alt=media&token=47d98ee8-58e1-447b-b234-b0e70d9b3dfb"
+    },
+    {
+      "name": "메가더쓰로우",
+      "region": "서울 서초구",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeiTqOAwqmbyB5uazDPGU%2Flogo_1766311177118.jpg?alt=media&token=524c5d1e-93fa-483e-b7e1-787fbab14fed"
+    },
+    {
+      "name": "팀응원갈래",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Ff82jK32bEmbjOJeTM5Z7%2Flogo_1783507959318.jpg?alt=media&token=7dc7ae43-c438-44d9-a1a0-6d16b3ef69a5"
+    },
+    {
+      "name": "카스 농구단",
+      "region": "서울 성북구",
+      "logoUrl": ""
+    },
+    {
+      "name": "코트러너스",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fm4wVyuozSU6bYyvvkWbx%2Flogo_1766094026667.png?alt=media&token=c344f25e-4530-414d-aaae-ed965e081358"
+    },
+    {
+      "name": "블랙코트",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FniscAHJJ5EvoOTmmMC0Q%2Flogo_1766312787959.jpg?alt=media&token=ed56624f-911e-4ef0-bbdb-8aaeff3ee964"
+    },
+    {
+      "name": "치킨덕소팀",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fw7PT6dZ0C2PPMz53jyvM%2Flogo_1783082842250_c.jpg?alt=media&token=063ba000-0d54-4ff4-9418-d31c53a0c894"
+    },
+    {
+      "name": "날쎈초급dl",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FzCRxFJvE0WsZUamgQryy%2Flogo_1783082845561_c.png?alt=media&token=0e479b05-8a09-4fd6-bb59-e6541b7e9eee"
+    }
+  ],
+  "seasonOpen": true,
+  "teamRanking": [
+    {
+      "name": "날쎈초급dl",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FzCRxFJvE0WsZUamgQryy%2Flogo_1783082845561_c.png?alt=media&token=0e479b05-8a09-4fd6-bb59-e6541b7e9eee",
+      "wins": 4,
+      "draws": 0,
+      "losses": 2,
+      "total": 6,
+      "points": 22,
+      "winRate": 67
+    },
+    {
+      "name": "스윗한나라",
+      "region": "서울 도봉구",
+      "logoUrl": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 2,
+      "total": 3,
+      "points": 7,
+      "winRate": 33
+    },
+    {
+      "name": "청춘사자",
+      "region": "경기 수원시 영통구",
+      "logoUrl": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
+      "name": "팀청춘",
+      "region": "경기 남양주시",
+      "logoUrl": "",
+      "wins": 0,
+      "draws": 0,
+      "losses": 2,
+      "total": 2,
+      "points": 2,
+      "winRate": 0
+    }
+  ],
+  "playerRanking": [
+    {
+      "name": "나는야한로로",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 2,
+      "total": 3,
+      "points": 7,
+      "winRate": 33
+    },
+    {
+      "name": "김도현",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
+      "name": "이준서",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
+      "name": "박지훈",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
+      "name": "전병문",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
+      "name": "최현우",
+      "clubName": "",
+      "wins": 0,
+      "draws": 0,
+      "losses": 2,
+      "total": 2,
+      "points": 2,
+      "winRate": 0
+    },
+    {
+      "name": "이준서",
+      "clubName": "",
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "total": 1,
+      "points": 1,
+      "winRate": 0
+    },
+    {
+      "name": "정우진",
+      "clubName": "",
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "total": 1,
+      "points": 1,
+      "winRate": 0
+    },
+    {
+      "name": "한지호",
+      "clubName": "",
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "total": 1,
+      "points": 1,
+      "winRate": 0
+    },
+    {
+      "name": "한제하",
+      "clubName": "",
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "total": 1,
+      "points": 1,
+      "winRate": 0
+    }
+  ]
+}

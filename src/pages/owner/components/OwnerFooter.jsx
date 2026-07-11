@@ -37,7 +37,7 @@ export const OWNER_BUSINESS = {
   ceo: "한주성",
   bizNo: "225-06-57521",
   address: "경기도 남양주시 화도읍 마석중앙로37번길 45, 504호-N141호(별나라프라자)",
-  tel: "010-6335-7687",
+  tel: "070-8065-7687",
   email: "hallae@ilsaeng.com",
 };
 
