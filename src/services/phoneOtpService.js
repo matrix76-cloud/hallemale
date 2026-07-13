@@ -5,6 +5,14 @@
 
 const CF_BASE = "https://asia-northeast3-halle-bf789.cloudfunctions.net";
 
+// 서버(functions/otp/phoneOtp.js)의 KR_MOBILE_RE 와 동일해야 함.
+const KR_MOBILE_RE = /^01[016789]\d{7,8}$/;
+
+/** 국내 휴대폰 번호인지 검사 ("010-1234-5678" / "01012345678" 모두 허용) */
+export function isKrMobile(phone) {
+  return KR_MOBILE_RE.test(String(phone || "").replace(/\D/g, ""));
+}
+
 /**
  * 국내 전화번호 → E.164 (+82) 변환
  *  "010-1234-5678" → "+821012345678"

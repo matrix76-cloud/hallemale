@@ -156,6 +156,7 @@ export default function HomePage() {
       { label: "이용약관", onClick: () => navigate("/terms") },
       { label: "개인정보처리방침", onClick: () => navigate("/privacy") },
       { label: "운영정책", onClick: () => navigate("/operation") },
+      { label: "취소·환불 정책", onClick: () => navigate("/refund") },
     ],
     [navigate]
   );

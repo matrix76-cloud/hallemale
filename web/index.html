@@ -688,13 +688,13 @@ section[id]{scroll-margin-top:88px}
 
       <div class="show-row reveal">
         <div class="show-txt">
-          <span class="show-pill"><span class="show-num">05</span> 팀장 일괄결제</span>
+          <span class="show-pill"><span class="show-num">05</span> 팀장 일괄결제 <span class="ex-tag">준비 중</span></span>
           <h3>구장비, 팀장이<br>한 번에 결제</h3>
-          <p class="st-sub">매칭 확정과 동시에 결제까지, 그 자리에서 끝나요.</p>
+          <p class="st-sub">지금은 구장에서 현장 정산해요. 앱에서 바로 결제하는 기능을 준비하고 있어요.</p>
           <ul class="feat-bullets">
-            <li><span class="bk">✓</span>팀장 일괄결제로 송금 걷을 필요 없음</li>
-            <li><span class="bk">✓</span>경기 확정 카드에서 바로 결제</li>
-            <li><span class="bk">✓</span>따로 챙길 것 없이 깔끔하게</li>
+            <li><span class="bk">✓</span>현재: 앱에서 예약 요청 → 구장 승인 → 현장 정산</li>
+            <li><span class="bk">✓</span>준비 중: 팀장 일괄결제로 송금 걷을 필요 없이 한 번에</li>
+            <li><span class="bk">✓</span>결제 기능 오픈 시점은 앱 공지로 안내드려요</li>
           </ul>
         </div>
         <div class="show-media"><div class="device"><img src="assets/경기%20확정%20카드%20목업.jpg" alt="경기 확정 카드 화면"></div></div>
@@ -810,9 +810,9 @@ section[id]{scroll-margin-top:88px}
 <!-- TESTIMONIAL -->
 <section class="blk reviews" id="reviews">
   <div class="wrap center">
-    <div class="eyebrow">후기</div>
-    <h2 class="sec-h">벌써 <span class="pt">한 판씩</span> 잡고 있어요.</h2>
-    <p class="sec-p">먼저 써본 분들이 남긴 이야기예요. <span class="ex-tag">예시 후기</span></p>
+    <div class="eyebrow">이용 예시</div>
+    <h2 class="sec-h">이런 <span class="pt">한 판</span>을 위해 만들었어요.</h2>
+    <p class="sec-p">실제 이용자의 후기가 아니라, 서비스 이용 상황을 가정해 만든 예시입니다. <span class="ex-tag">가상 예시</span></p>
   </div>
   <div class="mq-wrap rev-mq">
     <div class="rev-track" id="revTrack"></div>
@@ -828,7 +828,7 @@ section[id]{scroll-margin-top:88px}
   <div class="wrap">
     <div class="faq-list">
       <div class="faq-q"><span class="faq-ava">Q</span><div class="bubble">할래말래는 무료인가요?</div></div>
-      <div class="faq-a"><span class="faq-ava"><img src="assets/logo.png" alt=""></span><div class="bubble">네, <b>무료로 시작</b>할 수 있어요. 매칭·전적·랭킹 모두 자유롭게 이용하고, 구장비 정산만 실제 결제로 진행돼요.</div></div>
+      <div class="faq-a"><span class="faq-ava"><img src="assets/logo.png" alt=""></span><div class="bubble">네, 매칭·전적·랭킹 등 <b>앱 이용은 무료</b>예요. 저희가 받는 이용료는 없습니다. 구장비는 <b>이용 당일 구장에 직접 정산</b>하시면 돼요. (앱에서 바로 결제하는 기능은 준비 중이에요.)</div></div>
 
       <div class="faq-q"><span class="faq-ava">Q</span><div class="bubble">팀이 아직 없어도 쓸 수 있나요?</div></div>
       <div class="faq-a"><span class="faq-ava"><img src="assets/logo.png" alt=""></span><div class="bubble">앱에서 <b>팀을 만들거나</b> 팀에 가입할 수 있어요. 팀을 꾸린 뒤 상대 매칭을 신청하면 됩니다.</div></div>
@@ -943,6 +943,7 @@ section[id]{scroll-margin-top:88px}
       <a href="terms.html">이용약관</a>
       <a href="privacy.html">개인정보처리방침</a>
       <a href="operation.html">운영정책</a>
+      <a href="refund.html">취소 및 환불 정책</a>
       <a href="account-deletion.html">계정 삭제 안내</a>
     </div>
   </div>
@@ -967,6 +968,7 @@ section[id]{scroll-margin-top:88px}
       <a href="terms.html">이용약관</a>
       <a href="privacy.html">개인정보처리방침</a>
       <a href="operation.html">운영정책</a>
+      <a href="refund.html">취소 및 환불 정책</a>
       <a href="account-deletion.html">계정 삭제 안내</a>
       <a href="#contact">제휴·입점 문의</a>
       <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=hallae@ilsaeng.com" target="_blank" rel="noopener noreferrer">고객센터</a>
@@ -1311,22 +1313,24 @@ document.querySelectorAll('.store-android').forEach(a=>a.href=PLAY_STORE_URL);
   live().then(render).catch(function(){});
 })();
 
-// 후기 마퀴 (오른쪽 → 왼쪽 무한 이동)
+// 이용 예시 마퀴 (오른쪽 → 왼쪽 무한 이동)
+// ⚠️ 실제 이용자 후기가 아니라 서비스 이용 상황을 가정한 가상 예시다.
+//    실제 후기처럼 보이면 표시광고법 위반 소지가 있어 별점·팀명 표기를 쓰지 않는다.
+//    아직 제공하지 않는 기능(인앱 결제)을 예시에 넣어서도 안 된다.
 (function(){
   var revs = [
-    ['★★★★★','"단톡방 돌리던 시간이 확 줄었어요. 주말 상대가 하루 만에 잡혔네요."','노원구 · 슛돌이'],
-    ['★★★★★','"예상 승률 보고 비슷한 팀이랑 붙으니 경기가 훨씬 재밌어요."','성남 · 코트메이츠'],
-    ['★★★★★','"전적이 쌓이니까 팀원들이 더 진심으로 뛰어요. 랭킹 올라가는 재미가 큽니다."','수원 · 블랙코트'],
-    ['★★★★☆','"구장비 걷는 게 제일 귀찮았는데 팀장 결제로 한 번에 끝나서 편해요."','고양 · 메가더쓰로우'],
-    ['★★★★★','"새로 만든 팀인데 바로 상대를 구해서 첫 경기를 잡았어요."','인천 · 런앤건'],
-    ['★★★★★','"매칭룸에서 일정·장소 정하니까 당일에 헷갈릴 일이 없더라고요."','부천 · 더블클러치']
+    ['상대 구하기','단톡방을 돌리지 않아도, 우리 지역에서 뛸 상대 팀을 앱에서 바로 찾을 수 있어요.'],
+    ['전력 확인','상대 팀의 전적과 예상 승률을 미리 보고, 비슷한 수준의 팀과 매칭할 수 있어요.'],
+    ['전적·랭킹','경기 결과가 팀 전적과 지역 랭킹에 자동으로 쌓여요.'],
+    ['구장 예약','제휴 구장의 빈 시간대를 확인하고 앱에서 예약을 요청할 수 있어요.'],
+    ['새 팀도 OK','팀을 새로 만들어도 곧바로 상대를 찾아 첫 경기를 잡을 수 있어요.'],
+    ['매칭룸','일정·장소를 매칭룸에서 상대 팀과 함께 정해요.']
   ];
   var t = document.getElementById('revTrack');
   if (!t) return;
   function card(r){
-    return '<div class="rev-card"><div class="qp-stars">'+r[0]+'</div>'
-      + '<div class="qp-body">'+r[1]+'</div>'
-      + '<div class="qp-name">'+r[2]+'</div></div>';
+    return '<div class="rev-card"><div class="qp-body">'+r[1]+'</div>'
+      + '<div class="qp-name">'+r[0]+'</div></div>';
   }
   t.innerHTML = (revs.concat(revs)).map(card).join('');
 })();

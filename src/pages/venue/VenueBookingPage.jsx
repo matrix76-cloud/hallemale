@@ -21,6 +21,7 @@ import {
   dowToKey,
   FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
+import { BOOKING_WINDOW_DAYS } from "../../constants/booking";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome } from "react-icons/fi";
@@ -125,7 +126,7 @@ export default function VenueBookingPage() {
   const dates = useMemo(() => {
     const now = new Date();
     const base = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    return Array.from({ length: 14 }, (_, i) => {
+    return Array.from({ length: BOOKING_WINDOW_DAYS }, (_, i) => {
       const d = new Date(base + i * 86400000);
       return { date: ymd(d), day: d.getDate(), wd: WEEK[d.getDay()], dow: d.getDay() };
     });

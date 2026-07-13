@@ -29,6 +29,7 @@ import {
   where,
 } from "firebase/firestore";
 import { payFizz } from "./fizzService";
+import { BOOKING_WINDOW_DAYS, isBookableDate } from "../constants/booking";
 
 function hhmmToMin(v) {
   const [h, m] = String(v || "0:0").split(":").map((x) => parseInt(x, 10) || 0);
@@ -993,6 +994,18 @@ export async function listBookableVenues() {
   return out;
 }
 
+/**
+ * 예약 가능 기간(오늘 포함 BOOKING_WINDOW_DAYS일) 밖이면 차단.
+ * 사용자 예약 경로 전용 — 구장주 수동·정기대관(createOwnerReservation)은 대상이 아니다.
+ * firestore.rules 의 venueReservations 규칙에도 같은 창구가 걸려 있어 UI를 우회해도 막힌다.
+ */
+function assertBookableDate(date) {
+  if (isBookableDate(date)) return;
+  const e = new Error(`예약은 오늘부터 ${BOOKING_WINDOW_DAYS}일(3주) 이내 날짜만 가능해요.`);
+  e.code = "date_out_of_window";
+  throw e;
+}
+
 /** 슬롯 가격 계산 — date 주면 3단계 요금(특정날짜>요일별>기본) 반영, 없으면 기본요금 */
 export function calcSlotPrice(court, startTime, endTime, date) {
   const per = date ? resolveSlotPrice(court, date, startTime) : (toNum(court?.pricePerHour) ?? 0);
@@ -1013,6 +1026,7 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user }
   if (!venueId || !courtId) throw new Error("구장/코트 정보가 올바르지 않습니다.");
   if (!safeStr(date) || !safeStr(startTime) || !safeStr(endTime)) throw new Error("예약 시간이 올바르지 않습니다.");
   if (!uid) throw new Error("로그인이 필요합니다.");
+  assertBookableDate(date);
 
   // 1) 슬롯 비었는지 재검증
   const [reservations, blocks] = await Promise.all([
@@ -1122,6 +1136,7 @@ export function splitPrice(total) {
 export async function writePartnerBooking({ matchId, venue, court, date, startTime, endTime, proposerUid, proposerClubId, proposerTeamName, opponentClubId, opponentTeamName }) {
   const id = safeStr(matchId);
   if (!id) throw new Error("matchId가 필요합니다.");
+  assertBookableDate(date);
   await assertSlotFree({ venueId: venue.id, courtId: court.id, date, startTime, endTime });
   const total = calcSlotPrice(court, startTime, endTime, date);
   const { shareA, shareB } = splitPrice(total);
@@ -1172,6 +1187,7 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
   const preActive = pre.exists() && ["requested", "pending", "confirmed"].includes(safeStr(pre.data()?.status));
 
   if (!preActive) {
+    assertBookableDate(pb.date);
     await assertSlotFree({ venueId: pb.venueId, courtId: pb.courtId, date: pb.date, startTime: pb.startTime, endTime: pb.endTime });
     const [leaderA, leaderB] = await Promise.all([
       loadClubLeaderContact(pb.proposerClubId),

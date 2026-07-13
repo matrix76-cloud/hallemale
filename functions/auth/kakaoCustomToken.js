@@ -109,17 +109,20 @@ exports.kakaoCustomToken = onRequest(
       const kakaoAccount = kakaoUser.kakao_account || {};
       const profile = kakaoAccount.profile || {};
 
-      await db.collection("users").doc(uid).set(
-        {
-          provider: "kakao",
-          kakaoId,
-          displayName: profile.nickname || "",
-          photoURL: profile.profile_image_url || "",
-          email: kakaoAccount.email || "",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
+      const userDoc = {
+        provider: "kakao",
+        kakaoId,
+        displayName: profile.nickname || "",
+        photoURL: profile.profile_image_url || "",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      // 이메일은 선택 동의 항목이라 미동의 시 응답에서 빠진다.
+      // 그때 ""로 merge 하면 기존에 저장된 이메일이 지워지므로, 값이 있을 때만 쓴다.
+      if (kakaoAccount.email) {
+        userDoc.email = kakaoAccount.email;
+      }
+
+      await db.collection("users").doc(uid).set(userDoc, { merge: true });
 
       // 4) Firebase Custom Token 생성
       const customToken = await admin.auth().createCustomToken(uid, {

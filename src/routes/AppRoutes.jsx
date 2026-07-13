@@ -77,6 +77,7 @@ const TeamJoinRequestDetailPage = lazy(() => import("../components/team/TeamJoin
 const TermsPage = lazy(() => import("../pages/legal/TermsPage"));
 const PrivacyPage = lazy(() => import("../pages/legal/PrivacyPage"));
 const OperationPage = lazy(() => import("../pages/legal/OperationPage"));
+const RefundPage = lazy(() => import("../pages/legal/RefundPage"));
 const PlayerRankingFullPage = lazy(() => import("../pages/player/PlayerRankingFullPage"));
 const TeamRankingFullPage = lazy(() => import("../pages/team/TeamRankingFullPage"));
 const TeamMatchHistoryFullPage = lazy(() => import("../pages/team/TeamMatchHistoryFullPage"));
@@ -386,6 +387,7 @@ export default function AppRoutes() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/operation" element={<OperationPage />} />
+          <Route path="/refund" element={<RefundPage />} />
         </Route>
 
         <Route path="/admin/login" element={<AdminLoginPage />} />

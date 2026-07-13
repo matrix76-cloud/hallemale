@@ -11,7 +11,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-const VALID_TYPES = new Set(["privacy", "terms", "operation", "owner_terms"]);
+const VALID_TYPES = new Set(["privacy", "terms", "operation", "owner_terms", "refund"]);
 
 function safeStr(v) {
   return String(v || "").trim();

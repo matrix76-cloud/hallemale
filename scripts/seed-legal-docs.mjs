@@ -6,6 +6,7 @@
 //       node scripts/seed-legal-docs.mjs --apply  → 실제 덮어쓰기
 
 import { initializeApp } from "firebase/app";
+import { getAuth, signInWithCustomToken } from "firebase/auth";
 import {
   getFirestore,
   doc,
@@ -29,10 +30,45 @@ const APPLY = process.argv.includes("--apply");
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const TYPES = ["privacy", "terms", "operation"];
+const TYPES = ["privacy", "terms", "operation", "refund"];
+
+// legal_documents 는 보안규칙상 관리자(request.auth.token.admin)만 쓸 수 있다.
+// adminLogin 함수로 커스텀 토큰을 받아 로그인해야 --apply 가 통과한다.
+//   ADMIN_ID=... ADMIN_PW=... node scripts/seed-legal-docs.mjs --apply
+const ADMIN_LOGIN_URL =
+  "https://asia-northeast3-halle-bf789.cloudfunctions.net/adminLogin";
+
+async function signInAsAdmin() {
+  const id = process.env.ADMIN_ID;
+  const password = process.env.ADMIN_PW;
+  if (!id || !password) {
+    console.error(
+      "\n✖ 관리자 인증 정보가 없습니다.\n" +
+        "  legal_documents 쓰기는 관리자 권한이 필요합니다.\n" +
+        "  사용: ADMIN_ID=<아이디> ADMIN_PW=<비밀번호> node scripts/seed-legal-docs.mjs --apply"
+    );
+    process.exit(1);
+  }
+
+  const res = await fetch(ADMIN_LOGIN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.token) {
+    console.error(`\n✖ 관리자 로그인 실패: ${data?.error || res.status}`);
+    process.exit(1);
+  }
+
+  await signInWithCustomToken(getAuth(app), data.token);
+  console.log(`관리자 로그인 성공: ${data.name || id} (${data.role || "admin"})\n`);
+}
 
 async function run() {
   console.log(APPLY ? "=== APPLY 모드: 실제 덮어쓰기 ===" : "=== DRY-RUN: 계획만 출력 (적용하려면 --apply) ===");
+
+  if (APPLY) await signInAsAdmin();
 
   for (const type of TYPES) {
     const def = LEGAL_DEFAULTS[type];

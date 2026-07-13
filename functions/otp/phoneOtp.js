@@ -3,6 +3,7 @@
 // 전화번호 SMS 인증 (Solapi) — 소셜(카카오/구글) 계정을 전화번호로 통합하기 위한 OTP 발송/검증.
 // 참고 구현: ieum(이음) functions/index.js requestPhoneOtp / verifyPhoneOtp
 const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { getDb, getAdmin } = require("../firebaseAdmin");
 
@@ -20,6 +21,14 @@ const SENDER = "01063357687";
 const OTP_EXPIRE_MS = 3 * 60 * 1000; // 인증번호 유효 3분
 const OTP_MAX_ATTEMPTS = 5; // 코드 오입력 허용 횟수
 const OTP_RATE_LIMIT = 5; // 동일번호 1시간당 발송 제한
+
+// 개인정보처리방침 제3조: 휴대폰 인증 기록(전화번호·인증번호)은 인증 요청일로부터 30일 보관 후 파기.
+// 방침에 적힌 보유기간을 실제로 지키는 주체가 아래 purgePhoneVerificationsDaily 다.
+const OTP_RETENTION_DAYS = 30;
+
+// Solapi 발신은 국내망 전용 → 해외 번호는 SMS가 나가지 않는다.
+// 길이만 검사하면 미국 10자리 번호 등이 통과해 발송 실패 문서만 쌓인다.
+const KR_MOBILE_RE = /^01[016789]\d{7,8}$/;
 
 // App Store 심사용 테스트 전화번호 범위 — Solapi 발송 스킵 + 응답에 testCode 노출
 const TEST_PHONE_RANGE = { start: "01099991000", end: "01099991005" };
@@ -47,8 +56,12 @@ exports.requestPhoneOtp = onRequest(
       }
 
       const normPhone = String(phone).replace(/\D/g, "");
-      if (normPhone.length < 10 || normPhone.length > 11) {
-        res.status(400).json({ ok: false, error: "전화번호 형식이 올바르지 않습니다." });
+      if (!KR_MOBILE_RE.test(normPhone)) {
+        res.status(400).json({
+          ok: false,
+          error: "국내 휴대폰 번호만 인증할 수 있습니다.",
+          code: "phone/kr-only",
+        });
         return;
       }
 
@@ -203,3 +216,37 @@ exports.verifyPhoneOtp = onRequest({ region: REGION, cors: true }, async (req, r
     res.status(500).json({ ok: false, error: "서버 오류가 발생했습니다." });
   }
 });
+
+/**
+ * 휴대폰 인증 기록 파기 (매일 04:00 KST)
+ * phone_verifications 는 전화번호와 인증번호를 담고 있어 무기한 보관하면 안 된다.
+ * 개인정보처리방침에 고지한 보유기간(30일)이 지난 문서를 삭제한다.
+ */
+exports.purgePhoneVerificationsDaily = onSchedule(
+  { region: REGION, schedule: "0 4 * * *", timeZone: "Asia/Seoul", retryCount: 0 },
+  async () => {
+    const db = getDb();
+    const cutoff = new Date(Date.now() - OTP_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+    let deleted = 0;
+    // 배치 상한(500)에 맞춰 반복 — 하루치 적재량은 이보다 훨씬 적지만 최초 실행 시 누적분을 비운다.
+    for (;;) {
+      const snap = await db
+        .collection("phone_verifications")
+        .where("createdAt", "<", cutoff)
+        .limit(400)
+        .get();
+      if (snap.empty) break;
+
+      const batch = db.batch();
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      deleted += snap.size;
+
+      if (snap.size < 400) break;
+    }
+
+    console.log("[purgePhoneVerificationsDaily] deleted:", deleted);
+    return null;
+  }
+);

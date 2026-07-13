@@ -159,6 +159,7 @@ const TYPE_LABEL = {
   privacy: "개인정보 처리지침",
   terms: "이용약관",
   operation: "운영정책",
+  refund: "취소 및 환불 정책",
   owner_terms: "구장 관리자 이용약관",
 };
 
@@ -280,6 +281,9 @@ export default function AdminSettingsPolicyPage() {
           </TabBtn>
           <TabBtn type="button" $active={type === "operation"} onClick={() => switchType("operation")}>
             운영정책
+          </TabBtn>
+          <TabBtn type="button" $active={type === "refund"} onClick={() => switchType("refund")}>
+            취소 및 환불 정책
           </TabBtn>
           <TabBtn type="button" $active={type === "owner_terms"} onClick={() => switchType("owner_terms")}>
             구장 관리자 이용약관

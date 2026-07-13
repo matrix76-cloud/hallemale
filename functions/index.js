@@ -52,6 +52,7 @@ const { verifyBusiness } = require("./business/verifyBusiness");
 exports.verifyBusiness = verifyBusiness;
 
 // ✅ 전화번호 SMS 인증 (Solapi) — 소셜 계정 전화번호 통합용
-const { requestPhoneOtp, verifyPhoneOtp } = require("./otp/phoneOtp");
+const { requestPhoneOtp, verifyPhoneOtp, purgePhoneVerificationsDaily } = require("./otp/phoneOtp");
 exports.requestPhoneOtp = requestPhoneOtp;
 exports.verifyPhoneOtp = verifyPhoneOtp;
+exports.purgePhoneVerificationsDaily = purgePhoneVerificationsDaily;

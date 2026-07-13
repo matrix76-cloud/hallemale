@@ -15,6 +15,7 @@ import {
   getVenue, listReservations, listBlocks, bookVenue, writePartnerBooking,
   calcSlotPrice, dowToKey,
 } from "../../services/ownerVenueService";
+import { BOOKING_WINDOW_DAYS } from "../../constants/booking";
 import Spinner from "../../components/common/Spinner";
 import CourtNotices from "./CourtNotices";
 import { FiCalendar, FiClock, FiMapPin, FiCheckCircle } from "react-icons/fi";
@@ -59,7 +60,7 @@ export default function CourtBookingPage() {
   const dates = useMemo(() => {
     const now = new Date();
     const base = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    return Array.from({ length: 14 }, (_, i) => {
+    return Array.from({ length: BOOKING_WINDOW_DAYS }, (_, i) => {
       const d = new Date(base + i * 86400000);
       return { date: ymd(d), day: d.getDate(), wd: WEEK[d.getDay()], dow: d.getDay() };
     });

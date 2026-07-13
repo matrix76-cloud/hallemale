@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import styled from "styled-components";
 import { useAuth } from "../../hooks/useAuth";
-import { requestPhoneOtp, verifyPhoneOtp, toE164Kr } from "../../services/phoneOtpService";
+import { requestPhoneOtp, verifyPhoneOtp, toE164Kr, isKrMobile } from "../../services/phoneOtpService";
 import { getPrimaryUidByPhone, linkPhoneToUid } from "../../services/phoneService";
 import { linkSocialToExistingUser, getUserProfileByUid } from "../../services/userService";
 import { db } from "../../services/firebase";
@@ -40,7 +40,7 @@ export default function PhoneVerifyPage() {
   const verifyingRef = useRef(false);
 
   const phoneDigits = phone.replace(/\D/g, "");
-  const phoneValid = phoneDigits.length >= 10 && phoneDigits.length <= 11;
+  const phoneValid = isKrMobile(phoneDigits);
   const expired = step === "code" && secondsLeft <= 0;
 
   // 안드로이드 하드웨어 뒤로가기 처리(전화인증 게이트).
@@ -190,14 +190,13 @@ export default function PhoneVerifyPage() {
 
   return (
     <Overlay>
-      <Card>
-        {step === "phone" ? (
-          <>
-            <Title>전화번호 인증</Title>
-            <Desc>
-              안전한 이용을 위해 전화번호 인증이 필요해요.<br />
-              인증번호를 문자로 보내드립니다.
-            </Desc>
+      {step === "phone" ? (
+        <>
+          <Body>
+            <Title>
+              전화번호를<br />입력해 주세요
+            </Title>
+            <Desc>안전한 이용을 위해 인증번호를 문자로 보내드려요.</Desc>
 
             <PhoneInput
               type="tel"
@@ -207,25 +206,31 @@ export default function PhoneVerifyPage() {
               onChange={(e) => setPhone(e.target.value)}
               maxLength={13}
               autoFocus
+              $error={!!error}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && phoneValid) sendCode();
               }}
             />
+            <HelpLine>
+              {error ? <ErrorText>{error}</ErrorText> : <MutedText>국내 휴대폰 번호만 지원해요</MutedText>}
+            </HelpLine>
+          </Body>
 
-            {error && <ErrorMsg>{error}</ErrorMsg>}
-
+          <Footer>
             <PrimaryBtn onClick={sendCode} disabled={!phoneValid || sending}>
               {sending ? "발송 중…" : "인증번호 받기"}
             </PrimaryBtn>
-
             <LinkBtn onClick={signOut}>다른 계정으로 로그인</LinkBtn>
-          </>
-        ) : (
-          <>
-            <Title>인증번호 입력</Title>
+          </Footer>
+        </>
+      ) : (
+        <>
+          <Body>
+            <Title>
+              인증번호를<br />입력해 주세요
+            </Title>
             <Desc>
-              <b>{formatPhone(phone)}</b> 로 보낸<br />
-              6자리 인증번호를 입력해 주세요.
+              <b>{formatPhone(phone)}</b> 로 6자리 번호를 보냈어요.
             </Desc>
 
             <Dots>
@@ -234,7 +239,7 @@ export default function PhoneVerifyPage() {
               ))}
             </Dots>
 
-            <StatusLine>
+            <HelpLine>
               {error ? (
                 <ErrorText>{error}</ErrorText>
               ) : notice ? (
@@ -242,24 +247,9 @@ export default function PhoneVerifyPage() {
               ) : expired ? (
                 <ErrorText>인증번호가 만료되었어요. 재전송해 주세요.</ErrorText>
               ) : (
-                <TimerText>남은 시간 {mm}:{ss}</TimerText>
+                <MutedText>남은 시간 {mm}:{ss}</MutedText>
               )}
-            </StatusLine>
-
-            <Pad>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                <Key key={n} onClick={() => press(n)} disabled={submitting || expired}>
-                  {n}
-                </Key>
-              ))}
-              <KeySpacer />
-              <Key onClick={() => press(0)} disabled={submitting || expired}>
-                0
-              </Key>
-              <Key $sub onClick={back} disabled={submitting}>
-                ⌫
-              </Key>
-            </Pad>
+            </HelpLine>
 
             <BottomRow>
               <LinkBtn onClick={resend} disabled={sending}>
@@ -277,224 +267,220 @@ export default function PhoneVerifyPage() {
                 번호 변경
               </LinkBtn>
             </BottomRow>
-          </>
-        )}
-      </Card>
+          </Body>
+
+          <Pad>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+              <Key key={n} onClick={() => press(n)} disabled={submitting || expired}>
+                {n}
+              </Key>
+            ))}
+            <KeySpacer />
+            <Key onClick={() => press(0)} disabled={submitting || expired}>
+              0
+            </Key>
+            <Key $sub onClick={back} disabled={submitting}>
+              ⌫
+            </Key>
+          </Pad>
+        </>
+      )}
     </Overlay>
   );
 }
 
-/* ───────── styles (라이트 기본 + 다크 대응) ───────── */
+/* ───────── styles ─────────
+ * 토스식 인증 화면: 순백 배경 · 좌측 정렬 큰 타이틀 · 하단 고정 CTA/키패드.
+ * 인증 게이트는 항상 라이트로 고정한다(다크 대응 없음).
+ * 색: brand #4f46e5(theme.colors.primary) / 텍스트 #191f28 · #8b95a1 / 경고 #f04452
+ */
+const BRAND = "#4f46e5";
+const INK = "#191f28";
+const MUTED = "#8b95a1";
+const LINE = "#e5e8eb";
+const RED = "#f04452";
+
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
   z-index: 9000;
   background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
-    'Segoe UI', 'Malgun Gothic', sans-serif;
-  @media (prefers-color-scheme: dark) {
-    background: #111418;
-  }
-`;
-const Card = styled.div`
-  width: 100%;
-  max-width: 360px;
+  color: ${INK};
   display: flex;
   flex-direction: column;
-  align-items: center;
+  padding: max(env(safe-area-inset-top), 8px) 0 max(env(safe-area-inset-bottom), 16px);
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', 'Malgun Gothic', sans-serif;
+  -webkit-tap-highlight-color: transparent;
 `;
-const Title = styled.div`
-  font-size: 22px;
-  font-weight: 800;
-  color: #16181d;
-  margin-bottom: 12px;
-  @media (prefers-color-scheme: dark) {
-    color: #f4f5f7;
-  }
+// 위쪽 콘텐츠 영역 — 타이틀·입력·상태. 남는 공간을 먹어 CTA/키패드를 아래로 민다.
+const Body = styled.div`
+  flex: 1;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 40px 24px 0;
+  display: flex;
+  flex-direction: column;
 `;
-const Desc = styled.div`
-  font-size: 14px;
-  line-height: 1.7;
-  color: #6b7280;
-  text-align: center;
-  margin-bottom: 26px;
+const Title = styled.h1`
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.38;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: ${INK};
+`;
+const Desc = styled.p`
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: ${MUTED};
   b {
-    color: #16181d;
-    font-weight: 700;
-  }
-  @media (prefers-color-scheme: dark) {
-    color: #9aa1ac;
-    b {
-      color: #f4f5f7;
-    }
+    color: #4e5968;
+    font-weight: 600;
   }
 `;
 const PhoneInput = styled.input`
   width: 100%;
-  height: 54px;
-  border: 1.5px solid #e3e6ea;
-  border-radius: 12px;
-  padding: 0 16px;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  color: #16181d;
-  background: #fafbfc;
+  margin-top: 40px;
+  padding: 0 0 12px;
+  border: none;
+  border-bottom: 2px solid ${({ $error }) => ($error ? RED : LINE)};
+  border-radius: 0;
+  background: transparent;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: ${INK};
   outline: none;
-  text-align: center;
   transition: border-color 0.15s;
   &:focus {
-    border-color: #16181d;
-    background: #fff;
+    border-bottom-color: ${({ $error }) => ($error ? RED : BRAND)};
   }
   &::placeholder {
-    color: #b6bcc4;
-    font-weight: 500;
-  }
-  @media (prefers-color-scheme: dark) {
-    background: #1b1f25;
-    border-color: #2c313a;
-    color: #f4f5f7;
-    &:focus {
-      border-color: #6b7280;
-      background: #1b1f25;
-    }
+    color: #c9cfd6;
+    font-weight: 600;
   }
 `;
-const PrimaryBtn = styled.button`
-  width: 100%;
-  height: 54px;
-  margin-top: 18px;
-  border: none;
-  border-radius: 12px;
-  background: #16181d;
-  color: #fff;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  &:active {
-    opacity: 0.85;
-  }
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-  @media (prefers-color-scheme: dark) {
-    background: #f4f5f7;
-    color: #16181d;
-  }
-`;
-const Dots = styled.div`
-  display: flex;
-  gap: 14px;
-  margin-bottom: 14px;
-`;
-const Dot = styled.div`
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: ${({ $filled }) => ($filled ? "#16181d" : "transparent")};
-  border: 2px solid ${({ $filled }) => ($filled ? "#16181d" : "#d3d7dd")};
-  transition: all 0.12s;
-  @media (prefers-color-scheme: dark) {
-    background: ${({ $filled }) => ($filled ? "#f4f5f7" : "transparent")};
-    border-color: ${({ $filled }) => ($filled ? "#f4f5f7" : "#3a3f48")};
-  }
-`;
-const StatusLine = styled.div`
-  min-height: 20px;
-  margin-bottom: 18px;
+// 입력/코드 아래 한 줄 — 안내·타이머·에러가 같은 자리에서 교체된다(레이아웃 점프 방지)
+const HelpLine = styled.div`
+  min-height: 22px;
+  margin-top: 12px;
   font-size: 13px;
+  line-height: 1.6;
 `;
-const TimerText = styled.span`
-  color: #9aa1ac;
+const MutedText = styled.span`
+  color: ${MUTED};
 `;
 const NoticeText = styled.span`
-  color: #2563eb;
+  color: ${BRAND};
   font-weight: 600;
 `;
 const ErrorText = styled.span`
-  color: #ef4444;
+  color: ${RED};
   font-weight: 600;
 `;
-const ErrorMsg = styled.div`
-  width: 100%;
-  margin-top: 12px;
+const Dots = styled.div`
+  display: flex;
+  gap: 16px;
+  margin-top: 44px;
+`;
+const Dot = styled.div`
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: ${({ $filled }) => ($filled ? BRAND : "#eaecef")};
+  transition: background 0.12s, transform 0.12s;
+  transform: ${({ $filled }) => ($filled ? "scale(1.08)" : "scale(1)")};
+`;
+const BottomRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 20px;
+`;
+const Dividerdot = styled.span`
+  color: #c9cfd6;
   font-size: 13px;
-  color: #ef4444;
-  font-weight: 600;
-  text-align: center;
 `;
-const Pad = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+// 하단 고정 CTA 영역 (전화번호 단계)
+const Footer = styled.div`
   width: 100%;
-  max-width: 300px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 `;
-const Key = styled.button`
-  height: 60px;
+const PrimaryBtn = styled.button`
+  width: 100%;
+  height: 56px;
   border: none;
   border-radius: 14px;
-  background: ${({ $sub }) => ($sub ? "transparent" : "#f2f4f6")};
-  color: #16181d;
-  font-size: ${({ $sub }) => ($sub ? "22px" : "24px")};
+  background: ${BRAND};
+  color: #fff;
+  font-size: 17px;
   font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s;
+  &:active {
+    transform: scale(0.99);
+  }
+  &:disabled {
+    background: #f2f4f6;
+    color: #b0b8c1;
+    cursor: default;
+    transform: none;
+  }
+`;
+// 하단 고정 숫자패드 (인증번호 단계) — 토스처럼 키 배경 없이 눌렀을 때만 음영
+const Pad = styled.div`
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 8px 12px 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+`;
+const Key = styled.button`
+  height: 62px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: ${INK};
+  font-size: ${({ $sub }) => ($sub ? "22px" : "26px")};
+  font-weight: 500;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.1s;
   &:active {
-    background: ${({ $sub }) => ($sub ? "rgba(0,0,0,0.06)" : "#e5e8ec")};
+    background: #f2f4f6;
   }
   &:disabled {
-    opacity: 0.4;
+    color: #c9cfd6;
     cursor: default;
-  }
-  @media (prefers-color-scheme: dark) {
-    background: ${({ $sub }) => ($sub ? "transparent" : "#1f242b")};
-    color: #f4f5f7;
-    &:active {
-      background: ${({ $sub }) => ($sub ? "rgba(255,255,255,0.08)" : "#2a2f37")};
-    }
+    background: transparent;
   }
 `;
 const KeySpacer = styled.div``;
-const BottomRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 26px;
-`;
-const Dividerdot = styled.span`
-  color: #c4c9d0;
-  font-size: 13px;
-`;
 const LinkBtn = styled.button`
-  padding: 8px 6px;
+  padding: 10px 6px;
   background: transparent;
   border: none;
-  color: #6b7280;
-  font-size: 13px;
-  font-weight: 600;
+  color: ${MUTED};
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   &:hover {
-    color: #16181d;
+    color: #4e5968;
   }
   &:disabled {
     opacity: 0.5;
     cursor: default;
-  }
-  @media (prefers-color-scheme: dark) {
-    color: #9aa1ac;
-    &:hover {
-      color: #f4f5f7;
-    }
   }
 `;
