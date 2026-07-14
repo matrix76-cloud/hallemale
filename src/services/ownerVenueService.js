@@ -789,6 +789,46 @@ async function syncMatchOnReservationChange(data, action) {
   }
 }
 
+// 일반 사용자앱 예약(source=app, userId 보유, matchId 없음)의 상태 변화를 예약자 본인에게 통보.
+// 매칭 예약은 syncMatchOnReservationChange 가 양 팀장에게 별도 통보하므로 여기서 제외한다.
+//  action: "confirmed" | "rejected" | "cancelled" | "noshow"
+async function notifyBookingUserOnStatusChange(data, action) {
+  const userId = safeStr(data?.userId);
+  if (!userId) return;                 // 예약자 uid 없으면(구장주 수동예약 등) 통보 대상 아님
+  if (safeStr(data?.matchId)) return;   // 매칭 예약은 팀장 통보로 대체
+  const when = `${safeStr(data.date)} ${safeStr(data.startTime)}~${safeStr(data.endTime)}`;
+  const where = `${safeStr(data.venueName)}${safeStr(data.courtName) ? ` · ${safeStr(data.courtName)}` : ""}`;
+  const M = {
+    confirmed: { subType: "venueReservationConfirmed", title: "예약이 확정됐어요 🎉", body: `${when} · ${where} 예약이 확정됐어요. 이용료는 현장에서 정산해요.` },
+    rejected:  { subType: "venueReservationRejected",  title: "예약이 반려됐어요",     body: `${when} · ${where} 예약 요청이 구장 사정으로 반려됐어요. 다른 시간을 선택해 주세요.` },
+    cancelled: { subType: "venueReservationCancelled", title: "예약이 취소됐어요",     body: `${when} · ${where} 예약이 취소됐어요.` },
+    noshow:    { subType: "venueReservationNoshow",    title: "노쇼로 처리됐어요",       body: `${when} · ${where} 예약이 노쇼로 처리됐어요.` },
+  };
+  const m = M[action];
+  if (!m) return;
+  try {
+    await addDoc(collection(db, "notifications"), {
+      kind: "venue",
+      subType: m.subType,
+      type: "venue_reservation",
+      title: m.title,
+      body: m.body,
+      targetType: "USER",
+      targetIds: [userId],
+      linkType: "venue",
+      linkTargetId: safeStr(data.venueId),
+      meta: { venueId: safeStr(data.venueId), reservationId: safeStr(data.id), deepLink: "/my/reservations" },
+      push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      prefsCategory: "venue",
+      readBy: {},
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn("[notifyBookingUserOnStatusChange] failed:", e?.message || e);
+  }
+}
+
 /** 예약 상태 변경 (승인/거절/완료/노쇼) */
 export async function setReservationStatus(reservationId, status) {
   const rid = safeStr(reservationId);
@@ -801,14 +841,19 @@ export async function setReservationStatus(reservationId, status) {
     status: next,
     updatedAt: serverTimestamp(),
   });
-  // 매칭 예약 승인(구장주 확정) → 경기 확정 동기화 + 양 팀장 알림
-  if (next === "confirmed") {
+  // 승인(confirmed)/노쇼(noshow) 시 후속 통보
+  if (next === "confirmed" || next === "noshow") {
     try {
       const snap = await getDoc(dref);
       const data = snap.exists() ? snap.data() : null;
-      if (data && safeStr(data.matchId)) await syncMatchOnReservationChange(data, "approved");
+      if (data) {
+        // 매칭 예약 승인(구장주 확정) → 경기 확정 동기화 + 양 팀장 알림
+        if (next === "confirmed" && safeStr(data.matchId)) await syncMatchOnReservationChange(data, "approved");
+        // 일반 사용자앱 예약 → 예약자 본인 통보
+        await notifyBookingUserOnStatusChange({ ...data, id: rid }, next);
+      }
     } catch (e) {
-      console.warn("[setReservationStatus] match sync failed:", e?.message || e);
+      console.warn("[setReservationStatus] post-status notify failed:", e?.message || e);
     }
   }
 }
@@ -843,6 +888,10 @@ async function setReservationEndStatus(reservationId, nextStatus) {
       console.warn("[setReservationEndStatus] match sync failed:", e?.message || e);
     }
   }
+  // 일반 사용자앱 예약 반려/취소 → 예약자 본인 통보
+  if (nextStatus === "rejected" || nextStatus === "cancelled") {
+    await notifyBookingUserOnStatusChange({ ...data, id: rid }, nextStatus);
+  }
   return { ok: true };
 }
 
@@ -854,6 +903,83 @@ export async function rejectReservation(reservationId) {
 /** 확정 예약 취소 (구장주 사정·우천 등) — status=cancelled */
 export async function cancelReservation(reservationId) {
   return setReservationEndStatus(reservationId, "cancelled");
+}
+
+/* ============================================================
+ * 사용자앱 "내 예약" — 조회 + 본인 취소
+ * ========================================================== */
+
+/** 내가 예약한 목록 (userId == uid). 최신순(예약일·시작시각 내림차순). */
+export async function listMyReservations(uid) {
+  const u = safeStr(uid);
+  if (!u) return [];
+  const snap = await getDocs(
+    query(collection(db, "venueReservations"), where("userId", "==", u))
+  );
+  let rows = [];
+  snap.forEach((d) => rows.push(reservationRow(d)));
+  // 매칭 분할예약(matchId 보유)은 매칭룸에서 관리하므로 개인 예약 목록에서 제외
+  rows = rows.filter((r) => !r.matchId);
+  rows.sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return a.startTime < b.startTime ? 1 : a.startTime > b.startTime ? -1 : 0;
+  });
+  return rows;
+}
+
+/**
+ * 예약자 본인 취소 — status=cancelled.
+ * - 요청(requested)·확정(confirmed) 상태만 취소 가능. 이미 종료/이용완료면 불가.
+ * - 지난 예약(과거 날짜·시각)은 취소 불가.
+ * - 취소 시 구장주에게 알림.
+ */
+export async function cancelMyReservation(reservationId, uid) {
+  const rid = safeStr(reservationId);
+  const u = safeStr(uid);
+  if (!rid) throw new Error("reservationId가 비어있습니다.");
+  if (!u) throw new Error("로그인이 필요합니다.");
+  const dref = doc(db, "venueReservations", rid);
+  const snap = await getDoc(dref);
+  if (!snap.exists()) throw new Error("예약을 찾을 수 없습니다.");
+  const data = snap.data() || {};
+  if (safeStr(data.userId) !== u) throw new Error("본인 예약만 취소할 수 있어요.");
+  if (!["requested", "confirmed"].includes(safeStr(data.status))) {
+    throw new Error("이미 처리된 예약이라 취소할 수 없어요.");
+  }
+  // 지난 예약 취소 방지 (시작 시각이 이미 지났으면 불가)
+  const startISO = `${safeStr(data.date)}T${safeStr(data.startTime) || "00:00"}:00`;
+  if (new Date(startISO).getTime() < Date.now()) {
+    throw new Error("이미 시작된 예약은 취소할 수 없어요.");
+  }
+
+  await updateDoc(dref, { status: "cancelled", canceledBy: "user", updatedAt: serverTimestamp() });
+
+  // 구장주 알림 (실패해도 취소는 유지)
+  const ownerUid = safeStr(data.ownerUid);
+  if (ownerUid) {
+    try {
+      await addDoc(collection(db, "notifications"), {
+        kind: "venue",
+        subType: "venueReservationCanceledByUser",
+        type: "venue_reservation",
+        title: "예약이 취소됐어요",
+        body: `${safeStr(data.date)} ${safeStr(data.startTime)}~${safeStr(data.endTime)} · ${safeStr(data.courtName)} 예약을 예약자가 취소했어요.`,
+        targetType: "USER",
+        targetIds: [ownerUid],
+        linkType: "venue",
+        linkTargetId: safeStr(data.venueId),
+        meta: { venueId: safeStr(data.venueId), reservationId: rid, deepLink: "/owner/home" },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "venue",
+        readBy: {},
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn("[cancelMyReservation] owner notify failed:", e?.message || e);
+    }
+  }
+  return { ok: true };
 }
 
 /** 노쇼 처리 — 환불 없이 status=noshow (예약금 몰수) */

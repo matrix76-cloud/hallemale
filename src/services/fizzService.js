@@ -10,9 +10,8 @@
 import { db } from "./firebase";
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 
-// ⚠️ 테스트 단계: 잔액이 부족해도 결제를 통과시킴 (실결제 연동 전 임시).
-//    운영 배포 전 반드시 false 로 되돌릴 것.
-const TEST_ALWAYS_PASS = true;
+// ⚠️ 운영: 잔액 부족 시 결제 차단 (정상 잔액 검증). 테스트 시에만 true 로.
+const TEST_ALWAYS_PASS = false;
 
 function n(v) {
   const x = Number(v);

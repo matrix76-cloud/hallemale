@@ -117,6 +117,7 @@ export default function MyProfilePage() {
   const handleGoEditProfile = () => nav("/my/profile/edit");
 
   const handleMainMenuClick = (key) => {
+    if (key === "reservations") nav("/my/reservations");
     if (key === "posts") nav("/my/posts");
     if (key === "personal-matches") nav("/my/personal-matches");
     if (key === "my-reports") nav("/my/reports");
@@ -612,6 +613,13 @@ export default function MyProfilePage() {
           </SectionInner>
           <SectionBody>
             <MenuList>
+              <MenuItemButton onClick={() => handleMainMenuClick("reservations")}>
+                <MenuTextWrap>
+                  <MenuTitle>내 구장 예약</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
               <MenuItemButton onClick={() => handleMainMenuClick("team-join")}>
                 <MenuTextWrap>
                   <MenuTitle>팀 가입 신청</MenuTitle>
