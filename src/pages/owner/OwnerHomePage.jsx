@@ -87,6 +87,7 @@ const DRow=styled.div`display:flex;justify-content:space-between;gap:10px;font-s
 const Call=styled.a`display:flex;align-items:center;justify-content:center;gap:7px;height:48px;border-radius:12px;background:${C.violet600};color:#fff;font-size:15px;font-weight:800;text-decoration:none;margin-top:4px;`;
 const DoneBtn=styled.button`height:46px;border-radius:12px;border:1px solid ${C.slate200};background:#fff;color:${C.slate800};font-size:14px;font-weight:700;cursor:pointer;`;
 const Field=styled.label`display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:700;color:${C.slate500};`;
+const NoteArea=styled.textarea`border:1px solid ${C.slate200};border-radius:12px;padding:11px 12px;font-size:14px;color:${C.slate800};font-family:inherit;resize:vertical;min-height:76px;&:focus{outline:none;border-color:${C.violet300};}`;
 const PickRow=styled.div`display:flex;gap:8px;flex-wrap:wrap;`;
 const SmallChip=styled(Chip)`padding:7px 12px;font-size:12.5px;`;
 const SheetBtns=styled.div`display:flex;gap:8px;margin-top:4px;`;
@@ -109,6 +110,8 @@ export default function OwnerHomePage(){
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [detailResv,setDetailResv]=useState(null); // 예약 상세 팝업
+  const [approveTarget,setApproveTarget]=useState(null); // 승인 대상 예약 (안내글 입력 모달)
+  const [approveNote,setApproveNote]=useState("");
   const [slotSheet,setSlotSheet]=useState(null); // 빈 슬롯 탭 → 액션 선택 {s}
   const [bookForm,setBookForm]=useState(null); // 수동예약 폼 {s,name,phone,price,method,weeks,memo}
 
@@ -184,9 +187,18 @@ export default function OwnerHomePage(){
     }catch(e){toast(e?.message||"예약 등록에 실패했어요.");}
     finally{setBusy(false);}
   };
-  const approveResv=async(r)=>{
-    if(!await ask({title:"예약 승인",message:`${nm(r)} 예약을 승인할까요?`,confirmLabel:"승인"}))return;
-    setBusy(true);try{await setReservationStatus(r.id,"confirmed");await load();toast("예약을 승인했어요.");}catch(e){toast(e?.message||"승인에 실패했어요.");}finally{setBusy(false);}
+  // 승인 시 예약자에게 남길 안내글을 입력받는 모달을 연다 (안내글은 선택).
+  const approveResv=(r)=>{ setApproveNote(""); setApproveTarget(r); };
+  const submitApprove=async()=>{
+    const r=approveTarget; if(!r)return;
+    setBusy(true);
+    try{
+      await setReservationStatus(r.id,"confirmed",{ownerNote:approveNote.trim()});
+      await load();
+      setApproveTarget(null); setDetailResv(null);
+      toast("예약을 승인했어요.");
+    }catch(e){toast(e?.message||"승인에 실패했어요.");}
+    finally{setBusy(false);}
   };
   const rejectResv=async(r)=>{
     const isMatch=!!r.matchId;
@@ -399,6 +411,21 @@ export default function OwnerHomePage(){
             <PrimaryBtn onClick={submitBook} disabled={busy}>
               {Number(bookForm.weeks)>1?`${bookForm.weeks}주 정기대관 등록`:"예약 등록"}
             </PrimaryBtn>
+          </Sheet>
+        </Overlay>
+      )}
+
+      {approveTarget && (
+        <Overlay onClick={()=>!busy&&setApproveTarget(null)}>
+          <Sheet onClick={e=>e.stopPropagation()}>
+            <SheetTitle>예약 승인<X onClick={()=>!busy&&setApproveTarget(null)}>×</X></SheetTitle>
+            <Caption>{nm(approveTarget)} 예약을 승인해요. 예약자에게 전할 안내글을 남길 수 있어요. (선택)</Caption>
+            <Field>안내글 (선택)
+              <NoteArea value={approveNote} onChange={e=>setApproveNote(e.target.value)} maxLength={300}
+                placeholder={"예: 정문 옆 주차장을 이용해주세요. 농구화 필수입니다."} />
+            </Field>
+            <PrimaryBtn onClick={submitApprove} disabled={busy}>{busy?"승인 중…":"승인하기"}</PrimaryBtn>
+            <GhostBtn onClick={()=>!busy&&setApproveTarget(null)} disabled={busy}>취소</GhostBtn>
           </Sheet>
         </Overlay>
       )}

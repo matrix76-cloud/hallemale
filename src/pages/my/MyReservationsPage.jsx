@@ -12,7 +12,7 @@ import { showConfirm } from "../../utils/appDialog";
 import { listMyReservations, cancelMyReservation } from "../../services/ownerVenueService";
 import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
-import { FiMapPin, FiCalendar, FiClock } from "react-icons/fi";
+import { FiMapPin, FiCalendar, FiClock, FiHash, FiPhone, FiInfo } from "react-icons/fi";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -133,11 +133,24 @@ export default function MyReservationsPage() {
                 <StatusChip $tone={meta.tone}>{meta.label}</StatusChip>
               </TopRow>
 
+              {r.reservationCode ? (
+                <MetaRow $mono><FiHash size={13} />예약번호 {r.reservationCode}</MetaRow>
+              ) : null}
               {r.courtName ? (
                 <MetaRow><FiMapPin size={13} />{r.courtName}</MetaRow>
               ) : null}
               <MetaRow><FiCalendar size={13} />{fmtDate(r.date)}</MetaRow>
               <MetaRow><FiClock size={13} />{r.startTime}~{r.endTime}</MetaRow>
+
+              {/* 구장주 안내글 (승인 시 남긴 메시지) */}
+              {r.status === "confirmed" && r.ownerNote ? (
+                <OwnerNote><FiInfo size={13} /><span>{r.ownerNote}</span></OwnerNote>
+              ) : null}
+
+              {/* 확정 예약: 구장 연락처로 바로 전화 */}
+              {r.status === "confirmed" && r.venuePhone ? (
+                <PhoneLink href={`tel:${r.venuePhone}`}><FiPhone size={13} /> 구장에 전화 ({r.venuePhone})</PhoneLink>
+              ) : null}
 
               <BottomRow>
                 <Price>{(Number(r.price) || 0).toLocaleString()}원 <small>· 현장 정산</small></Price>
@@ -147,6 +160,10 @@ export default function MyReservationsPage() {
                   </CancelBtn>
                 ) : null}
               </BottomRow>
+
+              {canCancel(r) ? (
+                <CancelHint>이용 시작 전까지 취소할 수 있어요. 노쇼·당일 취소는 삼가주세요.</CancelHint>
+              ) : null}
             </Card>
           );
         })}
@@ -230,7 +247,39 @@ const MetaRow = styled.div`
   gap: 6px;
   font-size: 13px;
   color: ${({ theme }) => theme.colors.textNormal};
+  ${({ $mono }) => $mono ? "font-variant-numeric: tabular-nums; letter-spacing: 0.02em; font-weight: 700;" : ""}
   & > svg { color: ${({ theme }) => theme.colors.textWeak}; flex-shrink: 0; }
+`;
+
+const OwnerNote = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textNormal};
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: 10px;
+  padding: 9px 11px;
+  & > svg { color: ${({ theme }) => theme.colors.primary}; flex-shrink: 0; margin-top: 2px; }
+`;
+
+const PhoneLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+
+const CancelHint = styled.div`
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const BottomRow = styled.div`

@@ -1223,6 +1223,25 @@ const PaidRow = styled.div`
 `;
 const PaidDivider = styled.div`height: 1px; background: ${({ theme }) => mrp(theme.mode).line}; margin: 8px 0 2px;`;
 const PaidNote = styled.div`margin-top: 8px; font-size: 12px; line-height: 1.5; color: ${({ theme }) => mrp(theme.mode).t3};`;
+const PaidCode = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: -2px 0 10px; padding: 8px 11px; border-radius: 10px;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "#f6f4ff")};
+  font-size: 12.5px; color: ${({ theme }) => mrp(theme.mode).t2};
+  & > b { font-weight: 800; color: ${({ theme }) => mrp(theme.mode).t1}; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+`;
+const PaidOwnerNote = styled.div`
+  margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.05)" : "#f8fafc")};
+  font-size: 12.5px; line-height: 1.55; color: ${({ theme }) => mrp(theme.mode).t2};
+  & > b { display: block; margin-bottom: 3px; font-size: 11.5px; font-weight: 800; color: ${({ theme }) => mrp(theme.mode).puD}; }
+`;
+const PaidCall = styled.a`
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  margin-top: 10px; height: 42px; border-radius: 11px; text-decoration: none;
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.5)" : "rgba(124,92,201,0.4)")};
+  color: ${({ theme }) => mrp(theme.mode).puD}; font-size: 13.5px; font-weight: 800;
+`;
 
 /* ───── 경기 취소(cancelled) 전용 화면 ───── */
 const CancelIcon = styled.div`
@@ -5427,12 +5446,21 @@ export default function MatchRoomDetailPage() {
                     <PaidTitle>🎟️ 구장 예약 완료</PaidTitle>
                     <PaidBadge>예약확정</PaidBadge>
                   </PaidHead>
+                  {toStr(pb.reservationCode) ? (
+                    <PaidCode><span>예약번호</span><b>{toStr(pb.reservationCode)}</b></PaidCode>
+                  ) : null}
                   <PaidRow><span>총 대관료 (양 팀 공동)</span><b>{Number(pb.totalPrice || 0).toLocaleString()}원</b></PaidRow>
                   <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><b>{Number(pb.shareA || 0).toLocaleString()}원</b></PaidRow>
                   <PaidRow><span>{toStr(pb.opponentTeamName) || "B팀"}</span><b>{Number(pb.shareB || 0).toLocaleString()}원</b></PaidRow>
                   <PaidDivider />
                   <PaidRow $big><span>우리 팀 현장 결제 예정 (1/2)</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
                   <PaidNote>앱에서 결제되지 않아요. 경기 당일 구장에서 현장 정산합니다.</PaidNote>
+                  {toStr(pb.ownerNote) ? (
+                    <PaidOwnerNote><b>구장 안내</b>{toStr(pb.ownerNote)}</PaidOwnerNote>
+                  ) : null}
+                  {toStr(pb.venuePhone) ? (
+                    <PaidCall href={`tel:${toStr(pb.venuePhone)}`}>📞 구장에 전화 ({toStr(pb.venuePhone)})</PaidCall>
+                  ) : null}
                 </PaidCard>
               );
             })()}

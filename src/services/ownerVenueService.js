@@ -640,6 +640,9 @@ function reservationRow(d) {
     ownerUid: safeStr(data.ownerUid),
     courtName: safeStr(data.courtName),
     venueName: safeStr(data.venueName),
+    venuePhone: safeStr(data.venuePhone),
+    reservationCode: safeStr(data.reservationCode),
+    ownerNote: safeStr(data.ownerNote), // 구장주가 승인 시 예약자에게 남긴 안내글
     date: safeStr(data.date), // YYYY-MM-DD
     startTime: safeStr(data.startTime), // HH:mm
     endTime: safeStr(data.endTime),
@@ -762,6 +765,10 @@ async function syncMatchOnReservationChange(data, action) {
       status: "confirmed",
       "partnerBooking.approvalState": "approved",
       "partnerBooking.finalized": true,
+      // 확정 카드가 partnerBooking에서 바로 읽도록 예약번호·구장주 안내글 미러링
+      "partnerBooking.reservationCode": safeStr(data.reservationCode),
+      "partnerBooking.ownerNote": safeStr(data.ownerNote),
+      "partnerBooking.venuePhone": safeStr(data.venuePhone),
       confirmedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -798,8 +805,9 @@ async function notifyBookingUserOnStatusChange(data, action) {
   if (safeStr(data?.matchId)) return;   // 매칭 예약은 팀장 통보로 대체
   const when = `${safeStr(data.date)} ${safeStr(data.startTime)}~${safeStr(data.endTime)}`;
   const where = `${safeStr(data.venueName)}${safeStr(data.courtName) ? ` · ${safeStr(data.courtName)}` : ""}`;
+  const note = safeStr(data.ownerNote);
   const M = {
-    confirmed: { subType: "venueReservationConfirmed", title: "예약이 확정됐어요 🎉", body: `${when} · ${where} 예약이 확정됐어요. 이용료는 현장에서 정산해요.` },
+    confirmed: { subType: "venueReservationConfirmed", title: "예약이 확정됐어요 🎉", body: `${when} · ${where} 예약이 확정됐어요. 이용료는 현장에서 정산해요.${note ? `\n구장 안내: ${note}` : ""}` },
     rejected:  { subType: "venueReservationRejected",  title: "예약이 반려됐어요",     body: `${when} · ${where} 예약 요청이 구장 사정으로 반려됐어요. 다른 시간을 선택해 주세요.` },
     cancelled: { subType: "venueReservationCancelled", title: "예약이 취소됐어요",     body: `${when} · ${where} 예약이 취소됐어요.` },
     noshow:    { subType: "venueReservationNoshow",    title: "노쇼로 처리됐어요",       body: `${when} · ${where} 예약이 노쇼로 처리됐어요.` },
@@ -829,16 +837,18 @@ async function notifyBookingUserOnStatusChange(data, action) {
   }
 }
 
-/** 예약 상태 변경 (승인/거절/완료/노쇼) */
-export async function setReservationStatus(reservationId, status) {
+/** 예약 상태 변경 (승인/거절/완료/노쇼). opts.ownerNote: 승인 시 예약자에게 남길 안내글 */
+export async function setReservationStatus(reservationId, status, opts = {}) {
   const rid = safeStr(reservationId);
   if (!rid) throw new Error("reservationId가 비어있습니다.");
   const next = ["requested", "confirmed", "rejected", "cancelled", "done", "noshow"].includes(status)
     ? status
     : "requested";
+  const ownerNote = safeStr(opts?.ownerNote);
   const dref = doc(db, "venueReservations", rid);
   await updateDoc(dref, {
     status: next,
+    ...(next === "confirmed" ? { ownerNote } : {}),
     updatedAt: serverTimestamp(),
   });
   // 승인(confirmed)/노쇼(noshow) 시 후속 통보
@@ -1145,6 +1155,16 @@ export function calcSlotPrice(court, startTime, endTime, date) {
  * 2) venueReservations 생성 (status=requested · 승인대기, paid=false)
  * 3) 구장주에게 notifications 문서 생성(push queued → sendPushTick 발송)
  */
+/**
+ * 사람이 읽을 예약번호 발급 — "HM-YYMMDD-XXXX" (예약일 + 4자리 코드).
+ * 표시·문의 식별용이라 전역 유일성까지는 필요 없다(문서 id가 실 키).
+ */
+export function genReservationCode(date) {
+  const ymd = safeStr(date).replace(/-/g, "").slice(2); // YYMMDD
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `HM-${ymd || "000000"}-${rand}`;
+}
+
 export async function bookVenue({ venue, court, date, startTime, endTime, user }) {
   const venueId = safeStr(venue?.id);
   const courtId = safeStr(court?.id);
@@ -1184,6 +1204,8 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user }
     ownerUid,
     courtName: safeStr(court?.name),
     venueName: safeStr(venue?.name),
+    venuePhone: safeStr(venue?.phone || venue?.contactPhone),
+    reservationCode: genReservationCode(date),
     date: safeStr(date),
     startTime: safeStr(startTime),
     endTime: safeStr(endTime),
@@ -1272,6 +1294,7 @@ export async function writePartnerBooking({ matchId, venue, court, date, startTi
       venueId: safeStr(venue.id),
       venueName: safeStr(venue.name),
       venueImageUrl: safeStr(venue.imageUrl) || safeStr(arr(venue.photos)[0]) || "",
+      venuePhone: safeStr(venue.phone || venue.contactPhone),
       ownerUid: safeStr(venue.ownerUid),
       courtId: safeStr(court.id),
       courtName: safeStr(court.name),
@@ -1321,6 +1344,8 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
     ]);
     await setDoc(resRef, {
       venueId: safeStr(pb.venueId), venueName: safeStr(pb.venueName), ownerUid: safeStr(pb.ownerUid),
+      venuePhone: safeStr(pb.venuePhone),
+      reservationCode: genReservationCode(pb.date),
       courtId: safeStr(pb.courtId), courtName: safeStr(pb.courtName),
       date: safeStr(pb.date), startTime: safeStr(pb.startTime), endTime: safeStr(pb.endTime),
       userId: safeStr(pb.proposerUid), userName: safeStr(pb.proposerTeamName), teamName: safeStr(pb.proposerTeamName),
