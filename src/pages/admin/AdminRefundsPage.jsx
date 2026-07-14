@@ -8,6 +8,8 @@ import AdminLoading from "../../components/admin/AdminLoading";
 import {
   listRefundableReservations, listRefundedReservations, processRefund,
 } from "../../services/refundService";
+import { PG_ENABLED } from "../../constants/payments";
+import PgDisabledNotice from "../../components/admin/PgDisabledNotice";
 
 const PAGE_SIZE = 10;
 const won = (n) => `${(Number(n) || 0).toLocaleString()}원`;
@@ -36,6 +38,11 @@ const TABS = [
 ];
 
 export default function AdminRefundsPage() {
+  if (!PG_ENABLED) return <PgDisabledNotice kind="환불" />;
+  return <AdminRefundsInner />;
+}
+
+function AdminRefundsInner() {
   const [tab, setTab] = useState("refundable");
   const [period, setPeriod] = useState("this");
   const [loading, setLoading] = useState(true);

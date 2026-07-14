@@ -9,6 +9,8 @@ import {
   listPaidReservations, groupByVenue, calcSettlement,
   markReservationSettled, markManySettled, PLATFORM_FEE_RATE,
 } from "../../services/settlementService";
+import { PG_ENABLED } from "../../constants/payments";
+import PgDisabledNotice from "../../components/admin/PgDisabledNotice";
 
 const PAGE_SIZE = 8;
 const won = (n) => `${(Number(n) || 0).toLocaleString()}원`;
@@ -37,6 +39,11 @@ const PERIODS = [
 ];
 
 export default function AdminSettlementsPage() {
+  if (!PG_ENABLED) return <PgDisabledNotice kind="정산" />;
+  return <AdminSettlementsInner />;
+}
+
+function AdminSettlementsInner() {
   const [period, setPeriod] = useState("this");
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
