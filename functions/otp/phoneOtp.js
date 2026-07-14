@@ -16,7 +16,7 @@ const SOLAPI_API_KEY = defineSecret("SOLAPI_API_KEY");
 const SOLAPI_API_SECRET = defineSecret("SOLAPI_API_SECRET");
 
 // 솔라피 콘솔에 사전 등록된 할래말래 발신번호 (변경 시 여기만 수정)
-const SENDER = "01063357687";
+const SENDER = "07080657687";
 
 const OTP_EXPIRE_MS = 3 * 60 * 1000; // 인증번호 유효 3분
 const OTP_MAX_ATTEMPTS = 5; // 코드 오입력 허용 횟수
