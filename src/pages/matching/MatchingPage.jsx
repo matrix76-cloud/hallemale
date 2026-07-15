@@ -14,6 +14,9 @@ import Spinner from "../../components/common/Spinner";
 import { useMatchingData } from "../../hooks/useMatchingData";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import { loadMatchingHomeData } from "../../services/matchingHomeService";
+import { getTeamProfile } from "../../services/teamService";
+import { useAuth } from "../../hooks/useAuth";
+import { teamLogoSrc } from "../../utils/imageAssets";
 import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
 /* ==================== 상수/헬퍼 ==================== */
@@ -71,6 +74,26 @@ const LoadingCenter = styled.div`
 
 /* ==================== 컴포넌트 ==================== */
 
+/* ===== 찜한 팀 도전 섹션 (favoriteTeamIds 활성화) ===== */
+const FavSection = styled.section`display: flex; flex-direction: column; gap: 8px;`;
+const FavHead = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong}; padding: 0 2px;`;
+const FavRow = styled.div`display: flex; gap: 10px; overflow-x: auto; padding-bottom: 2px; &::-webkit-scrollbar { display: none; }`;
+const FavCard = styled.div`
+  flex: 0 0 auto; width: 148px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 14px; padding: 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+`;
+const FavLogo = styled.img`width: 44px; height: 44px; border-radius: 12px; object-fit: cover; background: ${({ theme }) => theme.colors.surface};`;
+const FavName = styled.div`font-size: 13px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong}; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const FavRegion = styled.div`font-size: 11px; color: ${({ theme }) => theme.colors.textWeak};`;
+const FavBtn = styled.button`
+  width: 100%; height: 32px; border: 1px solid ${({ theme }) => theme.colors.primary}; border-radius: 8px;
+  background: transparent; color: ${({ theme }) => theme.colors.primary}; font-size: 12px; font-weight: 700; cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+
 export default function MatchingPage() {
   const navigate = useNavigate();
   const { showToast } = useUIActions();
@@ -97,6 +120,10 @@ export default function MatchingPage() {
   // 팀 없는 사용자 둘러보기용 상대팀 목록(null=로딩 전)
   const [browseTeams, setBrowseTeams] = useState(null);
 
+  // 찜한 팀(favoriteTeamIds) → 도전 섹션용으로 id로 로드
+  const { userDoc } = useAuth();
+  const [favTeams, setFavTeams] = useState([]);
+
   useEffect(() => {
     if (clubLoading) return;
     if (activeTeamId) {
@@ -116,6 +143,27 @@ export default function MatchingPage() {
       alive = false;
     };
   }, [clubLoading, activeTeamId, preloadMatchingHomeData]);
+
+  // 찜한 팀 로드 — 본인 팀은 제외
+  useEffect(() => {
+    const ids = Array.isArray(userDoc?.favoriteTeamIds)
+      ? userDoc.favoriteTeamIds.map((x) => String(x || "").trim()).filter(Boolean)
+      : [];
+    const myId = String(activeTeamId || "");
+    const targetIds = Array.from(new Set(ids)).filter((id) => id !== myId).slice(0, 12);
+    if (targetIds.length === 0) { setFavTeams([]); return; }
+    let alive = true;
+    Promise.all(
+      targetIds.map((id) =>
+        getTeamProfile(id)
+          .then((t) => (t ? { ...t, clubId: t.clubId || t.id || id } : null))
+          .catch(() => null)
+      )
+    ).then((list) => {
+      if (alive) setFavTeams(list.filter(Boolean));
+    });
+    return () => { alive = false; };
+  }, [userDoc?.favoriteTeamIds, activeTeamId]);
 
   // 팀 유무에 따른 실효 데이터
   const effMyTeam = activeTeamId ? myTeam : null;
@@ -237,6 +285,24 @@ export default function MatchingPage() {
               navigate(`/matching/analysis/${opponentClubId}`);
             }}
           />
+        )}
+
+        {favTeams.length > 0 && (
+          <FavSection>
+            <FavHead>찜한 팀 ⭐</FavHead>
+            <FavRow>
+              {favTeams.map((t) => (
+                <FavCard key={t.clubId}>
+                  <FavLogo src={teamLogoSrc(t.logoUrl)} alt={t.name || "팀"} />
+                  <FavName title={t.name}>{t.name || "팀"}</FavName>
+                  <FavRegion>{t.region || ""}</FavRegion>
+                  <FavBtn type="button" onClick={() => navigate(`/matching/analysis/${t.clubId}`)}>
+                    도전
+                  </FavBtn>
+                </FavCard>
+              ))}
+            </FavRow>
+          </FavSection>
         )}
 
         <TeamOpponentListSection
