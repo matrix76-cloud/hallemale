@@ -38,6 +38,10 @@ exports.matchAutoConfirmTick = matchAutoConfirmTick;
 const { matchRequestReminderTick } = require("./jobs/matchRequestReminder");
 exports.matchRequestReminderTick = matchRequestReminderTick;
 
+// ✅ 구장 예약 자동 이용완료 (매시간): 종료+2h 지난 confirmed → done 전환 + 앱예약자 리뷰 유도
+const { venueReservationAutoCompleteTick } = require("./jobs/venueReservationAutoComplete");
+exports.venueReservationAutoCompleteTick = venueReservationAutoCompleteTick;
+
 // ✅ 카카오 소셜 로그인 (accessToken → Firebase Custom Token)
 const { kakaoCustomToken } = require("./auth/kakaoCustomToken");
 exports.kakaoCustomToken = kakaoCustomToken;
