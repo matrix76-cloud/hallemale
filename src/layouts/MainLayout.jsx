@@ -205,6 +205,7 @@ export default function MainLayout({ hideHeader = false }) {
     if (p === "/my/profile/edit") return "프로필 수정";
     if (p === "/my/posts") return "내가 쓴 게시글";
     if (p === "/my/reservations") return "내 구장 예약";
+    if (p === "/my/fav-venues") return "찜한 구장";
     if (p === "/my/personal-matches") return "개인 활동 경기";
     if (p === "/my/reports") return "내가 신고한 내역";
     if (p === "/my/inquiry") return "1:1 문의";
@@ -245,6 +246,7 @@ export default function MainLayout({ hideHeader = false }) {
     p === "/my/profile/edit" ||
     p === "/my/posts" ||
     p === "/my/reservations" ||
+    p === "/my/fav-venues" ||
     p === "/community/write" ||
     p.startsWith("/communitypost") ||
     p === "/my/personal-matches" ||

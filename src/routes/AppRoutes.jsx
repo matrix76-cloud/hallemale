@@ -36,6 +36,7 @@ const MyProfileDetailPage = lazy(() => import("../pages/my/MyProfileDetailPage")
 const MyPostsPage = lazy(() => import("../pages/my/MyPostsPage"));
 const MyReportsPage = lazy(() => import("../pages/my/MyReportsPage"));
 const MyReservationsPage = lazy(() => import("../pages/my/MyReservationsPage"));
+const MyFavVenuesPage = lazy(() => import("../pages/my/MyFavVenuesPage"));
 const MyPersonalMatchesPage = lazy(() => import("../pages/my/MyPersonalMatchesPage"));
 const InquiryPage = lazy(() => import("../pages/my/InquiryPage"));
 
@@ -511,6 +512,7 @@ export default function AppRoutes() {
 
           <Route path="/my/posts" element={<MyPostsPage />} />
           <Route path="/my/reservations" element={<MyReservationsPage />} />
+          <Route path="/my/fav-venues" element={<MyFavVenuesPage />} />
           <Route path="/my/personal-matches" element={<MyPersonalMatchesPage />} />
           <Route path="/my/reports" element={<MyReportsPage />} />
           <Route path="/my/inquiry" element={<InquiryPage />} />

@@ -125,6 +125,7 @@ export default function MyProfilePage() {
 
   const handleMainMenuClick = (key) => {
     if (key === "reservations") nav("/my/reservations");
+    if (key === "fav-venues") nav("/my/fav-venues");
     if (key === "posts") nav("/my/posts");
     if (key === "personal-matches") nav("/my/personal-matches");
     if (key === "my-reports") nav("/my/reports");
@@ -672,6 +673,13 @@ export default function MyProfilePage() {
               <MenuItemButton onClick={() => handleMainMenuClick("reservations")}>
                 <MenuTextWrap>
                   <MenuTitle>내 구장 예약</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
+              <MenuItemButton onClick={() => handleMainMenuClick("fav-venues")}>
+                <MenuTextWrap>
+                  <MenuTitle>찜한 구장</MenuTitle>
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
