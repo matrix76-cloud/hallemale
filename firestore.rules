@@ -26,6 +26,8 @@ service cloud.firestore {
     // 팀 초대: collectionGroup(invites) 조회 지원 (MyTeamInvitesPage)
     match /{path=**}/invites/{inviteId}  { allow read: if signedIn(); allow write: if signedIn(); }
     match /match_requests/{id}            { allow read: if true; allow write: if signedIn(); }
+    // 경기 후 상호 리뷰(match_requests/{id}/reviews/{raterUid}) — 서브컬렉션 미열거 시 기본차단됨
+    match /match_requests/{id}/{sub=**}   { allow read: if true; allow write: if signedIn(); }
     // 팀원→팀장 매칭 제안 원장(dedup + 성사 통보 대상). 로그인 사용자만 접근.
     match /match_proposals/{id}           { allow read: if signedIn(); allow write: if signedIn(); }
     match /rankings/{id}                  { allow read: if true; allow write: if signedIn(); }
@@ -52,20 +54,35 @@ service cloud.firestore {
     }
 
     match /venues/{id}                    { allow read: if true; allow write: if signedIn(); }
-    match /venueReviews/{id}              { allow read: if true; allow write: if signedIn(); }
+    // 구장 리뷰: 본인 명의(uid) 리뷰만 작성/수정 — 타인 사칭·대리작성 차단. (리뷰 문서에 작성자 uid 필수)
+    match /venueReviews/{id} {
+      allow read: if true;
+      allow write: if signedIn() && request.resource.data.uid == request.auth.uid;
+    }
     match /venueReservations/{id} {
       allow read: if true;
       allow create: if signedIn()
                     && (inBookingWindow(request.resource.data.date)
                         || isVenueOwner(request.resource.data.venueId)
                         || isAdmin());
-      // 만들어둔 예약의 날짜만 미래로 옮겨 창구를 우회하는 것도 차단 (날짜 그대로면 기존대로 허용)
+      // 변경 권한: 구장주(승인/거절/완료/노쇼) · 예약자 본인(취소) · 매칭 양 팀장(제휴구장 승인철회) · 어드민.
+      //  (기존 "로그인만 하면 누구나 수정" 구멍 제거 — 무결제 승인 신뢰모델 보호. 매칭예약은
+      //   teamA/BLeaderUid 로, 앱예약은 userId 로 소유자 식별. 없는 필드는 null → 비교 false)
       allow update: if signedIn()
+                    && (isVenueOwner(resource.data.venueId)
+                        || request.auth.uid == resource.data.userId
+                        || request.auth.uid == resource.data.teamALeaderUid
+                        || request.auth.uid == resource.data.teamBLeaderUid
+                        || isAdmin())
+                    // 날짜만 미래로 옮겨 예약 창구를 우회하는 것도 차단 (날짜 그대로면 허용)
                     && (request.resource.data.date == resource.data.date
                         || inBookingWindow(request.resource.data.date)
                         || isVenueOwner(resource.data.venueId)
                         || isAdmin());
-      allow delete: if signedIn();
+      allow delete: if signedIn()
+                    && (isVenueOwner(resource.data.venueId)
+                        || request.auth.uid == resource.data.userId
+                        || isAdmin());
     }
     match /venueBlocks/{id}               { allow read: if true; allow write: if signedIn(); }
     match /gyms/{id}                      { allow read: if true; allow write: if signedIn(); }
