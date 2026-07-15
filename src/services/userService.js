@@ -216,6 +216,21 @@ export const markWelcomeSeen = async ({ uid }) => {
 };
 
 /**
+ * ✅ 리퍼럴 귀속 — 초대 링크로 들어온 신규 유저에게 초대자(referrerUid)를 기록.
+ *    본인 초대(자기 참조)나 빈 값은 무시. 신규 가입 완료 시점(1회)에만 호출된다.
+ */
+export const attachReferrer = async ({ uid, referrerUid } = {}) => {
+  const rid = String(referrerUid || "").trim();
+  if (!uid || !rid || rid === uid) return false;
+  await setDoc(
+    doc(db, "users", uid),
+    { referredBy: rid, referredAt: serverTimestamp(), updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+  return true;
+};
+
+/**
  * ✅ 프로필 업데이트 (MyProfileEditPage에서 쓰는 필드 전부 지원)
  */
 export const updateUserProfile = async ({

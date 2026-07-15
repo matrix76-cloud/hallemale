@@ -6,10 +6,11 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { markWelcomeSeen } from "../../services/userService";
+import { markWelcomeSeen, attachReferrer } from "../../services/userService";
 import { images } from "../../utils/imageAssets";
 import { showAlert } from "../../utils/appDialog";
 import { track } from "../../utils/analytics";
+import { getStoredReferrer, clearStoredReferrer } from "../../utils/referral";
 
 export default function SignupCompletePage() {
   const navigate = useNavigate();
@@ -30,6 +31,13 @@ export default function SignupCompletePage() {
     setBusy(true);
     try {
       await markWelcomeSeen({ uid });
+      // 리퍼럴 귀속: 초대 링크(?ref)로 들어온 신규 유저면 초대자를 기록
+      const refUid = getStoredReferrer();
+      if (refUid) {
+        const ok = await attachReferrer({ uid, referrerUid: refUid }).catch(() => false);
+        clearStoredReferrer();
+        if (ok) track("referral_attributed");
+      }
       track("signup_complete"); // 온보딩 완료(활성화) — 핵심 퍼널
       await refreshUser();
       // refreshUser 후 welcomeSeen=true가 반영되면 상위 RequireWelcome가 통과시킨다.
