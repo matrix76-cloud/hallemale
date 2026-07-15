@@ -63,6 +63,38 @@ async function clubLeaderUids(clubId) {
   }
 }
 
+/**
+ * ✅ 팀원 → 팀장 매칭 제안. 팀원은 직접 신청 불가 → 팀장에게 "이 팀과 매칭 제안" 알림을 보내
+ *    팀장이 알림을 타고 분석 화면으로 가서 실제 신청을 보낼 수 있게 한다. (팀장 독점 병목 완화)
+ */
+export async function proposeMatchToLeader({ myClubId, targetClubId, targetTeamName, proposerName } = {}) {
+  const mine = toStr(myClubId);
+  const target = toStr(targetClubId);
+  if (!mine || !target) throw new Error("팀 정보가 없어요.");
+  const leaders = await clubLeaderUids(mine);
+  if (!leaders.length) throw new Error("팀장을 찾을 수 없어요.");
+  const who = toStr(proposerName) || "팀원";
+  const opp = toStr(targetTeamName) || "상대 팀";
+  await addDoc(collection(db, "notifications"), {
+    kind: "match",
+    subType: "matchProposal",
+    type: "match_proposal",
+    title: "매칭 제안 📮",
+    body: `${who}님이 '${opp}'과(와) 매칭을 제안했어요. 확인하고 신청해보세요.`,
+    targetType: "USER",
+    targetIds: leaders,
+    linkType: "match",
+    linkTargetId: target,
+    meta: { deepLink: `/matching/analysis/${target}` },
+    push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+    prefsCategory: "match",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    readBy: {},
+  });
+  return true;
+}
+
 const MATCH_SIZE_KEYS = ["3v3", "4v4", "5v5"];
 const matchSizeLabel = (k) => {
   const v = toStr(k);

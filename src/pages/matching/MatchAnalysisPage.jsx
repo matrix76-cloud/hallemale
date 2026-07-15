@@ -15,11 +15,12 @@ import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useClubContext } from "../../context/ClubContext";
+import { useAuth } from "../../hooks/useAuth";
 import { getTeamProfile } from "../../services/teamService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import { getPlayerRankMap } from "../../services/rankingService";
 import { estimateWinProbability } from "../../utils/matchAnalysis";
-import { createMatchRequest } from "../../services/matchingService";
+import { createMatchRequest, proposeMatchToLeader } from "../../services/matchingService";
 import { getTeamPredictionAccuracy, getHeadToHeadRecord } from "../../services/matchRoomService";
 import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
@@ -697,6 +698,7 @@ export default function MatchAnalysisPage() {
   const nav = useNavigate();
   const { clubId } = useParams(); // 상대팀 id
   const { activeTeamId, isTeamLeader, loading: clubLoading } = useClubContext();
+  const { userDoc } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [myTeam, setMyTeam] = useState(null);
@@ -881,12 +883,25 @@ export default function MatchAnalysisPage() {
     };
   }, [myTeam, oppTeam, h2h, teamRankMap]);
 
-  const handleMatchRequestClick = () => {
+  const handleMatchRequestClick = async () => {
     if (!view) return;
 
-    // ✅ 팀원은 매칭 분석까지만 가능 — 요청 전송은 팀장만
+    // ✅ 팀원: 직접 신청 불가 → 팀장에게 매칭 제안(알림). 팀장 독점 병목 완화.
     if (!isTeamLeader) {
-      showAlert("매칭 요청은 팀장만 보낼 수 있어요. 이 분석 결과를 팀장에게 알려 주세요.");
+      const ok = await showConfirm("직접 신청은 팀장만 가능해요.\n팀장에게 이 매칭을 제안할까요?");
+      if (!ok) return;
+      try {
+        await proposeMatchToLeader({
+          myClubId: view.my.clubId,
+          targetClubId: view.opp.clubId,
+          targetTeamName: opp?.name,
+          proposerName: userDoc?.nickname,
+        });
+        track("match_proposal_sent");
+        showAlert("팀장에게 매칭 제안을 보냈어요! 📮\n팀장이 확인 후 신청할 수 있어요.");
+      } catch (e) {
+        showAlert(e?.message || "제안 전송에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      }
       return;
     }
 
@@ -1306,11 +1321,11 @@ export default function MatchAnalysisPage() {
       <BottomCTAWrap>
         {!clubLoading && !isTeamLeader ? (
           <LeaderNotice>
-            매칭 요청은 팀장만 보낼 수 있어요. 분석 결과를 팀장에게 알려 주세요.
+            매칭 신청은 팀장이 보내요. 팀장에게 이 매칭을 제안할 수 있어요.
           </LeaderNotice>
         ) : null}
         <MatchApplyButton type="button" onClick={handleMatchRequestClick}>
-          🏀 매칭 신청하기
+          {isTeamLeader ? "🏀 매칭 신청하기" : "📮 팀장에게 매칭 제안"}
         </MatchApplyButton>
       </BottomCTAWrap>
 
