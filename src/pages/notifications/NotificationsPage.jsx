@@ -167,7 +167,7 @@ export default function NotificationsPage() {
   const uid = userDoc?.uid || userDoc?.id || "";
   const myClubId = club?.clubId || club?.id || userDoc?.clubId || userDoc?.activeTeamId || "";
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // uid 해석 전 '알림 없음' 빈상태가 깜빡이는 것 방지
   const [realItems, setRealItems] = useState([]);
 
   // 관리자 공지(notices, published=true)

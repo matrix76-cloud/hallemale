@@ -1,10 +1,7 @@
 import React from "react";
+import { Navigate } from "react-router-dom";
 
+// 구 placeholder(수락/거절 UI·데이터 없음). 실제 받은 초대는 /my/team-invites 에 있으므로 리다이렉트.
 export default function InvitesPage() {
-  return (
-    <div>
-      <h2>클럽 초대함</h2>
-      <p>받은 초대가 있다면 여기에서 수락 또는 거절할 수 있습니다.</p>
-    </div>
-  );
+  return <Navigate to="/my/team-invites" replace />;
 }

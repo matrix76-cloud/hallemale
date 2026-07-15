@@ -13,6 +13,7 @@ import { listBookableVenues, listReservations, listBlocks } from "../../services
 import Spinner from "../../components/common/Spinner";
 import { FacilityIcon } from "./facilityIcons";
 import { track } from "../../utils/analytics";
+import { goBackOrHome } from "../../utils/navigation";
 
 const toStr = (v) => String(v || "").trim();
 function minPrice(v) {
@@ -388,7 +389,7 @@ export default function VenueListPage() {
     <Page>
       {/* 전용 헤더 */}
       <TopRow>
-        <BackBtn type="button" onClick={() => navigate(-1)} aria-label="뒤로"><FiChevronLeft size={22} /></BackBtn>
+        <BackBtn type="button" onClick={() => goBackOrHome(navigate)} aria-label="뒤로"><FiChevronLeft size={22} /></BackBtn>
         <SearchBar>
           <FiSearch size={17} />
           <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="지역·구장 이름 검색" />

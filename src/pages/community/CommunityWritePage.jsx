@@ -372,7 +372,7 @@ export default function CommunityWritePage() {
       });
 
       track("community_post_create", { post_id: res.postId }); // 참여/리텐션
-      nav(`/communitypost/${res.postId}`);
+      nav(`/communitypost/${res.postId}`, { replace: true }); // 뒤로가기 시 작성폼(더티) 재진입 방지
     } catch (err) {
       console.error("[CommunityWritePage] submit failed:", err?.code, err?.message, err);
       showAlert(err?.message || "작성에 실패했습니다. 잠시 후 다시 시도해 주세요.");

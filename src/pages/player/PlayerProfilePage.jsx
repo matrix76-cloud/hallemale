@@ -958,7 +958,8 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
     try {
       await blockAuthorAndHidePost({ myUid: String(myUid), targetUid: String(playerId) });
       showAlert("차단했습니다.\n이 사용자의 글은 회원님 피드에서 숨겨집니다.");
-      nav(-1);
+      if (window.history.length > 1) nav(-1);
+      else nav("/home", { replace: true });
     } catch (e) {
       console.error("[PlayerProfilePage] block failed", e);
       showAlert(e?.message || "차단에 실패했습니다.");

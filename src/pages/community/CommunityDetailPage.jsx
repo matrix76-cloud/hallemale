@@ -973,7 +973,8 @@ export default function CommunityDetailPage() {
         postId: post.id,
       });
       showAlert("차단했습니다.\n이 작성자의 글은 회원님 피드에서 숨겨집니다.");
-      nav(-1);
+      if (window.history.length > 1) nav(-1);
+      else nav("/community", { replace: true });
     } catch (e) {
       console.error("[CommunityDetailPage] block failed", e);
       showAlert(e?.message || "차단에 실패했습니다.");
@@ -1057,7 +1058,7 @@ export default function CommunityDetailPage() {
             <RetryButton type="button" onClick={reload}>
               다시 시도
             </RetryButton>
-            <RetryButton type="button" onClick={() => nav(-1)}>
+            <RetryButton type="button" onClick={() => (window.history.length > 1 ? nav(-1) : nav("/community", { replace: true }))}>
               뒤로
             </RetryButton>
           </div>
