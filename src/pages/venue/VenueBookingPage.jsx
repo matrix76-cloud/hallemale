@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/pages/venue/VenueBookingPage.jsx
-// 구장 상세 — 코트 목록 → 코트 선택 시 예약 페이지(CourtBookingPage)로 이동. 예약은 현장 정산·구장 승인제.
+// 구장 상세 — 코트/날짜/슬롯 인라인 선택 → 스티키 예약바(현장 정산·구장 승인제).
+//   (구 코트별 상세 예약페이지 CourtBookingPage는 딥링크용으로만 라우트 유지, 이 화면에선 링크 안 함)
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
@@ -85,8 +86,6 @@ export default function VenueBookingPage() {
   const { showToast } = useUIActions() || {};
   const toast = (message) => { if (showToast) showToast({ message }); };
   const uid = firebaseUser?.uid || "";
-  const suffix = matchId ? `?match=${matchId}` : viewOnly ? "?view=1" : "";
-  const goCourt = (c) => navigate(`/venue-book/${id}/court/${c.id}${suffix}`);
 
   const [venue, setVenue] = useState(null);
   const [reviews, setReviews] = useState([]);
