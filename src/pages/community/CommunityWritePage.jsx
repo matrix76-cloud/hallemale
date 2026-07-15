@@ -8,6 +8,7 @@ import { showAlert } from "../../utils/appDialog";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { createCommunityPost, updateCommunityPost } from "../../services/communityService";
+import { track } from "../../utils/analytics";
 import { images } from "../../utils/imageAssets";
 import { useUIActions } from "../../hooks/useUI";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
@@ -370,6 +371,7 @@ export default function CommunityWritePage() {
         imageFiles: images.map((x) => x.file), // ✅ 여러 장
       });
 
+      track("community_post_create", { post_id: res.postId }); // 참여/리텐션
       nav(`/communitypost/${res.postId}`);
     } catch (err) {
       console.error("[CommunityWritePage] submit failed:", err?.code, err?.message, err);

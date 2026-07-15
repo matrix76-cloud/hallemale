@@ -12,6 +12,7 @@ import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiC
 import { listBookableVenues, listReservations, listBlocks } from "../../services/ownerVenueService";
 import Spinner from "../../components/common/Spinner";
 import { FacilityIcon } from "./facilityIcons";
+import { track } from "../../utils/analytics";
 
 const toStr = (v) => String(v || "").trim();
 function minPrice(v) {
@@ -97,6 +98,9 @@ export default function VenueListPage() {
   const myLocRef = useRef(null); // 내 위치 마커(CustomOverlay)
   const geoWatchRef = useRef(null); // navigator.geolocation.watchPosition id
   const [locating, setLocating] = useState(false);
+
+  // 예약 퍼널 상단 진입 기록 (매칭룸 구장 정하기에서 온 경우 from_match=true)
+  useEffect(() => { track("venue_list_view", { from_match: !!matchId }); }, []);
 
   useEffect(() => {
     let cancelled = false;

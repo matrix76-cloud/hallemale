@@ -15,6 +15,7 @@ import { FiChevronRight } from "react-icons/fi";
 import TeamAvatarPlaceholder from "../../components/common/TeamAvatarPlaceholder";
 import { useAuth } from "../../hooks/useAuth";
 import { createClub, isClubNameTaken } from "../../services/teamService";
+import { track } from "../../utils/analytics";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 import { TEAM_TAG_PRESETS } from "../../utils/constants";
 
@@ -666,6 +667,7 @@ export default function TeamCreatePage() {
         logoFile,
       });
 
+      track("team_create", { club_id: clubId }); // 활성화 핵심 — 팀 생성(무소속→소속 전환)
       showAlert("팀이 생성되었습니다.");
       nav(`/my`);
     } catch (e) {
