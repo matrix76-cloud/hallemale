@@ -278,6 +278,17 @@ const CenterState = styled.div`
 `;
 
 /* ===== 상대 0명 빈 상태 (데드엔드 방지: 재탐색/홈 CTA) ===== */
+const WidenNote = styled.div`
+  margin: 10px 16px 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+`;
+
 const EmptyWrap = styled.div`
   min-height: calc(100dvh - 120px);
   display: flex;
@@ -447,8 +458,8 @@ export default function MatchOpponentRevealPage() {
     };
   }, []);
 
-  // 선택 지역의 팀만 보여준다(폴백 없음)
-  const pool = useMemo(() => {
+  // 선택 지역 정확 매칭 후보 (폴백 상위 티어)
+  const poolExact = useMemo(() => {
     const all = Array.isArray(opponentTeams) ? opponentTeams : [];
     if (!regionGu && !regionSido) return all;
     return all.filter((t) => {
@@ -470,18 +481,18 @@ export default function MatchOpponentRevealPage() {
     });
   }, [opponentTeams, regionGu, regionSido]);
 
-  // 후보 팀 멤버 수 조회 → 3명 미만 팀은 제외
-  const poolIdsKey = useMemo(
+  // 멤버 수는 전체 후보에 대해 조회(지역 폴백 대비 — 정확 지역에 상대가 없을 때 전체로 넓힘)
+  const allIdsKey = useMemo(
     () =>
-      pool
+      (Array.isArray(opponentTeams) ? opponentTeams : [])
         .map((t) => String(t.clubId || t.id || "").trim())
         .filter(Boolean)
         .join(","),
-    [pool]
+    [opponentTeams]
   );
 
   useEffect(() => {
-    const ids = poolIdsKey ? poolIdsKey.split(",") : [];
+    const ids = allIdsKey ? allIdsKey.split(",") : [];
     if (ids.length === 0) {
       setMemberCounts(new Map());
       return;
@@ -494,17 +505,25 @@ export default function MatchOpponentRevealPage() {
     return () => {
       alive = false;
     };
-  }, [poolIdsKey]);
+  }, [allIdsKey]);
 
-  // 팀원 3명 이상인 팀만 매칭 대상
+  // 팀원 3명 이상인 팀만 매칭 대상 — 정확 지역 우선, 없으면 전체로 넓힘(데드엔드 방지)
   const eligiblePool = useMemo(() => {
     if (!memberCounts) return null; // 멤버 수 로딩 중
-    return pool.filter(
-      (t) =>
-        (memberCounts.get(String(t.clubId || t.id || "").trim()) || 0) >=
-        MIN_TEAM_MEMBERS
-    );
-  }, [pool, memberCounts]);
+    const ok = (t) =>
+      (memberCounts.get(String(t.clubId || t.id || "").trim()) || 0) >= MIN_TEAM_MEMBERS;
+    const exact = poolExact.filter(ok);
+    if (exact.length) return exact;
+    return (Array.isArray(opponentTeams) ? opponentTeams : []).filter(ok);
+  }, [poolExact, opponentTeams, memberCounts]);
+
+  // 지역을 넓혀서 찾았는지(안내용)
+  const widened = useMemo(() => {
+    if (!memberCounts || (!regionGu && !regionSido)) return false;
+    const ok = (t) =>
+      (memberCounts.get(String(t.clubId || t.id || "").trim()) || 0) >= MIN_TEAM_MEMBERS;
+    return poolExact.filter(ok).length === 0 && (eligiblePool?.length || 0) > 0;
+  }, [poolExact, memberCounts, regionGu, regionSido, eligiblePool]);
 
   const countsLoading = eligiblePool === null;
   const opponent =
@@ -672,6 +691,9 @@ export default function MatchOpponentRevealPage() {
 
   return (
     <Page>
+      {widened ? (
+        <WidenNote>선택한 지역엔 매칭 가능한 상대가 없어 전체에서 찾았어요.</WidenNote>
+      ) : null}
       <MatchupBar>
         <Matchup key={animKey}>
           <TeamCol onClick={() => goTeam(myClubId)}>
