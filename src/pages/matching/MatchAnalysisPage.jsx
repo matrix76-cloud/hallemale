@@ -894,14 +894,19 @@ export default function MatchAnalysisPage() {
       const ok = await showConfirm("직접 신청은 팀장만 가능해요.\n팀장에게 이 매칭을 제안할까요?");
       if (!ok) return;
       try {
-        await proposeMatchToLeader({
+        const res = await proposeMatchToLeader({
           myClubId: view.my.clubId,
           targetClubId: view.opp.clubId,
           targetTeamName: opp?.name,
+          proposerUid: userDoc?.uid || userDoc?.id,
           proposerName: userDoc?.nickname,
         });
-        track("match_proposal_sent");
-        showAlert("팀장에게 매칭 제안을 보냈어요! 📮\n팀장이 확인 후 신청할 수 있어요.");
+        track("match_proposal_sent", { deduped: !!res?.deduped });
+        showAlert(
+          res?.deduped
+            ? "이미 팀장에게 전달된 제안이에요. 📮\n팀장이 확인 후 신청할 수 있어요."
+            : "팀장에게 매칭 제안을 보냈어요! 📮\n팀장이 확인 후 신청할 수 있어요."
+        );
       } catch (e) {
         showAlert(e?.message || "제안 전송에 실패했어요. 잠시 후 다시 시도해 주세요.");
       }

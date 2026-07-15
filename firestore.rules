@@ -26,6 +26,8 @@ service cloud.firestore {
     // 팀 초대: collectionGroup(invites) 조회 지원 (MyTeamInvitesPage)
     match /{path=**}/invites/{inviteId}  { allow read: if signedIn(); allow write: if signedIn(); }
     match /match_requests/{id}            { allow read: if true; allow write: if signedIn(); }
+    // 팀원→팀장 매칭 제안 원장(dedup + 성사 통보 대상). 로그인 사용자만 접근.
+    match /match_proposals/{id}           { allow read: if signedIn(); allow write: if signedIn(); }
     match /rankings/{id}                  { allow read: if true; allow write: if signedIn(); }
     match /player_sessions/{id}           { allow read: if true; allow write: if signedIn(); }
 

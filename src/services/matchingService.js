@@ -6,7 +6,7 @@
 // ✅ 라인업 스냅샷 SSOT: actorLineup/targetLineup 자체 필드(memberIds/memberCount/previewMembers)
 
 import { db, auth } from "./firebase";
-import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
 import { MIN_TEAM_MEMBERS } from "../utils/constants";
@@ -67,7 +67,7 @@ async function clubLeaderUids(clubId) {
  * ✅ 팀원 → 팀장 매칭 제안. 팀원은 직접 신청 불가 → 팀장에게 "이 팀과 매칭 제안" 알림을 보내
  *    팀장이 알림을 타고 분석 화면으로 가서 실제 신청을 보낼 수 있게 한다. (팀장 독점 병목 완화)
  */
-export async function proposeMatchToLeader({ myClubId, targetClubId, targetTeamName, proposerName } = {}) {
+export async function proposeMatchToLeader({ myClubId, targetClubId, targetTeamName, proposerUid, proposerName } = {}) {
   const mine = toStr(myClubId);
   const target = toStr(targetClubId);
   if (!mine || !target) throw new Error("팀 정보가 없어요.");
@@ -75,6 +75,40 @@ export async function proposeMatchToLeader({ myClubId, targetClubId, targetTeamN
   if (!leaders.length) throw new Error("팀장을 찾을 수 없어요.");
   const who = toStr(proposerName) || "팀원";
   const opp = toStr(targetTeamName) || "상대 팀";
+  const uid = toStr(proposerUid);
+
+  // 제안 원장(match_proposals/{from}_{to}) — 팀장 알림 도배 방지(dedup) + 성사 시 통보 대상 누적
+  const propRef = doc(db, "match_proposals", `${mine}_${target}`);
+  let alreadyPending = false;
+  try {
+    const ps = await getDoc(propRef);
+    alreadyPending = ps.exists() && toStr(ps.data()?.status) === "pending";
+  } catch (e) {}
+
+  // 이미 팀장에게 전달돼 대기 중인 제안 → 알림 재발송하지 않고(도배 방지) 제안자만 누적
+  if (alreadyPending) {
+    try {
+      const patch = { updatedAt: serverTimestamp() };
+      if (uid) { patch.proposerUids = arrayUnion(uid); patch.proposerNames = arrayUnion(who); }
+      await updateDoc(propRef, patch);
+    } catch (e) {}
+    return { deduped: true };
+  }
+
+  // 새 제안 → 원장 생성(status=pending) + 팀장 알림 1회
+  try {
+    await setDoc(propRef, {
+      fromClubId: mine,
+      toClubId: target,
+      targetTeamName: opp,
+      proposerUids: uid ? [uid] : [],
+      proposerNames: [who],
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (e) {}
+
   await addDoc(collection(db, "notifications"), {
     kind: "match",
     subType: "matchProposal",
@@ -92,7 +126,51 @@ export async function proposeMatchToLeader({ myClubId, targetClubId, targetTeamN
     updatedAt: serverTimestamp(),
     readBy: {},
   });
-  return true;
+  return { deduped: false };
+}
+
+// 팀장이 실제 신청(createMatchRequest)하면, 그 팀→상대 pending 제안을 성사 처리:
+//  제안한 팀원들에게 "제안한 매칭이 신청됐어요" 통보 + status=fulfilled 로 마킹(중복 통보 방지).
+async function fulfillMatchProposal(fromClubId, toClubId, matchId, oppName) {
+  const from = toStr(fromClubId);
+  const to = toStr(toClubId);
+  const mid = toStr(matchId);
+  if (!from || !to || !mid) return;
+  const propRef = doc(db, "match_proposals", `${from}_${to}`);
+  try {
+    const ps = await getDoc(propRef);
+    if (!ps.exists() || toStr(ps.data()?.status) !== "pending") return;
+    const uids = Array.isArray(ps.data()?.proposerUids)
+      ? ps.data().proposerUids.map(toStr).filter(Boolean)
+      : [];
+    await updateDoc(propRef, {
+      status: "fulfilled",
+      matchId: mid,
+      fulfilledAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    if (uids.length) {
+      await addDoc(collection(db, "notifications"), {
+        kind: "match",
+        subType: "matchProposalFulfilled",
+        type: "match_proposal",
+        title: "제안한 매칭이 신청됐어요! ✅",
+        body: `팀장이 '${toStr(oppName) || "상대 팀"}'과(와)의 매칭을 신청했어요. 매칭룸에서 진행 상황을 확인해보세요.`,
+        targetType: "USER",
+        targetIds: uids,
+        linkType: "match",
+        linkTargetId: mid,
+        meta: { matchId: mid, deepLink: `/match-roomdetail/${mid}` },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "match",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        readBy: {},
+      });
+    }
+  } catch (e) {
+    console.warn("[fulfillMatchProposal] failed:", e?.message || e);
+  }
 }
 
 const MATCH_SIZE_KEYS = ["3v3", "4v4", "5v5"];
@@ -314,6 +392,11 @@ export async function createMatchRequest({
       pushEnabled: false,
     });
   }
+
+  // 팀원 제안으로 시작된 매칭이면 제안자들에게 성사 통보 (실패해도 매칭 생성엔 영향 없음)
+  try {
+    await fulfillMatchProposal(_actorClubId, _targetClubId, matchId, toTeamSnapshot?.name);
+  } catch (e) {}
 
   return matchId;
 }
