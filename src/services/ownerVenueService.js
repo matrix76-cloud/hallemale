@@ -604,12 +604,48 @@ export async function setVenueStatus(id, status, reason = "") {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
   const next = ["pending", "approved", "rejected"].includes(status) ? status : "pending";
+
+  // 알림 발송용 구장주 정보(uid·구장명) 확보
+  let ownerUid = "", venueName = "";
+  try {
+    const vs = await getDoc(doc(db, "venues", vid));
+    if (vs.exists()) {
+      ownerUid = safeStr(vs.data()?.ownerUid);
+      venueName = safeStr(vs.data()?.name);
+    }
+  } catch (e) {
+    console.warn("[setVenueStatus] read venue failed:", e?.message || e);
+  }
+
   await updateDoc(doc(db, "venues", vid), {
     status: next,
     rejectReason: next === "rejected" ? safeStr(reason) : "",
     active: next === "approved", // 승인일 때만 사용자 노출
     updatedAt: serverTimestamp(),
   });
+
+  // 구장주에게 승인/반려 결과 알림 — 승인돼도 몰라서 안 돌아오던 공급 이탈 방지
+  if (ownerUid && (next === "approved" || next === "rejected")) {
+    try {
+      const approved = next === "approved";
+      await addDoc(collection(db, "notifications"), {
+        kind: "venue",
+        subType: approved ? "venue_approved" : "venue_rejected",
+        type: approved ? "venue_approved" : "venue_rejected",
+        title: approved ? "구장 승인 완료 🎉" : "구장 등록 반려",
+        body: approved
+          ? `'${venueName || "구장"}'이 승인되었어요. 이제 예약을 받을 수 있어요.`
+          : `'${venueName || "구장"}' 등록이 반려되었어요.${reason ? ` 사유: ${safeStr(reason)}` : " 정보를 수정해 다시 신청해 주세요."}`,
+        targetType: "USER", targetIds: [ownerUid],
+        linkType: "venue", linkTargetId: vid,
+        meta: { venueId: vid, deepLink: approved ? "/owner/home" : "/owner/onboarding" },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "owner", createdAt: serverTimestamp(), updatedAt: serverTimestamp(), readBy: {},
+      });
+    } catch (e) {
+      console.warn("[setVenueStatus] owner notify failed:", e?.message || e);
+    }
+  }
 }
 
 /** 어드민: 심사 대기 구장 목록 */
