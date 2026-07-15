@@ -5,7 +5,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import styled, { keyframes } from "styled-components";
-import { FiMapPin, FiClock, FiAlertCircle, FiArrowRight, FiRefreshCw } from "react-icons/fi";
+import { FiMapPin, FiClock, FiAlertCircle, FiArrowRight, FiRefreshCw, FiMessageCircle } from "react-icons/fi";
 import { PrimaryBtn, GhostBtn } from "./ownerUi";
 
 const pop = keyframes`
@@ -119,15 +119,18 @@ export default function VenueGateNotice({ venue, refresh }) {
       <Card>
         <Badge $tone="pending"><FiClock size={36} /></Badge>
         <Title>구장 심사가 진행 중이에요</Title>
-        <Desc>{`'${venue.name}'\n관리자 승인 후 예약 관리가 열려요.`}</Desc>
+        <Desc>{`'${venue.name}'\n보통 영업일 1~2일 안에 승인돼요.\n승인되면 예약 관리가 열려요.`}</Desc>
         <StatePill $tone="pending"><FiClock size={13} /> 심사중</StatePill>
-        {refresh && (
-          <Btns>
+        <Btns>
+          {refresh && (
             <RefreshBtn type="button" onClick={() => refresh()}>
               <FiRefreshCw size={15} /> 새로고침
             </RefreshBtn>
-          </Btns>
-        )}
+          )}
+          <RefreshBtn type="button" onClick={() => navigate("/owner/inquiry")}>
+            <FiMessageCircle size={15} /> 승인이 오래 걸리나요? 문의하기
+          </RefreshBtn>
+        </Btns>
       </Card>
     );
   }

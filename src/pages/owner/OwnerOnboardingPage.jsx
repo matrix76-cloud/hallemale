@@ -183,7 +183,9 @@ export default function OwnerOnboardingPage() {
           <IntroTitle>{editingId ? "구장 정보를 다시 등록해요" : "구장 등록을 시작해요"}</IntroTitle>
           <IntroSub>
             몇 단계만 거치면 예약을 받을 수 있어요.{"\n"}
-            사진·위치·코트·이용요금을 차근차근 입력해 주세요.
+            사진·위치·코트·이용요금을 차근차근 입력해 주세요.{"\n\n"}
+            이용요금은 앱에서 결제되지 않아요.{"\n"}
+            회원이 예약을 요청하면 승인하시고, 요금은 현장에서 직접 정산해요.
           </IntroSub>
         </Intro>
         <Footer>
@@ -382,7 +384,8 @@ export default function OwnerOnboardingPage() {
             <ReviewRow><b>주차</b><span>{parking.available ? (parking.fee === "paid" ? "유료" : "무료") : "불가"}</span></ReviewRow>
             <ReviewRow><b>코트</b><span>{courts.length}면</span></ReviewRow>
             <ReviewRow><b>대표키워드</b><span>{keywords.length ? keywords.map((k) => `#${k}`).join(" ") : "-"}</span></ReviewRow>
-            <StepHint style={{ marginTop: 4 }}>등록 신청 후 관리자 승인을 거쳐 사용자에게 노출돼요.</StepHint>
+            <StepHint style={{ marginTop: 4 }}>등록 신청 후 관리자 승인(보통 영업일 1~2일)을 거쳐 사용자에게 노출돼요.</StepHint>
+            <StepHint>이용요금은 앱에서 결제되지 않고, 회원이 현장에서 직접 정산해요.</StepHint>
           </ReviewList>
         )}
       </Scroll>
