@@ -31,7 +31,7 @@ const Overlay = styled.div`
 `;
 const Sheet = styled.div`
   width: 100%;
-  max-width: 520px;
+  max-width: 480px;
   max-height: 86vh;
   background: ${({ theme }) => theme.colors.card};
   border-radius: 18px 18px 0 0;

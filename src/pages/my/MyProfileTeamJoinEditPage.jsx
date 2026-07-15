@@ -154,7 +154,7 @@ const Page = styled.div`
 
 const Card = styled.div`
   width: 100%;
-  max-width: 520px;
+  max-width: 480px;
   padding-left: 8px;
   display: flex;
   flex-direction: column;

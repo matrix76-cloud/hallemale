@@ -735,7 +735,7 @@ const Overlay = styled.div`
 
 const ModalCard = styled.div`
   width: 94%;
-  max-width: 520px;
+  max-width: 480px;
   max-height: 84vh;
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) =>

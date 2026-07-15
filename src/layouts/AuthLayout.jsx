@@ -15,7 +15,7 @@ const Wrap = styled.div`
 
 const Card = styled.div`
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
   background: ${({ theme }) => theme.colors.card};
   border-radius: 0;
   padding-top: env(safe-area-inset-top);

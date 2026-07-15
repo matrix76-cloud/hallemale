@@ -20,7 +20,7 @@ const Overlay = styled.div`
 
 const Sheet = styled.div`
   width: 100%;
-  max-width: 520px;
+  max-width: 480px;
   margin: 0 auto;
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;

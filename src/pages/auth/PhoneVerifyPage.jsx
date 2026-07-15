@@ -419,13 +419,13 @@ const Footer = styled.div`
 `;
 const PrimaryBtn = styled.button`
   width: 100%;
-  height: 56px;
+  height: 52px;
   border: none;
-  border-radius: 14px;
+  border-radius: 12px;
   background: ${BRAND};
   color: #fff;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   cursor: pointer;
   transition: transform 0.1s, background 0.15s;
   &:active {

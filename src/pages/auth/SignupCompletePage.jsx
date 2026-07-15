@@ -82,7 +82,7 @@ const Wrap = styled.div`
 
 const Inner = styled.div`
   width: 100%;
-  max-width: 460px;
+  max-width: 480px;
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -702,7 +702,7 @@ const PickerOverlay = styled.div`
   display: flex; align-items: flex-end; justify-content: center;
 `;
 const PickerSheet = styled.div`
-  width: 100%; max-width: 520px; max-height: 72vh;
+  width: 100%; max-width: 480px; max-height: 72vh;
   background: ${({ theme }) => theme.colors.card};
   border-radius: 18px 18px 0 0; display: flex; flex-direction: column; overflow: hidden;
 `;

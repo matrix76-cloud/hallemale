@@ -208,7 +208,7 @@ const BottomArea = styled.div`
 const KakaoBtn = styled.button`
   width: 100%;
   height: 52px;
-  border-radius: 10px;
+  border-radius: 12px;
   border: none;
   background: #fee500;
   color: #191600;
@@ -237,7 +237,7 @@ const KakaoIcon = styled.svg`
 const GoogleBtn = styled.button`
   width: 100%;
   height: 52px;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid ${({ theme }) => theme.colors.border || "#dadce0"};
   background: #ffffff;
   color: #3c4043;

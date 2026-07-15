@@ -131,7 +131,7 @@ const Overlay = styled.div`
 
 const Sheet = styled.div`
   width: 100%;
-  max-width: 460px;
+  max-width: 480px;
   background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
   box-shadow: ${({ theme }) =>
