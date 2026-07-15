@@ -88,6 +88,7 @@ export default function VenueListPage() {
   const [fDur, setFDur] = useState(2);
   const [picker, setPicker] = useState(null); // "schedule" | null
   const [availIds, setAvailIds] = useState(null);
+  const [sortBy, setSortBy] = useState("recent"); // recent | price
 
   const hostRef = useRef(null);
   const mapRef = useRef(null);
@@ -174,6 +175,18 @@ export default function VenueListPage() {
       return true;
     });
   }, [venues, q, fRegion, availIds]);
+
+  // 리스트 정렬 — 가격순(최저가 오름차순) / 최신순(기본, 서버 순서 유지)
+  const sortedFiltered = useMemo(() => {
+    if (sortBy === "price") {
+      return [...filtered].sort((a, b) => {
+        const pa = minPrice(a);
+        const pb = minPrice(b);
+        return (pa == null ? Infinity : pa) - (pb == null ? Infinity : pb);
+      });
+    }
+    return filtered;
+  }, [filtered, sortBy]);
 
   const geoVenues = useMemo(() => filtered.filter(isValidLatLng), [filtered]);
 
@@ -458,16 +471,23 @@ export default function VenueListPage() {
         <ListArea>
           <TopCenterBtn type="button" onClick={() => setView("map")}><FiMap size={14} /> 지도로 보기</TopCenterBtn>
           <ListScroll>
-            <ListHead>주변 구장 {filtered.length}<span>거리순 ›</span></ListHead>
-            {filtered.length === 0 ? (
+            <ListHead>
+              주변 구장 {filtered.length}
+              <SortToggle>
+                <SortBtn type="button" $on={sortBy === "recent"} onClick={() => setSortBy("recent")}>최신순</SortBtn>
+                <SortBtn type="button" $on={sortBy === "price"} onClick={() => setSortBy("price")}>가격순</SortBtn>
+              </SortToggle>
+            </ListHead>
+            {sortedFiltered.length === 0 ? (
               <Center><FiMapPin size={26} /><div>예약 가능한 구장이 없어요.</div></Center>
             ) : (
-              filtered.map((v) => (
+              sortedFiltered.map((v) => (
                 <ListCard key={v.id} type="button" onClick={() => goBook(v)}>
                   <ListCover>
                     {v.imageUrl ? <CardPhotoImg src={v.imageUrl} alt={v.name} /> : <CardNoImg><FiMapPin size={20} /><span>구장 사진 / No image</span></CardNoImg>}
                     {ratingNode(v)}
                     {minPrice(v) != null && <PriceTag>{minPrice(v).toLocaleString()}원~ / 시간</PriceTag>}
+                    {(v.photos?.length || 0) > 1 ? <PhotoCountTag>사진 {v.photos.length}</PhotoCountTag> : null}
                   </ListCover>
                   <CardInfo>
                     <CardName>{v.name}</CardName>
@@ -684,6 +704,18 @@ const ListHead = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   font-size: 14px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};
   span { font-size: 12.5px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; }
+`;
+const SortToggle = styled.div`display: flex; gap: 6px;`;
+const SortBtn = styled.button`
+  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
+  background: ${({ $on, theme }) => ($on ? theme.colors.primary : "transparent")};
+  color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textWeak)};
+  font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 999px; cursor: pointer;
+`;
+const PhotoCountTag = styled.div`
+  position: absolute; right: 10px; bottom: 12px;
+  background: rgba(0,0,0,0.55); color: #fff;
+  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
 `;
 const ListCard = styled.button`
   width: 100%; text-align: left; cursor: pointer; padding: 0;
