@@ -39,6 +39,30 @@ exports.verifyBusiness = onRequest(
       return;
     }
 
+    // 🔒 인증: 유효한 Firebase ID 토큰 + 해당 구장의 소유자만 허용
+    //    (무인증 onRequest 라 누구나 임의 구장의 business.status 를 변조할 수 있던 구멍 차단)
+    const admin = getAdmin();
+    const db = admin.firestore();
+    const m = String(req.headers.authorization || "").match(/^Bearer (.+)$/);
+    if (!m) { res.status(401).json({ error: "unauthenticated" }); return; }
+    let callerUid = "";
+    try {
+      callerUid = (await admin.auth().verifyIdToken(m[1])).uid;
+    } catch (e) {
+      res.status(401).json({ error: "invalid_token" });
+      return;
+    }
+    try {
+      const vsnap = await db.collection("venues").doc(String(venueId)).get();
+      if (!vsnap.exists || String(vsnap.data()?.ownerUid || "") !== callerUid) {
+        res.status(403).json({ error: "forbidden" });
+        return;
+      }
+    } catch (e) {
+      res.status(500).json({ error: "venue_read_failed" });
+      return;
+    }
+
     // 키 미설정 → 자동 진위확인 비활성(수동 승인 폴백)
     if (!serviceKey) {
       res.status(200).json({ configured: false });
@@ -86,8 +110,6 @@ exports.verifyBusiness = onRequest(
         else if (tt.includes("일반")) taxType = "general";
       } catch (e) { /* 부가정보 실패 무시 */ }
 
-      const admin = getAdmin();
-      const db = admin.firestore();
       const ref = db.collection("venues").doc(String(venueId));
       const now = admin.firestore.FieldValue.serverTimestamp();
 

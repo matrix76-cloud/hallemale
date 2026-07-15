@@ -13,7 +13,7 @@
 // 인덱스 최소화 원칙: 단일 where + 클라이언트 메모리 필터/정렬.
 // 이미지 업로드는 venuesService.uploadVenueImage 재사용.
 
-import { db } from "./firebase";
+import { db, ownerAuth } from "./firebase";
 import {
   addDoc,
   collection,
@@ -296,6 +296,13 @@ export async function registerVenue({
   if (!safeStr(name)) throw new Error("구장명을 입력해주세요.");
   if (!safeStr(address)) throw new Error("주소를 입력해주세요.");
 
+  // 구장주당 1구장 제한: 워크스페이스가 단일 구장(가장 최근 것) 기준이라, 2번째 구장은
+  // 관리·정산·예약 화면에 안 보여 데드엔드가 된다 → 등록 자체를 차단(전환 UI 도입 전까지).
+  const existingVenues = await listMyVenues(ownerUid);
+  if (existingVenues.length > 0) {
+    throw new Error("이미 등록한 구장이 있어요. 현재는 구장주당 1개 구장만 운영할 수 있어요.");
+  }
+
   const cleanPhotos = arr(photos).map((p) => safeStr(p)).filter(Boolean);
   const cleanCourts = arr(courts).map((c, i) => normalizeCourt(c, i));
   if (cleanCourts.length === 0) {
@@ -511,9 +518,15 @@ const VERIFY_BUSINESS_URL = "https://asia-northeast3-halle-bf789.cloudfunctions.
  */
 export async function verifyBusinessOnline({ venueId, bizNo, ownerName, openDate, bizName } = {}) {
   try {
+    // 구장주 인증 토큰 첨부 (함수가 소유자 검증) — 없으면 서버가 401
+    const headers = { "Content-Type": "application/json" };
+    try {
+      const token = await ownerAuth.currentUser?.getIdToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    } catch (e) {}
     const res = await fetch(VERIFY_BUSINESS_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ venueId, bizNo, ownerName, openDate, bizName }),
     });
     if (!res.ok) return { configured: true, valid: false, reason: "진위확인 요청에 실패했어요." };
@@ -553,11 +566,41 @@ export async function setBusinessStatus(id, status, reason = "") {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
   const next = ["pending", "verified", "rejected"].includes(status) ? status : "pending";
+
+  let ownerUid = "";
+  try {
+    const vs = await getDoc(doc(db, "venues", vid));
+    ownerUid = safeStr(vs.exists() ? vs.data()?.ownerUid : "");
+  } catch (e) {}
+
   await updateDoc(doc(db, "venues", vid), {
     "business.status": next,
     "business.rejectReason": next === "rejected" ? safeStr(reason) : "",
     updatedAt: serverTimestamp(),
   });
+
+  // 사업자 인증 결과 알림 — 인증/반려돼도 몰라서 "심사중"에 방치되던 것 방지 (setVenueStatus 동일 패턴)
+  if (ownerUid && (next === "verified" || next === "rejected")) {
+    try {
+      const ok = next === "verified";
+      await addDoc(collection(db, "notifications"), {
+        kind: "venue",
+        subType: ok ? "business_verified" : "business_rejected",
+        type: ok ? "business_verified" : "business_rejected",
+        title: ok ? "사업자 인증 완료 ✅" : "사업자 인증 반려",
+        body: ok
+          ? "사업자 정보 인증이 완료됐어요."
+          : `사업자 정보 인증이 반려됐어요.${reason ? ` 사유: ${safeStr(reason)}` : " 정보를 확인해 다시 제출해 주세요."}`,
+        targetType: "USER", targetIds: [ownerUid],
+        linkType: "venue", linkTargetId: vid,
+        meta: { venueId: vid, deepLink: "/owner/home" },
+        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        prefsCategory: "owner", createdAt: serverTimestamp(), updatedAt: serverTimestamp(), readBy: {},
+      });
+    } catch (e) {
+      console.warn("[setBusinessStatus] notify failed:", e?.message || e);
+    }
+  }
 }
 
 /* ============================================================
@@ -829,6 +872,25 @@ async function syncMatchOnReservationChange(data, action) {
       title: "구장 예약이 반려됐어요",
       body: `${safeStr(data.courtName)} 예약이 구장 사정으로 반려됐어요. 다른 구장·시간을 다시 제안해 주세요.`,
     });
+  } else if (action === "cancelled" || action === "noshow") {
+    // 확정된 매칭 예약이 취소/노쇼로 종료 → 매칭룸을 조율중(accepted)으로 되돌리고 양 팀장에게 통보.
+    // (안 그러면 예약은 종료됐는데 경기는 confirmed로 남아 두 팀이 계속 확정으로 오인)
+    await updateDoc(doc(db, "match_requests", matchId), {
+      status: "accepted",
+      partnerBooking: null,
+      scheduledAt: null,
+      field: null,
+      proposedByClubId: "",
+      proposedAt: null,
+      updatedAt: serverTimestamp(),
+    });
+    const noshow = action === "noshow";
+    await notifyMatchTeamLeaders(matchId, clubIds, {
+      subType: noshow ? "venueReservationNoshow" : "venueReservationCancelled",
+      type: noshow ? "venue_reservation_noshow" : "venue_reservation_cancelled",
+      title: noshow ? "구장 예약이 노쇼 처리됐어요" : "구장 예약이 취소됐어요",
+      body: `${safeStr(data.courtName)} 예약이 ${noshow ? "노쇼로 처리" : "구장 사정으로 취소"}됐어요. 필요하면 다른 구장·시간을 다시 제안해 주세요.`,
+    });
   }
 }
 
@@ -882,22 +944,44 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
     : "requested";
   const ownerNote = safeStr(opts?.ownerNote);
   const dref = doc(db, "venueReservations", rid);
+
+  // 현재 상태 조회 (상태머신 가드 + 승인 시 슬롯 재검증 + 매칭 동기화용)
+  const preSnap = await getDoc(dref);
+  if (!preSnap.exists()) throw new Error("예약을 찾을 수 없습니다.");
+  const cur = preSnap.data() || {};
+  const curStatus = safeStr(cur.status);
+
+  // ③ 상태머신 가드: 역행/중복 전이 차단 (done→confirmed 되돌림, 재승인 중복푸시 등)
+  if (next === "confirmed" && !["requested", "pending"].includes(curStatus))
+    throw new Error("승인 대기 상태의 예약만 승인할 수 있어요.");
+  if ((next === "done" || next === "noshow") && curStatus !== "confirmed")
+    throw new Error("확정된 예약만 이용완료·노쇼 처리할 수 있어요.");
+
+  // ① 승인 시 슬롯 재검증: 같은 코트·날짜에 이미 확정된 겹침 예약이 있으면 이중예약 차단
+  if (next === "confirmed") {
+    const others = await listReservations({ venueId: safeStr(cur.venueId), date: safeStr(cur.date), courtId: safeStr(cur.courtId) });
+    const clash = others.some(
+      (r) => r.id !== rid && r.status === "confirmed" && rangesOverlap(cur.startTime, cur.endTime, r.startTime, r.endTime)
+    );
+    if (clash) throw new Error("이미 확정된 예약이 있는 시간대예요. 이 요청은 반려해 주세요.");
+  }
+
   await updateDoc(dref, {
     status: next,
     ...(next === "confirmed" ? { ownerNote } : {}),
     updatedAt: serverTimestamp(),
   });
+
   // 승인(confirmed)/노쇼(noshow) 시 후속 통보
   if (next === "confirmed" || next === "noshow") {
     try {
-      const snap = await getDoc(dref);
-      const data = snap.exists() ? snap.data() : null;
-      if (data) {
-        // 매칭 예약 승인(구장주 확정) → 경기 확정 동기화 + 양 팀장 알림
-        if (next === "confirmed" && safeStr(data.matchId)) await syncMatchOnReservationChange(data, "approved");
-        // 일반 사용자앱 예약 → 예약자 본인 통보
-        await notifyBookingUserOnStatusChange({ ...data, id: rid }, next);
+      const data = { ...cur, id: rid, status: next };
+      // 매칭 예약: 승인→경기 확정 동기화 / 노쇼→매칭룸 조율중 복귀 + 양 팀장 알림
+      if (safeStr(data.matchId)) {
+        await syncMatchOnReservationChange(data, next === "confirmed" ? "approved" : "noshow");
       }
+      // 일반 사용자앱 예약 → 예약자 본인 통보 (matchId면 내부에서 skip)
+      await notifyBookingUserOnStatusChange(data, next);
     } catch (e) {
       console.warn("[setReservationStatus] post-status notify failed:", e?.message || e);
     }
@@ -926,10 +1010,10 @@ async function setReservationEndStatus(reservationId, nextStatus) {
     status: nextStatus,
     updatedAt: serverTimestamp(),
   });
-  // 매칭 예약 반려 → 매칭룸 조율중(accepted) 복귀 + 재제안 유도 알림
-  if (safeStr(data.matchId) && nextStatus === "rejected") {
+  // 매칭 예약 반려/취소 → 매칭룸 조율중(accepted) 복귀 + 재제안 유도 알림
+  if (safeStr(data.matchId) && (nextStatus === "rejected" || nextStatus === "cancelled")) {
     try {
-      await syncMatchOnReservationChange(data, "rejected");
+      await syncMatchOnReservationChange(data, nextStatus);
     } catch (e) {
       console.warn("[setReservationEndStatus] match sync failed:", e?.message || e);
     }
@@ -1518,6 +1602,13 @@ export async function listBlocks({ venueId, date = "", courtId = "" } = {}) {
 
 export async function addBlock({ venueId, courtId, date, startTime, endTime }) {
   if (!safeStr(venueId)) throw new Error("venueId가 필요합니다.");
+  // 이미 활성 예약이 있는 시간은 막지 못하게 한다. (안 그러면 예약 우선 렌더로 블록이 화면에서 안 보이다가,
+  //  예약이 취소되면 유령 블록이 남아 이후 예약을 계속 차단함)
+  const dayRes = await listReservations({ venueId, date, courtId });
+  const clash = dayRes.some(
+    (r) => ["requested", "pending", "confirmed"].includes(r.status) && rangesOverlap(startTime, endTime, r.startTime, r.endTime)
+  );
+  if (clash) throw new Error("이미 예약이 있는 시간은 막을 수 없어요. 예약을 먼저 처리해 주세요.");
   const ref = await addDoc(collection(db, "venueBlocks"), {
     venueId: safeStr(venueId),
     courtId: safeStr(courtId),

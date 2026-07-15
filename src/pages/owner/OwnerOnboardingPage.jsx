@@ -86,6 +86,7 @@ export default function OwnerOnboardingPage() {
     setCourts(
       (venue.courts || []).length
         ? venue.courts.map((c) => ({
+            ...c, // priceBands/priceOverrides/notices/cautions 등 고급 필드 보존 (반려 재신청 시 소실 방지)
             name: c.name, type: c.type, surface: c.surface || "",
             pricePerHour: String(c.pricePerHour ?? ""), slotMinutes: c.slotMinutes,
             hours: c.hours || defaultCourtHours(),
@@ -133,12 +134,21 @@ export default function OwnerOnboardingPage() {
 
   const id = STEPS[step];
 
+  // 운영시간이 명시적으로 전부 휴무면 예약 불가한 유령 구장이 됨 → 최소 1개 요일 운영 필요.
+  // (미설정 hours는 에디터 기본값이 적용되므로 통과)
+  const hasAnyOpenDay = (hours) => {
+    if (!hours || typeof hours !== "object") return true;
+    const days = Object.values(hours);
+    if (!days.length) return true;
+    return days.some((d) => d && !d.closed);
+  };
+
   // 단계별 다음 진행 가능 여부
   const canNext = (() => {
     if (id === "name") return !!form.name.trim();
     if (id === "location") return !!form.address.trim();
     if (id === "photos") return photos.length > 0;
-    if (id === "courts") return courts.length > 0 && courts.every((c) => c.name.trim());
+    if (id === "courts") return courts.length > 0 && courts.every((c) => c.name.trim() && hasAnyOpenDay(c.hours));
     if (id === "contact") return !form.bizNo.trim() || isValidBizNo(form.bizNo);
     return true;
   })();
@@ -148,7 +158,7 @@ export default function OwnerOnboardingPage() {
       if (id === "name") return showAlert("구장명을 입력해주세요.");
       if (id === "location") return showAlert("지도에서 구장 위치에 핀을 맞춰주세요.");
       if (id === "photos") return showAlert("구장 사진을 최소 1장 등록해주세요.\n사진이 있으면 승인도 빠르고 예약도 잘 들어와요.");
-      if (id === "courts") return showAlert("코트 이름을 모두 입력해주세요.");
+      if (id === "courts") return showAlert("코트 이름과 운영시간(최소 1개 요일)을 확인해주세요.");
       if (id === "contact") return showAlert("사업자등록번호 형식이 올바르지 않아요.\n번호를 다시 확인해주세요.");
       return;
     }
@@ -231,8 +241,12 @@ export default function OwnerOnboardingPage() {
               height={240}
             />
             <Field>
-              <Label>주소 <Opt>(핀 위치에서 자동 입력돼요)</Opt></Label>
-              <AutoAddr>{form.address || "지도에서 구장 위치에 핀을 맞춰주세요"}</AutoAddr>
+              <Label>주소 <Opt>(핀 위치에서 자동 입력 · 직접 수정 가능)</Opt></Label>
+              <Input
+                value={form.address}
+                onChange={(e) => set({ address: e.target.value })}
+                placeholder="지도에서 핀을 맞추거나 주소를 직접 입력하세요"
+              />
             </Field>
             <Field>
               <Label>상세 주소</Label>

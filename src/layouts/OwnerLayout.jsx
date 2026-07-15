@@ -1,10 +1,11 @@
 /* eslint-disable */
 // src/layouts/OwnerLayout.jsx
 // 구장 관리자 워크스페이스 레이아웃 (헤더 + 본문 + 바텀탭)
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Outlet, Navigate, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { OwnerProvider, useOwner } from "../context/OwnerContext";
+import { listReservations } from "../services/ownerVenueService";
 import OwnerBottomTabBar from "./components/OwnerBottomTabBar";
 import OwnerSpinner from "../pages/owner/components/OwnerSpinner";
 import OwnerNotifBell from "../pages/owner/components/OwnerNotifBell";
@@ -156,8 +157,20 @@ function OwnerShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useUI() || {};
-  const { loading, userDoc } = useOwner();
+  const { loading, userDoc, venue } = useOwner();
   const p = (location.pathname || "").toLowerCase();
+
+  // 승인대기(requested) 건수 → 바텀탭 배지. 홈이 아닌 탭에서도 신규 예약 요청을 인지하게.
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const vid = venue?.id;
+    if (!vid) { setPendingCount(0); return; }
+    listReservations({ venueId: vid })
+      .then((rows) => { if (alive) setPendingCount(rows.filter((r) => r.status === "requested").length); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [venue?.id, location.pathname]);
 
   const hasTab = TAB_PATHS.some((t) => p.startsWith(t));
   const showBack = !hasTab && !p.endsWith("/owner") && !p.endsWith("/owner/");
@@ -190,7 +203,7 @@ function OwnerShell() {
         </Main>
 
         {hasTab && (
-          <OwnerBottomTabBar currentPath={location.pathname} onNavigate={navigate} />
+          <OwnerBottomTabBar currentPath={location.pathname} onNavigate={navigate} pendingCount={pendingCount} />
         )}
 
         {toast && <ToastWrap>{toast.message}</ToastWrap>}

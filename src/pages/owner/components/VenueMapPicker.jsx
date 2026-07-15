@@ -35,15 +35,17 @@ export default function VenueMapPicker({ value, onChange, height = 230 }) {
     });
   };
 
-  // 초기화 (1회)
+  // 초기화 (1회). ⚠️ SDK는 defer/autoload=false로 로드돼 콜드스타트 시 이 컴포넌트 마운트가
+  //   스크립트 실행보다 앞설 수 있음 → window.kakao 준비될 때까지 폴링(최대 ~10초)해 지도가
+  //   영영 안 뜨는(=위치 단계 영구정지) 문제 방지.
   useEffect(() => {
-    const kakao = window.kakao;
-    if (!kakao || !kakao.maps) return;
     let cancelled = false;
+    let rafId = null;
 
     const run = () => {
-      if (cancelled || !hostRef.current) return;
-      if (hostRef.current.offsetWidth === 0) { requestAnimationFrame(run); return; }
+      const kakao = window.kakao;
+      if (cancelled || !hostRef.current || !kakao || !kakao.maps) return;
+      if (hostRef.current.offsetWidth === 0) { rafId = requestAnimationFrame(run); return; }
       if (mapRef.current) return;
 
       const start = isValid(value?.lat, value?.lng)
@@ -66,9 +68,19 @@ export default function VenueMapPicker({ value, onChange, height = 230 }) {
       setTimeout(() => { try { map.relayout(); map.setCenter(center); } catch (e) {} }, 0);
     };
 
-    if (typeof kakao.maps.load === "function") kakao.maps.load(() => { if (!cancelled) run(); });
-    else run();
-    return () => { cancelled = true; };
+    let tries = 0;
+    const boot = () => {
+      if (cancelled) return;
+      const kakao = window.kakao;
+      if (kakao && kakao.maps) {
+        if (typeof kakao.maps.load === "function") kakao.maps.load(() => { if (!cancelled) run(); });
+        else run();
+        return;
+      }
+      if (tries++ < 100) setTimeout(boot, 100); // SDK 로드 대기 (최대 10초)
+    };
+    boot();
+    return () => { cancelled = true; if (rafId) cancelAnimationFrame(rafId); };
   }, []); // eslint-disable-line
 
   // 외부에서 좌표가 주어지면(편집 프리필 등) 지도 이동 — idle 역지오코딩은 억제
