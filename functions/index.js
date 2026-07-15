@@ -35,6 +35,9 @@ exports.matchAutoVoidTick = matchAutoVoidTick;
 const { matchAutoConfirmTick } = require("./jobs/matchAutoConfirm");
 exports.matchAutoConfirmTick = matchAutoConfirmTick;
 
+const { matchRequestReminderTick } = require("./jobs/matchRequestReminder");
+exports.matchRequestReminderTick = matchRequestReminderTick;
+
 // ✅ 카카오 소셜 로그인 (accessToken → Firebase Custom Token)
 const { kakaoCustomToken } = require("./auth/kakaoCustomToken");
 exports.kakaoCustomToken = kakaoCustomToken;
