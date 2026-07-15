@@ -388,6 +388,10 @@ export default function AppRoutes() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/operation" element={<OperationPage />} />
+        </Route>
+
+        {/* 환불정책: 자체 헤더/닫기(X)를 가진 독립 페이지 — 앱 탭헤더/탭바를 숨긴다 */}
+        <Route element={<MainLayout hideHeader />}>
           <Route path="/refund" element={<RefundPage />} />
         </Route>
 
@@ -504,11 +508,6 @@ export default function AppRoutes() {
 
           <Route path="/my/profile/detail" element={<MyProfileDetailPage />} />
           <Route path="/my/profile/edit" element={<MyProfileEditPage />} />
-          <Route path="/my/profile/edit/skills" element={<MyProfileSkillsEditPage />} />
-          <Route path="/my/profile/edit/body" element={<MyProfileBodyEditPage />} />
-          <Route path="/my/profile/edit/intro" element={<MyProfileIntroEditPage />} />
-          <Route path="/my/profile/edit/media" element={<MyProfileMediaEditPage />} />
-          <Route path="/my/profile/edit/team-join" element={<MyProfileTeamJoinEditPage />} />
 
           <Route path="/my/posts" element={<MyPostsPage />} />
           <Route path="/my/reservations" element={<MyReservationsPage />} />
@@ -533,6 +532,30 @@ export default function AppRoutes() {
 
           <Route path="/impact" element={<ImpactCampaignPage />} />
           <Route path="/matching/analysis/:clubId" element={<MatchAnalysisPage />} />
+        </Route>
+
+        {/* 프로필 세부수정: 자체 헤더(‹ 뒤로 + 제목)를 가진 독립 페이지 —
+            앱 탭헤더/탭바를 숨겨 이중 헤더·탭바 겹침을 방지한다. 게이트는 본 앱 그룹과 동일. */}
+        <Route
+          element={
+            <RequireAuth>
+              <RequireConsent>
+                <RequirePhone>
+                <RequireWelcome>
+                <RequireClub>
+                  <MainLayout hideHeader />
+                </RequireClub>
+                </RequireWelcome>
+                </RequirePhone>
+              </RequireConsent>
+            </RequireAuth>
+          }
+        >
+          <Route path="/my/profile/edit/skills" element={<MyProfileSkillsEditPage />} />
+          <Route path="/my/profile/edit/body" element={<MyProfileBodyEditPage />} />
+          <Route path="/my/profile/edit/intro" element={<MyProfileIntroEditPage />} />
+          <Route path="/my/profile/edit/media" element={<MyProfileMediaEditPage />} />
+          <Route path="/my/profile/edit/team-join" element={<MyProfileTeamJoinEditPage />} />
         </Route>
 
         <Route

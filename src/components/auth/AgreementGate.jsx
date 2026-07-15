@@ -15,7 +15,7 @@ export default function AgreementGate() {
   const navigate = useNavigate();
   // 동의 게이트 표시 중엔 안드로이드 뒤로가기를 소비(게이트 위에 "앱 종료?" 모달이 뜨는 문제 방지).
   useBackInterceptor(true, () => {});
-  const { firebaseUser, userDoc, refreshUser } = useAuth();
+  const { firebaseUser, userDoc, refreshUser, signOut } = useAuth();
   // ⚠️ 전화인증에서 같은 번호의 기존 계정과 병합되면 게이트가 읽는 실제 문서는 userDoc.id(병합된 문서)다.
   //    firebaseUser.uid(방금 삭제된 소셜 uid)에 저장하면 phoneVerified 없는 고아 문서를 재생성해
   //    전화인증 화면이 다시 뜨는 무한 루프가 생긴다. → 반드시 userDoc.id 우선. (SignupCompletePage와 동일)
@@ -119,6 +119,9 @@ export default function AgreementGate() {
         <SubmitBtn type="button" $on={requiredOk} disabled={!requiredOk || busy} onClick={handleSubmit}>
           {busy ? "처리중…" : "동의하고 시작하기"}
         </SubmitBtn>
+
+        {/* 저장 실패·잘못된 계정 등으로 진행이 막혔을 때의 탈출구 (게이트가 데드엔드가 되지 않도록) */}
+        <LogoutLink type="button" onClick={signOut}>다른 계정으로 로그인</LogoutLink>
       </Inner>
     </Wrap>
   );
@@ -290,4 +293,16 @@ const SubmitBtn = styled.button`
 
   &:active { transform: translateY(1px); }
   &:disabled { cursor: not-allowed; }
+`;
+
+const LogoutLink = styled.button`
+  margin: 14px auto 0;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 6px 4px;
 `;

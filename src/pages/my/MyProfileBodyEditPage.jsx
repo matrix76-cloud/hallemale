@@ -93,9 +93,9 @@ export default function MyProfileBodyEditPage() {
 }
 
 const Page = styled.div`
-  min-height: calc(100vh - 56px);
+  min-height: 100dvh;
   background: ${({ theme }) => theme.colors.card};
-  padding: 16px 14px 32px;
+  padding: calc(16px + env(safe-area-inset-top)) 14px 32px;
   display: flex;
   justify-content: center;
 `;

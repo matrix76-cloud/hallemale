@@ -274,6 +274,58 @@ const CenterState = styled.div`
   font-size: 14px;
 `;
 
+/* ===== 상대 0명 빈 상태 (데드엔드 방지: 재탐색/홈 CTA) ===== */
+const EmptyWrap = styled.div`
+  min-height: calc(100dvh - 120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  text-align: center;
+`;
+
+const EmptyText = styled.div`
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 15px;
+  line-height: 1.6;
+`;
+
+const EmptyActions = styled.div`
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const EmptyPrimary = styled.button`
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 14px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+
+const EmptyGhost = styled.button`
+  width: 100%;
+  height: 48px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 14px;
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+
 /* ===== 하단 액션 ===== */
 const Footer = styled.div`
   position: fixed;
@@ -527,10 +579,23 @@ export default function MatchOpponentRevealPage() {
   if (!opponent) {
     return (
       <Page>
-        <CenterState>
-          {region ? `${region} 주변에 ` : ""}팀원 {MIN_TEAM_MEMBERS}명 이상인 매칭
-          가능한 상대가 아직 없어요.
-        </CenterState>
+        <EmptyWrap>
+          <EmptyText>
+            {region ? `${region} 주변에 ` : ""}팀원 {MIN_TEAM_MEMBERS}명 이상인
+            <br />매칭 가능한 상대가 아직 없어요.
+          </EmptyText>
+          <EmptyActions>
+            <EmptyPrimary
+              type="button"
+              onClick={() => navigate("/matching/region", { replace: true })}
+            >
+              다른 지역에서 다시 찾기
+            </EmptyPrimary>
+            <EmptyGhost type="button" onClick={() => navigate("/home")}>
+              홈으로
+            </EmptyGhost>
+          </EmptyActions>
+        </EmptyWrap>
       </Page>
     );
   }

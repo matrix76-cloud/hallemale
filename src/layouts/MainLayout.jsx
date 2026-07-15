@@ -120,6 +120,11 @@ const SheetWrap = styled.div`
   border-radius: 8px 16px 0 0;
   box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.12);
   padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  /* 긴 시트 콘텐츠가 화면 위로 넘쳐 상단이 잘리지 않도록 높이 상한 + 내부 스크롤 */
+  max-height: 85vh;
+  max-height: 85dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   z-index: 950;
 `;
 

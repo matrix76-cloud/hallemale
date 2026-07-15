@@ -341,19 +341,23 @@ export default function VenueBookingPage() {
       <Section>
         <SecTitle><FiGrid size={17} />코트 선택</SecTitle>
         <CourtList>
-          {venue.courts.map((c) => (
-            <CourtCard key={c.id} type="button" onClick={() => goCourt(c)}>
-              <CourtThumb>
-                {venue.imageUrl ? <CourtThumbImg src={venue.imageUrl} alt={c.name} /> : <FiGrid size={24} />}
-              </CourtThumb>
-              <CourtBody>
-                <CourtCName>{c.name}</CourtCName>
-                <CourtCSub>{c.type === "outdoor" ? "실외" : "실내"} 코트{c.surface ? ` · ${c.surface}` : ""}</CourtCSub>
-                <CourtCPrice>{(Number(c.pricePerHour) || 0).toLocaleString()}원<small> / 시간</small></CourtCPrice>
-              </CourtBody>
-              <CourtBadge>예약 가능 ›</CourtBadge>
-            </CourtCard>
-          ))}
+          {(venue.courts || []).length === 0 ? (
+            <CourtEmpty>아직 등록된 코트가 없어요. 구장에 문의해 주세요.</CourtEmpty>
+          ) : (
+            (venue.courts || []).map((c) => (
+              <CourtCard key={c.id} type="button" onClick={() => goCourt(c)}>
+                <CourtThumb>
+                  {venue.imageUrl ? <CourtThumbImg src={venue.imageUrl} alt={c.name} /> : <FiGrid size={24} />}
+                </CourtThumb>
+                <CourtBody>
+                  <CourtCName>{c.name}</CourtCName>
+                  <CourtCSub>{c.type === "outdoor" ? "실외" : "실내"} 코트{c.surface ? ` · ${c.surface}` : ""}</CourtCSub>
+                  <CourtCPrice>{(Number(c.pricePerHour) || 0).toLocaleString()}원<small> / 시간</small></CourtCPrice>
+                </CourtBody>
+                <CourtBadge>예약 가능 ›</CourtBadge>
+              </CourtCard>
+            ))
+          )}
         </CourtList>
       </Section>
 
@@ -710,6 +714,12 @@ const Chip = styled.button`
 `;
 /* 코트 선택 카드 (목업 디자인) */
 const CourtList = styled.div`display: flex; flex-direction: column; gap: 10px;`;
+const CourtEmpty = styled.div`
+  padding: 24px 12px; text-align: center;
+  font-size: 13px; color: ${({ theme }) => theme.colors.textWeak};
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+  border-radius: 14px;
+`;
 const CourtCard = styled.button`
   width: 100%; text-align: left; cursor: pointer;
   display: flex; align-items: center; gap: 12px; padding: 10px;

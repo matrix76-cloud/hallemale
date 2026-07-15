@@ -27,6 +27,9 @@ const Wrap = styled.div`
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
   display: flex;
   flex-direction: column;
+  /* 홈은 하단 고정 탭바가 떠 있는 탭 페이지 — 최하단 푸터(법무 링크)가
+     탭바 뒤로 가리지 않도록 탭바 높이만큼 여백 확보 */
+  padding-bottom: calc(${({ theme }) => theme.layout.bottomTabHeight}px + 16px);
 `;
 
 const Content = styled.div`
