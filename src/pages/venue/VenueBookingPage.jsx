@@ -28,6 +28,7 @@ import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
 import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome } from "react-icons/fi";
 import { FacilityIcon } from "./facilityIcons";
 import CourtNotices from "./CourtNotices";
+import { listVenueReviews } from "../../services/venueReviewService";
 
 /* ---------- time helpers ---------- */
 function toMin(hhmm) {
@@ -88,6 +89,7 @@ export default function VenueBookingPage() {
   const goCourt = (c) => navigate(`/venue-book/${id}/court/${c.id}${suffix}`);
 
   const [venue, setVenue] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [courtId, setCourtId] = useState("");
   const [date, setDate] = useState("");
@@ -124,6 +126,14 @@ export default function VenueBookingPage() {
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [matchId]);
+
+  // 구장 리뷰 로드
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    listVenueReviews(id).then((rows) => { if (alive) setReviews(Array.isArray(rows) ? rows : []); }).catch(() => {});
+    return () => { alive = false; };
+  }, [id]);
 
   const dates = useMemo(() => {
     const now = new Date();
@@ -429,6 +439,31 @@ export default function VenueBookingPage() {
         </Section>
       )}
 
+      <Section>
+        <SecTitle><FiStar size={17} />리뷰{reviews.length > 0 ? ` (${reviews.length})` : ""}</SecTitle>
+        {Number(venue.rating) > 0 ? (
+          <RvSummary>
+            <RvAvg>★ {Number(venue.rating).toFixed(1)}</RvAvg>
+            <RvCnt>리뷰 {Number(venue.reviewCount) || reviews.length}개</RvCnt>
+          </RvSummary>
+        ) : null}
+        {reviews.length === 0 ? (
+          <InfoPre>아직 등록된 리뷰가 없어요. 이용 후 첫 리뷰를 남겨보세요.</InfoPre>
+        ) : (
+          <RvList>
+            {reviews.map((rv) => (
+              <RvItem key={rv.id}>
+                <RvItemTop>
+                  <RvName>{rv.userName || "회원"}</RvName>
+                  <RvItemStars>{"★".repeat(Math.max(1, Math.min(5, Number(rv.rating) || 0)))}</RvItemStars>
+                </RvItemTop>
+                {rv.text ? <RvItemText>{rv.text}</RvItemText> : null}
+              </RvItem>
+            ))}
+          </RvList>
+        )}
+      </Section>
+
       {(venue.bizName || venue.ownerName || venuePhone || venue.business?.bizNo) && (
         <Section>
           <SecTitle><FiHome size={17} />사업자 정보</SecTitle>
@@ -694,6 +729,19 @@ const HoursRow = styled.div`
   }
 `;
 const Section = styled.div`display: flex; flex-direction: column; gap: 13px;`;
+const RvSummary = styled.div`display: flex; align-items: baseline; gap: 10px;`;
+const RvAvg = styled.div`font-size: 22px; font-weight: 800; color: #f59e0b;`;
+const RvCnt = styled.div`font-size: 13px; color: ${({ theme }) => theme.colors.textWeak};`;
+const RvList = styled.div`display: flex; flex-direction: column; gap: 10px;`;
+const RvItem = styled.div`
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px; padding: 11px 13px;
+  display: flex; flex-direction: column; gap: 5px;
+`;
+const RvItemTop = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px;`;
+const RvName = styled.div`font-size: 13px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong};`;
+const RvItemStars = styled.div`font-size: 13px; color: #f59e0b; letter-spacing: 1px;`;
+const RvItemText = styled.div`font-size: 13px; line-height: 1.5; color: ${({ theme }) => theme.colors.textNormal}; white-space: pre-wrap; word-break: break-word;`;
 const SecTitle = styled.div`
   font-size: 16px; font-weight: 800; letter-spacing: -0.01em;
   color: ${({ theme }) => theme.colors.textStrong};
