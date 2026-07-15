@@ -10,6 +10,7 @@ import { useMatchingData } from "../../hooks/useMatchingData";
 
 import logoImg from "../../assets/images/logo.png";
 import { runSchemaDumpFront } from "../../services/schemaDumpService";
+import { track } from "../../utils/analytics";
 
 // 로고/텍스트가 아래에서 살짝 떠오르며 페이드인
 const fadeUp = keyframes`
@@ -77,6 +78,9 @@ export default function SplashPage() {
   const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
   const activeTeamId = String(club?.id || "").trim();
   const phoneE164 = String(userDoc?.phoneE164 || "").trim();
+
+  // 앱 진입(스플래시) 1회 기록 — 퍼널 최상단
+  useEffect(() => { track("app_open"); }, []);
 
   // 언마운트 때만 타이머 정리 (의존성 변경으로 인한 재실행에선 타이머를 지우지 않음)
   useEffect(() => {

@@ -7,6 +7,7 @@ import { registerFcmToken, unregisterFcmToken } from "../services/fcmService";
 import { db } from "../services/firebase";
 import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { parseAppMessage, isInWebView, postToApp } from "../bridge/webviewBridge";
+import { identify } from "../utils/analytics";
 
 const AuthContext = createContext(null);
 
@@ -140,6 +141,14 @@ export function AuthProvider({ children }) {
         });
 
         setUserDoc(normalized);
+
+        // 퍼널 계측: 로그인 사용자 식별 — 이후 이벤트를 유저 단위로 묶는다.
+        try {
+          identify(normalized.id, {
+            role: "user",
+            has_team: !!(normalized.clubId || normalized.activeTeamId),
+          });
+        } catch {}
 
         // FCM 토큰 등록 (비동기, 실패해도 로그인 흐름 차단 안 함)
         registerFcmToken(user.uid)

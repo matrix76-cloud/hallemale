@@ -10,6 +10,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { saveUserConsents } from "../../services/userService";
 import { images } from "../../utils/imageAssets";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { track } from "../../utils/analytics";
 
 export default function AgreementGate() {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ export default function AgreementGate() {
     setBusy(true);
     try {
       await saveUserConsents({ uid, terms, privacy, ageOver14: age, marketing });
+      track("consent_submit", { marketing }); // 약관 동의 완료 — 온보딩 퍼널
       await refreshUser();
       // refreshUser 후 userDoc이 갱신되면 상위 RequireConsent가 통과시켜 서비스로 진입한다.
     } catch (e) {

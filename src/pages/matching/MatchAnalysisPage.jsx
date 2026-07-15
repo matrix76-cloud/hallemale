@@ -24,6 +24,7 @@ import { getTeamPredictionAccuracy, getHeadToHeadRecord } from "../../services/m
 import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 
 import AnimatedAiRing from "./components/AnimatedAiRing";
+import { track } from "../../utils/analytics";
 
 /* ===================== helpers ===================== */
 
@@ -932,6 +933,7 @@ export default function MatchAnalysisPage() {
       });
 
       console.log("[MatchAnalysis] match request created:", matchId);
+      track("match_request_sent", { match_size: selectedMatchSize }); // 매칭 요청 전송 — 핵심 전환
 
       setShowMatchConfirm(false);
       setShowSizeModal(false);

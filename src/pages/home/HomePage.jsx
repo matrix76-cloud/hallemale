@@ -14,6 +14,7 @@ import PlayerRankingSection from "../../components/home/PlayerRankingSection";
 import FavoriteTeamsSection from "../../components/home/FavoriteTeamsSection";
 import FavoritePlayersSection from "../../components/home/FavoritePlayersSection";
 import AppFooter from "../../components/common/AppFooter";
+import { track } from "../../utils/analytics";
 
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
@@ -112,6 +113,9 @@ export default function HomePage() {
 
   // ✅ 현재 로그인 uid와 캐시된 homeData의 주인이 다르면 stale (계정 전환 후 이전 계정 데이터)
   const staleForUser = !!loadedUid && loadedUid !== uid;
+
+  // 홈 진입 기록 — 리텐션/활성 퍼널
+  useEffect(() => { track("home_view"); }, []);
 
   // ✅ preload가 안 됐거나 다른 계정 데이터면 HomePage 진입 시 직접 로드 (fallback)
   useEffect(() => {

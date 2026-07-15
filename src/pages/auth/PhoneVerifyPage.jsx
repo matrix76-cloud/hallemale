@@ -13,6 +13,7 @@ import { linkSocialToExistingUser, getUserProfileByUid } from "../../services/us
 import { db } from "../../services/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { track } from "../../utils/analytics";
 
 const CODE_LEN = 6;
 const DEFAULT_SEC = 180; // 3분
@@ -117,6 +118,7 @@ export default function PhoneVerifyPage() {
 
     // 2) 검증 성공 = 인증 완료. 아래 계정통합은 부가작업이므로
     //    실패해도 게이트 통과를 막지 않는다. (예전엔 통합 예외가 verify 성공을 덮어써 못 넘어감)
+    track("phone_verify_success"); // 본인인증 완료 — 온보딩 퍼널
     const e164 = toE164Kr(phoneDigits);
     const uid = firebaseUser?.uid;
     const provider = userDoc?.provider || "";

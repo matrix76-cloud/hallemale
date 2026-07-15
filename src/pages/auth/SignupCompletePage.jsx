@@ -9,6 +9,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { markWelcomeSeen } from "../../services/userService";
 import { images } from "../../utils/imageAssets";
 import { showAlert } from "../../utils/appDialog";
+import { track } from "../../utils/analytics";
 
 export default function SignupCompletePage() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export default function SignupCompletePage() {
     setBusy(true);
     try {
       await markWelcomeSeen({ uid });
+      track("signup_complete"); // 온보딩 완료(활성화) — 핵심 퍼널
       await refreshUser();
       // refreshUser 후 welcomeSeen=true가 반영되면 상위 RequireWelcome가 통과시킨다.
       navigate("/home", { replace: true });

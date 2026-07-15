@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
+import { track } from "../../utils/analytics";
 
 const SEARCH_MS = 3000;
 
@@ -176,6 +177,7 @@ export default function MatchSearchingPage() {
   navStateRef.current = navState;
 
   useEffect(() => {
+    track("match_search", { region }); // 빠른매칭 탐색 시작 — 매칭 퍼널
     const start = performance.now();
     let raf;
     const tick = (now) => {

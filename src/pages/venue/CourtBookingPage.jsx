@@ -19,6 +19,7 @@ import { BOOKING_WINDOW_DAYS } from "../../constants/booking";
 import Spinner from "../../components/common/Spinner";
 import CourtNotices from "./CourtNotices";
 import { FiCalendar, FiClock, FiMapPin, FiCheckCircle } from "react-icons/fi";
+import { track } from "../../utils/analytics";
 
 function toMin(hhmm) { const [h, m] = String(hhmm || "0:0").split(":").map((x) => parseInt(x, 10) || 0); return h * 60 + m; }
 function toHHMM(min) { return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`; }
@@ -161,6 +162,7 @@ export default function CourtBookingPage() {
         user: { uid, userName: userDoc?.nickname || "", teamName: userDoc?.activeTeamName || userDoc?.teamName || "", phone: userDoc?.phoneE164 || userDoc?.phone || "" },
       });
       setPayOpen(false); setSelected(null); await loadSlots();
+      track("reservation_request", { venue_id: venue?.id || "", court_id: court?.id || "", price }); // 매출 직전 핵심 전환
       toast("예약 요청을 보냈어요! 구장 승인 후 확정돼요.");
     } catch (e) {
       if (e?.code === "slot_taken") { await loadSlots(); }

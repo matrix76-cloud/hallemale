@@ -8,6 +8,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
+import { track } from "../../utils/analytics";
 
 import { useClubContext } from "../../context/ClubContext";
 import { useMatchingData } from "../../hooks/useMatchingData";
@@ -565,6 +566,13 @@ export default function MatchOpponentRevealPage() {
   const myClubId = String(myTeam?.clubId || myTeam?.id || activeTeamId || "").trim();
 
   const showInitialLoading = clubLoading || !myTeam || countsLoading;
+
+  // 매칭 탐색 결과 계측: 상대 공개 / 상대 없음(데드엔드 유입)
+  useEffect(() => {
+    if (showInitialLoading) return;
+    if (opponent) track("opponent_found", { region: region || "" });
+    else track("opponent_none", { region: region || "" });
+  }, [showInitialLoading, opponent, oppId, region]);
 
   if (showInitialLoading) {
     return (
