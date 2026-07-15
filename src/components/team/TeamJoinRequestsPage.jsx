@@ -215,7 +215,7 @@ const StatusPill = styled.span`
     theme.mode === "dark"
       ? "rgba(99,102,241,0.18)"
       : "rgba(79, 70, 229, 0.12)"};
-  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#c4b5fd" : "#7C5CC9")};
   font-size: 11px;
   flex-shrink: 0;
 `;

@@ -667,7 +667,7 @@ const ActionButtonSm = styled.button`
   border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ $variant, theme }) =>
     $variant === "accept"
-      ? "linear-gradient(135deg, #6d5ae0 0%, #4f46e5 100%)"
+      ? "linear-gradient(135deg, #9575CD 0%, #7C5CC9 100%)"
       : theme.mode === "dark"
       ? theme.colors.surface
       : "#ffffff"};

@@ -8,7 +8,7 @@ import React, { useMemo } from "react";
 import styled, { useTheme } from "styled-components";
 import { FiBarChart2, FiCalendar, FiPercent } from "react-icons/fi";
 
-const PURPLE = "#6c5ce7";
+const PURPLE = "#7C5CC9";
 
 const Section = styled.section`
   margin-top: 12px;

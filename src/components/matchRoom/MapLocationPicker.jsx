@@ -419,7 +419,7 @@ const CenterPin = styled.div`
 const Mk = styled.div`
   font-size: 34px;
   line-height: 1;
-  color: #6c5ce7;
+  color: #7C5CC9;
   display: flex;
   align-items: center;
   justify-content: center;

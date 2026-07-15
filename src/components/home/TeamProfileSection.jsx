@@ -152,7 +152,7 @@ const BigActionCard = styled.button`
   min-height: 138px;
   border: none;
   border-radius: 18px;
-  background: linear-gradient(135deg, #7c6ef2 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, #9575CD 0%, #7C5CC9 100%);
   box-shadow: 0 14px 26px -10px rgba(79, 70, 229, 0.6);
   padding: 16px 16px 14px;
   cursor: pointer;

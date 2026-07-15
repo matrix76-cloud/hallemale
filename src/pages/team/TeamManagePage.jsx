@@ -2204,7 +2204,7 @@ const MediaAddPlus = styled.div`
   border-radius: 999px;
   background: ${({ theme }) =>
     theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
-  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#c4b5fd" : "#7C5CC9")};
   display: grid;
   place-items: center;
   font-size: 22px;
@@ -2570,7 +2570,7 @@ const InviteRight = styled.div`
 
 const InviteStatus = styled.div`
   font-size: 11px;
-  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#c4b5fd" : "#7C5CC9")};
   background: ${({ theme }) =>
     theme.mode === "dark"
       ? "rgba(99,102,241,0.18)"

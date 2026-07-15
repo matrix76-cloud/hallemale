@@ -46,8 +46,8 @@ export const lightTheme = {
   mode: "light",
   ...sharedTokens,
   colors: {
-    primary: "#4f46e5",
-    primaryWeak: "#5c55e8ff",
+    primary: "#7C5CC9",
+    primaryWeak: "#9575CD",
     bg: "#f9fafb",
     card: "#FFFFFF",
     surface: "#FFFFFF",
@@ -73,8 +73,8 @@ export const darkTheme = {
   mode: "dark",
   ...sharedTokens,
   colors: {
-    primary: "#6366f1",
-    primaryWeak: "#4f46e5",
+    primary: "#9D86DC",
+    primaryWeak: "#7C5CC9",
     bg: "#0b1220",
     card: "#111827",
     surface: "#1f2937",

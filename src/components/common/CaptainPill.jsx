@@ -10,7 +10,7 @@ const Pill = styled.span`
   height: 22px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #4f46e5; /* 보라 */
+  background: #7C5CC9; /* 보라 */
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;

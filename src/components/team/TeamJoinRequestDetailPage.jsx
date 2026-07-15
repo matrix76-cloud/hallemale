@@ -295,8 +295,8 @@ const StatusPill = styled.span`
   color: ${({ $pending, theme }) =>
     $pending
       ? theme.mode === "dark"
-        ? "#a5b4fc"
-        : "#4f46e5"
+        ? "#c4b5fd"
+        : "#7C5CC9"
       : theme.colors.textWeak};
 `;
 

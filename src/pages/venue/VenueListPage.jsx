@@ -333,7 +333,7 @@ export default function VenueListPage() {
     if (!myLocRef.current) {
       const el = document.createElement("div");
       el.style.cssText =
-        "width:18px;height:18px;border-radius:50%;background:#4f46e5;border:3px solid #fff;box-shadow:0 0 0 5px rgba(79,70,229,0.22);";
+        "width:18px;height:18px;border-radius:50%;background:#7C5CC9;border:3px solid #fff;box-shadow:0 0 0 5px rgba(124,92,201,0.22);";
       myLocRef.current = new kakao.maps.CustomOverlay({
         position: pos,
         content: el,

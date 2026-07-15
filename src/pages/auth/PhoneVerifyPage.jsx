@@ -296,7 +296,7 @@ export default function PhoneVerifyPage() {
  * 인증 게이트는 항상 라이트로 고정한다(다크 대응 없음).
  * 색: brand #4f46e5(theme.colors.primary) / 텍스트 #191f28 · #8b95a1 / 경고 #f04452
  */
-const BRAND = "#4f46e5";
+const BRAND = "#7C5CC9";
 const INK = "#191f28";
 const MUTED = "#8b95a1";
 const LINE = "#e5e8eb";
