@@ -50,6 +50,7 @@ service cloud.firestore {
     }
 
     match /venues/{id}                    { allow read: if true; allow write: if signedIn(); }
+    match /venueReviews/{id}              { allow read: if true; allow write: if signedIn(); }
     match /venueReservations/{id} {
       allow read: if true;
       allow create: if signedIn()
