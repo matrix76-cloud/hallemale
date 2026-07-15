@@ -53,13 +53,13 @@ const Center = styled.div`
 const PercentText = styled.div`
   font-size: 16px; /* ✅ 18 → 16 */
   font-weight: 800;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const LabelText = styled.div`
   margin-top: 2px;
   font-size: 10px; /* ✅ 11 → 10 */
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const DottedCircle = styled.circle`

@@ -57,7 +57,7 @@ const IconButton = styled.button`
   background: transparent;
   padding: 4px;
   cursor: pointer;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const LeftPlaceholder = styled.div`

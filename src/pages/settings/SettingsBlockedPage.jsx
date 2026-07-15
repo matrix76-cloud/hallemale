@@ -34,7 +34,7 @@ const SectionTitle = styled.h3`
 
 const Empty = styled.p`
   font-size: 13px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   padding: 12px 0;
 `;
 
@@ -49,8 +49,8 @@ const Item = styled.div`
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
   border-radius: 10px;
 `;
 
@@ -59,7 +59,7 @@ const Avatar = styled.img`
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  background: #f3f4f6;
+  background: ${({ theme }) => theme.colors.surface};
 `;
 
 const NameCol = styled.div`
@@ -67,7 +67,7 @@ const NameCol = styled.div`
   min-width: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -77,13 +77,13 @@ const UnblockBtn = styled.button`
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 600;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #111827;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
   border-radius: 8px;
   cursor: pointer;
   &:active {
-    background: #f3f4f6;
+    background: ${({ theme }) => theme.colors.surface};
   }
   &:disabled {
     opacity: 0.6;
@@ -93,7 +93,7 @@ const UnblockBtn = styled.button`
 
 const Notice = styled.p`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
   margin: 0 0 12px;
   line-height: 1.5;
 `;

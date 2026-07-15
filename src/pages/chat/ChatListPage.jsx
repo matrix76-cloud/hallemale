@@ -41,7 +41,7 @@ const List = styled.div`
 const RoomRow = styled.button`
   width: 100%;
   border: none;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.divider};
   background: transparent;
   padding: 12px 0;
   text-align: left;
@@ -153,7 +153,7 @@ const TimeText = styled.div`
 
 const LastMessage = styled.div`
   font-size: 13px;
-  color: #4b5563;
+  color: ${({ theme }) => theme.colors.textWeak};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

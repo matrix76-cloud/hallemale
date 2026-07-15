@@ -54,6 +54,11 @@ export const lightTheme = {
     textStrong: "#111827",
     textNormal: "#374151",
     textWeak: "#6b7280",
+    // 별칭(레거시 참조 호환): 일부 컴포넌트가 존재하지 않던 text/textSub/muted 를 참조해
+    // 다크모드에서 하드코딩 폴백(#111827 등)이 떠 글씨가 안 보였음 → 정본 토큰으로 매핑.
+    text: "#111827",
+    textSub: "#374151",
+    muted: "#6b7280",
     accent: "#0FA464",
     danger: "#DC2626",
     border: "#E5E7EB",
@@ -76,6 +81,10 @@ export const darkTheme = {
     textStrong: "#f9fafb",
     textNormal: "#e5e7eb",
     textWeak: "#9ca3af",
+    // 별칭(레거시 참조 호환) — light 와 동일하게 정본 토큰으로 매핑(다크 값)
+    text: "#f9fafb",
+    textSub: "#e5e7eb",
+    muted: "#9ca3af",
     accent: "#22c55e",
     danger: "#f87171",
     border: "#1f2937",
