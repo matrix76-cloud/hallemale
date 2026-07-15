@@ -17,6 +17,7 @@ import {
   defaultCourtHours,
   FACILITY_OPTIONS,
   SURFACE_OPTIONS,
+  isValidBizNo,
 } from "../../services/ownerVenueService";
 import {
   Field, Label, Input, Textarea, Select, Row, Chip, ChipWrap, GhostBtn,
@@ -136,7 +137,9 @@ export default function OwnerOnboardingPage() {
   const canNext = (() => {
     if (id === "name") return !!form.name.trim();
     if (id === "location") return !!form.address.trim();
+    if (id === "photos") return photos.length > 0;
     if (id === "courts") return courts.length > 0 && courts.every((c) => c.name.trim());
+    if (id === "contact") return !form.bizNo.trim() || isValidBizNo(form.bizNo);
     return true;
   })();
 
@@ -144,7 +147,9 @@ export default function OwnerOnboardingPage() {
     if (!canNext) {
       if (id === "name") return showAlert("구장명을 입력해주세요.");
       if (id === "location") return showAlert("지도에서 구장 위치에 핀을 맞춰주세요.");
+      if (id === "photos") return showAlert("구장 사진을 최소 1장 등록해주세요.\n사진이 있으면 승인도 빠르고 예약도 잘 들어와요.");
       if (id === "courts") return showAlert("코트 이름을 모두 입력해주세요.");
+      if (id === "contact") return showAlert("사업자등록번호 형식이 올바르지 않아요.\n번호를 다시 확인해주세요.");
       return;
     }
     track("owner_onboarding_step", { step: id }); // 어느 단계에서 이탈하는지 정량화
@@ -155,6 +160,8 @@ export default function OwnerOnboardingPage() {
   const handleSubmit = async () => {
     if (!form.name.trim()) { setStep(STEPS.indexOf("name")); return showAlert("구장명을 입력해주세요."); }
     if (!form.address.trim()) { setStep(STEPS.indexOf("location")); return showAlert("주소를 입력해주세요."); }
+    if (photos.length === 0) { setStep(STEPS.indexOf("photos")); return showAlert("구장 사진을 최소 1장 등록해주세요."); }
+    if (form.bizNo.trim() && !isValidBizNo(form.bizNo)) { setStep(STEPS.indexOf("contact")); return showAlert("사업자등록번호 형식이 올바르지 않아요. 다시 확인해주세요."); }
     setBusy(true);
     try {
       const payload = {
