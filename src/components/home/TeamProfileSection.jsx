@@ -371,6 +371,72 @@ const DimArea = styled.div`
     `}
 `;
 
+/* 팀 미가입 시 카드 위에 뜨는 안내 + CTA 오버레이 (DimArea는 pointer-events:none이므로 별도 레이어) */
+const LockOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+`;
+
+const LockCard = styled.div`
+  width: 100%;
+  max-width: 320px;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  padding: 20px 18px;
+  text-align: center;
+`;
+
+const LockTitle = styled.div`
+  font-size: 16px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const LockMsg = styled.div`
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const LockBtnRow = styled.div`
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+`;
+
+const LockPrimary = styled.button`
+  flex: 1;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+
+const LockGhost = styled.button`
+  flex: 1;
+  height: 44px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px;
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+
 function toInt(n, fallback = 0) {
   const v = Number(n);
   return Number.isFinite(v) ? v : fallback;
@@ -559,6 +625,26 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
         </MatchRoomCard>
       </ActionsCol>
         </DimArea>
+
+        {locked && (
+          <LockOverlay>
+            <LockCard>
+              <LockTitle>아직 소속된 팀이 없어요</LockTitle>
+              <LockMsg>
+                팀을 만들거나 받은 초대를 수락하면<br />
+                매칭·랭킹을 이용할 수 있어요.
+              </LockMsg>
+              <LockBtnRow>
+                <LockPrimary type="button" onClick={() => navigate("/team/create")}>
+                  팀 만들기
+                </LockPrimary>
+                <LockGhost type="button" onClick={() => navigate("/my/team-invites")}>
+                  받은 초대
+                </LockGhost>
+              </LockBtnRow>
+            </LockCard>
+          </LockOverlay>
+        )}
       </LockWrap>
     </SectionWrap>
   );

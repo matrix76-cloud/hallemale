@@ -61,14 +61,19 @@ export default function MyPostsPage() {
         ) : error ? (
           <EmptyWrap>{error}</EmptyWrap>
         ) : posts.length === 0 ? (
-          <EmptyState text="아직 작성한 게시글이 없습니다." />
+          <EmptyState
+            text="아직 작성한 게시글이 없습니다."
+            sub="첫 글을 남기고 팀원들과 소통해보세요."
+            actionLabel="글쓰러 가기"
+            onAction={() => navigate("/community/write")}
+          />
         ) : (
           <PostList>
             {posts.map((p) => (
               <PostCard key={p.id} type="button" onClick={() => handleClickPost(p.id)}>
                 <PostTitle>{p.title || "(제목 없음)"}</PostTitle>
                 <PostMetaRow>
-                  <MetaLeft>{p.createdAt || ""}</MetaLeft>
+                  <MetaLeft>{typeof p.createdAt === "string" ? p.createdAt : ""}</MetaLeft>
                   <MetaRight>
                     댓글 {p.commentsCount || 0} · 좋아요 {p.likes || 0} · 조회 {p.views || 0}
                   </MetaRight>

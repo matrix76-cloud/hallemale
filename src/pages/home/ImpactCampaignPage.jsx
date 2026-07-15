@@ -228,7 +228,9 @@ function fmtInt(n) {
 }
 
 export default function ImpactCampaignPage({
-  totalPoints = 1020,
+  // ⚠️ 실집계 데이터가 붙기 전에는 누적 수치를 조작해 보여주지 않는다(신뢰도/법무).
+  //    totalPoints가 null이면 "집계 준비중"으로 표시한다.
+  totalPoints = null,
   wonPerPoint = 10,
   monthlyGoalWon,
   loading = false,
@@ -236,9 +238,10 @@ export default function ImpactCampaignPage({
   const nav = useNavigate();
 
   const totalWon = useMemo(() => {
+    if (totalPoints == null) return null;
     const p = Number(totalPoints);
     const w = Number(wonPerPoint);
-    if (!Number.isFinite(p) || !Number.isFinite(w)) return 0;
+    if (!Number.isFinite(p) || !Number.isFinite(w)) return null;
     return Math.max(0, Math.floor(p * w));
   }, [totalPoints, wonPerPoint]);
 
@@ -283,11 +286,11 @@ export default function ImpactCampaignPage({
             <Facts>
               <Fact>
                 <FactLabel>누적 득점</FactLabel>
-                <FactValue>{fmtInt(totalPoints)}점</FactValue>
+                <FactValue>{totalPoints == null ? "집계 준비중" : `${fmtInt(totalPoints)}점`}</FactValue>
               </Fact>
               <Fact>
                 <FactLabel>누적 기부금</FactLabel>
-                <FactValue>{fmtInt(totalWon)}원</FactValue>
+                <FactValue>{totalWon == null ? "집계 준비중" : `${fmtInt(totalWon)}원`}</FactValue>
               </Fact>
             </Facts>
 
@@ -302,6 +305,9 @@ export default function ImpactCampaignPage({
             </Note>
 
           
+            <BottomActions>
+              <PrimaryBtn type="button" onClick={() => nav("/home")}>홈으로 돌아가기</PrimaryBtn>
+            </BottomActions>
           </Card>
         </Banner>
       </Inner>

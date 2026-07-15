@@ -420,13 +420,17 @@ export default function MatchOpponentRevealPage() {
   const [cycle, setCycle] = useState(0);
   const [oppDetail, setOppDetail] = useState(null); // 선택 상대 멤버 조립본
   const [loadingDetail, setLoadingDetail] = useState(true);
+  const [loadError, setLoadError] = useState(false);   // 매칭 데이터 로드 실패
+  const [loadTimedOut, setLoadTimedOut] = useState(false); // 무한 로딩 타임아웃
+  const [retryTick, setRetryTick] = useState(0);       // 재시도 트리거
 
-  // 데이터 미로딩 진입 대비
+  // 데이터 미로딩 진입 대비 — 실패를 삼키지 않고 상태로 노출(무한 스피너 방지)
   useEffect(() => {
     if (clubLoading || !activeTeamId) return;
     if (myTeam && opponentTeams?.length) return;
-    preloadMatchingHomeData(activeTeamId).catch(() => {});
-  }, [clubLoading, activeTeamId, myTeam, opponentTeams, preloadMatchingHomeData]);
+    setLoadError(false);
+    preloadMatchingHomeData(activeTeamId).catch(() => setLoadError(true));
+  }, [clubLoading, activeTeamId, myTeam, opponentTeams, preloadMatchingHomeData, retryTick]);
 
   useEffect(() => {
     let alive = true;
@@ -567,12 +571,50 @@ export default function MatchOpponentRevealPage() {
 
   const showInitialLoading = clubLoading || !myTeam || countsLoading;
 
+  // 무한 로딩 방지: 로딩이 8초 넘게 지속되면 타임아웃 처리(재시도 노출)
+  useEffect(() => {
+    if (!showInitialLoading) { setLoadTimedOut(false); return; }
+    const t = setTimeout(() => setLoadTimedOut(true), 8000);
+    return () => clearTimeout(t);
+  }, [showInitialLoading, retryTick]);
+
   // 매칭 탐색 결과 계측: 상대 공개 / 상대 없음(데드엔드 유입)
   useEffect(() => {
     if (showInitialLoading) return;
     if (opponent) track("opponent_found", { region: region || "" });
     else track("opponent_none", { region: region || "" });
   }, [showInitialLoading, opponent, oppId, region]);
+
+  // 로드 실패 / 팀 없음 / 무한 로딩(타임아웃) → 데드엔드 대신 재시도·홈 안내
+  const showLoadError =
+    (!clubLoading && !activeTeamId) || loadError || (showInitialLoading && loadTimedOut);
+
+  if (showLoadError) {
+    return (
+      <Page>
+        <EmptyWrap>
+          <EmptyText>
+            {!activeTeamId ? (
+              "매칭할 내 팀 정보를 찾을 수 없어요."
+            ) : (
+              <>매칭 정보를 불러오지 못했어요.<br />네트워크 상태를 확인해 주세요.</>
+            )}
+          </EmptyText>
+          <EmptyActions>
+            {activeTeamId ? (
+              <EmptyPrimary
+                type="button"
+                onClick={() => { setLoadError(false); setLoadTimedOut(false); setRetryTick((n) => n + 1); }}
+              >
+                다시 시도
+              </EmptyPrimary>
+            ) : null}
+            <EmptyGhost type="button" onClick={() => navigate("/home")}>홈으로</EmptyGhost>
+          </EmptyActions>
+        </EmptyWrap>
+      </Page>
+    );
+  }
 
   if (showInitialLoading) {
     return (
