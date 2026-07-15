@@ -478,6 +478,9 @@ export async function leaveClub({ clubId, uid }) {
 
   batch.update(userRef, {
     activeTeamId: "",
+    clubId: "",           // ✅ 레거시 clubId도 정리 — 안 지우면 재가입 가드(activeTeamId||clubId)가 막아 영구 limbo
+    roleInTeam: null,
+    isTeamCaptain: null,
     updatedAt: serverTimestamp(),
   });
 
@@ -908,22 +911,27 @@ export async function forceRemoveClubMember({ clubId, targetUid, actorUid }) {
   if (!auid) throw new Error("actorUid가 필요합니다.");
   if (tuid === auid) throw new Error("본인은 강제 탈퇴할 수 없습니다.");
 
-  // 1) 유저 소속 해제 (SSOT: activeTeamId) — 유저 문서가 있을 때만 갱신
+  // 1) 유저 소속 해제 + 멤버십 삭제를 한 배치로 원자 처리 (부분 실패 시 유령 멤버/limbo 방지)
   const userRef = doc(db, "users", tuid);
-  const userSnap = await getDoc(userRef);
-  if (userSnap.exists()) {
-    await updateDoc(userRef, {
-      activeTeamId: "",
-      teamRole: "",
-      updatedAt: serverTimestamp(),
-    });
-  }
-
   const memberRef = doc(db, "clubs", cid, "members", tuid);
-  const memberSnap = await getDoc(memberRef);
-  if (memberSnap.exists()) {
-    await deleteDoc(memberRef);
+  const [userSnap, memberSnap] = await Promise.all([getDoc(userRef), getDoc(memberRef)]);
+
+  const rmBatch = writeBatch(db);
+  if (userSnap.exists()) {
+    const u = userSnap.data() || {};
+    const patch = {
+      teamRole: "",
+      roleInTeam: null,
+      isTeamCaptain: null,
+      updatedAt: serverTimestamp(),
+    };
+    // 이 팀에 소속된 경우에만 연결 해제 (이미 다른 팀으로 옮겼으면 건드리지 않음)
+    if (String(u.activeTeamId || "").trim() === cid) patch.activeTeamId = "";
+    if (String(u.clubId || "").trim() === cid) patch.clubId = ""; // ✅ clubId도 정리 → 재가입 limbo 방지
+    rmBatch.update(userRef, patch);
   }
+  if (memberSnap.exists()) rmBatch.delete(memberRef);
+  await rmBatch.commit();
 
   // ✅ 강퇴 알림
   const fmeta = await resolveClubMetaSafe(cid);

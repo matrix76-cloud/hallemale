@@ -112,6 +112,24 @@ export async function withdrawAccount() {
   if (!user) throw new Error("로그인 상태가 아닙니다.");
   const uid = String(user.uid);
 
+  // 0) 서버(Admin) 경로 우선 — 서버가 Firestore 전량 정리 + Auth 삭제까지 한 번에 처리한다.
+  //    성공하면 클라이언트 정리가 불필요하고, "데이터만 지워지고 계정은 남는" 불일치 위험이 없다.
+  //    (requires-recent-login 제약도 서버엔 없음. 서버 미배포/오류일 때만 아래 클라 best-effort 폴백)
+  try {
+    const idToken = await user.getIdToken();
+    const r = await fetch(DELETE_ACCOUNT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    });
+    if (r.ok) {
+      await signOut(auth).catch(() => {});
+      return;
+    }
+    console.warn("[withdraw] server path failed, client fallback:", r.status);
+  } catch (e) {
+    console.warn("[withdraw] server path error, client fallback:", e?.message || e);
+  }
+
   // 1) Firestore users 문서 정보 가져오기 (phoneE164·소속 팀 등 정리에 사용)
   let phoneE164 = "";
   let userDocId = uid;

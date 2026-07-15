@@ -4,6 +4,7 @@
 //    서버(functions/jobs/sendPushNotifications)가 users.notificationPrefs 를 확인해
 //    enabled=false 또는 categories[category]=false 면 푸시를 건너뛴다.
 import React, { useCallback, useEffect, useState } from "react";
+import { showAlert } from "../../utils/appDialog";
 import styled from "styled-components";
 import { useAuth } from "../../hooks/useAuth";
 import Spinner from "../../components/common/Spinner";
@@ -53,6 +54,7 @@ export default function NotificationSettingsPage() {
 
   const persist = useCallback(
     async (next) => {
+      const prevPrefs = prefs; // 실패 시 되돌릴 이전 상태
       setPrefs(next); // 낙관적 반영
       if (!uid) return;
       try {
@@ -61,10 +63,12 @@ export default function NotificationSettingsPage() {
         window.clearTimeout(persist._t);
         persist._t = window.setTimeout(() => setSavedHint(false), 1500);
       } catch (e) {
-        // 저장 실패해도 UI는 유지(다음 토글 시 재시도)
+        // 저장 실패 → 낙관적 반영 롤백 + 안내 (설정과 실제값 어긋남 방지)
+        setPrefs(prevPrefs);
+        showAlert("설정 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
       }
     },
-    [uid]
+    [uid, prefs]
   );
 
   const toggleMaster = () => {

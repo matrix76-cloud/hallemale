@@ -55,6 +55,7 @@ export default function MyReservationsPage() {
 
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
+  const [loadErr, setLoadErr] = useState(false);
   const [busyId, setBusyId] = useState("");
 
   // 리뷰 작성 모달
@@ -98,11 +99,13 @@ export default function MyReservationsPage() {
   const load = async () => {
     if (!myUid) { setLoading(false); return; }
     setLoading(true);
+    setLoadErr(false);
     try {
       const list = await listMyReservations(myUid);
       setRows(Array.isArray(list) ? list : []);
     } catch (e) {
       console.warn("[MyReservationsPage] load failed:", e?.message || e);
+      setLoadErr(true); // 실패를 "예약 없음"으로 위장하지 않음
     } finally {
       setLoading(false);
     }
@@ -142,6 +145,15 @@ export default function MyReservationsPage() {
     return (
       <Wrap>
         <LoadingCenter><Spinner /></LoadingCenter>
+      </Wrap>
+    );
+  }
+
+  if (loadErr && rows.length === 0) {
+    return (
+      <Wrap>
+        <EmptyState text="예약을 불러오지 못했어요. 네트워크를 확인해 주세요." />
+        <FindBtn type="button" onClick={load}>다시 시도</FindBtn>
       </Wrap>
     );
   }

@@ -49,13 +49,16 @@ export default function MyProfileMediaEditPage() {
   const getYoutubeThumb = (youtubeId) =>
     youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : "";
 
+  // 저장 성공 여부를 반환 → 실패 시 호출부에서 로컬 state 롤백 + 안내(조용한 유실 방지)
   const syncMediaToUser = async (next) => {
-    if (!uid) return;
+    if (!uid) return false;
     try {
       await updateUserProfile({ uid, media: next });
       try { await refreshUser?.(); } catch (e) {}
+      return true;
     } catch (e) {
       console.warn("[MyProfileMediaEdit] media sync failed:", e?.message || e);
+      return false;
     }
   };
 
@@ -110,9 +113,11 @@ export default function MyProfileMediaEditPage() {
     try {
       const base = createYoutubeMediaItem(url);
       const item = { ...base, caption: String(ytCaption || "").trim() };
-      const next = [...(mediaItems || []), item];
+      const prev = mediaItems || [];
+      const next = [...prev, item];
       setMediaItems(next);
-      await syncMediaToUser(next);
+      const ok = await syncMediaToUser(next);
+      if (!ok) { setMediaItems(prev); setYtError("저장에 실패했어요. 잠시 후 다시 시도해 주세요."); return; }
       closeYoutubeModal();
     } catch (e) {
       setYtError(e?.message || "유튜브 링크를 확인해 주세요.");
@@ -122,12 +127,14 @@ export default function MyProfileMediaEditPage() {
   const handleSaveCaption = async () => {
     const id = capTargetId;
     if (!id) return;
-    const next = (mediaItems || []).map((m) => {
+    const prev = mediaItems || [];
+    const next = prev.map((m) => {
       if (m.id !== id) return m;
       return { ...m, caption: String(capText || "").trim() };
     });
     setMediaItems(next);
-    await syncMediaToUser(next);
+    const ok = await syncMediaToUser(next);
+    if (!ok) { setMediaItems(prev); showAlert("저장에 실패했어요. 잠시 후 다시 시도해 주세요."); return; }
     closeCaptionModal();
   };
 
@@ -153,9 +160,16 @@ export default function MyProfileMediaEditPage() {
         kind: "highlight",
       });
       const itemWithCaption = { ...uploaded, caption: "" };
-      const next = [...(mediaItems || []), itemWithCaption];
+      const prev = mediaItems || [];
+      const next = [...prev, itemWithCaption];
       setMediaItems(next);
-      await syncMediaToUser(next);
+      const ok = await syncMediaToUser(next);
+      if (!ok) {
+        setMediaItems(prev);
+        try { await deleteMediaItem({ item: itemWithCaption }); } catch (e3) {} // 방금 올린 파일 정리(고아 방지)
+        showAlert("사진 저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
       openCaptionModalFor(itemWithCaption.id);
     } catch (e2) {
       console.warn("[MyProfileMediaEdit] media upload failed:", e2?.message || e2);
@@ -171,13 +185,20 @@ export default function MyProfileMediaEditPage() {
     if (!ok) return;
     setMediaBusy(true);
     try {
-      await deleteMediaItem({ item });
-      const next = (mediaItems || []).filter((x) => x.id !== item.id);
+      const prev = mediaItems || [];
+      const next = prev.filter((x) => x.id !== item.id);
+      // 1) doc에서 참조 먼저 제거 (성공해야 실제 삭제로 간주) → 깨진 이미지 잔존 방지
       setMediaItems(next);
-      await syncMediaToUser(next);
-    } catch (e) {
-      console.warn("[MyProfileMediaEdit] media delete failed:", e?.message || e);
-      showAlert("삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      const synced = await syncMediaToUser(next);
+      if (!synced) {
+        setMediaItems(prev);
+        showAlert("삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      // 2) doc에서 빠진 뒤 Storage 파일 삭제 (실패해도 doc엔 이미 없어 사용자에겐 정상)
+      try { await deleteMediaItem({ item }); } catch (e) {
+        console.warn("[MyProfileMediaEdit] storage delete failed (orphan):", e?.message || e);
+      }
     } finally {
       setMediaBusy(false);
     }

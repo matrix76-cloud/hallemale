@@ -44,7 +44,8 @@ export default function MyFavVenuesPage() {
           .catch(() => null)
       )
     ).then((list) => {
-      if (alive) setVenues(list.filter(Boolean));
+      // 반려·비활성(노출 중지)된 구장은 제외 — 탭 시 이용 불가한 상세로 들어가지 않도록
+      if (alive) setVenues(list.filter((v) => v && v.status !== "rejected" && v.active !== false));
     });
     return () => {
       alive = false;

@@ -144,6 +144,8 @@ export default function MyReportsPage() {
   const [teamReports, setTeamReports] = useState([]);
   const [playerReports, setPlayerReports] = useState([]);
   const [tab, setTab] = useState("all"); // all | team | player
+  const [loadErr, setLoadErr] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -153,6 +155,7 @@ export default function MyReportsPage() {
     }
     (async () => {
       setLoading(true);
+      setLoadErr(false);
       try {
         const [teams, players] = await Promise.all([
           listMyTeamReports(myUid),
@@ -163,6 +166,7 @@ export default function MyReportsPage() {
         setPlayerReports(Array.isArray(players) ? players : []);
       } catch (e) {
         console.warn("[MyReportsPage] load failed:", e?.message || e);
+        if (alive) setLoadErr(true); // 실패를 "내역 없음"으로 위장하지 않음
       } finally {
         if (alive) setLoading(false);
       }
@@ -170,7 +174,7 @@ export default function MyReportsPage() {
     return () => {
       alive = false;
     };
-  }, [myUid]);
+  }, [myUid, reloadTick]);
 
   const rows = useMemo(() => {
     const merged =
@@ -208,7 +212,9 @@ export default function MyReportsPage() {
         </Tab>
       </Tabs>
 
-      {rows.length === 0 ? (
+      {loadErr && rows.length === 0 ? (
+        <EmptyState text="신고 내역을 불러오지 못했어요. 다시 시도해 주세요." onAction={() => setReloadTick((t) => t + 1)} actionLabel="다시 시도" />
+      ) : rows.length === 0 ? (
         <EmptyState text="신고한 내역이 없습니다." />
       ) : (
         <List>

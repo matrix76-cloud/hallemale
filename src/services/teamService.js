@@ -634,6 +634,20 @@ export async function createClub({
 
   const normalizedName = String(name || "").trim().replace(/\s+/g, " ");
 
+  // ✅ 이미 팀이 있으면 생성 차단 — 안 그러면 기존 팀이 무주공산(팀장 부재)이 되어 고아화된다.
+  try {
+    const usnap = await getDoc(doc(db, "users", ownerUid));
+    const u = usnap.exists() ? usnap.data() || {} : {};
+    if (String(u.activeTeamId || "").trim() || String(u.clubId || "").trim()) {
+      const err = new Error("이미 소속된 팀이 있어요. 새 팀을 만들려면 먼저 현재 팀을 탈퇴해 주세요.");
+      err.code = "already-in-team";
+      throw err;
+    }
+  } catch (e) {
+    if (e?.code === "already-in-team") throw e;
+    // users 읽기 실패는 통과(생성 자체를 막지 않음)
+  }
+
   // ✅ 서버측 중복 가드 (최종 방어)
   if (await isClubNameTaken(normalizedName)) {
     throw new Error("이미 사용 중인 팀 이름이에요. 다른 이름을 입력해 주세요.");

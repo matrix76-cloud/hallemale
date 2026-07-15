@@ -10,7 +10,11 @@ import { getUserPublicMeta } from "../../services/counterpartService";
 import {
   getMyBlockList,
   unblockUser,
+  unhidePost,
 } from "../../services/userBlockService";
+import { db } from "../../services/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
 
@@ -105,9 +109,11 @@ export default function SettingsBlockedPage() {
   const { firebaseUser, userDoc } = useAuth();
   const myUid = String(firebaseUser?.uid || userDoc?.uid || userDoc?.id || "");
 
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState({});
   const [users, setUsers] = useState([]); // [{ uid, name, avatar }]
+  const [hiddenPosts, setHiddenPosts] = useState([]); // [{ id, title }]
 
   const reload = useCallback(async () => {
     if (!myUid) {
@@ -116,14 +122,29 @@ export default function SettingsBlockedPage() {
     }
     setLoading(true);
     try {
-      const { blockedUids } = await getMyBlockList(myUid);
-      const metaList = await Promise.all(
-        blockedUids.map(async (uid) => {
-          const m = await getUserPublicMeta(uid);
-          return { uid, name: m?.name || "사용자", avatar: m?.avatar || "" };
-        })
-      );
+      const { blockedUids, hiddenPostIds } = await getMyBlockList(myUid);
+      const [metaList, postList] = await Promise.all([
+        Promise.all(
+          blockedUids.map(async (uid) => {
+            const m = await getUserPublicMeta(uid);
+            return { uid, name: m?.name || "사용자", avatar: m?.avatar || "" };
+          })
+        ),
+        Promise.all(
+          (hiddenPostIds || []).map(async (pid) => {
+            try {
+              const s = await getDoc(doc(db, "community_posts", pid));
+              const d = s.exists() ? s.data() || {} : {};
+              const title = String(d.title || d.content || "").trim().slice(0, 40);
+              return { id: pid, title: title || (s.exists() ? "게시글" : "삭제된 글"), exists: s.exists() };
+            } catch (e) {
+              return { id: pid, title: "게시글", exists: true };
+            }
+          })
+        ),
+      ]);
       setUsers(metaList);
+      setHiddenPosts(postList);
     } catch (e) {
       console.warn("[SettingsBlockedPage] reload failed", e?.message || e);
     } finally {
@@ -146,6 +167,20 @@ export default function SettingsBlockedPage() {
       showAlert(e?.message || "차단 해제에 실패했습니다.");
     } finally {
       setBusy((b) => ({ ...b, [`u_${targetUid}`]: false }));
+    }
+  };
+
+  const handleUnhidePost = async (postId) => {
+    if (!myUid || !postId) return;
+    if (!await showConfirm("이 게시글 숨김을 해제하시겠습니까?")) return;
+    setBusy((b) => ({ ...b, [`p_${postId}`]: true }));
+    try {
+      await unhidePost({ myUid, postId });
+      setHiddenPosts((prev) => prev.filter((p) => p.id !== postId));
+    } catch (e) {
+      showAlert(e?.message || "숨김 해제에 실패했습니다.");
+    } finally {
+      setBusy((b) => ({ ...b, [`p_${postId}`]: false }));
     }
   };
 
@@ -181,6 +216,33 @@ export default function SettingsBlockedPage() {
                 onClick={() => handleUnblockUser(u.uid)}
               >
                 {busy[`u_${u.uid}`] ? "해제중…" : "차단 해제"}
+              </UnblockBtn>
+            </Item>
+          ))}
+        </List>
+      )}
+
+      <SectionTitle>숨긴 게시글 ({hiddenPosts.length})</SectionTitle>
+      {hiddenPosts.length === 0 ? (
+        <EmptyState text="숨긴 게시글이 없습니다." compact />
+      ) : (
+        <List>
+          {hiddenPosts.map((p) => (
+            <Item key={p.id}>
+              <NameCol
+                as="button"
+                type="button"
+                onClick={() => p.exists && navigate(`/communitypost/${p.id}`)}
+                style={{ textAlign: "left", border: "none", background: "transparent", cursor: p.exists ? "pointer" : "default" }}
+              >
+                {p.title}
+              </NameCol>
+              <UnblockBtn
+                type="button"
+                disabled={!!busy[`p_${p.id}`]}
+                onClick={() => handleUnhidePost(p.id)}
+              >
+                {busy[`p_${p.id}`] ? "해제중…" : "숨김 해제"}
               </UnblockBtn>
             </Item>
           ))}

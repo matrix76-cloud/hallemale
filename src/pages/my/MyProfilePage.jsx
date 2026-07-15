@@ -116,11 +116,13 @@ export default function MyProfilePage() {
   }, [userDoc, nickname, mainPosition, skillLevel, heightCm, weightKg]);
 
   const handleGoEditProfile = () => nav("/my/profile/edit");
+  const [setupDismissed, setSetupDismissed] = useState(false); // 프로필 완성 넛지 세션 내 닫기
 
   const handleInviteFriends = async () => {
     const res = await shareApp({ refUid: uid, context: "my" });
     if (res.method === "copied") showAlert("초대 링크를 복사했어요.\n친구에게 붙여넣어 보내보세요!");
     else if (res.method === "unsupported") showAlert(`초대 링크:\n${res.url}`);
+    else if (res.method === "error") showAlert("공유에 실패했어요. 잠시 후 다시 시도해 주세요.");
   };
 
   const handleMainMenuClick = (key) => {
@@ -808,6 +810,20 @@ export default function MyProfilePage() {
           </SectionBody>
         </Section>
       </PageWrap>
+
+      {/* 프로필 미완성(닉네임만/전부 빈값) 유도 — 탭 아웃으로 닫힘(트랩 방지) */}
+      {needSetup && !setupDismissed && (
+        <SetupOverlay onClick={() => setSetupDismissed(true)}>
+          <SetupCard
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setSetupDismissed(true); handleGoEditProfile(); }}
+          >
+            <SetupPill>프로필을 완성해요</SetupPill>
+            <SetupSub>포지션·실력·키 등을 채우면{"\n"}매칭 추천과 랭킹이 더 정확해져요.</SetupSub>
+            <SetupCta>프로필 채우기</SetupCta>
+          </SetupCard>
+        </SetupOverlay>
+      )}
     </>
   );
 }
