@@ -56,6 +56,23 @@ function nextDays(n) {
 }
 const HOUR_OPTS = Array.from({ length: 17 }, (_, i) => `${pad2(6 + i)}:00`); // 06:00~22:00
 
+// 내 위치 ↔ 구장 좌표 거리(km). 위치 허용 시 카드에 "N km" 표시.
+function haversineKm(a, b) {
+  if (!a || !b) return null;
+  const toRad = (d) => (Number(d) * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(Number(b.lat) - Number(a.lat));
+  const dLng = toRad(Number(b.lng) - Number(a.lng));
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function fmtDist(km) {
+  if (km == null || !Number.isFinite(km)) return "";
+  return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
+}
+
 function ratingNode(v) {
   const score = Number(v?.rating);
   const count = Number(v?.reviewCount);
@@ -91,6 +108,7 @@ export default function VenueListPage() {
   useBackInterceptor(picker === "schedule", () => setPicker(null)); // 일정 피커: HW 뒤로 시 /venues 이탈 대신 피커 닫기
   const [availIds, setAvailIds] = useState(null);
   const [sortBy, setSortBy] = useState("recent"); // recent | price
+  const [myCoords, setMyCoords] = useState(null); // 내 위치(거리 표시용)
 
   const hostRef = useRef(null);
   const mapRef = useRef(null);
@@ -187,8 +205,12 @@ export default function VenueListPage() {
         return (pa == null ? Infinity : pa) - (pb == null ? Infinity : pb);
       });
     }
+    if (sortBy === "distance" && myCoords) {
+      const dOf = (v) => (isValidLatLng(v) ? haversineKm(myCoords, { lat: v.lat, lng: v.lng }) : Infinity);
+      return [...filtered].sort((a, b) => (dOf(a) ?? Infinity) - (dOf(b) ?? Infinity));
+    }
     return filtered;
-  }, [filtered, sortBy]);
+  }, [filtered, sortBy, myCoords]);
 
   const geoVenues = useMemo(() => filtered.filter(isValidLatLng), [filtered]);
 
@@ -382,6 +404,7 @@ export default function VenueListPage() {
     geoWatchRef.current = navigator.geolocation.watchPosition(
       (p) => {
         showMyLocation(p.coords.latitude, p.coords.longitude, first);
+        setMyCoords({ lat: p.coords.latitude, lng: p.coords.longitude });
         first = false;
       },
       (err) => {
@@ -454,7 +477,12 @@ export default function VenueListPage() {
                   </CardPhoto>
                   <CardInfo>
                     <CardName>{v.name}</CardName>
-                    <CardAddr><FiMapPin size={12} /> {v.address}</CardAddr>
+                    <CardAddr>
+                      <FiMapPin size={12} /> {v.address}
+                      {myCoords && isValidLatLng(v)
+                        ? ` · ${fmtDist(haversineKm(myCoords, { lat: v.lat, lng: v.lng }))}`
+                        : ""}
+                    </CardAddr>
                     <CardBottom>
                       <CardTags>
                         {v.business?.status === "verified" && <VerifiedTag><FiCheckCircle size={11} /> 국세청 인증</VerifiedTag>}
@@ -476,6 +504,9 @@ export default function VenueListPage() {
             <ListHead>
               주변 구장 {filtered.length}
               <SortToggle>
+                {myCoords ? (
+                  <SortBtn type="button" $on={sortBy === "distance"} onClick={() => setSortBy("distance")}>거리순</SortBtn>
+                ) : null}
                 <SortBtn type="button" $on={sortBy === "recent"} onClick={() => setSortBy("recent")}>최신순</SortBtn>
                 <SortBtn type="button" $on={sortBy === "price"} onClick={() => setSortBy("price")}>가격순</SortBtn>
               </SortToggle>
@@ -493,7 +524,12 @@ export default function VenueListPage() {
                   </ListCover>
                   <CardInfo>
                     <CardName>{v.name}</CardName>
-                    <CardAddr><FiMapPin size={12} /> {v.address}</CardAddr>
+                    <CardAddr>
+                      <FiMapPin size={12} /> {v.address}
+                      {myCoords && isValidLatLng(v)
+                        ? ` · ${fmtDist(haversineKm(myCoords, { lat: v.lat, lng: v.lng }))}`
+                        : ""}
+                    </CardAddr>
                     <CardTags>
                       {v.business?.status === "verified" && <VerifiedTag><FiCheckCircle size={11} /> 국세청 인증</VerifiedTag>}
                       <Tag>{v.type === "outdoor" ? "실외" : "실내"}</Tag>
