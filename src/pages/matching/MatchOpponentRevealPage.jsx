@@ -9,6 +9,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
 import { track } from "../../utils/analytics";
+import { shareApp } from "../../utils/share";
+import { showAlert } from "../../utils/appDialog";
 
 import { useClubContext } from "../../context/ClubContext";
 import { useMatchingData } from "../../hooks/useMatchingData";
@@ -556,6 +558,12 @@ export default function MatchOpponentRevealPage() {
     navigate(`/matching/analysis/${oppId}`);
   };
 
+  const handleInviteFriends = async () => {
+    const res = await shareApp({ context: "opponent_none" });
+    if (res.method === "copied") showAlert("초대 링크를 복사했어요.\n친구 팀을 초대해보세요!");
+    else if (res.method === "unsupported") showAlert(`초대 링크:\n${res.url}`);
+  };
+
   const goTeam = (clubId) => {
     const id = String(clubId || "").trim();
     if (id) navigate(`/team/${id}`);
@@ -641,6 +649,9 @@ export default function MatchOpponentRevealPage() {
             >
               다른 지역에서 다시 찾기
             </EmptyPrimary>
+            <EmptyGhost type="button" onClick={handleInviteFriends}>
+              친구 팀 초대하기 🏀
+            </EmptyGhost>
             <EmptyGhost type="button" onClick={() => navigate("/home")}>
               홈으로
             </EmptyGhost>

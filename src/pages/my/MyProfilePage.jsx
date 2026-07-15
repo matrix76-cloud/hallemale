@@ -11,6 +11,7 @@ import { useThemeMode } from "../../context/ThemeContext";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { countPendingInvitesForUser } from "../../services/inviteService";
 import { countPendingJoinRequestsForClub } from "../../services/joinRequestService";
+import { shareApp } from "../../utils/share";
 
 import InfoDialog from "../../components/common/InfoDialog";
 import Spinner from "../../components/common/Spinner";
@@ -115,6 +116,12 @@ export default function MyProfilePage() {
   }, [userDoc, nickname, mainPosition, skillLevel, heightCm, weightKg]);
 
   const handleGoEditProfile = () => nav("/my/profile/edit");
+
+  const handleInviteFriends = async () => {
+    const res = await shareApp({ refUid: uid, context: "my" });
+    if (res.method === "copied") showAlert("초대 링크를 복사했어요.\n친구에게 붙여넣어 보내보세요!");
+    else if (res.method === "unsupported") showAlert(`초대 링크:\n${res.url}`);
+  };
 
   const handleMainMenuClick = (key) => {
     if (key === "reservations") nav("/my/reservations");
@@ -613,6 +620,13 @@ export default function MyProfilePage() {
           </SectionInner>
           <SectionBody>
             <MenuList>
+              <MenuItemButton onClick={handleInviteFriends}>
+                <MenuTextWrap>
+                  <MenuTitle>친구 초대하고 같이 뛰기 🏀</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
               <MenuItemButton onClick={() => handleMainMenuClick("reservations")}>
                 <MenuTextWrap>
                   <MenuTitle>내 구장 예약</MenuTitle>
