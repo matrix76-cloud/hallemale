@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { NavLink, useLocation } from "react-router-dom";
 import { IoChevronDownOutline } from "react-icons/io5";
 import { MENUS } from "../../utils/menus";
+import { listPendingVenues } from "../../services/ownerVenueService";
 
 const Side = styled.aside`
   width: ${({ $w }) => $w}px;
@@ -95,6 +96,22 @@ const Chevron = styled(IoChevronDownOutline)`
   transition: transform 0.2s;
 `;
 
+// 승인 대기 구장 수 뱃지 — 어드민이 신규 신청을 실시간 인지하도록
+const Badge = styled.span`
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
 const SubWrap = styled.div`
   overflow: hidden;
   max-height: ${({ $open }) => ($open ? "400px" : "0")};
@@ -132,6 +149,23 @@ function isPathInGroup(pathname, group) {
 
 export default function AdminSidebar({ width = 220 }) {
   const { pathname } = useLocation();
+
+  // 승인 대기(pending) 구장 수 — 사이드바 '구장 관리'에 뱃지로 노출
+  const [pendingVenues, setPendingVenues] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const fetchCount = async () => {
+      try {
+        const rows = await listPendingVenues();
+        if (alive) setPendingVenues(Array.isArray(rows) ? rows.length : 0);
+      } catch {
+        if (alive) setPendingVenues(0);
+      }
+    };
+    fetchCount();
+    const t = setInterval(fetchCount, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [pathname]);
 
   const [open, setOpen] = useState(() => {
     const init = {};
@@ -182,6 +216,9 @@ export default function AdminSidebar({ width = 220 }) {
                 <GroupBtn type="button" $active={active} onClick={() => toggle(k)}>
                   {m.icon && <m.icon />}
                   {m.label}
+                  {k === "venues" && pendingVenues > 0 && (
+                    <Badge>{pendingVenues > 99 ? "99+" : pendingVenues}</Badge>
+                  )}
                   <Chevron $open={isOpen} />
                 </GroupBtn>
                 <SubWrap $open={isOpen}>
@@ -192,6 +229,9 @@ export default function AdminSidebar({ width = 220 }) {
                       className={({ isActive }) => (isActive ? "active" : "")}
                     >
                       {s.label}
+                      {String(s.to).endsWith("/venues") && pendingVenues > 0 && (
+                        <Badge style={{ marginLeft: 8 }}>{pendingVenues > 99 ? "99+" : pendingVenues}</Badge>
+                      )}
                     </SubItem>
                   ))}
                 </SubWrap>
