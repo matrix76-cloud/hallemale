@@ -10,6 +10,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { useUIActions } from "../../hooks/useUI";
 import { showConfirm } from "../../utils/appDialog";
 import { listMyReservations, cancelMyReservation } from "../../services/ownerVenueService";
+import { addVenueReview, getMyVenueReview } from "../../services/venueReviewService";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
 import { FiMapPin, FiCalendar, FiClock, FiHash, FiPhone, FiInfo } from "react-icons/fi";
@@ -54,6 +56,44 @@ export default function MyReservationsPage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [busyId, setBusyId] = useState("");
+
+  // 리뷰 작성 모달
+  const [reviewFor, setReviewFor] = useState(null); // 리뷰 대상 예약
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
+  useBackInterceptor(!!reviewFor, () => setReviewFor(null));
+
+  const openReview = async (r) => {
+    setReviewFor(r);
+    setReviewRating(0);
+    setReviewText("");
+    try {
+      const mine = await getMyVenueReview(r.venueId, myUid);
+      if (mine) { setReviewRating(Number(mine.rating) || 0); setReviewText(toStr(mine.text)); }
+    } catch {}
+  };
+
+  const submitReview = async () => {
+    if (!reviewFor || reviewBusy) return;
+    if (!(reviewRating >= 1)) { toast("별점을 선택해 주세요."); return; }
+    setReviewBusy(true);
+    try {
+      await addVenueReview({
+        venueId: reviewFor.venueId,
+        uid: myUid,
+        userName: userDoc?.nickname,
+        rating: reviewRating,
+        text: reviewText,
+      });
+      toast("리뷰가 등록됐어요. 고마워요!");
+      setReviewFor(null);
+    } catch (e) {
+      toast(e?.message || "리뷰 등록에 실패했어요.");
+    } finally {
+      setReviewBusy(false);
+    }
+  };
 
   const load = async () => {
     if (!myUid) { setLoading(false); return; }
@@ -164,10 +204,39 @@ export default function MyReservationsPage() {
               {canCancel(r) ? (
                 <CancelHint>이용 시작 전까지 취소할 수 있어요. 노쇼·당일 취소는 삼가주세요.</CancelHint>
               ) : null}
+
+              {r.status === "done" && r.venueId ? (
+                <ReviewBtn type="button" onClick={() => openReview(r)}>⭐ 리뷰 쓰기</ReviewBtn>
+              ) : null}
             </Card>
           );
         })}
       </List>
+
+      {reviewFor ? (
+        <RvOverlay onClick={() => setReviewFor(null)}>
+          <RvCard onClick={(e) => e.stopPropagation()}>
+            <RvTitle>{reviewFor.venueName || "구장"} 리뷰</RvTitle>
+            <RvStars>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <RvStar key={n} type="button" $on={n <= reviewRating} onClick={() => setReviewRating(n)}>★</RvStar>
+              ))}
+            </RvStars>
+            <RvTextArea
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+              placeholder="이용 경험을 남겨주세요 (선택)"
+              maxLength={1000}
+            />
+            <RvActions>
+              <RvCancel type="button" onClick={() => setReviewFor(null)} disabled={reviewBusy}>취소</RvCancel>
+              <RvSubmit type="button" onClick={submitReview} disabled={reviewBusy}>
+                {reviewBusy ? "등록 중…" : "등록"}
+              </RvSubmit>
+            </RvActions>
+          </RvCard>
+        </RvOverlay>
+      ) : null}
     </Wrap>
   );
 }
@@ -331,4 +400,110 @@ const LoadingCenter = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+`;
+
+/* ---------- 리뷰 ---------- */
+const ReviewBtn = styled.button`
+  align-self: flex-start;
+  margin-top: 2px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+
+const RvOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+`;
+
+const RvCard = styled.div`
+  width: 100%;
+  max-width: 480px;
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 18px 18px 0 0;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const RvTitle = styled.div`
+  font-size: 16px;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const RvStars = styled.div`
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+`;
+
+const RvStar = styled.button`
+  border: none;
+  background: transparent;
+  font-size: 34px;
+  line-height: 1;
+  cursor: pointer;
+  color: ${({ $on, theme }) => ($on ? "#f59e0b" : theme.colors.border)};
+  &:active { transform: scale(0.92); }
+`;
+
+const RvTextArea = styled.textarea`
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 14px;
+  font-family: inherit;
+  padding: 12px;
+  outline: none;
+  &:focus { border-color: ${({ theme }) => theme.colors.primary}; }
+  &::placeholder { color: ${({ theme }) => theme.colors.textWeak}; }
+`;
+
+const RvActions = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const RvCancel = styled.button`
+  flex: 1;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled { opacity: 0.6; }
+`;
+
+const RvSubmit = styled.button`
+  flex: 2;
+  height: 48px;
+  border-radius: 12px;
+  border: none;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
