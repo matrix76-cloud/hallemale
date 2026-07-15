@@ -16,6 +16,7 @@ import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip"
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useClubContext } from "../../context/ClubContext";
 import { useAuth } from "../../hooks/useAuth";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { getTeamProfile } from "../../services/teamService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import { getPlayerRankMap } from "../../services/rankingService";
@@ -709,6 +710,8 @@ export default function MatchAnalysisPage() {
   const [showSizeModal, setShowSizeModal] = useState(false);
   const [selectedMatchSize, setSelectedMatchSize] = useState(""); // "3v3" | "4v4" | "5v5"
   const [showMatchConfirm, setShowMatchConfirm] = useState(false);
+  // 모달 열림 시 HW 뒤로 → 분석 페이지 이탈 대신 모달 닫기
+  useBackInterceptor(showSizeModal || showMatchConfirm, () => { setShowSizeModal(false); setShowMatchConfirm(false); });
   const [submittingMatch, setSubmittingMatch] = useState(false);
 
   // 랭킹(1~3위 왕관 표시용)

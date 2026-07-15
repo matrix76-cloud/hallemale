@@ -94,6 +94,17 @@ const FavBtn = styled.button`
   &:active { transform: translateY(1px); }
 `;
 
+const ErrWrap = styled.div`
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; text-align: center; padding: 0 24px;
+  color: ${({ theme }) => theme.colors.textWeak}; font-size: 14px; line-height: 1.6;
+`;
+const RetryBtn = styled.button`
+  height: 44px; padding: 0 22px; border-radius: 12px; border: none;
+  background: ${({ theme }) => theme.colors.primary}; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+
 export default function MatchingPage() {
   const navigate = useNavigate();
   const { showToast } = useUIActions();
@@ -123,11 +134,14 @@ export default function MatchingPage() {
   // 찜한 팀(favoriteTeamIds) → 도전 섹션용으로 id로 로드
   const { userDoc } = useAuth();
   const [favTeams, setFavTeams] = useState([]);
+  const [loadError, setLoadError] = useState(false); // 팀 데이터 로드 실패(무한 스피너 방지)
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     if (clubLoading) return;
     if (activeTeamId) {
-      preloadMatchingHomeData(activeTeamId).catch(() => {});
+      setLoadError(false);
+      preloadMatchingHomeData(activeTeamId).catch(() => setLoadError(true));
       return;
     }
     // 팀 없음 → 둘러보기용으로 전체 팀 목록만 로드
@@ -142,7 +156,14 @@ export default function MatchingPage() {
     return () => {
       alive = false;
     };
-  }, [clubLoading, activeTeamId, preloadMatchingHomeData]);
+  }, [clubLoading, activeTeamId, preloadMatchingHomeData, retryTick]);
+
+  // 무한 스피너 방지: 팀 유저인데 8초 넘게 myTeam이 안 오면 실패로 간주
+  useEffect(() => {
+    if (!activeTeamId || myTeam) return;
+    const t = setTimeout(() => setLoadError(true), 8000);
+    return () => clearTimeout(t);
+  }, [activeTeamId, myTeam, retryTick]);
 
   // 찜한 팀 로드 — 본인 팀은 제외
   useEffect(() => {
@@ -248,6 +269,18 @@ export default function MatchingPage() {
       );
     }
   } else if (matchingLoading || !myTeam) {
+    if (loadError) {
+      return (
+        <Wrap>
+          <ErrWrap>
+            <div>매칭 정보를 불러오지 못했어요.<br />네트워크 상태를 확인해 주세요.</div>
+            <RetryBtn type="button" onClick={() => { setLoadError(false); setRetryTick((n) => n + 1); }}>
+              다시 시도
+            </RetryBtn>
+          </ErrWrap>
+        </Wrap>
+      );
+    }
     return (
       <Wrap>
         <LoadingCenter>

@@ -14,6 +14,7 @@ import Spinner from "../../components/common/Spinner";
 import { FacilityIcon } from "./facilityIcons";
 import { track } from "../../utils/analytics";
 import { goBackOrHome } from "../../utils/navigation";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 const toStr = (v) => String(v || "").trim();
 function minPrice(v) {
@@ -87,6 +88,7 @@ export default function VenueListPage() {
   const [fStart, setFStart] = useState("");
   const [fDur, setFDur] = useState(2);
   const [picker, setPicker] = useState(null); // "schedule" | null
+  useBackInterceptor(picker === "schedule", () => setPicker(null)); // 일정 피커: HW 뒤로 시 /venues 이탈 대신 피커 닫기
   const [availIds, setAvailIds] = useState(null);
   const [sortBy, setSortBy] = useState("recent"); // recent | price
 

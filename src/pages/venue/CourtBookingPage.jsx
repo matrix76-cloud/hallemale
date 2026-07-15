@@ -20,6 +20,7 @@ import Spinner from "../../components/common/Spinner";
 import CourtNotices from "./CourtNotices";
 import { FiCalendar, FiClock, FiMapPin, FiCheckCircle } from "react-icons/fi";
 import { track } from "../../utils/analytics";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 function toMin(hhmm) { const [h, m] = String(hhmm || "0:0").split(":").map((x) => parseInt(x, 10) || 0); return h * 60 + m; }
 function toHHMM(min) { return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`; }
@@ -55,6 +56,7 @@ export default function CourtBookingPage() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selected, setSelected] = useState(null);
   const [payOpen, setPayOpen] = useState(false);
+  useBackInterceptor(payOpen, () => setPayOpen(false)); // 예약 시트: HW 뒤로 시 페이지 이탈 대신 시트 닫기
   const [paying, setPaying] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null);
 

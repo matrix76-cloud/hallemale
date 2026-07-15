@@ -7,6 +7,7 @@ import styled from "styled-components";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useUIActions } from "../../hooks/useUI";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { proposeMatchSchedule } from "../../services/matchRoomService";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
@@ -98,6 +99,7 @@ export default function VenueBookingPage() {
   const [paying, setPaying] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null); // 매칭 두 팀 정보
   const [photosOpen, setPhotosOpen] = useState(false); // 시설 사진 전체보기 모달
+  useBackInterceptor(photosOpen, () => setPhotosOpen(false)); // 사진 모달: HW 뒤로 시 페이지 이탈 대신 모달 닫기
   const heroRef = useRef(null);
   const [heroIdx, setHeroIdx] = useState(0); // 상단 구장 사진 캐러셀 현재 인덱스
   const onHeroScroll = (e) => {
