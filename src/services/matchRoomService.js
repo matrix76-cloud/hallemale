@@ -1556,7 +1556,6 @@ export async function submitMatchResultWithMedia({
   targetScore,
   comment = "",
   files = [],
-  opponentRating = 0, // ✅ 상대 팀 별점(1~5, 선택)
   submittedByClubId,
 
   // ✅ 추가: 작성자 메타(선택)
@@ -1642,7 +1641,6 @@ export async function submitMatchResultWithMedia({
 
         comment: cleanComment,
         photoUrls: uploadedUrls,
-        opponentRating: safeNum(opponentRating, 0),
         submittedAt: serverTimestamp(),
       },
 

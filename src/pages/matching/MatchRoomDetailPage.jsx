@@ -3126,7 +3126,6 @@ export default function MatchRoomDetailPage() {
 
   const [myScoreInput, setMyScoreInput] = useState("");
   const [oppScoreInput, setOppScoreInput] = useState("");
-  const [oppRating, setOppRating] = useState(0); // 상대 팀 별점(1~5)
   const [resultBusy, setResultBusy] = useState(false);
 
   // ✅ 지난 경기 리뷰(별점·한줄평) — 팀장·팀원 공통, 1인 1리뷰
@@ -4123,14 +4122,12 @@ export default function MatchRoomDetailPage() {
         matchRequestId: room.id,
         actorScore,
         targetScore,
-        opponentRating: oppRating,
         submittedByClubId: myClubId,
         authorName: authorDisplayName,
         authorUid: myUid,
         authorRole: isTeamLeader ? "owner" : "member",
       });
 
-      setOppRating(0);
       await refresh();
       showAlert("결과를 제출했습니다. 상대팀 승인을 기다립니다.");
     } catch (e) {
