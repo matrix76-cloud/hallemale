@@ -28,6 +28,21 @@ export async function setFavoriteTeam({ uid, clubId, isFavorite }) {
   return { uid, clubId: key, isFavorite: !!isFavorite };
 }
 
+export async function setFavoriteVenue({ uid, venueId, isFavorite }) {
+  if (!uid) throw new Error("setFavoriteVenue: uid is required");
+  if (!venueId) throw new Error("setFavoriteVenue: venueId is required");
+
+  const ref = doc(db, "users", uid);
+  const key = String(venueId);
+
+  await updateDoc(ref, {
+    favVenueIds: isFavorite ? arrayUnion(key) : arrayRemove(key),
+    updatedAt: serverTimestamp(),
+  });
+
+  return { uid, venueId: key, isFavorite: !!isFavorite };
+}
+
 export async function setFavoritePlayer({ uid, playerUid, isFavorite }) {
   if (!uid) throw new Error("setFavoritePlayer: uid is required");
   if (!playerUid) throw new Error("setFavoritePlayer: playerUid is required");

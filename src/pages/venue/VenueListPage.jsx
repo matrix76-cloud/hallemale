@@ -8,13 +8,15 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiChevronLeft, FiList, FiMap, FiCheckCircle } from "react-icons/fi";
+import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiChevronLeft, FiList, FiMap, FiCheckCircle, FiHeart } from "react-icons/fi";
 import { listBookableVenues, listReservations, listBlocks } from "../../services/ownerVenueService";
 import Spinner from "../../components/common/Spinner";
 import { FacilityIcon } from "./facilityIcons";
 import { track } from "../../utils/analytics";
 import { goBackOrHome } from "../../utils/navigation";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { useAuth } from "../../hooks/useAuth";
+import { setFavoriteVenue } from "../../services/favoriteService";
 
 const toStr = (v) => String(v || "").trim();
 function minPrice(v) {
@@ -109,6 +111,8 @@ export default function VenueListPage() {
   const [availIds, setAvailIds] = useState(null);
   const [sortBy, setSortBy] = useState("recent"); // recent | price
   const [myCoords, setMyCoords] = useState(null); // 내 위치(거리 표시용)
+  const { userDoc } = useAuth();
+  const [favVenues, setFavVenues] = useState(new Set());
 
   const hostRef = useRef(null);
   const mapRef = useRef(null);
@@ -123,6 +127,34 @@ export default function VenueListPage() {
 
   // 예약 퍼널 상단 진입 기록 (매칭룸 구장 정하기에서 온 경우 from_match=true)
   useEffect(() => { track("venue_list_view", { from_match: !!matchId }); }, []);
+
+  // 구장 찜(users.favVenueIds) 동기화 + 토글
+  useEffect(() => {
+    setFavVenues(new Set((userDoc?.favVenueIds || []).map((x) => String(x))));
+  }, [userDoc?.favVenueIds]);
+
+  const toggleFav = async (venueId) => {
+    const id = String(venueId || "").trim();
+    if (!id) return;
+    const uid = userDoc?.uid || userDoc?.id;
+    if (!uid) { showAlert("로그인이 필요해요."); return; }
+    const willFav = !favVenues.has(id);
+    setFavVenues((prev) => {
+      const n = new Set(prev);
+      willFav ? n.add(id) : n.delete(id);
+      return n;
+    });
+    try {
+      await setFavoriteVenue({ uid, venueId: id, isFavorite: willFav });
+    } catch (e) {
+      setFavVenues((prev) => {
+        const n = new Set(prev);
+        willFav ? n.delete(id) : n.add(id);
+        return n;
+      });
+      showAlert("찜 처리에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -517,6 +549,9 @@ export default function VenueListPage() {
               sortedFiltered.map((v) => (
                 <ListCard key={v.id} type="button" onClick={() => goBook(v)}>
                   <ListCover>
+                    <HeartBtn type="button" onClick={(e) => { e.stopPropagation(); toggleFav(v.id); }} aria-label="찜">
+                      <FiHeart size={17} color={favVenues.has(String(v.id)) ? "#ef4444" : "#ffffff"} fill={favVenues.has(String(v.id)) ? "#ef4444" : "none"} />
+                    </HeartBtn>
                     {v.imageUrl ? <CardPhotoImg src={v.imageUrl} alt={v.name} /> : <CardNoImg><FiMapPin size={20} /><span>구장 사진 / No image</span></CardNoImg>}
                     {ratingNode(v)}
                     {minPrice(v) != null && <PriceTag>{minPrice(v).toLocaleString()}원~ / 시간</PriceTag>}
@@ -691,6 +726,13 @@ const CardPhotoImg = styled.img`width: 100%; height: 100%; object-fit: cover; di
 const CardNoImg = styled.div`
   width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   color: rgba(255,255,255,0.4); font-size: 12px;
+`;
+const HeartBtn = styled.button`
+  position: absolute; top: 10px; left: 10px; z-index: 2;
+  width: 34px; height: 34px; border-radius: 999px; border: none;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  &:active { transform: scale(0.94); }
 `;
 const RatingBadge = styled.div`
   position: absolute; top: 10px; right: 10px;
