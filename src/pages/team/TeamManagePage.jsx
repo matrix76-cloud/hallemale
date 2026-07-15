@@ -8,7 +8,7 @@
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { FiSearch, FiX, FiChevronRight, FiUserX } from "react-icons/fi";
 import { FiCamera } from "react-icons/fi";
 
@@ -53,6 +53,8 @@ export default function TeamManagePage() {
   const { userDoc, loading: authLoading } = useAuth();
 
   const uid = userDoc?.uid || userDoc?.id || "";
+
+  const [searchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [club, setClub] = useState(null);
@@ -107,6 +109,17 @@ export default function TeamManagePage() {
   const [inviteTarget, setInviteTarget] = useState(null);
   const [inviting, setInviting] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
+
+  // 마이페이지 '팀원 초대'(?invite=1)로 진입 시 members 탭 + 초대 모달 자동 오픈
+  const inviteAutoRef = useRef(false);
+  useEffect(() => {
+    if (inviteAutoRef.current || loading) return;
+    if (searchParams.get("invite") === "1") {
+      inviteAutoRef.current = true;
+      setTab("members");
+      openInvite();
+    }
+  }, [loading, searchParams]);
 
 
   const [membersLoading, setMembersLoading] = useState(false);

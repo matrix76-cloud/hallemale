@@ -148,6 +148,16 @@ export default function MyProfilePage() {
       return;
     }
 
+    if (key === "invite") {
+      if (!teamId) {
+        showAlert("팀 정보가 없습니다. 팀을 생성한 뒤 다시 시도해 주세요.");
+        return;
+      }
+      // 팀 관리 진입과 동시에 팀원 초대 모달을 바로 연다
+      nav(`/team/${teamId}/manage?invite=1`);
+      return;
+    }
+
     if (key === "manage") {
       if (!hasTeam) {
         showAlert("팀 정보가 없습니다. 팀을 생성한 뒤 다시 시도해 주세요.");
@@ -583,6 +593,15 @@ export default function MyProfilePage() {
 
    
               {hasTeam && isTeamLeader ? (
+                <MenuItemButton onClick={() => handleTeamMenuClick("invite")}>
+                  <MenuTextWrap>
+                    <MenuTitle>팀원 초대</MenuTitle>
+                  </MenuTextWrap>
+                  <MenuArrow>›</MenuArrow>
+                </MenuItemButton>
+              ) : null}
+
+              {hasTeam && isTeamLeader ? (
                 <MenuItemButton onClick={() => handleTeamMenuClick("manage")}>
                   <MenuTextWrap>
                     <MenuTitle>팀 관리</MenuTitle>
@@ -590,6 +609,29 @@ export default function MyProfilePage() {
                   <MenuArrow>›</MenuArrow>
                 </MenuItemButton>
               ) : null}
+
+              <MenuItemButton
+                onClick={() => handleMainMenuClick(isTeamLeader ? "join-requests" : "team-invites")}
+              >
+                <MenuTextWrap>
+                  <MenuTitleRow>
+                    <MenuTitle>{isTeamLeader ? "참여요청" : "받은 초대"}</MenuTitle>
+                    {pendingCount > 0 ? (
+                      <NewBadge aria-label="new">
+                        {pendingCount > 99 ? "99+" : String(pendingCount)}
+                      </NewBadge>
+                    ) : null}
+                  </MenuTitleRow>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
+
+              <MenuItemButton onClick={() => handleMainMenuClick("team-join")}>
+                <MenuTextWrap>
+                  <MenuTitle>팀 가입 신청</MenuTitle>
+                </MenuTextWrap>
+                <MenuArrow>›</MenuArrow>
+              </MenuItemButton>
 
               {/* ✅ 팀장만: 팀장 권한 이임 */}
               {hasTeam && isTeamLeader ? (
@@ -630,29 +672,6 @@ export default function MyProfilePage() {
               <MenuItemButton onClick={() => handleMainMenuClick("reservations")}>
                 <MenuTextWrap>
                   <MenuTitle>내 구장 예약</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleMainMenuClick("team-join")}>
-                <MenuTextWrap>
-                  <MenuTitle>팀 가입 신청</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton
-                onClick={() => handleMainMenuClick(isTeamLeader ? "join-requests" : "team-invites")}
-              >
-                <MenuTextWrap>
-                  <MenuTitleRow>
-                    <MenuTitle>{isTeamLeader ? "참여요청" : "받은 초대"}</MenuTitle>
-                    {pendingCount > 0 ? (
-                      <NewBadge aria-label="new">
-                        {pendingCount > 99 ? "99+" : String(pendingCount)}
-                      </NewBadge>
-                    ) : null}
-                  </MenuTitleRow>
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>
