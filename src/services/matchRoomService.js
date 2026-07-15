@@ -1872,24 +1872,8 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
       };
     });
 
-    // ✅ 상대 팀 평판(별점) 집계: 결과 제출 팀이 매긴 별점을 그 상대 팀 평판에 누적
-    const ratingVal = safeNum(mr?.result?.opponentRating, 0);
-    const ratedByClubId = toStr(mr?.result?.submittedByClubId);
-    const ratedClubId =
-      ratingVal >= 1 && ratedByClubId
-        ? ratedByClubId === actorClubId
-          ? targetClubId
-          : actorClubId
-        : "";
-
-    const buildRep = (club) => {
-      const rep = club.reputation || {};
-      const sum = safeNum(rep.sum, 0) + ratingVal;
-      const count = safeNum(rep.count, 0) + 1;
-      return { sum, count, avg: count > 0 ? sum / count : 0, updatedAt: serverTimestamp() };
-    };
-    const aRep = ratedClubId && ratedClubId === actorClubId ? buildRep(aClub) : null;
-    const tRep = ratedClubId && ratedClubId === targetClubId ? buildRep(tClub) : null;
+    // ✅ 팀 평판(별점)은 결과 확정 시점이 아니라 경기 후 참가자 리뷰(submitMatchReview)에서 집계한다.
+    //    (평판 = 전 참가자 리뷰 평균으로 일원화 — 여기서 opponentRating을 누적하면 이중집계됨)
 
     // ✅ AI 예측 검증: 경기 전(pre-match) 전적(aStats/tStats)으로 예측 → 실제 결과와 비교.
     //    aStats/tStats는 이 경기 반영 전 값이라 "경기 전에 알 수 있던 데이터" = 공정한 예측 근거.
@@ -1919,7 +1903,6 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
           recentResults: nextARecent,
           updatedAt: serverTimestamp(),
         },
-        ...(aRep ? { reputation: aRep } : {}),
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -1938,7 +1921,6 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
           recentResults: nextTRecent,
           updatedAt: serverTimestamp(),
         },
-        ...(tRep ? { reputation: tRep } : {}),
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -2251,22 +2233,40 @@ export async function submitMatchReview({
   if (s < 1) throw new Error("별점을 선택해 주세요.");
 
   const ref = doc(db, "match_requests", id, "reviews", uid);
-  const prev = await getDoc(ref);
+  const clubRef = doc(db, "clubs", tClub);
 
-  await setDoc(
-    ref,
-    {
-      raterUid: uid,
-      raterName: toStr(raterName),
-      raterClubId: rClub,
-      targetClubId: tClub,
-      stars: s,
-      comment: String(comment || "").trim(),
-      ...(prev.exists() ? {} : { createdAt: serverTimestamp() }),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  // 리뷰 업서트 + 대상 팀 평판(clubs.reputation) 집계를 원자적으로.
+  // 평판 = 참가자 리뷰 별점 평균(sum/count). 재제출 시 delta(new-old)만 반영하고 count는 신규일 때만 +1
+  // → 같은 사람이 여러 번 고쳐도 이중집계 안 됨. (결과제출의 opponentRating 경로는 제거해 소스 일원화)
+  await runTransaction(db, async (tx) => {
+    const [rSnap, cSnap] = await Promise.all([tx.get(ref), tx.get(clubRef)]);
+    const isNew = !rSnap.exists();
+    const oldStars = isNew ? 0 : safeNum(rSnap.data()?.stars, 0);
+
+    tx.set(
+      ref,
+      {
+        raterUid: uid,
+        raterName: toStr(raterName),
+        raterClubId: rClub,
+        targetClubId: tClub,
+        stars: s,
+        comment: String(comment || "").trim(),
+        ...(isNew ? { createdAt: serverTimestamp() } : {}),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    const rep = (cSnap.exists() ? cSnap.data()?.reputation : null) || {};
+    const sum = safeNum(rep.sum, 0) + (s - oldStars);
+    const count = safeNum(rep.count, 0) + (isNew ? 1 : 0);
+    tx.set(
+      clubRef,
+      { reputation: { sum, count, avg: count > 0 ? sum / count : 0, updatedAt: serverTimestamp() } },
+      { merge: true }
+    );
+  });
 
   return { ok: true };
 }

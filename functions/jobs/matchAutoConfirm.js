@@ -139,23 +139,7 @@ async function autoConfirmOne(db, FieldValue, mrRef) {
     const nextARecent = [actorResult, ...normalizeRecentArray(aStats.recentResults)].slice(0, 5);
     const nextTRecent = [targetResult, ...normalizeRecentArray(tStats.recentResults)].slice(0, 5);
 
-    // 평판(별점)
-    const ratingVal = safeNum(mr?.result?.opponentRating, 0);
-    const ratedByClubId = toStr(mr?.result?.submittedByClubId);
-    const ratedClubId =
-      ratingVal >= 1 && ratedByClubId
-        ? ratedByClubId === actorClubId
-          ? targetClubId
-          : actorClubId
-        : "";
-    const buildRep = (club) => {
-      const rep = club.reputation || {};
-      const sum = safeNum(rep.sum, 0) + ratingVal;
-      const count = safeNum(rep.count, 0) + 1;
-      return { sum, count, avg: count > 0 ? sum / count : 0, updatedAt: FieldValue.serverTimestamp() };
-    };
-    const aRep = ratedClubId && ratedClubId === actorClubId ? buildRep(aClub) : null;
-    const tRep = ratedClubId && ratedClubId === targetClubId ? buildRep(tClub) : null;
+    // 평판(별점)은 경기 후 참가자 리뷰(submitMatchReview)에서 집계 → 여기선 누적하지 않음(이중집계 방지).
 
     const nextUserStatsById = {};
     actorMemberIds.forEach((uid) => {
@@ -187,7 +171,6 @@ async function autoConfirmOne(db, FieldValue, mrRef) {
           recentResults: nextARecent,
           updatedAt: FieldValue.serverTimestamp(),
         },
-        ...(aRep ? { reputation: aRep } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -205,7 +188,6 @@ async function autoConfirmOne(db, FieldValue, mrRef) {
           recentResults: nextTRecent,
           updatedAt: FieldValue.serverTimestamp(),
         },
-        ...(tRep ? { reputation: tRep } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
