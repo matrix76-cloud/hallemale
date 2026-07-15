@@ -107,6 +107,7 @@ export default function OwnerHomePage(){
   const [weekOff,setWeekOff]=useState(0);
   const [date,setDate]=useState(ymd(today));
   const [reservations,setReservations]=useState([]);
+  const [pendingAll,setPendingAll]=useState([]); // 구장 전체(전 코트·전 날짜) 승인대기 — 큐/배지용
   const [blocks,setBlocks]=useState([]);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
@@ -127,14 +128,15 @@ export default function OwnerHomePage(){
     if(!venue?.id||!court?.id)return;
     setLoading(true);
     try{
-      const [rs,bs]=await Promise.all([
-        listReservations({venueId:venue.id,courtId:court.id}),
+      const [rsAll,bs]=await Promise.all([
+        listReservations({venueId:venue.id}),                  // 구장 전체(전 코트) — 승인대기 큐/배지가 미래·타코트 요청을 놓치지 않게
         listBlocks({venueId:venue.id,courtId:court.id}),
       ]);
-      const ids=[...new Set(rs.filter(r=>r.status==="pending"&&r.matchId).map(r=>r.matchId))];
+      const ids=[...new Set(rsAll.filter(r=>r.status==="pending"&&r.matchId).map(r=>r.matchId))];
       if(ids.length)await Promise.all(ids.map(id=>expireMatchReservationIfNeeded(id).catch(()=>{})));
-      setReservations(rs);setBlocks(bs);
-    }catch(e){setReservations([]);setBlocks([]);}finally{setLoading(false);}
+      setReservations(rsAll.filter(r=>r.courtId===court.id)); // 시간표 그리드는 선택 코트만
+      setPendingAll(rsAll.filter(r=>r.status==="requested")); // 승인 대기는 전 코트·전 날짜
+    }catch(e){setReservations([]);setPendingAll([]);setBlocks([]);}finally{setLoading(false);}
   };
   useEffect(()=>{load();/*eslint-disable-next-line*/},[venue?.id,courtId]);
 
@@ -225,14 +227,15 @@ export default function OwnerHomePage(){
   if(!courts.length)return <Page><Card><Empty>등록된 코트가 없어요. '구장정보'에서 코트를 추가해주세요.</Empty></Card></Page>;
 
   const sum=slots.reduce((a,s)=>{const k=slotKind(s).k;if(k==="confirmed"||k==="done")a.cf++;else if(k==="pending")a.pd++;else if(k==="blocked")a.bl++;else if(k==="open")a.op++;return a;},{cf:0,pd:0,bl:0,op:0});
-  const requested=dayResv.filter(r=>r.status==="requested");
+  // 승인 대기 큐: 구장 전체(전 코트·전 날짜) requested를 날짜→시간 순으로
+  const requested=[...pendingAll].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.startTime<b.startTime?-1:1);
 
   return (
     <Page>
       <ScreenTitle>예약관리</ScreenTitle>
 
       <ChipRow>
-        {courts.map(c=>{const cnt=reservations.filter(r=>r.courtId===c.id&&r.status==="requested").length;return(
+        {courts.map(c=>{const cnt=pendingAll.filter(r=>r.courtId===c.id).length;return(
           <CourtChip key={c.id} $on={c.id===court?.id} onClick={()=>setCourtId(c.id)}>
             {c.name}{cnt>0&&<ChipBadge>{cnt>9?"9+":cnt}</ChipBadge>}
           </CourtChip>
@@ -294,8 +297,8 @@ export default function OwnerHomePage(){
               <ResvName>{isMatch?`${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`:(r.teamName||r.userName||"예약자")}</ResvName>
               <StatBadge $tone="pending"><LuHourglass size={11}/>{isMatch?"매칭 승인대기":"승인대기"}</StatBadge>
             </ResvTop>
-            <ResvMeta>{r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원 (현장 정산)`:""}{!isMatch&&r.phone?` · ${formatPhone(r.phone)}`:""}</ResvMeta>
-            {date<nowMin.today ? (
+            <ResvMeta>{r.date?.slice(5).replace("-",".")} · {r.courtName||court?.name||"코트"} · {r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원 (현장 정산)`:""}{!isMatch&&r.phone?` · ${formatPhone(r.phone)}`:""}</ResvMeta>
+            {r.date<nowMin.today ? (
               <Caption>지난 요청 · 처리할 수 없어요</Caption>
             ) : (
               <Acts>

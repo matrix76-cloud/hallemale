@@ -23,7 +23,7 @@ import {
 } from "../../services/matchRoomService";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
-import { getMatchReservationStatus, requestVenueReservationForMatch } from "../../services/ownerVenueService";
+import { getMatchReservationStatus, requestVenueReservationForMatch, rejectReservation } from "../../services/ownerVenueService";
 import { doc as fsDoc, getDoc as fsGetDoc } from "firebase/firestore";
 import { db as fsDb } from "../../services/firebase";
 import { useUIContext } from "../../context/UIContext";
@@ -4054,6 +4054,24 @@ export default function MatchRoomDetailPage() {
     }
   };
 
+  // 구장 승인 대기(awaiting_venue_approval) 철회 → 예약 요청 취소 + 매칭 accepted 복귀(재제안 가능).
+  // 구장주가 무응답이어도 팀이 스스로 빠져나올 수 있게 하는 데드엔드 탈출구.
+  const handleCancelVenueApproval = async () => {
+    if (!isTeamLeader) { showAlert("취소는 팀장만 할 수 있어요."); return; }
+    const resId = toStr(partnerPay?.pb?.reservationId || room?.partnerBooking?.reservationId);
+    if (!resId) { showAlert("예약 정보를 찾을 수 없어요. 잠시 후 다시 시도해 주세요."); return; }
+    if (!await showConfirm("구장 승인 요청을 취소할까요?\n매칭은 유지되며 다른 구장·일정을 다시 제안할 수 있어요."))
+      return;
+    try {
+      await rejectReservation(resId); // 예약 철회 → syncMatchOnReservationChange('rejected')가 매칭을 accepted로 복귀
+      await refresh();
+      await loadPartnerPay();
+      showToast && showToast({ message: "구장 요청을 취소했어요. 다시 제안할 수 있어요." });
+    } catch (e) {
+      showAlert(e?.message || "취소에 실패했습니다.");
+    }
+  };
+
   // 확정 경기 취소 — 사유 선택 시트 오픈(결제건이면 환불 안내 포함). 팀장만 가능.
   const handleCancelConfirmedMatch = () => {
     if (!isTeamLeader) {
@@ -4681,6 +4699,11 @@ export default function MatchRoomDetailPage() {
     chatTopBar = (
       <ActStack>
         <ActNote>⏳ 구장주 승인을 기다리는 중이에요 · 승인되면 경기가 확정돼요</ActNote>
+        {isViewerMyTeam && isTeamLeader && (
+          <ActGhost type="button" onClick={handleCancelVenueApproval}>
+            구장 요청 취소하고 다시 제안
+          </ActGhost>
+        )}
       </ActStack>
     );
   }

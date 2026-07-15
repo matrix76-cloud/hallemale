@@ -3,7 +3,6 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
-import { NOTIFICATIONS_BY_ID } from "../../mock/notificationsMock";
 import { getNotice } from "../../services/noticesService";
 import { getNotificationById } from "../../services/notificationService";
 import SubHeaderBar from "../../layouts/components/SubHeaderBar";
@@ -81,17 +80,10 @@ export default function NotificationDetailPage() {
   const navigate = useNavigate();
   const { notificationId } = useParams();
 
-  const [data, setData] = useState(() => NOTIFICATIONS_BY_ID[notificationId] || null);
-  const [loading, setLoading] = useState(() => !NOTIFICATIONS_BY_ID[notificationId]);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // mock에 없으면 관리자 공지(notices)에서 불러온다
   useEffect(() => {
-    const mock = NOTIFICATIONS_BY_ID[notificationId];
-    if (mock) {
-      setData(mock);
-      setLoading(false);
-      return;
-    }
     let alive = true;
     setLoading(true);
     // 1) 실제 알림(notifications) 문서를 id로 조회 → 있으면 제목/본문 표시

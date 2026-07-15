@@ -12,6 +12,7 @@ import { HomeDataProvider } from "./context/HomeDataContext";
 import { MatchingDataProvider } from "./context/MatchingDataContext";
 import { IoInformationCircleOutline } from "react-icons/io5";
 import { checkAppUpdate } from "./services/appVersionService";
+import AppErrorBoundary from "./components/common/AppErrorBoundary";
 import BlockedAuthGate from "./components/common/BlockedAuthGate";
 import EventPopupModal from "./components/common/EventPopupModal";
 import AppDialog from "./components/common/AppDialog";
@@ -78,7 +79,9 @@ function ThemedApp() {
             <HomeDataProvider>
               <MatchingDataProvider>
                 <WebviewBridgeProvider>
-                  <AppRoutes />
+                  <AppErrorBoundary>
+                    <AppRoutes />
+                  </AppErrorBoundary>
                   <VersionChecker />
                   <BlockedAuthGate />
                   <EventPopupModal />

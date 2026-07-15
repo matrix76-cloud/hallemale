@@ -5,8 +5,8 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
 import { images, playerAvatars } from "../../utils/imageAssets";
-import { TEAMS_BY_ID } from "../../mock/teamsMock";
 import { useAuth } from "../../hooks/useAuth";
+import { useClubContext } from "../../context/ClubContext";
 import SubHeaderBar from "../../layouts/components/SubHeaderBar";
 import EmptyState from "../../components/common/EmptyState";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
@@ -14,7 +14,7 @@ import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 /**
  * 내 프로필 보기 페이지 (실데이터 기반)
  * - userDoc(Firestore) 기반으로 렌더
- * - 팀 정보는 userDoc.activeTeamId || userDoc.clubId 기준으로 TEAMS_BY_ID에서 매칭
+ * - 팀 정보는 ClubContext의 활성 팀(club)에서 실데이터로 표시
  */
 
 export default function MyProfileDetailPage() {
@@ -23,13 +23,8 @@ export default function MyProfileDetailPage() {
 
   const uid = userDoc?.uid || userDoc?.id || "";
 
-  const teamId = userDoc?.activeTeamId || userDoc?.clubId || "";
-  const myTeam = teamId ? TEAMS_BY_ID?.[teamId] : null;
+  const { club } = useClubContext();
 
-
-  console.log("[MyProfileDetail] uid =", userDoc?.uid || userDoc?.id, "region =", userDoc?.region, "regionSido =", userDoc?.regionSido, "regionGu =", userDoc?.regionGu);
-
-  
 
   const avatarSrc = useMemo(() => {
     return userDoc?.avatarUrl || (uid ? playerAvatars?.[uid] : "") || "";
@@ -65,7 +60,7 @@ export default function MyProfileDetailPage() {
     return "실력 미지정";
   }, [userDoc?.skillLevel]);
 
-  const teamNameLabel = myTeam?.name || "팀 미지정";
+  const teamNameLabel = club?.name || "팀 미지정";
 
   const careers = useMemo(() => {
     const arr = Array.isArray(userDoc?.careers) ? userDoc.careers : [];
