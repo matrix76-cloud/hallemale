@@ -79,6 +79,10 @@ function normalizeInboxRow(matchId, req, myClubId) {
       ? "confirmed"
       : statusRaw === "finished"
       ? "finished"
+      // 조율 진행 중(제안·구장승인대기)은 매칭룸에서만 다루는 상태 → 인박스(받은/보낸 제안)에서 제외.
+      // (accepted로 묶어 pending 판정에서 빠지게 함. 안 그러면 pending으로 떨어져 수락/거절/철회 버튼이 붙어 진행 경기가 파괴됨)
+      : statusRaw === "proposed" || statusRaw === "awaiting_venue_approval"
+      ? "accepted"
       : "pending";
 
   const latest = {

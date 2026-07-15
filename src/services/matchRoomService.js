@@ -1377,6 +1377,7 @@ export async function cancelProposedSchedule({ matchRequestId, cancelledByClubId
     field: null,
     proposedByClubId: "",
     proposedAt: null,
+    partnerBooking: null, // 제휴구장 제안도 함께 정리 → 취소 후 유령 제휴구장 카드 잔존 방지
     updatedAt: serverTimestamp(),
     ...activityPatch(),
   });
@@ -1441,7 +1442,7 @@ export async function confirmProposedSchedule({ matchRequestId, confirmedByClubI
 
   // 양 팀 팀원에게도 "경기 확정" 알림 (팀장 제외 — 팀장은 위에서 받음)
   try {
-    const confirmBody = "구장 결제까지 끝나 경기가 확정됐어요! 일정을 확인하세요.";
+    const confirmBody = "경기 일정·구장이 확정됐어요! 이용료는 현장에서 정산해요. 자세한 내용을 확인하세요.";
     await Promise.all([
       notifyClubMembersEvent({
         matchId: id,
@@ -2046,21 +2047,28 @@ export async function disputeMatchResult({ matchRequestId }) {
 
   // 되돌리기 전, 원 제출팀/상대팀을 알림 대상으로 확보
   let submitter = "";
-  try {
-    const snap = await getDoc(ref);
-    submitter = toStr(snap.exists() ? snap.data()?.result?.submittedByClubId : "");
-  } catch (e) {}
-
-  await updateDoc(ref, {
-    // ✅ 결과 초기화 → 팀장이 다시 입력할 수 있게 재오픈
-    resultState: "",
-    myScore: null,
-    oppScore: null,
-    result: null,
-    reviewRequestSent: false,
-    disputedAt: serverTimestamp(),
-    disputeCount: increment(1),
-    updatedAt: serverTimestamp(),
+  // ✅ 트랜잭션 + 가드: 이미 전적이 반영(statsAppliedAt)됐거나 종결(finished)된 경기는 되돌릴 수 없음.
+  //    (자동확정이 백그라운드로 돈 직후 stale 화면의 "이의 제기"를 누르면 이미 반영된 clubs/users 전적이
+  //     남아 유령 승/패로 랭킹이 영구 오염되던 문제 차단)
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("경기를 찾을 수 없어요.");
+    const d = snap.data() || {};
+    if (d.statsAppliedAt || toStr(d.status) === "finished") {
+      throw new Error("이미 확정된 경기라 이의를 제기할 수 없어요.");
+    }
+    submitter = toStr(d?.result?.submittedByClubId);
+    tx.update(ref, {
+      // 결과 초기화 → 팀장이 다시 입력할 수 있게 재오픈
+      resultState: "",
+      myScore: null,
+      oppScore: null,
+      result: null,
+      reviewRequestSent: false,
+      disputedAt: serverTimestamp(),
+      disputeCount: increment(1),
+      updatedAt: serverTimestamp(),
+    });
   });
 
   // 양 팀에 재입력 안내

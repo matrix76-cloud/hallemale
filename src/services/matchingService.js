@@ -6,7 +6,7 @@
 // ✅ 라인업 스냅샷 SSOT: actorLineup/targetLineup 자체 필드(memberIds/memberCount/previewMembers)
 
 import { db, auth } from "./firebase";
-import { addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
+import { addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
 import { MIN_TEAM_MEMBERS } from "../utils/constants";
@@ -32,7 +32,7 @@ async function notifyClubMembersAccepted({ matchId, clubId, opponentName }) {
     subType: "matchAccepted",
     type: "match_accepted",
     title: "매칭 성사 🎉",
-    body: `${toStr(opponentName) || "상대 팀"}과(와) 경기 조율을 시작했어요.`,
+    body: `팀장이 '${toStr(opponentName) || "상대 팀"}'과(와) 일정·구장을 조율 중이에요. 확정되면 다시 알려드릴게요!`,
     targetType: "USER",
     targetIds: uids,
     linkType: "match",
@@ -308,7 +308,7 @@ export async function createMatchRequest({
 
   // ✅ 중복 매칭 요청 방지: 두 팀 사이에 이미 진행 중인 요청/경기가 있으면 차단
   {
-    const activeStatuses = ["pending", "accepted", "proposed", "confirmed"];
+    const activeStatuses = ["pending", "accepted", "proposed", "awaiting_venue_approval", "confirmed"];
     const col = collection(db, "match_requests");
     const [s1, s2] = await Promise.all([
       getDocs(query(col, where("actorClubId", "==", _actorClubId), where("targetClubId", "==", _targetClubId))),
@@ -432,7 +432,17 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
   };
   if (acceptorUid) acceptPatch[`lastSeenBy.${acceptorUid}`] = serverTimestamp();
 
-  await updateDoc(doc(db, "match_requests", matchId), acceptPatch);
+  // ✅ 상태 가드: 이미 취소/거절/성사된 제안을 stale 인박스로 되살리지 못하게 pending일 때만 수락.
+  await runTransaction(db, async (tx) => {
+    const mref = doc(db, "match_requests", matchId);
+    const msnap = await tx.get(mref);
+    if (!msnap.exists()) throw new Error("경기를 찾을 수 없어요.");
+    const st = toStr(msnap.data()?.status);
+    if (st !== "pending") {
+      throw new Error(st === "cancelled" || st === "rejected" ? "이미 종료된 매칭 제안이에요." : "이미 처리된 매칭 제안이에요.");
+    }
+    tx.update(mref, acceptPatch);
+  });
 
   const fromTeamSnapshot = n?.fromTeamSnapshot || null;
   const toTeamSnapshot = n?.toTeamSnapshot || null;
@@ -527,11 +537,18 @@ export async function rejectMatchRequest({ myClubId, latestNoti } = {}) {
 
   if (myId !== targetClubId) throw new Error("거절 권한이 없습니다.");
 
-  await updateDoc(doc(db, "match_requests", matchId), {
-    status: "rejected",
-    updatedAt: serverTimestamp(),
-    rejectedAt: serverTimestamp(),
-    rejectedByClubId: myId,
+  // ✅ 상태 가드: pending일 때만 거절 (진행/종료된 매칭 오전이 방지)
+  await runTransaction(db, async (tx) => {
+    const mref = doc(db, "match_requests", matchId);
+    const msnap = await tx.get(mref);
+    if (!msnap.exists()) throw new Error("경기를 찾을 수 없어요.");
+    if (toStr(msnap.data()?.status) !== "pending") throw new Error("이미 처리된 매칭 제안이에요.");
+    tx.update(mref, {
+      status: "rejected",
+      updatedAt: serverTimestamp(),
+      rejectedAt: serverTimestamp(),
+      rejectedByClubId: myId,
+    });
   });
 
   const fromTeamSnapshot = n?.fromTeamSnapshot || null;
@@ -605,11 +622,19 @@ export async function cancelMatchRequest({ myClubId, latestNoti } = {}) {
 
   if (myId !== actorClubId) throw new Error("취소 권한이 없습니다.");
 
-  await updateDoc(doc(db, "match_requests", matchId), {
-    status: "cancelled",
-    updatedAt: serverTimestamp(),
-    cancelledAt: serverTimestamp(),
-    cancelledByClubId: myId,
+  // ✅ 상태 가드: 이미 종료된(취소/거절/종료) 매칭은 재취소 불가 (stale/중복 방지)
+  await runTransaction(db, async (tx) => {
+    const mref = doc(db, "match_requests", matchId);
+    const msnap = await tx.get(mref);
+    if (!msnap.exists()) throw new Error("경기를 찾을 수 없어요.");
+    const st = toStr(msnap.data()?.status);
+    if (["cancelled", "rejected", "finished"].includes(st)) throw new Error("이미 종료된 매칭이에요.");
+    tx.update(mref, {
+      status: "cancelled",
+      updatedAt: serverTimestamp(),
+      cancelledAt: serverTimestamp(),
+      cancelledByClubId: myId,
+    });
   });
 
   const fromTeamSnapshot = n?.fromTeamSnapshot || null;

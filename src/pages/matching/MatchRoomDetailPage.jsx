@@ -3818,9 +3818,10 @@ export default function MatchRoomDetailPage() {
   const isCancelled = status === "cancelled";
   const isVoided = toStr(room?.resultState) === "void"; // 결과 미입력 무효 종결
 
-  // 팀원(비팀장)은 "조율중"(accepted/proposed) 경기의 상세를 볼 수 없음 → 안내 화면으로 대체.
+  // 팀원(비팀장)은 "조율중"(pending/accepted/proposed/awaiting) 경기의 상세를 볼 수 없음 → 안내 화면으로 대체.
+  // (pending 포함: 제안 성사 알림으로 진입한 팀원이 상대 팀장과의 팬텀 채팅에 들어가 메시지를 치던 불일치 차단)
   // 확정/지난경기(finished)/취소는 팀원도 열람 가능.
-  if (isAdjusting && !isTeamLeader) {
+  if ((isAdjusting || status === "pending") && !isTeamLeader) {
     return (
       <PageWrap>
         <MemberGateWrap>
@@ -3830,6 +3831,19 @@ export default function MatchRoomDetailPage() {
             팀장이 상대 팀과 일정·구장을 조율하고 있어요.{"\n"}
             경기가 확정되면 팀원도 상세 내용을 확인할 수 있어요.
           </MemberGateText>
+          {(() => {
+            // 라인업이 확정됐다면 "내가 이번 경기에 편성됐는지"만이라도 알려준다.
+            const starters = (myLineupSnap?.memberIds || []).map(toStr);
+            const subs = (myLineupSnap?.subMemberIds || []).map(toStr);
+            const role = myLineupSnap?.confirmed
+              ? (starters.includes(myUid) ? "주전" : subs.includes(myUid) ? "후보" : "")
+              : "";
+            return role ? (
+              <MemberGateText style={{ marginTop: 6, fontWeight: 700, color: "#7C5CC9" }}>
+                ✅ 이번 경기 {role} 라인업에 편성됐어요
+              </MemberGateText>
+            ) : null;
+          })()}
           <MemberGateBtn type="button" onClick={() => goBackOrHome(navigate)}>
             돌아가기
           </MemberGateBtn>
