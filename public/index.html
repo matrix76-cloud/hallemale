@@ -25,6 +25,12 @@
 
     <title>hallemalle</title>
 
+    <!-- 루트 "/" 는 PC 폭에서 /landing/ 으로 JS redirect 되는 앱 셸이다. JS 미실행 크롤러가
+         앱 셸을 색인하지 않도록, 색인 신호를 정적 랜딩(/landing/)으로 모은다.
+         네이버 서치어드바이저 "robots.txt / 로봇 메타 태그" 주의(JS redirect) 대응. -->
+    <link rel="canonical" href="https://hallaemallae.com/landing/" />
+    <meta name="robots" content="index,follow" />
+
       <meta name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
 

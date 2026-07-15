@@ -7,6 +7,10 @@
 <meta name="description" content="우리 동네 농구팀끼리 연습경기 상대를 매칭하는 가장 쉬운 방법. 매칭·전적·랭킹·정산까지 할래말래에서.">
 <meta name="theme-color" content="#6a3df0">
 
+<!-- 루트 "/" 가 이 페이지로 JS redirect 되므로, 크롤러가 착지하는 실제 색인 대상 페이지에
+     robot 지시를 명시한다. 네이버 서치어드바이저의 "로봇 메타 태그" 주의 대응. -->
+<meta name="robots" content="index,follow">
+
 <!-- 랜딩은 /landing/ 에 배포된다(firebase.json: build/landing). 루트 "/" 는 React 앱이므로
      canonical·og:url·이미지 경로에서 /landing/ 을 빼면 크롤러가 앱 셸을 대신 읽고 색인이 깨진다. -->
 <link rel="canonical" href="https://hallaemallae.com/landing/">
