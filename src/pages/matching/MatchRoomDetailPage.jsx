@@ -142,7 +142,9 @@ const PageWrap = styled.div`
       : `min-height: calc(100vh - 56px);`}
   /* 페이지 배경을 채팅과 동일한 톤(mrp bg2)으로 통일 → 흰색/회색 섞임 방지 */
   background: ${({ theme }) => mrp(theme.mode).bg2};
-  padding: ${({ $dark }) => ($dark ? "0" : "10px 0 24px")};
+  /* 하단 safe-area(홈 인디케이터)만큼 여백을 더해, 종료/확정 화면 맨 아래 콘텐츠가 잘리지 않게 한다. */
+  padding: ${({ $dark }) =>
+    $dark ? "0" : "10px 0 calc(24px + env(safe-area-inset-bottom))"};
   display: flex;
   flex-direction: column;
 `;

@@ -13,7 +13,7 @@ import EmptyState from "../../components/common/EmptyState";
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
-  padding: 8px 16px 24px;
+  padding: 8px 16px calc(24px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
 `;

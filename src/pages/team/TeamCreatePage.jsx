@@ -26,7 +26,7 @@ const Page = styled.div`
   background: ${({ theme }) => theme.colors.bg};
   display: flex;
   justify-content: center;
-  padding: 20px 12px 32px;
+  padding: 20px 12px calc(32px + env(safe-area-inset-bottom));
 `;
 
 const Card = styled.div`

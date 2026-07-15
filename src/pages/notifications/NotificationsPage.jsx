@@ -32,7 +32,7 @@ function loadNoticeRead() {
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
   background: ${({ theme }) => theme.colors.bg};
-  padding: 16px 16px 24px;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 16px;

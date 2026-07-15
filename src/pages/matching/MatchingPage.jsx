@@ -48,7 +48,7 @@ function calcWinRatePercentFromTeam(t) {
 const Wrap = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
-  padding: 16px 10px 24px;
+  padding: 16px 10px calc(24px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 16px;

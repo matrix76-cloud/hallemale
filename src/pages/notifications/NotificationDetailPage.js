@@ -12,7 +12,7 @@ import { getNotiCategory } from "../../utils/notificationDefinitions";
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
-  padding: 12px 16px 24px;
+  padding: 12px 16px calc(24px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 12px;

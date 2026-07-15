@@ -176,7 +176,7 @@ export default function MyReservationsPage() {
 const Wrap = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
-  padding: 14px 16px 32px;
+  padding: 14px 16px calc(32px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 12px;

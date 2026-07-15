@@ -12,7 +12,7 @@ import { getPlayerProfile } from "../../services/playerService";
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
   background: ${({ theme }) => theme.colors.bg || "#f5f6fa"};
-  padding: 12px 0 24px;
+  padding: 12px 0 calc(24px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
 `;

@@ -20,7 +20,7 @@ import EmptyState from "../../components/common/EmptyState";
 const PageWrap = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors.bg};
-  padding: 12px 0 24px;
+  padding: 12px 0 calc(24px + env(safe-area-inset-bottom));
 `;
 
 const Inner = styled.div`

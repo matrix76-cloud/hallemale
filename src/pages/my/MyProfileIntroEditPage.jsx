@@ -121,7 +121,7 @@ export default function MyProfileIntroEditPage() {
 const Page = styled.div`
   min-height: 100dvh;
   background: ${({ theme }) => theme.colors.card};
-  padding: calc(16px + env(safe-area-inset-top)) 14px 32px;
+  padding: calc(16px + env(safe-area-inset-top)) 14px calc(32px + env(safe-area-inset-bottom));
   display: flex;
   justify-content: center;
 `;

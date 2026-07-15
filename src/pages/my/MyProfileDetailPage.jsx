@@ -193,7 +193,7 @@ const PageWrap = styled.div`
 /* 내용 */
 
 const Inner = styled.div`
-  padding: 0 14px 20px;
+  padding: 0 14px calc(20px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 14px;

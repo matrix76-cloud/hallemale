@@ -56,7 +56,7 @@ function timeAgo(ms) {
 const PageWrap = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.colors?.bg || "#ffffff"};
-  padding: 0 0 90px;
+  padding: 0 0 calc(90px + env(safe-area-inset-bottom));
 `;
 
 const Inner = styled.div`
