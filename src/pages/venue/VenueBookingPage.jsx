@@ -102,6 +102,7 @@ export default function VenueBookingPage() {
   const [matchInfo, setMatchInfo] = useState(null); // 매칭 두 팀 정보
   const [photosOpen, setPhotosOpen] = useState(false); // 시설 사진 전체보기 모달
   useBackInterceptor(photosOpen, () => setPhotosOpen(false)); // 사진 모달: HW 뒤로 시 페이지 이탈 대신 모달 닫기
+  useBackInterceptor(payOpen, () => setPayOpen(false)); // 예약 확정 시트: HW 뒤로 시 시트 닫기
   const heroRef = useRef(null);
   const [heroIdx, setHeroIdx] = useState(0); // 상단 구장 사진 캐러셀 현재 인덱스
   const onHeroScroll = (e) => {
@@ -192,6 +193,24 @@ export default function VenueBookingPage() {
     if (blocks.some((b) => overlap(slot.start, slot.end, b.startTime, b.endTime))) return "blocked";
     if (date === nowMin.today && toMin(slot.start) <= nowMin.min) return "past";
     return "open";
+  };
+
+  // 연속된 빈 슬롯을 눌러 범위 선택 (CourtBookingPage와 동일)
+  const onSlotClick = (s) => {
+    if (viewOnly) return;
+    if (slotState(s) !== "open") return;
+    const sS = toMin(s.start), sE = toMin(s.end);
+    if (!selected) { setSelected({ start: s.start, end: s.end }); return; }
+    const selS = toMin(selected.start), selE = toMin(selected.end);
+    if (sS === selE) return setSelected({ start: selected.start, end: s.end });
+    if (sE === selS) return setSelected({ start: s.start, end: selected.end });
+    if (sS >= selS && sE <= selE) {
+      if (selE - selS <= sE - sS) return setSelected(null);
+      if (sE === selE) return setSelected({ start: selected.start, end: s.start });
+      if (sS === selS) return setSelected({ start: s.end, end: selected.end });
+      return setSelected({ start: s.start, end: s.end });
+    }
+    setSelected({ start: s.start, end: s.end });
   };
 
   const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date) : 0;
@@ -351,26 +370,57 @@ export default function VenueBookingPage() {
       </Section>
 
       <Section>
-        <SecTitle><FiGrid size={17} />코트 선택</SecTitle>
-        <CourtList>
-          {(venue.courts || []).length === 0 ? (
-            <CourtEmpty>아직 등록된 코트가 없어요. 구장에 문의해 주세요.</CourtEmpty>
-          ) : (
-            (venue.courts || []).map((c) => (
-              <CourtCard key={c.id} type="button" onClick={() => goCourt(c)}>
-                <CourtThumb>
-                  {venue.imageUrl ? <CourtThumbImg src={venue.imageUrl} alt={c.name} /> : <FiGrid size={24} />}
-                </CourtThumb>
-                <CourtBody>
-                  <CourtCName>{c.name}</CourtCName>
-                  <CourtCSub>{c.type === "outdoor" ? "실외" : "실내"} 코트{c.surface ? ` · ${c.surface}` : ""}</CourtCSub>
-                  <CourtCPrice>{(Number(c.pricePerHour) || 0).toLocaleString()}원<small> / 시간</small></CourtCPrice>
-                </CourtBody>
-                <CourtBadge>예약 가능 ›</CourtBadge>
-              </CourtCard>
-            ))
-          )}
-        </CourtList>
+        <SecTitle><FiGrid size={17} />{viewOnly ? "예약 현황" : "예약"}</SecTitle>
+        {(venue.courts || []).length === 0 ? (
+          <CourtEmpty>아직 등록된 코트가 없어요. 구장에 문의해 주세요.</CourtEmpty>
+        ) : (
+          <>
+            {(venue.courts || []).length > 1 && (
+              <CourtChips>
+                {venue.courts.map((c) => (
+                  <CourtChip key={c.id} type="button" $on={c.id === courtId} onClick={() => setCourtId(c.id)}>
+                    {c.name}
+                  </CourtChip>
+                ))}
+              </CourtChips>
+            )}
+
+            <DateStrip>
+              {dates.map((d) => (
+                <DateCell key={d.date} $on={d.date === date} $dow={d.dow} onClick={() => setDate(d.date)}>
+                  <small>{d.wd}</small><b>{d.day}</b>
+                </DateCell>
+              ))}
+            </DateStrip>
+
+            <Legend>
+              <span className="open">예약 가능</span>
+              <span className="reserved">예약완료</span>
+              <span className="blocked">사용 불가</span>
+            </Legend>
+
+            {isClosed ? (
+              <Empty>이 요일은 휴무예요.</Empty>
+            ) : slots.length === 0 ? (
+              <Empty>운영 시간이 없어요.</Empty>
+            ) : (
+              <SlotGrid>
+                {slots.map((s, i) => {
+                  const st = slotState(s);
+                  const on = selected && toMin(s.start) >= toMin(selected.start) && toMin(s.end) <= toMin(selected.end);
+                  return (
+                    <Slot key={i} $st={st} $on={on} disabled={st !== "open"} onClick={() => onSlotClick(s)}>
+                      <b>{s.start}~{s.end}</b>
+                      <span className={st === "open" ? "price" : ""}>
+                        {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감" : `${calcSlotPrice(court, s.start, s.end, date).toLocaleString()}원`}
+                      </span>
+                    </Slot>
+                  );
+                })}
+              </SlotGrid>
+            )}
+          </>
+        )}
       </Section>
 
       {photos.length > 0 && (
@@ -507,6 +557,53 @@ export default function VenueBookingPage() {
               ))}
             </PhotosScroll>
           </PhotosModal>
+        </Sheet>
+      )}
+
+      {!viewOnly && selected && (
+        <BottomBar>
+          <div>
+            <BbDate>{date} {selected.start}~{selected.end}</BbDate>
+            <BbPrice>
+              {price.toLocaleString()}원
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>
+                {matchId ? " · 두 팀 반반" : " · 현장 정산"}
+              </span>
+            </BbPrice>
+          </div>
+          {matchId ? (
+            <BookBtn onClick={handlePropose} disabled={paying}>구장·일정 제안하기</BookBtn>
+          ) : (
+            <BookBtn onClick={() => setPayOpen(true)}>예약 요청</BookBtn>
+          )}
+        </BottomBar>
+      )}
+
+      {payOpen && selected && court && (
+        <Sheet onClick={(e) => { if (e.target === e.currentTarget) setPayOpen(false); }}>
+          <SheetCard onClick={(e) => e.stopPropagation()}>
+            <SheetTitle>예약 요청</SheetTitle>
+            <PayRow><span>{venue.name} · {court.name}</span></PayRow>
+            <PayRow><span>{date} {selected.start}~{selected.end}</span></PayRow>
+            <Divider />
+            <PayRow $big><span>이용료</span><b>{price.toLocaleString()} 원</b></PayRow>
+            <PayRow><span>결제 방식</span><b>현장 정산</b></PayRow>
+            <ChargeBox>
+              <small>결제 없이 예약을 요청해요. 구장주가 승인하면 예약이 확정되고, 이용료는 현장에서 정산해요.</small>
+            </ChargeBox>
+            <ChargeBox>
+              <small>
+                예약 취소는 마이페이지 &gt; 내 구장 예약에서 할 수 있어요.{" "}
+                {venue.refundPolicy
+                  ? `취소·노쇼 안내: ${venue.refundPolicy}`
+                  : "취소·환불·노쇼 규정은 구장 운영정책 및 「취소 및 환불 정책」을 따릅니다."}
+              </small>
+            </ChargeBox>
+            <PayBtn disabled={paying} onClick={handleRequest}>
+              {paying ? "요청 중…" : "예약 요청하기"}
+            </PayBtn>
+            <CancelBtn onClick={() => setPayOpen(false)} disabled={paying}>취소</CancelBtn>
+          </SheetCard>
         </Sheet>
       )}
 
@@ -791,6 +888,15 @@ const CourtBadge = styled.span`
   font-size: 12px; font-weight: 800; white-space: nowrap;
   background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff")};
   color: ${({ theme }) => theme.colors.primary};
+`;
+const CourtChips = styled.div`display: flex; gap: 8px; flex-wrap: wrap;`;
+const CourtChip = styled.button`
+  height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer;
+  font-size: 13px; font-weight: 700;
+  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
+  background: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.card)};
+  color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textNormal)};
+  &:active { transform: translateY(1px); }
 `;
 const DateStrip = styled.div`
   display: flex; gap: 8px; overflow-x: auto;
