@@ -296,13 +296,6 @@ export async function registerVenue({
   if (!safeStr(name)) throw new Error("구장명을 입력해주세요.");
   if (!safeStr(address)) throw new Error("주소를 입력해주세요.");
 
-  // 구장주당 1구장 제한: 워크스페이스가 단일 구장(가장 최근 것) 기준이라, 2번째 구장은
-  // 관리·정산·예약 화면에 안 보여 데드엔드가 된다 → 등록 자체를 차단(전환 UI 도입 전까지).
-  const existingVenues = await listMyVenues(ownerUid);
-  if (existingVenues.length > 0) {
-    throw new Error("이미 등록한 구장이 있어요. 현재는 구장주당 1개 구장만 운영할 수 있어요.");
-  }
-
   const cleanPhotos = arr(photos).map((p) => safeStr(p)).filter(Boolean);
   const cleanCourts = arr(courts).map((c, i) => normalizeCourt(c, i));
   if (cleanCourts.length === 0) {

@@ -5,7 +5,7 @@
 // 네이버 플레이스 상세정보(종목·주차·찾아오는길·바닥재질·대표키워드) 반영.
 import { showAlert } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
 import { useOwner } from "../../context/OwnerContext";
 import { track } from "../../utils/analytics";
@@ -39,10 +39,13 @@ const CONTENT_TOTAL = STEPS.length - 1; // intro 제외
 
 export default function OwnerOnboardingPage() {
   const navigate = useNavigate();
-  const { uid, venue, loading: ownerLoading, refresh } = useOwner();
+  const { uid, venue, loading: ownerLoading, refresh, setActiveVenue } = useOwner();
   const fileRef = useRef(null);
 
-  const editingId = venue ? venue.id : null;
+  // ?new=1 → 다구장 "구장 추가"(신규 등록). 활성 구장이 있어도 편집이 아니라 새 구장 폼으로.
+  const [searchParams] = useSearchParams();
+  const isNewVenue = searchParams.get("new") === "1";
+  const editingId = !isNewVenue && venue ? venue.id : null;
 
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
@@ -184,7 +187,9 @@ export default function OwnerOnboardingPage() {
         await updateMyVenue(editingId, payload);
         await resubmitVenue(editingId);
       } else {
-        await registerVenue(payload);
+        const created = await registerVenue(payload);
+        // 새로 추가한 구장을 바로 활성 구장으로 전환 (다구장)
+        if (created?.id && setActiveVenue) setActiveVenue(created.id);
       }
       track("owner_venue_register", { editing: !!editingId, courts: courts.length, photos: photos.length }); // ★ 핵심 공급 생성
       await refresh();

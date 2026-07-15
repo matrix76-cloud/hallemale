@@ -3,7 +3,7 @@
 // 구장주 워크스페이스 공용 상태 — 별도 ownerAuth 세션 + 내 구장 + 구장주 프로필
 import React, { createContext, useContext, useCallback, useEffect, useState } from "react";
 import { useOwnerAuth } from "../hooks/useOwnerAuth";
-import { getMyVenue } from "../services/ownerVenueService";
+import { listMyVenues } from "../services/ownerVenueService";
 import { ownerSignOut } from "../services/ownerAuthService";
 import { getUserDoc } from "../services/userService";
 import { registerFcmToken } from "../services/fcmService";
@@ -17,32 +17,53 @@ const OwnerContext = createContext(null);
 export function OwnerProvider({ children }) {
   const { firebaseUser, uid, isLoggedIn, loading: authLoading } = useOwnerAuth();
 
-  const [venue, setVenue] = useState(null);
+  const [venues, setVenues] = useState([]);          // 내 구장 전체 (다구장)
+  const [activeVenueId, setActiveVenueId] = useState(""); // 현재 관리 중인 구장
   const [userDoc, setUserDoc] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const storeKey = uid ? `owner_active_venue_${uid}` : "";
+
   const refresh = useCallback(async () => {
     if (!uid) {
-      setVenue(null);
+      setVenues([]);
+      setActiveVenueId("");
       setUserDoc(null);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const [v, u] = await Promise.all([
-        getMyVenue(uid),
+      const [vs, u] = await Promise.all([
+        listMyVenues(uid),
         getUserDoc(uid).catch(() => null),
       ]);
-      setVenue(v);
+      const list = Array.isArray(vs) ? vs : [];
+      setVenues(list);
       setUserDoc(u);
+      // 활성 구장 결정: 저장된 선택(존재하면) > 첫 번째
+      let stored = "";
+      try { stored = localStorage.getItem(`owner_active_venue_${uid}`) || ""; } catch (e) {}
+      const nextActive = stored && list.some((v) => v.id === stored) ? stored : (list[0]?.id || "");
+      setActiveVenueId(nextActive);
     } catch (e) {
       console.warn("[OwnerContext] refresh failed:", e?.message || e);
-      setVenue(null);
+      setVenues([]);
+      setActiveVenueId("");
     } finally {
       setLoading(false);
     }
   }, [uid]);
+
+  // 활성 구장 전환 (선택 영속)
+  const setActiveVenue = useCallback((id) => {
+    const vid = String(id || "");
+    setActiveVenueId(vid);
+    try { if (uid && vid) localStorage.setItem(`owner_active_venue_${uid}`, vid); } catch (e) {}
+  }, [uid]);
+
+  // 현재 관리 중인 구장 (활성 id 매칭 → 없으면 첫 번째)
+  const venue = venues.find((v) => v.id === activeVenueId) || venues[0] || null;
 
   useEffect(() => {
     if (authLoading) return;
@@ -98,7 +119,8 @@ export function OwnerProvider({ children }) {
 
   const signOut = useCallback(async () => {
     try { await ownerSignOut(); } catch {}
-    setVenue(null);
+    setVenues([]);
+    setActiveVenueId("");
     setUserDoc(null);
   }, []);
 
@@ -109,6 +131,9 @@ export function OwnerProvider({ children }) {
     isLoggedIn: !!isLoggedIn,
     authLoading,
     venue,
+    venues,
+    activeVenueId,
+    setActiveVenue,
     loading: authLoading || loading,
     refresh,
     signOut,

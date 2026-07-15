@@ -32,7 +32,7 @@ function timeAgo(d) {
 
 export default function OwnerNotificationsPage() {
   const navigate = useNavigate();
-  const { uid } = useOwner();
+  const { uid, setActiveVenue } = useOwner();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -54,6 +54,9 @@ export default function OwnerNotificationsPage() {
   }, [uid, items.length]);
 
   const openItem = (n) => {
+    // 다구장: 이 알림이 가리키는 구장으로 활성 전환 → 알림→홈이 항상 해당 구장을 보여줌(데드엔드 방지)
+    const vid = String(n?.meta?.venueId || (n?.linkType === "venue" ? n?.linkTargetId : "") || "");
+    if (vid && setActiveVenue) setActiveVenue(vid);
     const link = n?.meta?.deepLink || (n?.linkType === "venue" ? "/owner/home" : "");
     if (link && link.startsWith("/owner")) navigate(link);
   };

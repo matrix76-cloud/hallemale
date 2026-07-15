@@ -7,6 +7,7 @@ import styled from "styled-components";
 import { OwnerProvider, useOwner } from "../context/OwnerContext";
 import { listReservations } from "../services/ownerVenueService";
 import OwnerBottomTabBar from "./components/OwnerBottomTabBar";
+import OwnerVenueSwitcher from "../pages/owner/components/OwnerVenueSwitcher";
 import OwnerSpinner from "../pages/owner/components/OwnerSpinner";
 import OwnerNotifBell from "../pages/owner/components/OwnerNotifBell";
 import OwnerAgreementGate from "../pages/owner/OwnerAgreementGate";
@@ -197,6 +198,8 @@ function OwnerShell() {
           {!isHome && <CenterTitle>{getTitle(p)}</CenterTitle>}
           {hasTab && <OwnerNotifBell onClick={() => navigate("/owner/notifications")} />}
         </Header>
+
+        {hasTab && <OwnerVenueSwitcher />}
 
         <Main $hasTab={hasTab}>
           <OwnerGate />
