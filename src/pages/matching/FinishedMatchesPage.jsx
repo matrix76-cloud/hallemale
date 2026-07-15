@@ -9,6 +9,7 @@ import { listFinishedMatchesPage } from "../../services/matchRoomService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import { useClub } from "../../hooks/useClub";
 import EmptyState from "../../components/common/EmptyState";
+import { track } from "../../utils/analytics";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -224,6 +225,27 @@ const LoadMoreBtn = styled.button`
   }
 `;
 
+/* 경기 후 재대결 CTA — 최고 인텐트 순간에 한 번 더 유도 */
+const RematchBar = styled.div`
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid ${({ theme }) => theme.colors.divider};
+  display: flex;
+`;
+
+const RematchBtn = styled.button`
+  flex: 1;
+  height: 38px;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  border-radius: 10px;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+`;
+
 const EmptyCard = styled.div`
   background: ${({ theme }) => theme.colors.card};
   border-radius: 8px;
@@ -356,6 +378,7 @@ export default function FinishedMatchesPage() {
         ...r,
         isPartner: !!r?.partnerBooking,
         isVoid: toStr(r?.resultState) === "void",
+        oppClubId: oppClubIdRow,
         myLogo,
         oppLogo,
         myName,
@@ -451,6 +474,21 @@ export default function FinishedMatchesPage() {
                 </NameRow>
               </MiniTeam>
             </TeamsMini>
+
+            {r.oppClubId ? (
+              <RematchBar>
+                <RematchBtn
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    track("rematch_click", { from: "finished_matches" });
+                    nav(`/matching/analysis/${r.oppClubId}`);
+                  }}
+                >
+                  이 팀과 다시 매칭
+                </RematchBtn>
+              </RematchBar>
+            ) : null}
           </CompletedCard>
         ))}
 
