@@ -3,6 +3,7 @@ import React from "react";
 import styled from "styled-components";
 import { images, teamLogoSrc } from "../../../utils/imageAssets";
 import { WinChip, DrawChip, LoseChip } from "../../../components/common/ResultChip";
+import EmptyState from "../../../components/common/EmptyState";
 
 import FilterSearchBar from "../../../components/common/FilterSearchBar";
 import FilterBottomSheet from "../../../components/common/FilterBottomSheet";
@@ -265,7 +266,10 @@ export default function TeamOpponentListSection({
       />
 
       <TeamListCard>
-        {list.map((team, index) => {
+        {list.length === 0 ? (
+          <EmptyState compact text="조건에 맞는 팀이 없어요." sub="검색어나 필터를 바꿔보세요." />
+        ) : (
+          list.map((team, index) => {
           const summaryText = buildSummaryText(team);
           const winRatePercent = getWinRatePercent(team);
           const recentResults = getRecentResults(team, 5);
@@ -334,7 +338,8 @@ export default function TeamOpponentListSection({
               {index < list.length - 1 ? <Divider /> : null}
             </React.Fragment>
           );
-        })}
+          })
+        )}
       </TeamListCard>
 
 

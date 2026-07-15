@@ -290,6 +290,14 @@ export default function CourtBookingPage() {
             <ChargeBox>
               <small>결제 없이 예약을 요청해요. 구장주가 승인하면 예약이 확정되고, 이용료는 현장에서 정산해요.</small>
             </ChargeBox>
+            <ChargeBox>
+              <small>
+                예약 취소는 마이페이지 &gt; 내 구장 예약에서 할 수 있어요.{" "}
+                {venue.refundPolicy
+                  ? `취소·노쇼 안내: ${venue.refundPolicy}`
+                  : "취소·환불·노쇼 규정은 구장 운영정책 및 「취소 및 환불 정책」을 따릅니다."}
+              </small>
+            </ChargeBox>
             <PayBtn disabled={paying} onClick={handleRequest}>
               {paying ? "요청 중…" : "예약 요청하기"}
             </PayBtn>

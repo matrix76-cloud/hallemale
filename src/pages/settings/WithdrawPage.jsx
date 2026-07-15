@@ -18,7 +18,7 @@ const Wrap = styled.div`
 const H2 = styled.h2`
   margin: 0 0 12px;
   font-size: 18px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const Notice = styled.div`
@@ -45,7 +45,7 @@ const Label = styled.label`
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #111827;
+  color: ${({ theme }) => theme.colors.textNormal};
   padding: 12px 0;
 `;
 
@@ -60,17 +60,19 @@ const Input = styled.input`
   width: 100%;
   padding: 12px 14px;
   font-size: 14px;
-  border: 1px solid #d1d5db;
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: 8px;
   outline: none;
   &:focus {
-    border-color: #2563eb;
+    border-color: ${({ theme }) => theme.colors.primary};
   }
 `;
 
 const Help = styled.div`
   font-size: 12px;
-  color: #6b7280;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Actions = styled.div`
@@ -84,9 +86,9 @@ const CancelBtn = styled.button`
   padding: 14px;
   font-size: 15px;
   font-weight: 600;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  color: #111827;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textNormal};
   border-radius: 10px;
   cursor: pointer;
 `;

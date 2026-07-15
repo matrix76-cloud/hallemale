@@ -170,7 +170,7 @@ const ImgItemSmall = styled.img`
 `;
 
 const InputBar = styled.div`
-  padding: 8px 12px 12px;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid ${({ theme }) => theme.colors.border || "#e5e7eb"};
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.card : "#f9fafb"};
