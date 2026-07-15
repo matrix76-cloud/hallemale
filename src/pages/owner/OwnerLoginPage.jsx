@@ -13,6 +13,7 @@ import {
 import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
 import { images } from "../../utils/imageAssets";
+import { track } from "../../utils/analytics";
 
 export default function OwnerLoginPage() {
   const navigate = useNavigate();
@@ -63,6 +64,7 @@ export default function OwnerLoginPage() {
         showAlert(res?.error_message || "요청을 처리하지 못했어요.");
         return;
       }
+      track("owner_login"); // 공급 퍼널 — 구장주 재방문 로그인
       // 성공 시 화면 전환은 위 useEffect(인증 상태 변화 감지)에 일임한다.
     } finally {
       setBusy(false);

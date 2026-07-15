@@ -2,9 +2,10 @@
 // src/pages/owner/components/VenueGateNotice.jsx
 // 구장 미등록/심사중/반려를 막지 않고 '안내(인포)'로 보여주는 카드.
 // 잠금 미리보기(LockedPreview) 앞면에 올라간다.
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import styled, { keyframes } from "styled-components";
+import { track } from "../../../utils/analytics";
 import { FiMapPin, FiClock, FiAlertCircle, FiArrowRight, FiRefreshCw, FiMessageCircle } from "react-icons/fi";
 import { PrimaryBtn, GhostBtn } from "./ownerUi";
 
@@ -113,6 +114,9 @@ const RefreshBtn = styled(GhostBtn)`
 export default function VenueGateNotice({ venue, refresh }) {
   const navigate = useNavigate();
   const status = !venue ? "none" : venue.status;
+
+  // 승인 게이트 노출 계측 — 미등록/심사중/반려 각 단계 유입량(공급 퍼널 데드엔드 정량화)
+  useEffect(() => { track("owner_venue_gate_view", { status }); }, [status]);
 
   if (status === "pending") {
     return (

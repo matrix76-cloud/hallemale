@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { ownerSignUpEmail } from "../../services/ownerAuthService";
 import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
+import { track } from "../../utils/analytics";
 
 export default function OwnerSignupPage() {
   const navigate = useNavigate();
@@ -39,6 +40,7 @@ export default function OwnerSignupPage() {
         showAlert(res?.error_message || "가입에 실패했어요.");
         return;
       }
+      track("owner_signup"); // 공급 퍼널 최상단 — 구장주 가입
       // 성공 시 화면 전환은 위 useEffect(인증 상태 변화 감지)에 일임한다.
     } finally {
       setBusy(false);

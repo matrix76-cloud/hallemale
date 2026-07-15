@@ -8,6 +8,7 @@ import { ownerSignOut } from "../services/ownerAuthService";
 import { getUserDoc } from "../services/userService";
 import { registerFcmToken } from "../services/fcmService";
 import { parseAppMessage, isInWebView, postToApp } from "../bridge/webviewBridge";
+import { identify } from "../utils/analytics";
 import { db } from "../services/firebase";
 import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 
@@ -47,6 +48,11 @@ export function OwnerProvider({ children }) {
     if (authLoading) return;
     refresh();
   }, [authLoading, refresh]);
+
+  // 퍼널 계측: 구장주 세션 식별 — 이후 owner_* 이벤트를 role:owner + 구장주 uid로 묶는다
+  useEffect(() => {
+    if (uid) identify(uid, { role: "owner" });
+  }, [uid]);
 
   // 예약 알림 푸시 수신용 FCM 토큰 등록 (오너 uid = users 문서 id)
   useEffect(() => {

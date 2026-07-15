@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { useOwner } from "../../context/OwnerContext";
+import { track } from "../../utils/analytics";
 import { uploadVenueImage } from "../../services/venuesService";
 import {
   registerVenue,
@@ -126,6 +127,9 @@ export default function OwnerOnboardingPage() {
     setKeywordInput("");
   };
 
+  // 온보딩 진입 1회 기록 (공급 퍼널: 가입→온보딩 진입)
+  useEffect(() => { track("owner_onboarding_view"); }, []);
+
   const id = STEPS[step];
 
   // 단계별 다음 진행 가능 여부
@@ -143,6 +147,7 @@ export default function OwnerOnboardingPage() {
       if (id === "courts") return showAlert("코트 이름을 모두 입력해주세요.");
       return;
     }
+    track("owner_onboarding_step", { step: id }); // 어느 단계에서 이탈하는지 정량화
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   };
   const goBack = () => (step === 0 ? navigate(-1) : setStep((s) => s - 1));
@@ -164,6 +169,7 @@ export default function OwnerOnboardingPage() {
       } else {
         await registerVenue(payload);
       }
+      track("owner_venue_register", { editing: !!editingId, courts: courts.length, photos: photos.length }); // ★ 핵심 공급 생성
       await refresh();
       navigate("/owner/home", { replace: true });
     } catch (e) {

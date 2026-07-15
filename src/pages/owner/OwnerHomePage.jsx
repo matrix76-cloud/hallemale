@@ -13,6 +13,7 @@ import {
 } from "../../services/ownerVenueService";
 import { useUIActions } from "../../hooks/useUI";
 import { formatPhoneE164 as formatPhone } from "../../utils/phone";
+import { track } from "../../utils/analytics";
 import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, Input, PrimaryBtn, GhostBtn, DangerBtn, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerFooter from "./components/OwnerFooter";
@@ -194,6 +195,7 @@ export default function OwnerHomePage(){
     setBusy(true);
     try{
       await setReservationStatus(r.id,"confirmed",{ownerNote:approveNote.trim()});
+      track("owner_reservation_approve", { is_match: !!r.matchId }); // 운영 전환 — 예약 승인
       await load();
       setApproveTarget(null); setDetailResv(null);
       toast("예약을 승인했어요.");
@@ -203,7 +205,7 @@ export default function OwnerHomePage(){
   const rejectResv=async(r)=>{
     const isMatch=!!r.matchId;
     if(!await ask({title:"예약 반려",message:`${nm(r)} 예약을 반려할까요?${isMatch?"\n두 팀에 반려 알림이 가고, 다른 구장·시간으로 다시 제안할 수 있어요.":""}`,confirmLabel:"반려",danger:true}))return;
-    setBusy(true);try{await rejectReservation(r.id);await load();toast("예약을 반려했어요.");}catch(e){toast(e?.message||"반려에 실패했어요.");}finally{setBusy(false);}
+    setBusy(true);try{await rejectReservation(r.id);track("owner_reservation_reject", { is_match: isMatch });await load();toast("예약을 반려했어요.");}catch(e){toast(e?.message||"반려에 실패했어요.");}finally{setBusy(false);}
   };
   const markDone=async(r)=>{
     if(!await ask({title:"이용 완료 처리",message:`${nm(r)} 예약을 이용 완료로 처리할까요?`,confirmLabel:"완료 처리"}))return;
