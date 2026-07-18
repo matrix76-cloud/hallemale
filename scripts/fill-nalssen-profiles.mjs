@@ -1,6 +1,7 @@
 // 날쎈초급이 팀원들의 개인 프로필(실력/포지션/키/몸무게/소개)을 채운다.
 // - 비어있는 필드만 채움(기존 값은 유지). skillLevel 위주.
-// Firestore 규칙이 전면 허용이라 클라이언트 SDK로 인증 없이 동작.
+// ⚠️ firestore.rules 강화(2026-07)로 비로그인 쓰기 차단(allow write: if signedIn()) — 그대로 실행하면
+//    PERMISSION_DENIED. 쓰기하려면 로그인 필요(add-ai-members.mjs 의 --email/--pw 방식 참고).
 // 사용: node scripts/fill-nalssen-profiles.mjs          → 조회만 (dry-run)
 //       node scripts/fill-nalssen-profiles.mjs --apply  → 실제 반영
 

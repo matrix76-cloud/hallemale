@@ -3,7 +3,8 @@
 // - users/{uid} 선수 실데이터 생성 (activeTeamId = 청춘사자 clubId)
 //   → PlayerProfilePage / TeamProfilePage 가 users doc 을 조인해 렌더링하므로
 //     users doc 에 프로필 필드를 모두 채운다.
-// Firestore 규칙이 전면 허용이라 클라이언트 SDK로 인증 없이 동작.
+// ⚠️ firestore.rules 강화(2026-07)로 비로그인 쓰기 차단(allow write: if signedIn()) — 그대로 실행하면
+//    PERMISSION_DENIED. 쓰기하려면 로그인 필요(add-ai-members.mjs 의 --email/--pw 방식 참고).
 // 사용: node scripts/add-members-cheongchunsaja.mjs          → 조회만 (dry-run)
 //       node scripts/add-members-cheongchunsaja.mjs --apply  → 실제 추가
 

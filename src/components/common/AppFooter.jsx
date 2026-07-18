@@ -160,11 +160,13 @@ export default function AppFooter({
     { label: "개인정보처리방침" },
   ],
   contact = {
+    phone: "070-8065-7687",
     email: "hallae@ilsaeng.com",
   },
   company = {
     operatorLine: "상호 일생 | 대표 한주성",
     bizNo: "사업자등록번호 225-06-57521",
+    commerceNo: "통신판매업 신고번호 제2026-화도수-0449호",
     address:
       "주소 경기도 남양주시 화도읍 마석중앙로37번길 45, 504호-N141호(별나라프라자)",
   },

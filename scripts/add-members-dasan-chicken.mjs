@@ -1,7 +1,8 @@
 // 다산왕 / 치킨덕소 두 팀에 각각 AI 선수 6명씩 추가.
 // - clubs/{clubId}/members/{uid} 멤버 ref 생성
 // - users/{uid} 선수 실데이터 생성 (activeTeamId = 해당 clubId, 팀 지역 상속)
-// Firestore 규칙 전면 허용 → 클라이언트 SDK로 인증 없이 동작.
+// ⚠️ firestore.rules 강화(2026-07)로 비로그인 쓰기 차단(allow write: if signedIn()) — 그대로 실행하면
+//    PERMISSION_DENIED. 쓰기하려면 로그인 필요(add-ai-members.mjs 의 --email/--pw 방식 참고).
 // 사용: node scripts/add-members-dasan-chicken.mjs          → 조회만 (dry-run)
 //       node scripts/add-members-dasan-chicken.mjs --apply  → 실제 추가
 

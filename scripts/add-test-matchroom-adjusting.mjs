@@ -1,7 +1,8 @@
 // 리바운드5 vs 날쎈초급이 "조율중(accepted)" 매칭룸을 하나 생성한다 (테스트용).
 // - match_requests/{autoId} 문서 생성 (status: "accepted" → 매칭룸 리스트 "조율중 경기" 탭에 표시)
 // - 라인업은 비워둠(수락 후 룸에서 각 팀이 확정하는 실제 흐름과 동일)
-// Firestore 규칙이 전면 허용이라 클라이언트 SDK로 인증 없이 동작.
+// ⚠️ firestore.rules 강화(2026-07)로 비로그인 쓰기 차단(allow write: if signedIn()) — 그대로 실행하면
+//    PERMISSION_DENIED. 쓰기하려면 로그인 필요(add-ai-members.mjs 의 --email/--pw 방식 참고).
 // 사용: node scripts/add-test-matchroom-adjusting.mjs          → 조회만 (dry-run)
 //       node scripts/add-test-matchroom-adjusting.mjs --apply  → 실제 생성
 

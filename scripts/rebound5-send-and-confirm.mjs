@@ -3,7 +3,8 @@
 // - 리바운드5의 라인업(fromLineupSnapshot 또는 toLineupSnapshot)을 confirmed:true 로 채운다.
 // - chatRooms/match_{roomId} 에 "라인업 확정" 시스템 메시지 + 리바운드5 팀장의 채팅 메시지를 남긴다.
 // - 리바운드5 팀장의 lastReadAtBy 를 now 로 갱신 → 상대(날쎈초급이) 화면에서 내 메시지가 "읽음" 으로 보임.
-// Firestore 규칙이 전면 허용이라 클라이언트 SDK로 인증 없이 동작.
+// ⚠️ firestore.rules 강화(2026-07)로 비로그인 쓰기 차단(allow write: if signedIn()) — 그대로 실행하면
+//    PERMISSION_DENIED. 쓰기하려면 로그인 필요(add-ai-members.mjs 의 --email/--pw 방식 참고).
 // 사용: node scripts/rebound5-send-and-confirm.mjs          → 조회만 (dry-run)
 //       node scripts/rebound5-send-and-confirm.mjs --apply  → 실제 반영
 

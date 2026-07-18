@@ -53,13 +53,13 @@ const POOL = [
 ];
 const ZERO = { wins: 0, losses: 0, draws: 0, totalMatches: 0, winRate: 0, recentResults: [] };
 
-// 규칙이 allow-all이면 로그인 불필요. 강화 규칙에서는 --email/--pw 로 로그인해야 쓰기 통과.
+// 현행 규칙(2026-07 강화)은 --email/--pw 로 로그인해야 쓰기가 통과한다. 익명 로그인은 막혀 있음.
 if (EMAIL && PW) {
   console.log(`🔑 로그인: ${EMAIL}`);
   await signInWithEmailAndPassword(auth, EMAIL, PW);
   console.log("   ✓ 로그인 성공\n");
 } else {
-  console.log("ℹ️  비로그인 모드 (규칙 allow-all 전제). 강화 규칙이면 --email/--pw 필요.\n");
+  console.log("⚠️  비로그인 모드 — 조회는 되지만 --apply 시 PERMISSION_DENIED 로 실패합니다. --email/--pw 필요.\n");
 }
 
 const allSnap = await getDocs(collection(db, "clubs"));

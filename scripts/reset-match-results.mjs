@@ -2,7 +2,8 @@
 // - finished(또는 결과 입력된) match_requests → confirmed(결과 미입력)로 되돌림
 //   (status=confirmed, resultState/result/점수/statsAppliedAt 제거, 일정·구장은 유지)
 // - 관련 팀(clubs)·멤버(users) 전적(stats)을 0으로 초기화 → 0승 0무 0패
-// Firestore 규칙이 전면 허용이라 클라이언트 SDK로 인증 없이 동작.
+// ⚠️ firestore.rules 강화(2026-07)로 비로그인 쓰기 차단(allow write: if signedIn()) — 그대로 실행하면
+//    PERMISSION_DENIED. 쓰기하려면 로그인 필요(add-ai-members.mjs 의 --email/--pw 방식 참고).
 // 사용: node scripts/reset-match-results.mjs          → 조회만 (dry-run)
 //       node scripts/reset-match-results.mjs --apply  → 실제 리셋
 
