@@ -8,10 +8,9 @@ const { getUsersFcmInfoBatch, getAllUsersFcmInfo, removeStaleToken } = require("
 
 const BATCH_SIZE = 50;
 
-// ✅ 푸시 알림 브랜딩: 기본 로고 이미지 + 브랜드 색상(작은 아이콘 틴트)
-// - imageUrl: Android 확장 시 BigPicture / iOS 리치 알림 이미지로 로고를 크게 노출
+// ✅ 푸시 알림 브랜딩: 브랜드 색상(작은 아이콘 틴트)
 // - color: 안드로이드 상단바 작은 아이콘 틴트(브랜드 보라)
-const PUSH_LOGO_URL = "https://halle-bf789.web.app/push-logo.png";
+// 큰 이미지는 기본으로 붙이지 않는다. 알림마다 로고가 크게 깔리면 내용이 밀린다.
 const BRAND_COLOR = "#7C5CFF";
 
 /**
@@ -163,8 +162,8 @@ async function processNotification(noti, userInfoMap, messaging) {
   const title = String(noti.title || "").trim() || "알림";
   const body = String(noti.body || "").trim();
   const deepLink = noti.meta?.deepLink || noti.deepLink || "";
-  // 알림이 자체 이미지를 지정했으면 그걸, 없으면 브랜드 로고를 크게 노출
-  const imageUrl = String(noti.imageUrl || noti.meta?.imageUrl || PUSH_LOGO_URL);
+  // 알림이 자체 이미지를 지정한 경우에만 큰 이미지를 붙인다(로고 기본값 없음)
+  const imageUrl = String(noti.imageUrl || noti.meta?.imageUrl || "").trim();
 
   const messages = tokens.map(({ token }) => ({
     token,
@@ -176,21 +175,21 @@ async function processNotification(noti, userInfoMap, messaging) {
       type: noti.type || "",
     },
     // Android: 절전모드(Doze)에서도 즉시 배달되도록 high priority + 고중요도 채널 지정
-    // + 브랜드 색상 틴트 + 확장 시 로고 이미지(작게 보이던 로고를 크게 노출)
+    // + 브랜드 색상 틴트. imageUrl 은 알림이 직접 지정했을 때만 실린다.
     android: {
       priority: "high",
       notification: {
         channelId: "hallamalle_default",
         sound: "default",
         color: BRAND_COLOR,
-        imageUrl,
+        ...(imageUrl ? { imageUrl } : {}),
       },
     },
-    // iOS: APNs 최우선순위(10)로 즉시 배달 + 리치 알림 이미지(로고)
+    // iOS: APNs 최우선순위(10)로 즉시 배달. 리치 알림은 이미지가 있을 때만.
     apns: {
       headers: { "apns-priority": "10" },
-      payload: { aps: { sound: "default", "mutable-content": 1 } },
-      fcmOptions: { imageUrl },
+      payload: { aps: { sound: "default", ...(imageUrl ? { "mutable-content": 1 } : {}) } },
+      ...(imageUrl ? { fcmOptions: { imageUrl } } : {}),
     },
     webpush: {
       fcmOptions: {
