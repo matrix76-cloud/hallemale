@@ -968,7 +968,9 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
   // 승인(confirmed)/노쇼(noshow) 시 후속 통보
   if (next === "confirmed" || next === "noshow") {
     try {
-      const data = { ...cur, id: rid, status: next };
+      // cur 는 updateDoc 이전 스냅샷이라 방금 저장한 ownerNote 가 없다.
+      // 빠뜨리면 확정 카드(partnerBooking.ownerNote)·확정 알림에 안내글이 비어서 나간다.
+      const data = { ...cur, id: rid, status: next, ...(next === "confirmed" ? { ownerNote } : {}) };
       // 매칭 예약: 승인→경기 확정 동기화 / 노쇼→매칭룸 조율중 복귀 + 양 팀장 알림
       if (safeStr(data.matchId)) {
         await syncMatchOnReservationChange(data, next === "confirmed" ? "approved" : "noshow");
@@ -1039,10 +1041,10 @@ export async function listMyReservations(uid) {
   const snap = await getDocs(
     query(collection(db, "venueReservations"), where("userId", "==", u))
   );
-  let rows = [];
+  const rows = [];
   snap.forEach((d) => rows.push(reservationRow(d)));
-  // 매칭 분할예약(matchId 보유)은 매칭룸에서 관리하므로 개인 예약 목록에서 제외
-  rows = rows.filter((r) => !r.matchId);
+  // 매칭 분할예약(matchId 보유)도 함께 노출한다 — "내 구장 예약"에 내 예약이 다 보여야
+  // 사용자가 누락으로 오해하지 않는다. 단 취소·변경은 매칭룸에서만(화면에서 차단).
   rows.sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? 1 : -1;
     return a.startTime < b.startTime ? 1 : a.startTime > b.startTime ? -1 : 0;

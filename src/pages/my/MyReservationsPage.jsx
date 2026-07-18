@@ -43,6 +43,9 @@ function isFuture(r) {
   return Number.isFinite(t) && t >= Date.now();
 }
 function canCancel(r) {
+  // 매칭 예약은 여기서 취소 불가. cancelMyReservation 은 match_requests 를 동기화하지 않아
+  // 예약만 취소되고 경기는 confirmed 로 남는다. 취소는 매칭룸 경로로만.
+  if (toStr(r.matchId)) return false;
   return ["requested", "confirmed"].includes(toStr(r.status)) && isFuture(r);
 }
 
@@ -217,6 +220,16 @@ export default function MyReservationsPage() {
                 <CancelHint>이용 시작 전까지 취소할 수 있어요. 노쇼·당일 취소는 삼가주세요.</CancelHint>
               ) : null}
 
+              {/* 매칭 예약: 취소·변경은 매칭룸에서만 가능하므로 그쪽으로 보낸다 */}
+              {r.matchId && !["rejected", "cancelled", "noshow", "done"].includes(r.status) ? (
+                <MatchHint
+                  type="button"
+                  onClick={() => navigate(`/match-roomdetail/${r.matchId}`)}
+                >
+                  매칭 경기 예약이에요. 취소·변경은 매칭룸에서 →
+                </MatchHint>
+              ) : null}
+
               {r.status === "done" && r.venueId ? (
                 <ReviewBtn type="button" onClick={() => openReview(r)}>⭐ 리뷰 쓰기</ReviewBtn>
               ) : null}
@@ -361,6 +374,19 @@ const CancelHint = styled.div`
   font-size: 11.5px;
   line-height: 1.5;
   color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const MatchHint = styled.button`
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 11.5px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.primary};
+  cursor: pointer;
+  text-align: left;
 `;
 
 const BottomRow = styled.div`
