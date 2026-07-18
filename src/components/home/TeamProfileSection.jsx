@@ -1,11 +1,10 @@
 /* eslint-disable */
 // src/components/home/TeamProfileSection.jsx
 import React from "react";
-import styled, { css } from "styled-components";
+import styled from "styled-components";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
 import { FiMessageSquare, FiCheckCircle, FiFlag, FiXCircle } from "react-icons/fi";
-import { useUIContext } from "../../context/UIContext";
 
 const SectionWrap = styled.section`
   display: flex;
@@ -349,46 +348,19 @@ const AttentionBadge = styled.span`
 
 
 /* ✅ 팀 미가입 시: 카드는 보이되 잠금(블러+클릭 차단) + 안내 오버레이 */
-const LockWrap = styled.div`
-  position: relative;
+const CardsWrap = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
 `;
 
-const DimArea = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  ${({ $locked }) =>
-    $locked &&
-    css`
-      pointer-events: none;
-      user-select: none;
-      filter: blur(1.5px) grayscale(0.15);
-      opacity: 0.6;
-    `}
-`;
-
-/* 팀 미가입 시 카드 위에 뜨는 안내 + CTA 오버레이 (DimArea는 pointer-events:none이므로 별도 레이어) */
-const LockOverlay = styled.div`
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-`;
-
+/* 팀 미가입 시 카드들을 대신하는 안내 + CTA (겹치지 않게 흐름 안에 그대로 배치) */
 const LockCard = styled.div`
   width: 100%;
-  max-width: 320px;
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
-  padding: 20px 18px;
+  padding: 24px 18px;
   text-align: center;
 `;
 
@@ -444,15 +416,10 @@ function toInt(n, fallback = 0) {
 
 export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, matchRoomAttention, matchRoomUnread }) {
   const navigate = useNavigate();
-  const { showModal, hideModal } = useUIContext();
 
-  // ✅ 팀 미가입: 카드는 그대로 보여주되, 클릭 시 가입/생성 유도 모달만 띄운다
+  // ✅ 팀 미가입: 아래에서 안내 카드로 대체 렌더한다(빈 카드를 깔지 않는다)
   const locked = !team;
-  const safeTeam = team || {
-    name: "우리 팀",
-    description: "아직 소속된 팀이 없어요. 팀에 가입하거나 팀을 만들어 보세요.",
-    tags: [],
-  };
+  const safeTeam = team || {};
 
   const logoSrc = teamLogoSrc(
     (safeTeam.logoUrl && String(safeTeam.logoUrl).trim()) ||
@@ -509,16 +476,6 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
 
 
   const handleGoMyTeamDetail = () => {
-    // 팀 없는 사용자: 팀 상세 대신 가입/생성 유도 모달
-    if (locked) {
-      showModal({
-        title: "아직 팀이 없어요",
-        message: "팀에 가입하거나 팀을 만들면 이용할 수 있어요. 팀 만들기로 이동할까요?",
-        onCancel: hideModal,
-        onConfirm: () => navigate("/team/create"),
-      });
-      return;
-    }
     const teamId = team?.clubId || team?.id;
     if (!teamId) return;
     navigate(`/team/${teamId}`);
@@ -537,12 +494,36 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
     navigate(`/match-roomlist?tab=${encodeURIComponent(t)}`);
   };
 
+  // 팀 미가입: 빈 카드(0명·0·0·0·0)를 흐리게 깔지 않고 안내 카드 하나로 대체한다
+  if (locked) {
+    return (
+      <SectionWrap>
+        <SectionTitle>팀 프로필</SectionTitle>
+
+        <LockCard>
+          <LockTitle>아직 소속된 팀이 없어요</LockTitle>
+          <LockMsg>
+            팀을 만들거나 받은 초대를 수락하면<br />
+            매칭·랭킹을 이용할 수 있어요.
+          </LockMsg>
+          <LockBtnRow>
+            <LockPrimary type="button" onClick={() => navigate("/team/create")}>
+              팀 만들기
+            </LockPrimary>
+            <LockGhost type="button" onClick={() => navigate("/my/team-invites")}>
+              받은 초대
+            </LockGhost>
+          </LockBtnRow>
+        </LockCard>
+      </SectionWrap>
+    );
+  }
+
   return (
     <SectionWrap>
       <SectionTitle>팀 프로필</SectionTitle>
 
-      <LockWrap>
-        <DimArea>
+      <CardsWrap>
       <ProfileRow>
       <ProfileCard onClick={handleGoMyTeamDetail}>
         <ProfileDeco src={images.emoji3dTrophy} alt="" />
@@ -624,28 +605,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
           <MatchRoomDeco src={images.emoji3dFolder} alt="" />
         </MatchRoomCard>
       </ActionsCol>
-        </DimArea>
-
-        {locked && (
-          <LockOverlay>
-            <LockCard>
-              <LockTitle>아직 소속된 팀이 없어요</LockTitle>
-              <LockMsg>
-                팀을 만들거나 받은 초대를 수락하면<br />
-                매칭·랭킹을 이용할 수 있어요.
-              </LockMsg>
-              <LockBtnRow>
-                <LockPrimary type="button" onClick={() => navigate("/team/create")}>
-                  팀 만들기
-                </LockPrimary>
-                <LockGhost type="button" onClick={() => navigate("/my/team-invites")}>
-                  받은 초대
-                </LockGhost>
-              </LockBtnRow>
-            </LockCard>
-          </LockOverlay>
-        )}
-      </LockWrap>
+      </CardsWrap>
     </SectionWrap>
   );
 }
