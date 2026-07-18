@@ -10,6 +10,15 @@ import { updateUserProfile } from "../../services/userService";
 const HEIGHT_OPTIONS = Array.from({ length: 61 }).map((_, idx) => 150 + idx);
 const WEIGHT_OPTIONS = Array.from({ length: 56 }).map((_, idx) => 45 + idx);
 
+// 출생연도: 만 14세 이상만 가입 가능(약관 제8조)하므로 상한을 올해-14 로 둔다.
+// 최근 연도가 위로 오도록 내림차순.
+const CURRENT_YEAR = new Date().getFullYear();
+const BIRTH_YEAR_MAX = CURRENT_YEAR - 14;
+const BIRTH_YEAR_MIN = CURRENT_YEAR - 80;
+const BIRTH_YEAR_OPTIONS = Array.from({ length: BIRTH_YEAR_MAX - BIRTH_YEAR_MIN + 1 }).map(
+  (_, idx) => BIRTH_YEAR_MAX - idx
+);
+
 export default function MyProfileBodyEditPage() {
   const nav = useNavigate();
   const { userDoc, loading, refreshUser } = useAuth();
@@ -17,6 +26,7 @@ export default function MyProfileBodyEditPage() {
 
   const [heightCm, setHeightCm] = useState("");
   const [weightKg, setWeightKg] = useState("");
+  const [birthYear, setBirthYear] = useState("");
   const [didInit, setDidInit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -28,6 +38,7 @@ export default function MyProfileBodyEditPage() {
     setWeightKg(
       userDoc?.weightKg === 0 || userDoc?.weightKg ? String(userDoc.weightKg) : ""
     );
+    setBirthYear(userDoc?.birthYear ? String(userDoc.birthYear) : "");
     setDidInit(true);
   }, [uid, loading, didInit, userDoc]);
 
@@ -39,6 +50,7 @@ export default function MyProfileBodyEditPage() {
         uid,
         heightCm: heightCm ? Number(heightCm) : null,
         weightKg: weightKg ? Number(weightKg) : null,
+        birthYear: birthYear ? Number(birthYear) : null,
       });
       try { await refreshUser?.(); } catch (e) {}
       nav(-1);
@@ -54,7 +66,7 @@ export default function MyProfileBodyEditPage() {
       <Card>
         <Header>
           <BackBtn type="button" onClick={() => nav(-1)} aria-label="뒤로">‹</BackBtn>
-          <Title>키 · 몸무게</Title>
+          <Title>키 · 몸무게 · 출생연도</Title>
         </Header>
 
         <FieldGroup>
@@ -79,6 +91,19 @@ export default function MyProfileBodyEditPage() {
               </option>
             ))}
           </Select>
+        </FieldGroup>
+
+        <FieldGroup>
+          <Label>출생연도</Label>
+          <Select value={birthYear || ""} onChange={(e) => setBirthYear(e.target.value)}>
+            <option value="">선택 안 함</option>
+            {BIRTH_YEAR_OPTIONS.map((y) => (
+              <option key={y} value={y}>
+                {y}년
+              </option>
+            ))}
+          </Select>
+          <FieldHint>능력치 계산과 프로필 나이 표시에 쓰여요. 다른 이용자에게는 나이로만 보여요.</FieldHint>
         </FieldGroup>
 
         <ActionsRow>
@@ -161,6 +186,13 @@ const Select = styled.select`
     border-color: ${({ theme }) => theme.colors.primary};
     background: ${({ theme }) => theme.colors.card};
   }
+`;
+
+const FieldHint = styled.p`
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const ActionsRow = styled.div`

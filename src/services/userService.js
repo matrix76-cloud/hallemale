@@ -85,6 +85,7 @@ export const ensureUserDoc = async ({ uid, email, provider = "", phoneE164 = "",
         skillLevel: null,
         heightCm: null,
         weightKg: null,
+        birthYear: null,
         intro: "",
         careers: [],
 
@@ -250,6 +251,7 @@ export const updateUserProfile = async ({
   skillLevel,
   heightCm,
   weightKg,
+  birthYear,
 
   intro,
   careers,
@@ -318,6 +320,7 @@ export const updateUserProfile = async ({
 
   if (typeof heightCm === "number" || heightCm === null) payload.heightCm = heightCm;
   if (typeof weightKg === "number" || weightKg === null) payload.weightKg = weightKg;
+  if (typeof birthYear === "number" || birthYear === null) payload.birthYear = birthYear;
 
   if (typeof intro === "string") payload.intro = intro;
   if (Array.isArray(careers)) payload.careers = careers;

@@ -216,8 +216,9 @@ export default function MyProfileEditPage() {
   const bodyPreview = (() => {
     const h = userDoc?.heightCm ? `${userDoc.heightCm}cm` : "";
     const w = userDoc?.weightKg ? `${userDoc.weightKg}kg` : "";
-    if (h && w) return `${h} · ${w}`;
-    return h || w || "선택 안 함";
+    const y = userDoc?.birthYear ? `${userDoc.birthYear}년생` : "";
+    const parts = [h, w, y].filter(Boolean);
+    return parts.length > 0 ? parts.join(" · ") : "선택 안 함";
   })();
 
   const introPreview = (() => {
@@ -242,7 +243,7 @@ export default function MyProfileEditPage() {
   // 팀 가입 신청은 마이페이지(내 정보)로 분리됨 — 여기 상세 프로필 메뉴에는 두지 않는다.
   const detailMenus = [
     { key: "skills", label: "포지션 · 실력", value: skillsPreview, to: "/my/profile/edit/skills" },
-    { key: "body", label: "키 · 몸무게", value: bodyPreview, to: "/my/profile/edit/body" },
+    { key: "body", label: "키 · 몸무게 · 출생연도", value: bodyPreview, to: "/my/profile/edit/body" },
     { key: "intro", label: "소개 · 경력", value: introPreview, to: "/my/profile/edit/intro" },
     { key: "media", label: "경기 소개 · 사진/동영상", value: mediaPreview, to: "/my/profile/edit/media" },
   ];
