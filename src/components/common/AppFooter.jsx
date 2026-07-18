@@ -166,7 +166,7 @@ export default function AppFooter({
   company = {
     operatorLine: "상호 일생 | 대표 한주성",
     bizNo: "사업자등록번호 225-06-57521",
-    commerceNo: "통신판매업 신고번호 제2026-화도수-0449호",
+    commerceNo: "통신판매업 신고번호 제2026-화도수동-0449호",
     address:
       "주소 경기도 남양주시 화도읍 마석중앙로37번길 45, 504호-N141호(별나라프라자)",
   },

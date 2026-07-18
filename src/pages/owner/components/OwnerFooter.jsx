@@ -36,7 +36,7 @@ export const OWNER_BUSINESS = {
   company: "일생",
   ceo: "한주성",
   bizNo: "225-06-57521",
-  commerceNo: "제2026-화도수-0449호",
+  commerceNo: "제2026-화도수동-0449호",
   address: "경기도 남양주시 화도읍 마석중앙로37번길 45, 504호-N141호(별나라프라자)",
   tel: "070-8065-7687",
   email: "hallae@ilsaeng.com",
