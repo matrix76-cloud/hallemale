@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { LuBell } from "react-icons/lu";
 import { useOwner } from "../../../context/OwnerContext";
 import { subscribeNotificationsForUser, computeReadForUi } from "../../../services/notificationService";
+import { NOTI_AUDIENCE } from "../../../utils/notificationDefinitions";
 import { C } from "./od";
 
 export default function OwnerNotifBell({ onClick }) {
@@ -14,7 +15,8 @@ export default function OwnerNotifBell({ onClick }) {
 
   useEffect(() => {
     if (!uid) { setUnread(0); return; }
-    const unsub = subscribeNotificationsForUser({ uid }, (items) => {
+    // ✅ 구장 관련 알림만 카운트 (사용자앱 알림이 구장주 배지에 잡히던 문제)
+    const unsub = subscribeNotificationsForUser({ uid, audience: NOTI_AUDIENCE.OWNER }, (items) => {
       const withRead = computeReadForUi({ items, uid });
       setUnread(withRead.filter((x) => !x.read).length);
     });

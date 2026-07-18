@@ -94,6 +94,7 @@ export default function OwnerVenuePage() {
   const [phone, setPhone] = useState("");
   const [rules, setRules] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
+  const [defaultOwnerNote, setDefaultOwnerNote] = useState("");
   const [uploading, setUploading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -121,6 +122,7 @@ export default function OwnerVenuePage() {
     setPhone(venue.phone || "");
     setRules(venue.rules || "");
     setRefundPolicy(venue.refundPolicy || "");
+    setDefaultOwnerNote(venue.defaultOwnerNote || "");
   }, [venue?.id]); // eslint-disable-line
 
   if (loading) return <OwnerSpinner label="불러오는 중…" />;
@@ -176,7 +178,7 @@ export default function OwnerVenuePage() {
         address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
         photos: photos.map((p) => p.url),
         storagePaths: photos.map((p) => p.storagePath),
-        description, phone, rules, refundPolicy,
+        description, phone, rules, refundPolicy, defaultOwnerNote,
       });
       await refresh();
     } catch (e) {
@@ -347,6 +349,30 @@ export default function OwnerVenuePage() {
         </>
       )}
 
+      {/* 대표키워드 — 사용자 예약화면 헤더에 해시태그로 노출 */}
+      <Card>
+        <SecTitle># 대표키워드</SecTitle>
+        <Caption>사용자 화면 구장명 아래에 해시태그로 붙어요. 최대 5개. (예: 샤워실, 야간운영, 주차넉넉)</Caption>
+        <Row>
+          <Input
+            value={keywordInput}
+            onChange={(e) => setKeywordInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
+            placeholder="키워드 입력 후 추가"
+          />
+          <GhostBtn type="button" onClick={addKeyword} style={{ flex: "0 0 auto", padding: "0 18px" }}>추가</GhostBtn>
+        </Row>
+        {keywords.length > 0 && (
+          <FacWrap>
+            {keywords.map((k) => (
+              <Fac key={k} $on onClick={() => setKeywords((prev) => prev.filter((x) => x !== k))}>
+                #{k} ×
+              </Fac>
+            ))}
+          </FacWrap>
+        )}
+      </Card>
+
       {/* 편의시설 (구장 공통) */}
       <Card>
         <SecTitle>편의시설</SecTitle>
@@ -372,6 +398,21 @@ export default function OwnerVenuePage() {
         <SecTitle><LuReceipt size={16} /> 취소·노쇼 안내</SecTitle>
         <Caption>예약 취소·노쇼 시 지켜야 할 안내 (현장 정산이라 별도 환불은 없어요).</Caption>
         <Textarea value={refundPolicy} onChange={(e) => setRefundPolicy(e.target.value)} placeholder={"• 이용 1일 전까지 취소해 주세요.\n• 당일 취소·노쇼는 삼가주세요."} />
+      </Card>
+
+      {/* 예약 확정 안내문 — 승인 시 예약자에게 자동으로 전달 */}
+      <Card>
+        <SecTitle><LuFileText size={16} /> 예약 확정 안내문</SecTitle>
+        <Caption>
+          예약을 승인할 때 자동으로 채워져요. 현장에서 헤매지 않도록 입장 방법·주의사항을 적어두세요.
+          승인할 때 건별로 고칠 수도 있어요.
+        </Caption>
+        <Textarea
+          value={defaultOwnerNote}
+          onChange={(e) => setDefaultOwnerNote(e.target.value.slice(0, 300))}
+          placeholder={"예: 예약 10분 전부터 입장 가능합니다.\n정문 왼쪽 계단으로 2층, 도어락 1234#\n조명 스위치는 코트 오른쪽 벽에 있어요. 퇴장 시 꺼주세요."}
+        />
+        <Caption style={{ textAlign: "right" }}>{defaultOwnerNote.length}/300</Caption>
       </Card>
 
       {/* 노출 모드 */}

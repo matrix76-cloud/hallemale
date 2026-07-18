@@ -211,6 +211,7 @@ export function venueRow(d) {
     description: safeStr(data.description) || safeStr(data.memo),
     rules: safeStr(data.rules),
     refundPolicy: safeStr(data.refundPolicy),
+    defaultOwnerNote: safeStr(data.defaultOwnerNote), // 예약 승인 시 자동으로 채워지는 기본 안내문
 
     bizName: safeStr(data.bizName),
     bizNo: safeStr(data.bizNo),
@@ -284,6 +285,7 @@ export async function registerVenue({
   description,
   rules,
   refundPolicy,
+  defaultOwnerNote,
   bizName,
   bizNo,
   ownerName,
@@ -332,6 +334,9 @@ export async function registerVenue({
     description: safeStr(description),
     rules: safeStr(rules),
     refundPolicy: safeStr(refundPolicy),
+    // 예약 승인 시 예약자에게 자동으로 붙는 기본 안내문 (입장 방법·현장 주의사항 등).
+    // 구장주가 승인할 때마다 손으로 다시 쓰지 않도록 구장 단위로 한 번만 등록한다.
+    defaultOwnerNote: safeStr(defaultOwnerNote),
 
     bizName: safeStr(bizName),
     bizNo: safeStr(bizNo),
@@ -425,6 +430,7 @@ export async function updateMyVenue(id, patch = {}) {
   if (patch.description !== undefined) update.description = safeStr(patch.description);
   if (patch.rules !== undefined) update.rules = safeStr(patch.rules);
   if (patch.refundPolicy !== undefined) update.refundPolicy = safeStr(patch.refundPolicy);
+  if (patch.defaultOwnerNote !== undefined) update.defaultOwnerNote = safeStr(patch.defaultOwnerNote).slice(0, 300);
   if (patch.bizName !== undefined) update.bizName = safeStr(patch.bizName);
   if (patch.bizNo !== undefined) update.bizNo = safeStr(patch.bizNo);
   if (patch.ownerName !== undefined) update.ownerName = safeStr(patch.ownerName);
@@ -588,6 +594,7 @@ export async function setBusinessStatus(id, status, reason = "") {
         linkType: "venue", linkTargetId: vid,
         meta: { venueId: vid, deepLink: "/owner/home" },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        audience: "owner",
         prefsCategory: "owner", createdAt: serverTimestamp(), updatedAt: serverTimestamp(), readBy: {},
       });
     } catch (e) {
@@ -676,6 +683,7 @@ export async function setVenueStatus(id, status, reason = "") {
         linkType: "venue", linkTargetId: vid,
         meta: { venueId: vid, deepLink: approved ? "/owner/home" : "/owner/onboarding" },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        audience: "owner",
         prefsCategory: "owner", createdAt: serverTimestamp(), updatedAt: serverTimestamp(), readBy: {},
       });
     } catch (e) {
@@ -715,6 +723,7 @@ function reservationRow(d) {
     venuePhone: safeStr(data.venuePhone),
     reservationCode: safeStr(data.reservationCode),
     ownerNote: safeStr(data.ownerNote), // 구장주가 승인 시 예약자에게 남긴 안내글
+    userNote: safeStr(data.userNote), // 예약자가 요청 시 구장에 남긴 요청사항
     date: safeStr(data.date), // YYYY-MM-DD
     startTime: safeStr(data.startTime), // HH:mm
     endTime: safeStr(data.endTime),
@@ -817,6 +826,7 @@ async function notifyMatchTeamLeaders(matchId, clubIds, { subType, type, title, 
         linkType: "match", linkTargetId: mid,
         meta: { matchId: mid, deepLink: `/match-roomdetail/${mid}` },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        audience: "user", // 팀장(매칭룸)에게 가는 사용자앱 알림
         prefsCategory: "match", createdAt: serverTimestamp(), updatedAt: serverTimestamp(), readBy: {},
       });
     } catch (e) {
@@ -918,6 +928,7 @@ async function notifyBookingUserOnStatusChange(data, action) {
       linkTargetId: safeStr(data.venueId),
       meta: { venueId: safeStr(data.venueId), reservationId: safeStr(data.id), deepLink: "/my/reservations" },
       push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      audience: "user", // 예약자(일반 사용자)에게 가는 알림
       prefsCategory: "venue",
       readBy: {},
       createdAt: serverTimestamp(),
@@ -1095,6 +1106,7 @@ export async function cancelMyReservation(reservationId, uid) {
         linkTargetId: safeStr(data.venueId),
         meta: { venueId: safeStr(data.venueId), reservationId: rid, deepLink: "/owner/home" },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        audience: "owner",
         prefsCategory: "venue",
         readBy: {},
         createdAt: serverTimestamp(),
@@ -1280,7 +1292,7 @@ export function genReservationCode(date) {
   return `HM-${ymd || "000000"}-${rand}`;
 }
 
-export async function bookVenue({ venue, court, date, startTime, endTime, user }) {
+export async function bookVenue({ venue, court, date, startTime, endTime, user, userNote = "" }) {
   const venueId = safeStr(venue?.id);
   const courtId = safeStr(court?.id);
   const uid = safeStr(user?.uid);
@@ -1328,6 +1340,7 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user }
     userName: safeStr(user?.userName),
     teamName: safeStr(user?.teamName),
     phone: safeStr(user?.phone),
+    userNote: safeStr(userNote).slice(0, 300), // 구장에 전달할 요청사항 (선택)
     price,
     paid: false,
     paymentMethod: "onsite",
@@ -1497,6 +1510,7 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
         linkType: "venue", linkTargetId: safeStr(pb.venueId),
         meta: { venueId: safeStr(pb.venueId), reservationId: resRef.id, matchId: id, deepLink: "/owner/home" },
         push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+        audience: "owner",
         prefsCategory: "venue", createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
       });
     } catch (e) {

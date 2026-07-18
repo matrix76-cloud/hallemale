@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useUIActions } from "./useUI";
 import { subscribeNotificationsForUser } from "../services/notificationService";
+import { resolveNotiRoute } from "../utils/notiRoute";
 
 const MAX_AGE_MS = 120000; // 2분 — 오래된(백필) 알림은 배너로 띄우지 않음
 
@@ -62,7 +63,8 @@ export default function useNotificationBanner({ uid, clubId } = {}) {
 
       // deepLink는 알림 종류에 따라 meta.deepLink(채팅/결제독촉 등) 또는 최상위 deepLink
       // (buildNotificationDoc 기반 매칭요청/수락/거절/취소)에 들어 있음 — 둘 다 확인
-      const deepLink = n?.meta?.deepLink || n?.deepLink || "";
+      // 실제 라우트로 보정한 뒤 비교/전달 (예: /chats/match_X → /match-roomdetail/X)
+      const deepLink = resolveNotiRoute(n) || "";
       // 이미 해당 화면(예: 그 채팅방)에 있으면 배너 생략
       // ⚠️ 단순 startsWith는 "/chat"이 "/chats"(채팅목록)까지 매칭해 오탐 → 세그먼트 단위로 비교
       const curPath = pathRef.current || "";

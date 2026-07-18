@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-07-16T08:34:28.174Z",
+  "generatedAt": "2026-07-18T10:26:30.058Z",
   "counts": {
-    "teams": 22,
-    "members": 101,
+    "teams": 23,
+    "members": 103,
     "regions": 7
   },
   "wall": [
@@ -65,6 +65,11 @@
       "name": "잠실오픈코트",
       "region": "서울 강남구",
       "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fdv7X55lv2SblLg0PM4jX%2Flogo_1783082833171_c.png?alt=media&token=47d98ee8-58e1-447b-b234-b0e70d9b3dfb"
+    },
+    {
+      "name": "핏자피자",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeHXmDqVYHI3RIdcGjvoJ%2Flogo_1784191507145.jpg?alt=media&token=144da0af-4341-4ad1-b9a9-f563484ef820"
     },
     {
       "name": "메가더쓰로우",
@@ -174,6 +179,11 @@
       "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Fdv7X55lv2SblLg0PM4jX%2Flogo_1783082833171_c.png?alt=media&token=47d98ee8-58e1-447b-b234-b0e70d9b3dfb"
     },
     {
+      "name": "핏자피자",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeHXmDqVYHI3RIdcGjvoJ%2Flogo_1784191507145.jpg?alt=media&token=144da0af-4341-4ad1-b9a9-f563484ef820"
+    },
+    {
       "name": "메가더쓰로우",
       "region": "서울 서초구",
       "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeiTqOAwqmbyB5uazDPGU%2Flogo_1766311177118.jpg?alt=media&token=524c5d1e-93fa-483e-b7e1-787fbab14fed"
@@ -256,6 +266,17 @@
       "winRate": 100
     },
     {
+      "name": "핏자피자",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeHXmDqVYHI3RIdcGjvoJ%2Flogo_1784191507145.jpg?alt=media&token=144da0af-4341-4ad1-b9a9-f563484ef820",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
       "name": "팀청춘",
       "region": "경기 남양주시",
       "logoUrl": "",
@@ -272,9 +293,9 @@
       "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Ff82jK32bEmbjOJeTM5Z7%2Flogo_1783507959318.jpg?alt=media&token=7dc7ae43-c438-44d9-a1a0-6d16b3ef69a5",
       "wins": 0,
       "draws": 0,
-      "losses": 1,
-      "total": 1,
-      "points": 1,
+      "losses": 2,
+      "total": 2,
+      "points": 2,
       "winRate": 0
     }
   ],
@@ -290,6 +311,16 @@
       "winRate": 33
     },
     {
+      "name": "한주성2",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
       "name": "다산왕 포인트",
       "clubName": "",
       "wins": 1,
@@ -301,6 +332,26 @@
     },
     {
       "name": "다산왕 파워",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
+      "name": "AI 도우진",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "total": 1,
+      "points": 5,
+      "winRate": 100
+    },
+    {
+      "name": "AI 치즈현",
       "clubName": "",
       "wins": 1,
       "draws": 0,
@@ -348,36 +399,6 @@
       "total": 1,
       "points": 5,
       "winRate": 100
-    },
-    {
-      "name": "전병문",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 0,
-      "total": 1,
-      "points": 5,
-      "winRate": 100
-    },
-    {
-      "name": "최현우",
-      "clubName": "",
-      "wins": 0,
-      "draws": 0,
-      "losses": 2,
-      "total": 2,
-      "points": 2,
-      "winRate": 0
-    },
-    {
-      "name": "정민재",
-      "clubName": "",
-      "wins": 0,
-      "draws": 0,
-      "losses": 1,
-      "total": 1,
-      "points": 1,
-      "winRate": 0
     }
   ]
 }

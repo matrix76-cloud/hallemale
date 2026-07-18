@@ -11,6 +11,7 @@ import {
   computeReadForUi,
   markNotificationsRead,
 } from "../../services/notificationService";
+import { NOTI_AUDIENCE } from "../../utils/notificationDefinitions";
 import { Page, Card } from "./components/ownerUi";
 import OwnerSpinner from "./components/OwnerSpinner";
 
@@ -38,7 +39,8 @@ export default function OwnerNotificationsPage() {
 
   useEffect(() => {
     if (!uid) { setItems([]); setLoading(false); return; }
-    const unsub = subscribeNotificationsForUser({ uid }, (list) => {
+    // ✅ 구장 관련 알림만 (같은 카카오 계정이면 사용자앱과 uid가 같다)
+    const unsub = subscribeNotificationsForUser({ uid, audience: NOTI_AUDIENCE.OWNER }, (list) => {
       setItems(computeReadForUi({ items: list, uid }));
       setLoading(false);
     });

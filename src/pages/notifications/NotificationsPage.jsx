@@ -16,6 +16,9 @@ import {
 } from "../../services/notificationService";
 import { subscribePublishedNotices } from "../../services/noticesService";
 import { resolveNotiRoute } from "../../utils/notiRoute";
+import { loadMatchRoomDetail } from "../../services/matchRoomService";
+import { categorizeRoom } from "../../utils/matchAttention";
+import { useUIActions } from "../../hooks/useUI";
 import { isLeaderOnlyMatchNoti, getNotiCategory } from "../../utils/notificationDefinitions";
 import EmptyState from "../../components/common/EmptyState";
 
@@ -161,6 +164,7 @@ function formatTimeAny(v) {
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
+  const { showToast } = useUIActions();
   const { userDoc } = useAuth();
   const { club, isTeamLeader } = useClub();
 
@@ -265,6 +269,29 @@ export default function NotificationsPage() {
     if (isMatchAccepted && acceptedMatchId) {
       navigate(`/match-roomdetail/${acceptedMatchId}`, {
         state: { celebrateAccepted: true },
+      });
+      return;
+    }
+
+    // 매칭룸 메시지 알림: 경기 상태에 따라 목적지가 달라진다
+    // - 지난 경기(종료/결과확정): 채팅이 닫혀 있으므로 이동하지 않고 안내만
+    // - 확정 경기: 해당 매칭룸의 채팅 패널을 바로 연다
+    // - 조율중: 기존대로 매칭룸(전체화면 채팅)으로 이동
+    const chatId = String(n?.meta?.chatId || (n?.linkType === "chat" ? n?.linkTargetId : "") || "").trim();
+    if (String(n?.kind || "") === "chat" && chatId.startsWith("match_")) {
+      const matchId = chatId.slice("match_".length);
+      const { room } = await loadMatchRoomDetail(matchId).catch(() => ({ room: null }));
+      const category = room ? categorizeRoom(room) : "";
+      if (category === "past" || category === "cancelled") {
+        showToast &&
+          showToast({
+            message:
+              category === "cancelled" ? "취소된 경기예요." : "종료된 경기예요.",
+          });
+        return;
+      }
+      navigate(`/match-roomdetail/${matchId}`, {
+        state: category === "confirmed" ? { openChat: true } : undefined,
       });
       return;
     }

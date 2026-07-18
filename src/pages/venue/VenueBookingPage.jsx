@@ -24,9 +24,11 @@ import {
   FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
 import { BOOKING_WINDOW_DAYS } from "../../constants/booking";
+import { CANCEL_POLICY_TIERS, CANCEL_POLICY_NOTE } from "../../constants/cancelPolicy";
+import { openDirections, openMapView, copyText, fullAddress } from "../../utils/venueLink";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
-import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome } from "react-icons/fi";
+import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome, FiMap, FiNavigation } from "react-icons/fi";
 import { FacilityIcon } from "./facilityIcons";
 import CourtNotices from "./CourtNotices";
 import { listVenueReviews } from "../../services/venueReviewService";
@@ -214,15 +216,13 @@ export default function VenueBookingPage() {
 
   const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date) : 0;
 
+  // 예약 시트에서 구장에 전달할 요청사항 (선택)
+  const [userNote, setUserNote] = useState("");
+
   const copyAddress = async () => {
-    const full = `${venue?.address || ""}${venue?.addressDetail ? ` ${venue.addressDetail}` : ""}`.trim();
+    const full = fullAddress(venue?.address, venue?.addressDetail);
     if (!full) return;
-    try {
-      await navigator.clipboard.writeText(full);
-      toast("주소를 복사했어요.");
-    } catch {
-      toast("주소 복사에 실패했어요.");
-    }
+    toast((await copyText(full)) ? "주소를 복사했어요." : "주소 복사에 실패했어요.");
   };
 
   const handleRequest = async () => {
@@ -239,8 +239,10 @@ export default function VenueBookingPage() {
           teamName: userDoc?.activeTeamName || userDoc?.teamName || "",
           phone: userDoc?.phoneE164 || userDoc?.phone || "",
         },
+        userNote,
       });
       setPayOpen(false);
+      setUserNote("");
       setSelected(null);
       await loadSlots();
       toast("예약 요청을 보냈어요! 구장 승인 후 확정돼요.");
@@ -299,6 +301,12 @@ export default function VenueBookingPage() {
   const hasLatLng = venue.lat != null && venue.lng != null;
   const hoursSummary = buildHoursSummary(court);
   const venuePhone = venue.phone || venue.contactPhone || "";
+  const place = {
+    name: venue.name,
+    address: fullAddress(venue.address, venue.addressDetail),
+    lat: venue.lat,
+    lng: venue.lng,
+  };
 
   return (
     <Wrap>
@@ -456,6 +464,16 @@ export default function VenueBookingPage() {
         {venue.directions ? (
           <DirBox><b>찾아오는 길</b><InfoPre>{venue.directions}</InfoPre></DirBox>
         ) : null}
+        {venue.address || hasLatLng ? (
+          <MapBtnRow>
+            <MapBtn type="button" onClick={() => openMapView(place)}>
+              <FiMap size={15} /> 지도보기
+            </MapBtn>
+            <MapBtn type="button" onClick={() => openDirections(place)}>
+              <FiNavigation size={15} /> 길찾기
+            </MapBtn>
+          </MapBtnRow>
+        ) : null}
       </Section>
 
       {hoursSummary.length > 0 && (
@@ -481,12 +499,21 @@ export default function VenueBookingPage() {
           <InfoPre>{venue.rules}</InfoPre>
         </Section>
       )}
-      {venue.refundPolicy && (
-        <Section>
-          <SecTitle><FiCreditCard size={17} />취소·노쇼 안내</SecTitle>
-          <InfoPre>{venue.refundPolicy}</InfoPre>
-        </Section>
-      )}
+      <Section>
+        <SecTitle><FiCreditCard size={17} />취소·환불 규정</SecTitle>
+        <PolicyTable>
+          {CANCEL_POLICY_TIERS.map((t) => (
+            <PolicyRow key={t.when}>
+              <PolicyWhen>{t.when}</PolicyWhen>
+              <PolicyWhat $tone={t.tone}>{t.what}</PolicyWhat>
+            </PolicyRow>
+          ))}
+        </PolicyTable>
+        <PolicyNote>{CANCEL_POLICY_NOTE}</PolicyNote>
+        {venue.refundPolicy ? (
+          <DirBox><b>이 구장 자체 안내</b><InfoPre>{venue.refundPolicy}</InfoPre></DirBox>
+        ) : null}
+      </Section>
 
       <Section>
         <SecTitle><FiStar size={17} />리뷰{reviews.length > 0 ? ` (${reviews.length})` : ""}</SecTitle>
@@ -582,20 +609,30 @@ export default function VenueBookingPage() {
         <Sheet onClick={(e) => { if (e.target === e.currentTarget) setPayOpen(false); }}>
           <SheetCard onClick={(e) => e.stopPropagation()}>
             <SheetTitle>예약 요청</SheetTitle>
+            <SheetLead>아래 내용이 맞는지 확인해 주세요.</SheetLead>
             <PayRow><span>{venue.name} · {court.name}</span></PayRow>
             <PayRow><span>{date} {selected.start}~{selected.end}</span></PayRow>
             <Divider />
             <PayRow $big><span>이용료</span><b>{price.toLocaleString()} 원</b></PayRow>
             <PayRow><span>결제 방식</span><b>현장 정산</b></PayRow>
+
+            <NoteLabel htmlFor="venue-user-note">요청사항 <span>(선택)</span></NoteLabel>
+            <NoteInput
+              id="venue-user-note"
+              value={userNote}
+              onChange={(e) => setUserNote(e.target.value)}
+              placeholder="구장에 미리 전할 내용을 적어주세요. (예: 조명 켜주세요, 20분 일찍 도착합니다)"
+              maxLength={300}
+            />
+
             <ChargeBox>
               <small>결제 없이 예약을 요청해요. 구장주가 승인하면 예약이 확정되고, 이용료는 현장에서 정산해요.</small>
             </ChargeBox>
             <ChargeBox>
               <small>
-                예약 취소는 마이페이지 &gt; 내 구장 예약에서 할 수 있어요.{" "}
-                {venue.refundPolicy
-                  ? `취소·노쇼 안내: ${venue.refundPolicy}`
-                  : "취소·환불·노쇼 규정은 구장 운영정책 및 「취소 및 환불 정책」을 따릅니다."}
+                예약 취소는 마이페이지 &gt; 내 구장 예약에서 이용 시작 전까지 할 수 있어요.
+                당일 취소·노쇼가 반복되면 예약이 제한될 수 있어요.
+                {venue.refundPolicy ? ` 구장 안내: ${venue.refundPolicy}` : ""}
               </small>
             </ChargeBox>
             <PayBtn disabled={paying} onClick={handleRequest}>
@@ -795,6 +832,42 @@ const PhoneLink = styled.a`
   font-size: 13.5px; font-weight: 700; text-decoration: none;
   color: ${({ theme }) => theme.colors.primary};
 `;
+const MapBtnRow = styled.div`display: flex; gap: 8px; margin-top: 2px;`;
+const MapBtn = styled.button`
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 42px; border-radius: 10px; cursor: pointer;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong}; font-size: 13px; font-weight: 700;
+  &:active { transform: translateY(1px); }
+`;
+
+/* 취소·환불 규정 테이블 */
+const POLICY_TONES = { ok: "#16a34a", warn: "#b45309", danger: "#dc2626" };
+const PolicyTable = styled.div`
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px; overflow: hidden;
+`;
+const PolicyRow = styled.div`
+  display: flex; align-items: stretch;
+  & + & { border-top: 1px solid ${({ theme }) => theme.colors.border}; }
+`;
+const PolicyWhen = styled.div`
+  flex: 0 0 40%; padding: 11px 12px;
+  background: ${({ theme }) => theme.colors.surface};
+  border-right: 1px solid ${({ theme }) => theme.colors.border};
+  font-size: 12.5px; font-weight: 700; line-height: 1.45;
+  color: ${({ theme }) => theme.colors.textNormal};
+`;
+const PolicyWhat = styled.div`
+  flex: 1; padding: 11px 12px;
+  font-size: 12.5px; line-height: 1.45; font-weight: 600;
+  color: ${({ $tone }) => POLICY_TONES[$tone] || POLICY_TONES.warn};
+`;
+const PolicyNote = styled.div`
+  font-size: 12px; line-height: 1.55;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
 const SecSub = styled.span`font-size: 13px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak};`;
 const HostCard = styled.div`
   display: flex; flex-direction: column; gap: 6px;
@@ -977,6 +1050,24 @@ const PayRow = styled.div`
   & b { font-weight: 800; color: ${({ theme }) => theme.colors.textStrong}; }
 `;
 const Divider = styled.div`height: 1px; background: ${({ theme }) => theme.colors.border}; margin: 4px 0;`;
+const SheetLead = styled.div`
+  font-size: 13px; color: ${({ theme }) => theme.colors.textWeak}; margin: -2px 0 4px;
+`;
+const NoteLabel = styled.label`
+  margin-top: 4px; font-size: 13px; font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+  & span { font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; }
+`;
+const NoteInput = styled.textarea`
+  width: 100%; min-height: 64px; resize: vertical; box-sizing: border-box;
+  border-radius: 10px; padding: 10px 12px; outline: none;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 13.5px; font-family: inherit; line-height: 1.5;
+  &:focus { border-color: ${({ theme }) => theme.colors.primary}; }
+  &::placeholder { color: ${({ theme }) => theme.colors.textWeak}; }
+`;
 const ChargeBox = styled.div`display: flex; flex-direction: column; gap: 8px; background: ${({ theme }) => theme.colors.surface}; border-radius: 12px; padding: 12px; & small { font-size: 12px; color: ${({ theme }) => theme.colors.textWeak}; }`;
 const ChargeBtns = styled.div`display: flex; gap: 8px; flex-wrap: wrap;`;
 const Cb = styled.button`flex: 1; min-width: 70px; height: 40px; border-radius: 9px; border: 1px solid ${({ theme }) => theme.colors.border}; background: ${({ theme }) => theme.colors.card}; color: ${({ theme }) => theme.colors.textNormal}; font-size: 12.5px; font-weight: 700; cursor: pointer;`;

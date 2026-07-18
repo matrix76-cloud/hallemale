@@ -8,9 +8,9 @@ export function resolveNotiRoute(n) {
   const raw = String(n?.deepLink || n?.meta?.deepLink || "").trim();
   if (raw) {
     const s = raw.startsWith("/") ? raw : `/${raw}`;
-    if (s === "/chat") return "/chats";
-    if (s.startsWith("/chat/")) {
-      const cid = s.slice("/chat/".length);
+    if (s === "/chat" || s === "/chats") return "/chats";
+    if (s.startsWith("/chat/") || s.startsWith("/chats/")) {
+      const cid = s.slice(s.startsWith("/chats/") ? "/chats/".length : "/chat/".length);
       // 매칭룸 채팅(match_{roomId})은 매칭룸 상세페이지로 연결
       if (cid.startsWith("match_")) return `/match-roomdetail/${cid.slice("match_".length)}`;
       return `/chats/${cid}`;
@@ -62,8 +62,10 @@ export function resolveNotiRoute(n) {
  *   (예: /team/{id}/join-requests 에 들어가면 .../join-requests/{reqId} 알림도 읽음)
  */
 export function notiRouteMatchesPath(notiRoute, currentPath) {
-  const route = String(notiRoute || "").trim();
-  const path = String(currentPath || "").trim();
+  // deepLink엔 쿼리(?celebrate=accepted)·해시가 붙어 있을 수 있는데 비교 대상인
+  // location.pathname엔 절대 없다 → 경로 부분만 떼어 비교 (쿼리는 이동 시엔 필요하므로 보존)
+  const route = String(notiRoute || "").trim().split(/[?#]/)[0];
+  const path = String(currentPath || "").trim().split(/[?#]/)[0];
   if (!route || !path) return false;
   // 알림창 자신/미해석 경로는 자동읽음 대상 아님 (알림창에선 클릭으로 처리)
   if (route === "/notifications") return false;
@@ -71,6 +73,11 @@ export function notiRouteMatchesPath(notiRoute, currentPath) {
 
   const segs = path.split("/").filter(Boolean).length;
   if (segs >= 2 && route.startsWith(path + "/")) return true;
+
+  // 알림 목적지의 하위 화면에 있어도 도착한 것으로 본다
+  // (예: /match-roomdetail/{id} 알림 ↔ /match-roomdetail/{id}/venue 체류)
+  const routeSegs = route.split("/").filter(Boolean).length;
+  if (routeSegs >= 2 && path.startsWith(route + "/")) return true;
 
   return false;
 }

@@ -9,8 +9,9 @@ import { db, auth } from "./firebase";
 import { addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
-import { MIN_TEAM_MEMBERS } from "../utils/constants";
+import { MIN_TEAM_MEMBERS, requiredMembersForMatchSize, matchSizeLabelOf } from "../utils/constants";
 import { listClubMemberUidsExceptOwner } from "./clubManageService";
+import { getClubMemberCounts } from "./matchingHomeService";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -48,6 +49,31 @@ async function notifyClubMembersAccepted({ matchId, clubId, opponentName }) {
 
 const teamMemberCount = (team) =>
   Array.isArray(team?.members) ? team.members.length : 0;
+
+/**
+ * ✅ 경기 형식(3v3/4v4/5v5)에 필요한 인원을 두 팀 모두 채웠는지 검증한다.
+ * - 신청(createMatchRequest)·수락(acceptMatchRequest) 공용 게이트
+ * - 인원은 clubs/{id}/members를 서버에서 다시 세므로 클라이언트 스냅샷을 신뢰하지 않는다
+ * - 인원 미달이면 사람이 읽을 수 있는 메시지로 throw
+ */
+async function assertBothTeamsCanPlay({
+  matchSizeKey,
+  myClubId,
+  opponentClubId,
+  myShortage,
+  opponentShortage,
+}) {
+  const need = requiredMembersForMatchSize(matchSizeKey);
+  // 형식을 알 수 없으면 최소 인원(3명)이라도 지킨다
+  const required = need || MIN_TEAM_MEMBERS;
+
+  const counts = await getClubMemberCounts([myClubId, opponentClubId]);
+  const mine = counts.get(myClubId) || 0;
+  const theirs = counts.get(opponentClubId) || 0;
+
+  if (mine < required) throw new Error(myShortage(required, mine));
+  if (theirs < required) throw new Error(opponentShortage(required, theirs));
+}
 
 // ✅ 매칭 알림 대상: 팀 전체가 아니라 해당 팀의 "팀장(ownerUid)"에게만 전달.
 // (팀원은 매칭 신청/수락/거절/취소 알림을 받지 않음 — 경기 종료 후 평점·리뷰만 가능)
@@ -300,11 +326,17 @@ export async function createMatchRequest({
   if (_actorClubId === _targetClubId) throw new Error("createMatchRequest: same club is not allowed");
   if (!MATCH_SIZE_KEYS.includes(_matchSizeKey)) throw new Error("매치 사이즈(3v3/4v4/5v5)를 선택해 주세요.");
 
-  // ✅ 최소 인원(팀장 포함 3명) 미만이면 매칭 신청 불가
-  if (teamMemberCount(actorTeam) < MIN_TEAM_MEMBERS)
-    throw new Error(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 신청할 수 있어요.`);
-  if (teamMemberCount(targetTeam) < MIN_TEAM_MEMBERS)
-    throw new Error(`상대 팀이 아직 팀원 ${MIN_TEAM_MEMBERS}명을 채우지 못해 매칭을 받을 수 없어요.`);
+  // ✅ 경기 형식에 필요한 인원을 양 팀 모두 채웠는지 검증 (3명뿐인 팀의 4v4·5v5 신청 차단).
+  //    클라이언트가 넘긴 스냅샷 대신 서버에서 다시 세어 우회를 막는다.
+  await assertBothTeamsCanPlay({
+    matchSizeKey: _matchSizeKey,
+    myClubId: _actorClubId,
+    opponentClubId: _targetClubId,
+    myShortage: (need, count) =>
+      `${matchSizeLabelOf(_matchSizeKey)} 경기는 팀원이 ${need}명 이상이어야 신청할 수 있어요. (현재 ${count}명)`,
+    opponentShortage: (need) =>
+      `상대 팀이 아직 팀원 ${need}명을 채우지 못해 ${matchSizeLabelOf(_matchSizeKey)} 경기를 받을 수 없어요.`,
+  });
 
   // ✅ 중복 매칭 요청 방지: 두 팀 사이에 이미 진행 중인 요청/경기가 있으면 차단
   {
@@ -420,6 +452,28 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
   if (!myId) throw new Error("acceptMatchRequest: myClubId is required");
 
   if (myId !== targetClubId) throw new Error("수락 권한이 없습니다.");
+
+  // ✅ 수락 시점에도 경기 형식에 필요한 인원을 다시 검증한다.
+  //    (신청 이후 팀원이 빠졌을 수 있고, 알림 딥링크 등 UI 게이트를 우회하는 경로가 있다)
+  {
+    const msnap = await getDoc(doc(db, "match_requests", matchId));
+    const md = msnap.data() || {};
+    const sizeKey =
+      toStr(md.matchSizeKey) ||
+      toStr(md?.fromLineupSnapshot?.matchSizeKey) ||
+      toStr(md?.toLineupSnapshot?.matchSizeKey);
+    const sizeLabel = matchSizeLabelOf(sizeKey) || "이";
+
+    await assertBothTeamsCanPlay({
+      matchSizeKey: sizeKey,
+      myClubId: myId,
+      opponentClubId: actorClubId,
+      myShortage: (need, count) =>
+        `${sizeLabel} 경기는 팀원이 ${need}명 이상이어야 수락할 수 있어요. (현재 ${count}명)`,
+      opponentShortage: (need) =>
+        `상대 팀 인원이 ${need}명 미만이 되어 지금은 수락할 수 없어요.`,
+    });
+  }
 
   // 미확인 배지: 수락 = 새 활동 → 신청팀(상대)에게 "조율중" 배지. 수락한 나는 본 것으로 처리.
   const acceptorUid = toStr(auth.currentUser?.uid);

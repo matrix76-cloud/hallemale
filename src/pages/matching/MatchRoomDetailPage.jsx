@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
 import { images, playerAvatars, teamLogoSrc } from "../../utils/imageAssets";
+import { openDirections as openKakaoDirections, openMapView, copyText } from "../../utils/venueLink";
 import { FiMapPin, FiCalendar } from "react-icons/fi";
 import {
   loadMatchRoomDetail,
@@ -1244,11 +1245,26 @@ const PaidOwnerNote = styled.div`
   font-size: 12.5px; line-height: 1.55; color: ${({ theme }) => mrp(theme.mode).t2};
   & > b { display: block; margin-bottom: 3px; font-size: 11.5px; font-weight: 800; color: ${({ theme }) => mrp(theme.mode).puD}; }
 `;
-const PaidCall = styled.a`
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  margin-top: 10px; height: 42px; border-radius: 11px; text-decoration: none;
-  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.5)" : "rgba(124,92,201,0.4)")};
-  color: ${({ theme }) => mrp(theme.mode).puD}; font-size: 13.5px; font-weight: 800;
+const PaidCodeCopy = styled.button`
+  flex-shrink: 0; padding: 3px 9px; border-radius: 7px; cursor: pointer;
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.12)")};
+  background: transparent; color: ${({ theme }) => mrp(theme.mode).t2};
+  font-size: 11px; font-weight: 800;
+  &:active { transform: translateY(1px); }
+`;
+const PaidActions = styled.div`
+  margin-top: 10px; display: grid; gap: 6px;
+  grid-auto-flow: column; grid-auto-columns: 1fr;
+`;
+const PaidAction = styled.button`
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  height: 56px; border-radius: 11px; cursor: pointer; text-decoration: none;
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)")};
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(255,255,255,0.04)" : "#f8fafc")};
+  color: ${({ theme }) => mrp(theme.mode).t1};
+  & > b { font-size: 15px; line-height: 1; }
+  & > span { font-size: 11px; font-weight: 700; }
+  &:active { transform: translateY(1px); }
 `;
 
 /* ───── 경기 취소(cancelled) 전용 화면 ───── */
@@ -3045,6 +3061,7 @@ export default function MatchRoomDetailPage() {
   const { byRoom: chatMeta } = useMatchRoomUnread({ clubId: myClubId, uid: myUid });
   const roomChat = chatMeta[roomId] || {};
   // 확정 경기 상세에서 "메시지" 카드를 눌러 채팅을 펼쳤는지
+  // (초기값은 location 선언 이후 — 메시지 알림 클릭 진입 시 state.openChat으로 바로 채팅을 연다)
   const [confirmedChatOpen, setConfirmedChatOpen] = useState(false);
 
   const authorDisplayName = toStr(club?.name) || "참가자";
@@ -3119,6 +3136,10 @@ export default function MatchRoomDetailPage() {
   // 매칭룸 탭은 URL로 분리: /match-roomdetail/:id (채팅) vs /:id/venue (구장 정하기 별도 페이지)
   const location = useLocation();
   const isVenue = location.pathname.endsWith("/venue");
+  // 메시지 알림 클릭으로 확정 경기에 진입하면 곧바로 채팅 패널을 연다
+  useEffect(() => {
+    if (location.state?.openChat) setConfirmedChatOpen(true);
+  }, [location.state]);
   // 상대 팀장과의 DM 채팅방 id (getOrCreateDmRoom으로 확보)
   const [chatId, setChatId] = useState("");
   // 상대 팀장(채팅 상대) — 프로필 사진·이름·uid (채팅 헤더/읽음표시용)
@@ -4353,13 +4374,19 @@ export default function MatchRoomDetailPage() {
     return diff > 0 ? `D-${diff}` : `D+${-diff}`;
   })();
 
-  const openDirections = () => {
-    const name = encodeURIComponent(toStr(fieldAddress) || "경기 구장");
-    const url =
-      fieldLatLng?.lat && fieldLatLng?.lng
-        ? `https://map.kakao.com/link/to/${name},${fieldLatLng.lat},${fieldLatLng.lng}`
-        : `https://map.kakao.com/link/search/${name}`;
-    window.open(url, "_blank");
+  // 구장 위치 액션 — 길찾기/지도보기/주소복사 (utils/venueLink 공용)
+  const venuePlace = {
+    name: toStr(fieldAddress) || "경기 구장",
+    address: toStr(fieldAddress),
+    lat: fieldLatLng?.lat,
+    lng: fieldLatLng?.lng,
+  };
+  const openDirections = () => openKakaoDirections(venuePlace);
+  const copyVenueAddress = async () => {
+    showAlert((await copyText(toStr(fieldAddress))) ? "주소를 복사했어요." : "주소 복사에 실패했어요.");
+  };
+  const copyReservationCode = async (code) => {
+    showAlert((await copyText(code)) ? "예약번호를 복사했어요." : "예약번호 복사에 실패했어요.");
   };
 
   const shareMatch = async () => {
@@ -5219,7 +5246,7 @@ export default function MatchRoomDetailPage() {
           </DarkHeader>
         )}
 
-        {!isVenue && isConfirmed && confirmedChatOpen ? (
+        {!isVenue && isConfirmed && !isPast && confirmedChatOpen ? (
           <>
             <ConfChatBar>
               <ConfChatBackBtn type="button" onClick={() => setConfirmedChatOpen(false)}>
@@ -5489,7 +5516,13 @@ export default function MatchRoomDetailPage() {
                     <PaidBadge>예약확정</PaidBadge>
                   </PaidHead>
                   {toStr(pb.reservationCode) ? (
-                    <PaidCode><span>예약번호</span><b>{toStr(pb.reservationCode)}</b></PaidCode>
+                    <PaidCode>
+                      <span>예약번호</span>
+                      <b>{toStr(pb.reservationCode)}</b>
+                      <PaidCodeCopy type="button" onClick={() => copyReservationCode(toStr(pb.reservationCode))}>
+                        복사
+                      </PaidCodeCopy>
+                    </PaidCode>
                   ) : null}
                   <PaidRow><span>총 대관료 (양 팀 공동)</span><b>{Number(pb.totalPrice || 0).toLocaleString()}원</b></PaidRow>
                   <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><b>{Number(pb.shareA || 0).toLocaleString()}원</b></PaidRow>
@@ -5500,9 +5533,19 @@ export default function MatchRoomDetailPage() {
                   {toStr(pb.ownerNote) ? (
                     <PaidOwnerNote><b>구장 안내</b>{toStr(pb.ownerNote)}</PaidOwnerNote>
                   ) : null}
-                  {toStr(pb.venuePhone) ? (
-                    <PaidCall href={`tel:${toStr(pb.venuePhone)}`}>📞 구장에 전화 ({toStr(pb.venuePhone)})</PaidCall>
-                  ) : null}
+                  {/* 경기 당일 현장 도착까지 필요한 액션 한 줄 */}
+                  <PaidActions>
+                    {toStr(pb.venuePhone) ? (
+                      <PaidAction as="a" href={`tel:${toStr(pb.venuePhone)}`}>
+                        <b>📞</b><span>구장문의</span>
+                      </PaidAction>
+                    ) : null}
+                    {toStr(fieldAddress) ? (
+                      <PaidAction type="button" onClick={copyVenueAddress}><b>📋</b><span>주소복사</span></PaidAction>
+                    ) : null}
+                    <PaidAction type="button" onClick={() => openMapView(venuePlace)}><b>🗺️</b><span>지도보기</span></PaidAction>
+                    <PaidAction type="button" onClick={openDirections}><b>🧭</b><span>길찾기</span></PaidAction>
+                  </PaidActions>
                 </PaidCard>
               );
             })()}

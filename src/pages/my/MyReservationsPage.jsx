@@ -9,12 +9,17 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useUIActions } from "../../hooks/useUI";
 import { showConfirm } from "../../utils/appDialog";
-import { listMyReservations, cancelMyReservation } from "../../services/ownerVenueService";
+import { listMyReservations, cancelMyReservation, getVenue } from "../../services/ownerVenueService";
 import { addVenueReview, getMyVenueReview } from "../../services/venueReviewService";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
-import { FiMapPin, FiCalendar, FiClock, FiHash, FiPhone, FiInfo } from "react-icons/fi";
+import { copyText, fullAddress, openDirections, openMapView } from "../../utils/venueLink";
+import { cancelDeadlineText, usableFromText } from "../../constants/cancelPolicy";
+import {
+  FiMapPin, FiCalendar, FiClock, FiHash, FiPhone, FiInfo,
+  FiCopy, FiMap, FiNavigation, FiFileText,
+} from "react-icons/fi";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -60,6 +65,9 @@ export default function MyReservationsPage() {
   const [rows, setRows] = useState([]);
   const [loadErr, setLoadErr] = useState(false);
   const [busyId, setBusyId] = useState("");
+  // 예약 문서에는 구장명·전화만 비정규화돼 있고 주소·좌표가 없다.
+  // 길찾기/지도보기/주소복사를 붙이려면 필요하므로 venueId 별로 한 번씩만 구장을 읽어온다.
+  const [venueById, setVenueById] = useState({});
 
   // 리뷰 작성 모달
   const [reviewFor, setReviewFor] = useState(null); // 리뷰 대상 예약
@@ -99,6 +107,25 @@ export default function MyReservationsPage() {
     }
   };
 
+  // 목록에 등장한 구장만 중복 없이 조회. 실패한 구장은 그냥 액션 버튼이 덜 나올 뿐이라 무시한다.
+  const loadVenues = async (list) => {
+    const ids = Array.from(new Set(list.map((r) => toStr(r.venueId)).filter(Boolean)));
+    if (ids.length === 0) return;
+    const pairs = await Promise.all(
+      ids.map(async (id) => {
+        try { return [id, await getVenue(id)]; } catch { return [id, null]; }
+      })
+    );
+    setVenueById(Object.fromEntries(pairs.filter(([, v]) => v)));
+  };
+
+  const copyAddr = async (addr) => {
+    toast((await copyText(addr)) ? "주소를 복사했어요." : "주소 복사에 실패했어요.");
+  };
+  const copyCode = async (code) => {
+    toast((await copyText(code)) ? "예약번호를 복사했어요." : "예약번호 복사에 실패했어요.");
+  };
+
   const load = async () => {
     if (!myUid) { setLoading(false); return; }
     setLoading(true);
@@ -106,6 +133,7 @@ export default function MyReservationsPage() {
     try {
       const list = await listMyReservations(myUid);
       setRows(Array.isArray(list) ? list : []);
+      loadVenues(Array.isArray(list) ? list : []); // 주소·좌표는 뒤따라 채움 (목록 표시를 막지 않음)
     } catch (e) {
       console.warn("[MyReservationsPage] load failed:", e?.message || e);
       setLoadErr(true); // 실패를 "예약 없음"으로 위장하지 않음
@@ -176,6 +204,12 @@ export default function MyReservationsPage() {
       <List>
         {sorted.map((r) => {
           const meta = STATUS_META[r.status] || STATUS_META.requested;
+          const v = venueById[toStr(r.venueId)];
+          const addr = fullAddress(v?.address, v?.addressDetail);
+          const phone = toStr(r.venuePhone || v?.phone || v?.contactPhone);
+          const place = { name: r.venueName || v?.name, address: addr, lat: v?.lat, lng: v?.lng };
+          // 확정 + 아직 안 지난 예약에만 "언제부터 이용" / 액션 버튼을 붙인다.
+          const live = r.status === "confirmed" && isFuture(r);
           return (
             <Card key={r.id}>
               <TopRow>
@@ -188,23 +222,50 @@ export default function MyReservationsPage() {
                 <StatusChip $tone={meta.tone}>{meta.label}</StatusChip>
               </TopRow>
 
+              {/* 확정 예약: 언제부터 쓸 수 있는지를 D-day 대신 문장으로 */}
+              {live ? <UseBanner><FiInfo size={14} />{usableFromText(r.date, r.startTime)}</UseBanner> : null}
+
               {r.reservationCode ? (
-                <MetaRow $mono><FiHash size={13} />예약번호 {r.reservationCode}</MetaRow>
+                <MetaRow $mono>
+                  <FiHash size={13} />예약번호 {r.reservationCode}
+                  <MiniBtn type="button" onClick={() => copyCode(r.reservationCode)}>
+                    <FiCopy size={11} /> 복사
+                  </MiniBtn>
+                </MetaRow>
               ) : null}
               {r.courtName ? (
                 <MetaRow><FiMapPin size={13} />{r.courtName}</MetaRow>
               ) : null}
               <MetaRow><FiCalendar size={13} />{fmtDate(r.date)}</MetaRow>
               <MetaRow><FiClock size={13} />{r.startTime}~{r.endTime}</MetaRow>
+              {addr ? <AddrRow>{addr}</AddrRow> : null}
+
+              {/* 확정 예약: 전화 / 주소복사 / 지도 / 길찾기 — 현장 도착까지 필요한 액션 한 줄 */}
+              {live && (phone || addr || (v?.lat != null && v?.lng != null)) ? (
+                <ActionGrid>
+                  {phone ? (
+                    <ActionCell as="a" href={`tel:${phone}`}><FiPhone size={16} /><span>구장문의</span></ActionCell>
+                  ) : null}
+                  {addr ? (
+                    <ActionCell type="button" onClick={() => copyAddr(addr)}><FiCopy size={16} /><span>주소복사</span></ActionCell>
+                  ) : null}
+                  {addr || v?.lat != null ? (
+                    <>
+                      <ActionCell type="button" onClick={() => openMapView(place)}><FiMap size={16} /><span>지도보기</span></ActionCell>
+                      <ActionCell type="button" onClick={() => openDirections(place)}><FiNavigation size={16} /><span>길찾기</span></ActionCell>
+                    </>
+                  ) : null}
+                </ActionGrid>
+              ) : null}
 
               {/* 구장주 안내글 (승인 시 남긴 메시지) */}
               {r.status === "confirmed" && r.ownerNote ? (
                 <OwnerNote><FiInfo size={13} /><span>{r.ownerNote}</span></OwnerNote>
               ) : null}
 
-              {/* 확정 예약: 구장 연락처로 바로 전화 */}
-              {r.status === "confirmed" && r.venuePhone ? (
-                <PhoneLink href={`tel:${r.venuePhone}`}><FiPhone size={13} /> 구장에 전화 ({r.venuePhone})</PhoneLink>
+              {/* 예약 시 남긴 요청사항 */}
+              {r.userNote ? (
+                <OwnerNote><FiFileText size={13} /><span><b>요청사항</b> {r.userNote}</span></OwnerNote>
               ) : null}
 
               <BottomRow>
@@ -217,7 +278,15 @@ export default function MyReservationsPage() {
               </BottomRow>
 
               {canCancel(r) ? (
-                <CancelHint>이용 시작 전까지 취소할 수 있어요. 노쇼·당일 취소는 삼가주세요.</CancelHint>
+                <CancelHint>{cancelDeadlineText(r.date, r.startTime)}</CancelHint>
+              ) : null}
+
+              {/* 취소 기한이 지난 확정 예약: 왜 버튼이 없는지 + 어디로 문의할지 */}
+              {!canCancel(r) && !r.matchId && r.status === "confirmed" && !isFuture(r) ? (
+                <ClosedHint>
+                  이용 시작 시각이 지나 앱에서는 취소할 수 없어요.
+                  {phone ? <> 문의는 구장(<a href={`tel:${phone}`}>{phone}</a>)으로 해주세요.</> : " 구장에 직접 문의해 주세요."}
+                </ClosedHint>
               ) : null}
 
               {/* 매칭 예약: 취소·변경은 매칭룸에서만 가능하므로 그쪽으로 보낸다 */}
@@ -359,21 +428,83 @@ const OwnerNote = styled.div`
   & > svg { color: ${({ theme }) => theme.colors.primary}; flex-shrink: 0; margin-top: 2px; }
 `;
 
-const PhoneLink = styled.a`
+const UseBanner = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: 10px;
+  padding: 9px 11px;
+  & > svg { flex-shrink: 0; }
+`;
+
+const AddrRow = styled.div`
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
+  padding-left: 19px;
+`;
+
+const MiniBtn = styled.button`
+  margin-left: 2px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
+  gap: 3px;
+  &:active { transform: translateY(1px); }
+`;
+
+const ActionGrid = styled.div`
+  margin-top: 4px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 6px;
-  align-self: flex-start;
-  font-size: 13px;
+`;
+
+const ActionCell = styled.button`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 58px;
+  border-radius: 10px;
+  border: none;
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 11.5px;
   font-weight: 700;
   text-decoration: none;
-  color: ${({ theme }) => theme.colors.primary};
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
 `;
 
 const CancelHint = styled.div`
   font-size: 11.5px;
   line-height: 1.5;
   color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const ClosedHint = styled.div`
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: 10px;
+  padding: 9px 11px;
+  & a { color: ${({ theme }) => theme.colors.primary}; font-weight: 700; }
 `;
 
 const MatchHint = styled.button`

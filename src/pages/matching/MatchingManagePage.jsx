@@ -9,7 +9,7 @@ import Spinner from "../../components/common/Spinner";
 
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
-import { MIN_TEAM_MEMBERS } from "../../utils/constants";
+import { MIN_TEAM_MEMBERS, requiredMembersForMatchSize } from "../../utils/constants";
 import { listMatchInboxForClub } from "../../services/matchingInboxService";
 import {
   acceptMatchRequest,
@@ -1025,9 +1025,12 @@ export default function MatchingManagePage() {
       setBusyKey(key);
 
       if (action.type === "accept") {
-        // ✅ 최소 인원(팀장 포함 3명) 미만이면 수락 불가
-        if (myMemberCount < MIN_TEAM_MEMBERS) {
-          showAlert(`우리 팀원이 ${MIN_TEAM_MEMBERS}명 이상일 때 매칭을 수락할 수 있어요. (현재 ${myMemberCount}명)`);
+        // ✅ 경기 형식에 필요한 인원(3v3=3, 4v4=4, 5v5=5)을 채워야 수락 가능
+        const need = requiredMembersForMatchSize(latest?.matchSizeKey) || MIN_TEAM_MEMBERS;
+        if (myMemberCount < need) {
+          showAlert(
+            `${formatMatchSizeKo(latest?.matchSizeKey) || "이"} 경기는 팀원이 ${need}명 이상일 때 수락할 수 있어요. (현재 ${myMemberCount}명)`
+          );
           return;
         }
         await acceptMatchRequest({ myClubId, latestNoti: latest });

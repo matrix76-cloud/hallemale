@@ -22,9 +22,9 @@ function normalizeDeepLink(raw) {
   const v = String(raw || "").trim();
   if (!v) return "";
   const s = v.startsWith("/") ? v : `/${v}`;
-  if (s === "/chat") return "/chats";
-  if (s.startsWith("/chat/")) {
-    const cid = s.slice("/chat/".length);
+  if (s === "/chat" || s === "/chats") return "/chats";
+  if (s.startsWith("/chat/") || s.startsWith("/chats/")) {
+    const cid = s.slice(s.startsWith("/chats/") ? "/chats/".length : "/chat/".length);
     if (cid.startsWith("match_")) return `/match-roomdetail/${cid.slice("match_".length)}`;
     return `/chats/${cid}`;
   }

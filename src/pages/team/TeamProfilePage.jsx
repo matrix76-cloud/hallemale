@@ -26,7 +26,7 @@ import { setFavoriteTeam } from "../../services/favoriteService";
 import { createMatchRequest } from "../../services/matchingService";
 
 import { useClub } from "../../hooks/useClub";
-import { MIN_TEAM_MEMBERS } from "../../utils/constants";
+import { MIN_TEAM_MEMBERS, requiredMembersForMatchSize } from "../../utils/constants";
 
 import TeamMatchHistorySection from "../../components/team/TeamMatchHistorySection";
 import TeamMonthlyActivitySection from "../../components/team/TeamMonthlyActivitySection";
@@ -1806,16 +1806,25 @@ useEffect(() => {
                       { key: "5v5", label: "5 vs 5", desc: "한 팀당 5명" },
                     ].map((opt) => {
                       const selected = selectedMatchSize === opt.key;
+                      // 양 팀 중 한 곳이라도 인원이 모자라면 그 형식은 고를 수 없다
+                      const need = requiredMembersForMatchSize(opt.key);
+                      const myShort = myMemberCount < need;
+                      const oppShort = targetMemberCount < need;
+                      const blocked = myShort || oppShort;
+                      const reason = myShort
+                        ? `우리 팀 ${myMemberCount}명 · ${need}명 필요`
+                        : `상대 팀 ${targetMemberCount}명 · ${need}명 필요`;
                       return (
                         <SelectItem
                           key={opt.key}
                           type="button"
                           $selected={selected}
+                          disabled={blocked}
                           onClick={() => setSelectedMatchSize(opt.key)}
                         >
                           <SelectTexts>
                             <SelectName>{opt.label}</SelectName>
-                            <SelectMeta>{opt.desc}</SelectMeta>
+                            <SelectMeta>{blocked ? reason : opt.desc}</SelectMeta>
                           </SelectTexts>
                           <SelectRadio $selected={selected}>{selected ? "✓" : ""}</SelectRadio>
                         </SelectItem>

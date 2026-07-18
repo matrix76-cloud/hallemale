@@ -23,7 +23,7 @@ import { getPlayerRankMap } from "../../services/rankingService";
 import { estimateWinProbability } from "../../utils/matchAnalysis";
 import { createMatchRequest, proposeMatchToLeader } from "../../services/matchingService";
 import { getTeamPredictionAccuracy, getHeadToHeadRecord } from "../../services/matchRoomService";
-import { MIN_TEAM_MEMBERS } from "../../utils/constants";
+import { MIN_TEAM_MEMBERS, requiredMembersForMatchSize } from "../../utils/constants";
 
 import AnimatedAiRing from "./components/AnimatedAiRing";
 import { track } from "../../utils/analytics";
@@ -639,6 +639,11 @@ const SelectItem = styled.button`
   gap: 8px;
   cursor: pointer;
   text-align: left;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 `;
 
 const SelectTexts = styled.div`
@@ -1355,16 +1360,25 @@ export default function MatchAnalysisPage() {
               <SelectList>
                 {MATCH_SIZE_OPTIONS.map((optn) => {
                   const selected = selectedMatchSize === optn.key;
+                  // 양 팀 중 한 곳이라도 인원이 모자라면 그 형식은 고를 수 없다
+                  const need = requiredMembersForMatchSize(optn.key);
+                  const myShort = (view.my.membersCount || 0) < need;
+                  const oppShort = (view.opp.membersCount || 0) < need;
+                  const blocked = myShort || oppShort;
+                  const reason = myShort
+                    ? `우리 팀 ${view.my.membersCount || 0}명 · ${need}명 필요`
+                    : `상대 팀 ${view.opp.membersCount || 0}명 · ${need}명 필요`;
                   return (
                     <SelectItem
                       key={optn.key}
                       type="button"
                       $selected={selected}
+                      disabled={blocked}
                       onClick={() => setSelectedMatchSize(optn.key)}
                     >
                       <SelectTexts>
                         <SelectName>{optn.label}</SelectName>
-                        <SelectMetaText>{optn.desc}</SelectMetaText>
+                        <SelectMetaText>{blocked ? reason : optn.desc}</SelectMetaText>
                       </SelectTexts>
                       <SelectRadio $selected={selected}>{selected ? "✓" : ""}</SelectRadio>
                     </SelectItem>

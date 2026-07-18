@@ -45,6 +45,24 @@ export const MATCH_INBOX_SECTION = {
 export const MIN_TEAM_MEMBERS = 3;
 
 /**
+ * 경기 형식(matchSizeKey) → 한 팀에 필요한 인원
+ * - 3명뿐인 팀이 4대4·5대5를 신청하거나 수락하지 못하도록 막는 기준
+ */
+export const MATCH_SIZE_KEYS = ["3v3", "4v4", "5v5"];
+
+/** "5v5" → 5 (알 수 없는 값이면 0) */
+export function requiredMembersForMatchSize(matchSizeKey) {
+  const m = /^(\d+)v\d+$/.exec(String(matchSizeKey || "").trim());
+  return m ? Number(m[1]) : 0;
+}
+
+/** "5v5" → "5 vs 5" (알 수 없는 값이면 빈 문자열) */
+export function matchSizeLabelOf(matchSizeKey) {
+  const v = String(matchSizeKey || "").trim();
+  return MATCH_SIZE_KEYS.includes(v) ? v.replace("v", " vs ") : "";
+}
+
+/**
  * 팀 태그 프리셋 (팀 생성/관리 공용)
  * - 비슷한 팀을 찾는 데 도움이 되는 태그 모음
  */

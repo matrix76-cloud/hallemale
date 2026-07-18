@@ -108,18 +108,26 @@ header.scrolled .nav-menu a{color:var(--ink-2)}
   box-shadow:0 26px 56px -26px rgba(20,24,29,.42),0 8px 20px -14px rgba(20,24,29,.3)}
 .device img{width:100%;height:auto;display:block;border-radius:26px}
 
-/* ===== HERO (이미지 배경 + 폰 목업) ===== */
+/* ===== HERO (영상 배경 + 이미지 폴백) ===== */
 .hero{position:relative;min-height:100vh;display:flex;align-items:center;overflow:hidden;
   padding:150px 0 90px;background-color:#16121f}
-.hero-bg{position:absolute;inset:0;z-index:0;background-image:url('assets/hero-bg.jpg');
+/* 영상 첫 프레임과 같은 이미지 — 영상이 페이드인될 때 화면이 바뀌지 않게 한다 */
+.hero-bg{position:absolute;inset:0;z-index:0;background-image:url('assets/hero-poster.jpg');
   background-size:cover;background-position:58% 30%;background-repeat:no-repeat;
   transform-origin:58% 32%;will-change:transform,filter;
   animation:heroPunch 1.9s cubic-bezier(.16,1,.3,1) both, heroKen 18s ease-out 1.9s forwards}
+/* 영상은 이미지 위에 덮되, 실제 재생이 시작된 뒤에만 페이드인 —
+   파일이 없거나 자동재생이 막히면 아래 .hero-bg 이미지가 그대로 보임 */
+.hero-video{position:absolute;inset:0;z-index:0;width:100%;height:100%;
+  object-fit:cover;object-position:58% 30%;
+  opacity:0;transition:opacity .9s ease;will-change:opacity;pointer-events:none}
+.hero-video.is-playing{opacity:1}
 .hero-veil{position:absolute;inset:0;z-index:1;pointer-events:none;
   background:linear-gradient(105deg,rgba(12,10,20,.88) 0%,rgba(12,10,20,.66) 40%,rgba(12,10,20,.34) 70%,rgba(12,10,20,.12) 100%)}
 @keyframes heroPunch{0%{transform:scale(1.6);filter:brightness(.45) saturate(1.1)}100%{transform:scale(1.08);filter:brightness(1) saturate(1)}}
 @keyframes heroKen{0%{transform:scale(1.08) translate(0,0)}100%{transform:scale(1.16) translate(-1.5%,-1%)}}
-@media(prefers-reduced-motion:reduce){.hero-bg{animation:none;transform:scale(1.08)}}
+@media(prefers-reduced-motion:reduce){.hero-bg{animation:none;transform:scale(1.08)}
+  .hero-video{display:none}}
 .hero-inner{position:relative;z-index:2;width:100%;max-width:640px;margin-left:clamp(0px,7vw,120px);margin-right:auto;text-align:left;color:#fff}
 .hero h1{font-size:clamp(38px,6.4vw,72px);line-height:1.1;font-weight:900;letter-spacing:-.045em;color:#fff;text-shadow:0 2px 30px rgba(0,0,0,.45)}
 .hero h1 .pt{color:var(--brand-soft)}
@@ -570,6 +578,9 @@ section[id]{scroll-margin-top:88px}
 <!-- HERO -->
 <section class="hero" id="main">
   <div class="hero-bg" aria-hidden="true"></div>
+  <video class="hero-video" aria-hidden="true" muted loop playsinline autoplay preload="auto">
+    <source src="assets/hero.mp4" type="video/mp4">
+  </video>
   <div class="hero-veil" aria-hidden="true"></div>
   <div class="wrap hero-inner">
     <div class="hero-text">
@@ -1003,6 +1014,16 @@ section[id]{scroll-margin-top:88px}
 
 <script src="assets/qrcode.js"></script>
 <script>
+// 히어로 영상: 실제 재생이 시작된 프레임부터 페이드인 (실패 시 이미지 배경 유지)
+(function(){
+  var v = document.querySelector('.hero-video');
+  if(!v) return;
+  v.addEventListener('playing', function(){ v.classList.add('is-playing'); }, {once:true});
+  // iOS 저전력 모드 등 autoplay 속성이 무시되는 경우 대비 (실패해도 opacity:0 유지 → 이미지 배경)
+  var p = v.play();
+  if(p && p.catch) p.catch(function(){});
+})();
+
 // 스토어 링크 (앱 출시 전이면 스토어에서 404 — 출시되면 자동으로 열림)
 const APP_STORE_URL = 'https://apps.apple.com/app/id6756939904';
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.hongcomms.hallemalle';

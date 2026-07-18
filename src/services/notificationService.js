@@ -21,6 +21,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
+import { NOTI_AUDIENCE, resolveNotiAudience } from "../utils/notificationDefinitions";
 
 function toDateSafe(v) {
   if (!v) return null;
@@ -124,8 +125,10 @@ export async function listNotificationsForUser({ uid, clubId = "", limitCount = 
 
 // ✅ 실시간 구독 버전 — 알림이 추가/삭제되면 사용자 화면에 즉시 반영
 // 반환값은 구독 해제 함수(unsubscribe).
+// audience: "user"(기본) | "owner" — 같은 카카오 계정으로 양쪽에 로그인하면 uid가 같아지므로,
+// uid만으로는 사용자앱 알림과 구장주 알림을 나눌 수 없다. 대상 앱으로 한 번 더 거른다.
 export function subscribeNotificationsForUser(
-  { uid, clubId = "", limitCount = 60 } = {},
+  { uid, clubId = "", limitCount = 60, audience = NOTI_AUDIENCE.USER } = {},
   onChange
 ) {
   if (!uid) {
@@ -146,6 +149,8 @@ export function subscribeNotificationsForUser(
       }));
       const merged = listU
         .filter((n) => String(n.kind || "").trim() !== "system")
+    // ✅ 대상 앱이 다른 알림은 제외 (구장주 화면에 매칭·채팅 알림이 뜨던 문제)
+    .filter((n) => resolveNotiAudience(n) === audience)
     // 개인(user) 알림(clubId 없음)은 항상 표시, 팀 알림만 활성팀으로 필터
     .filter((n) => {
       const nClub = String(n.clubId || "");

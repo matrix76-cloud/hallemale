@@ -9,6 +9,36 @@ export const NOTI_SCOPE = Object.freeze({
   TEAM: "team",
 });
 
+/**
+ * ✅ 알림이 어느 앱(사용자앱 / 구장주 워크스페이스)에 속하는지.
+ * 카카오 uid는 `kakao:{id}`로 결정론적이라, 같은 계정으로 양쪽에 로그인하면 uid가 동일해진다.
+ * uid만으로는 구분이 불가능하므로 알림 문서 자체에 대상 앱을 기록한다.
+ */
+export const NOTI_AUDIENCE = Object.freeze({
+  USER: "user",
+  OWNER: "owner",
+});
+
+/**
+ * 알림 1건의 대상 앱을 판정한다.
+ * - audience 필드가 있으면 그대로 사용 (신규 알림)
+ * - 없으면 기존 신호로 추론 (이 필드가 생기기 전에 쌓인 알림)
+ *   · prefsCategory === "owner"  → 구장 승인/사업자 인증 등 구장주 전용
+ *   · deepLink가 "/owner"로 시작 → 구장주 워크스페이스로 보내는 알림
+ *   · 그 외는 사용자앱
+ */
+export function resolveNotiAudience(n) {
+  const explicit = toStr(n?.audience).toLowerCase();
+  if (explicit === NOTI_AUDIENCE.OWNER || explicit === NOTI_AUDIENCE.USER) return explicit;
+
+  if (toStr(n?.prefsCategory).toLowerCase() === "owner") return NOTI_AUDIENCE.OWNER;
+
+  const link = toStr(n?.meta?.deepLink) || toStr(n?.deepLink);
+  if (link.startsWith("/owner")) return NOTI_AUDIENCE.OWNER;
+
+  return NOTI_AUDIENCE.USER;
+}
+
 export const NOTI_KIND = Object.freeze({
   MATCH: "match",
   CHAT: "chat",
@@ -247,6 +277,8 @@ export function buildNotificationDoc({
     targetScope: def.targetScope,
     prefsCategory: def.prefsCategory,
     deepLink: def.deepLink || null,
+    // 레지스트리 알림(매칭·채팅·팀)은 모두 사용자앱용
+    audience: NOTI_AUDIENCE.USER,
 
     title: toStr(title) || null,
     body: toStr(body) || null,

@@ -191,7 +191,8 @@ export default function OwnerHomePage(){
     finally{setBusy(false);}
   };
   // 승인 시 예약자에게 남길 안내글을 입력받는 모달을 연다 (안내글은 선택).
-  const approveResv=(r)=>{ setApproveNote(""); setApproveTarget(r); };
+  // 구장정보에 등록해둔 기본 안내문으로 미리 채운다 — 매번 같은 입장 안내를 다시 쓰지 않도록.
+  const approveResv=(r)=>{ setApproveNote(venue?.defaultOwnerNote||""); setApproveTarget(r); };
   const submitApprove=async()=>{
     const r=approveTarget; if(!r)return;
     setBusy(true);
@@ -329,6 +330,7 @@ export default function OwnerHomePage(){
               <DRow><span>코트</span><b>{r.courtName||court?.name||"-"}</b></DRow>
               <DRow><span>이용료</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원 (현장 정산)</b></DRow>
               {!isMatch&&r.memo&&<DRow><span>메모</span><b style={{fontWeight:600}}>{r.memo}</b></DRow>}
+              {r.userNote&&<DRow><span>요청사항</span><b style={{fontWeight:600}}>{r.userNote}</b></DRow>}
 
               {isMatch ? (
                 <>
@@ -429,6 +431,11 @@ export default function OwnerHomePage(){
               <NoteArea value={approveNote} onChange={e=>setApproveNote(e.target.value)} maxLength={300}
                 placeholder={"예: 정문 옆 주차장을 이용해주세요. 농구화 필수입니다."} />
             </Field>
+            <Caption>
+              {venue?.defaultOwnerNote
+                ? "구장정보에 등록한 기본 안내문이에요. 이 예약에만 다르게 쓰려면 고쳐도 돼요."
+                : "구장정보 > 예약 확정 안내문에 등록해두면 승인할 때 자동으로 채워져요."}
+            </Caption>
             <PrimaryBtn onClick={submitApprove} disabled={busy}>{busy?"승인 중…":"승인하기"}</PrimaryBtn>
             <GhostBtn onClick={()=>!busy&&setApproveTarget(null)} disabled={busy}>취소</GhostBtn>
           </Sheet>
