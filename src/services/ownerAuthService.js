@@ -20,15 +20,9 @@ import {
   sendPasswordResetEmail,
   signOut,
 } from "firebase/auth";
-import { ensureUserDoc } from "./userService";
+import { ensureUserDoc, saveOwnerManagerInfo } from "./userService";
+import { toE164Kr } from "./phoneOtpService";
 import { isInWebView, postToApp, onceFromApp } from "../bridge/webviewBridge";
-
-const KAKAO_CUSTOM_TOKEN_URL =
-  "https://asia-northeast3-halle-bf789.cloudfunctions.net/kakaoCustomToken";
-const WEB_KAKAO_REST_KEY = "25dbce8c048d516861332a9f6b682f35";
-const LS_KAKAO_KEEP = "hm.ownerKakaoKeep";
-// 카카오 콜백(/oauth/kakao)에서 "구장주 로그인 흐름"인지 식별
-export const LS_OWNER_KAKAO_FLOW = "hm.ownerKakaoFlow";
 
 function s(v) { return String(v ?? "").trim(); }
 function isMobileBrowser() {
@@ -53,7 +47,25 @@ export async function ownerSignOut() {
  *    같은 사람의 '선수' 소셜 계정에는 영향이 없다.
  * ========================================================== */
 
-const OWNER_PW_MIN = 6;
+// 구장주 계정은 예약·매출 데이터를 다루므로 사용자앱보다 기준을 높인다.
+export const OWNER_PW_MIN = 8;
+
+/** 비밀번호 규칙: 8자 이상 + 영문·숫자 조합. 통과하면 null, 아니면 사유 문자열 */
+export function validateOwnerPassword(pw) {
+  const v = s(pw);
+  if (v.length < OWNER_PW_MIN) return `비밀번호는 ${OWNER_PW_MIN}자 이상이어야 해요.`;
+  if (!/[A-Za-z]/.test(v)) return "비밀번호에 영문을 포함해주세요.";
+  if (!/[0-9]/.test(v)) return "비밀번호에 숫자를 포함해주세요.";
+  return null;
+}
+
+/** 휴대폰번호(하이픈 없이 10~11자리)만 통과 */
+export function validateOwnerPhone(phone) {
+  const digits = s(phone).replace(/[^0-9]/g, "");
+  if (!digits) return "휴대폰번호를 입력해주세요.";
+  if (!/^01[0-9]{8,9}$/.test(digits)) return "휴대폰번호 형식이 올바르지 않아요.";
+  return null;
+}
 
 function ownerAuthErrorMessage(code) {
   switch (String(code || "")) {
@@ -69,18 +81,54 @@ function ownerAuthErrorMessage(code) {
   }
 }
 
-/** 구장주 이메일 회원가입 → users 문서 보장 + role=owner 마킹은 로그인 화면에서 처리 */
-export async function ownerSignUpEmail({ email, password, keepLogin = true }) {
+/**
+ * 구장주 이메일 회원가입 → users 문서 보장 + role=owner 마킹은 로그인 화면에서 처리
+ * - managerName/managerPhone: 계정 담당자(사업자 대표와 다를 수 있음). 예약 문의·구장 승인 연락처
+ * - 휴대폰은 가입 폼에서 SMS 인증(phoneOtpService)을 마친 번호만 넘어온다.
+ *   본인확인이 SMS로 끝나므로 이메일 인증은 따로 받지 않는다(이메일은 로그인 ID + 비밀번호 재설정용).
+ */
+export async function ownerSignUpEmail({
+  email,
+  password,
+  managerName,
+  managerPhone,
+  phoneVerified = false,
+  keepLogin = true,
+}) {
   const em = s(email).toLowerCase();
   const pw = s(password);
+  const name = s(managerName);
+  const phone = s(managerPhone).replace(/[^0-9]/g, "");
+
   if (!em) return { success: false, error_message: "이메일을 입력해주세요." };
-  if (pw.length < OWNER_PW_MIN) return { success: false, error_message: `비밀번호는 ${OWNER_PW_MIN}자 이상이어야 해요.` };
+
+  const pwErr = validateOwnerPassword(pw);
+  if (pwErr) return { success: false, error_message: pwErr };
+
+  if (!name) return { success: false, error_message: "담당자 이름을 입력해주세요." };
+
+  const phoneErr = validateOwnerPhone(phone);
+  if (phoneErr) return { success: false, error_message: phoneErr };
+
+  if (!phoneVerified) {
+    return { success: false, error_message: "휴대폰 인증을 완료해주세요." };
+  }
+
   try {
     await setPersistence(ownerAuth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
     const cred = await createUserWithEmailAndPassword(ownerAuth, em, pw);
     const uid = s(cred?.user?.uid);
     if (!uid) return { success: false, error_code: "no_uid" };
-    await ensureUserDoc({ uid, email: em, provider: "password" });
+
+    await ensureUserDoc({
+      uid,
+      email: em,
+      provider: "password",
+      phoneE164: toE164Kr(phone),
+      phoneVerified: true,
+    });
+    await saveOwnerManagerInfo({ uid, name, phone });
+
     return { success: true, uid };
   } catch (e) {
     return { success: false, error_code: e?.code, error_message: ownerAuthErrorMessage(e?.code) };
@@ -159,46 +207,6 @@ async function ownerWebGoogle({ keepLogin }) {
   }
 }
 
-/** 웹: 카카오 (인가 페이지로 redirect, 복귀는 /oauth/kakao) */
-async function ownerWebKakao({ keepLogin }) {
-  try {
-    window.localStorage.setItem(LS_KAKAO_KEEP, keepLogin ? "1" : "0");
-    window.localStorage.setItem(LS_OWNER_KAKAO_FLOW, "1"); // 콜백에서 ownerAuth 사용하도록 표시
-  } catch {}
-  const redirectUri = `${window.location.origin}/oauth/kakao`;
-  window.location.href =
-    `https://kauth.kakao.com/oauth/authorize?client_id=${WEB_KAKAO_REST_KEY}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`;
-  return { success: true, provider: "kakao", strategy: "web_redirect_started" };
-}
-
-/** 웹 카카오 콜백: code → customToken → ownerAuth 로그인 */
-export async function completeOwnerWebKakaoLogin(code) {
-  const safeCode = s(code);
-  if (!safeCode) return { success: false, provider: "kakao", error_code: "no_code" };
-  let keepLogin = true;
-  try { keepLogin = window.localStorage.getItem(LS_KAKAO_KEEP) !== "0"; } catch {}
-  await setPersistence(ownerAuth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
-  const redirectUri = `${window.location.origin}/oauth/kakao`;
-  try {
-    const res = await fetch(KAKAO_CUSTOM_TOKEN_URL, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: safeCode, redirectUri }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.customToken) return { success: false, provider: "kakao", error_code: "custom_token_failed", error_message: data?.error || `HTTP ${res.status}` };
-    const cred = await signInWithCustomToken(ownerAuth, data.customToken);
-    const uid = s(cred?.user?.uid);
-    if (!uid) return { success: false, provider: "kakao", error_code: "no_uid" };
-    await ensureUserDoc({ uid, email: "", provider: "kakao" });
-    return { success: true, provider: "kakao", uid };
-  } catch (e) {
-    return { success: false, provider: "kakao", error_code: e?.code || "kakao_web_auth_error", error_message: e?.message };
-  } finally {
-    try { window.localStorage.removeItem(LS_OWNER_KAKAO_FLOW); } catch {}
-  }
-}
-
 /** RN WebView(네이티브 구장주 앱) SIGNIN_RESULT 대기 */
 function waitForSigninResult(timeoutMs = 60000) {
   return new Promise((resolve) => {
@@ -212,9 +220,13 @@ function waitForSigninResult(timeoutMs = 60000) {
 export async function ownerSignInWithSocial({ provider, keepLogin = true }) {
   const p = s(provider).toLowerCase();
 
+  // ⛔ 카카오는 구장주에서 지원하지 않는다.
+  //    카카오 uid는 kakao:{회원번호}로 결정론적이라, 같은 계정으로 사용자앱에 로그인하면
+  //    uid가 동일해져 알림이 뒤섞이고 구장주 탈퇴가 선수 계정까지 지운다.
+  if (p === "kakao") return { success: false, provider: p, error_code: "kakao_not_supported" };
+
   if (!isInWebView()) {
     if (p === "google") return await ownerWebGoogle({ keepLogin });
-    if (p === "kakao") return await ownerWebKakao({ keepLogin });
     return { success: false, provider: p, error_code: "web_unsupported" };
   }
 
@@ -232,17 +244,6 @@ export async function ownerSignInWithSocial({ provider, keepLogin = true }) {
       const uid = s(cred?.user?.uid);
       await ensureUserDoc({ uid, email: s(cred?.user?.email), provider: "google" });
       return { success: true, provider: "google", uid };
-    }
-    if (p === "kakao") {
-      const accessToken = s(res?.accessToken);
-      if (!accessToken) return { success: false, provider: "kakao", error_code: "no_accessToken" };
-      const fnRes = await fetch(KAKAO_CUSTOM_TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken }) });
-      if (!fnRes.ok) return { success: false, provider: "kakao", error_code: "custom_token_failed", error_message: await fnRes.text() };
-      const { customToken } = await fnRes.json();
-      const cred = await signInWithCustomToken(ownerAuth, customToken);
-      const uid = s(cred?.user?.uid);
-      await ensureUserDoc({ uid, email: "", provider: "kakao" });
-      return { success: true, provider: "kakao", uid };
     }
     if (p === "apple") {
       const idToken = s(res?.idToken || res?.tokens?.idToken);

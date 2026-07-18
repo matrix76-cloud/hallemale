@@ -5,7 +5,8 @@ import { showAlert } from "../../utils/appDialog";
 import React, { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { ownerSignUpEmail } from "../../services/ownerAuthService";
+import { ownerSignUpEmail, OWNER_PW_MIN } from "../../services/ownerAuthService";
+import { requestPhoneOtp, verifyPhoneOtp, isKrMobile } from "../../services/phoneOtpService";
 import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
 import { track } from "../../utils/analytics";
@@ -16,7 +17,64 @@ export default function OwnerSignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
+  const [managerName, setManagerName] = useState("");
+  const [managerPhone, setManagerPhone] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // 휴대폰 SMS 인증 (사용자앱과 동일한 phoneOtpService 재사용)
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpBusy, setOtpBusy] = useState(false);
+
+  // 번호를 고치면 인증을 다시 받아야 한다
+  const changePhone = (v) => {
+    setManagerPhone(v.replace(/[^0-9]/g, ""));
+    setOtpSent(false);
+    setOtpCode("");
+    setPhoneVerified(false);
+  };
+
+  const sendOtp = async () => {
+    if (otpBusy) return;
+    if (!isKrMobile(managerPhone)) {
+      showAlert("휴대폰번호 형식이 올바르지 않아요.");
+      return;
+    }
+    setOtpBusy(true);
+    try {
+      await requestPhoneOtp(managerPhone, "signup");
+      setOtpSent(true);
+      showAlert("인증번호를 보냈어요. 문자 메시지를 확인해주세요.");
+    } catch (e) {
+      showAlert(e?.message || "인증번호 발송에 실패했어요.");
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const confirmOtp = async () => {
+    if (otpBusy) return;
+    setOtpBusy(true);
+    try {
+      await verifyPhoneOtp(managerPhone, otpCode);
+      setPhoneVerified(true);
+    } catch (e) {
+      const left = e?.attemptsLeft;
+      showAlert(
+        (e?.message || "인증번호가 올바르지 않아요.") +
+          (typeof left === "number" ? `\n남은 시도 ${left}회` : "")
+      );
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  // 비밀번호 조건 충족 여부 — 입력 중 실시간 표시
+  const pwLenOk = password.length >= OWNER_PW_MIN;
+  const pwAlphaOk = /[A-Za-z]/.test(password);
+  const pwDigitOk = /[0-9]/.test(password);
+  const pwMatch = password.length > 0 && password === password2;
 
   // 가입/로그인 완료되면 구장 온보딩으로 이동
   useEffect(() => {
@@ -35,7 +93,14 @@ export default function OwnerSignupPage() {
     }
     setBusy(true);
     try {
-      const res = await ownerSignUpEmail({ email, password, keepLogin: true });
+      const res = await ownerSignUpEmail({
+        email,
+        password,
+        managerName,
+        managerPhone,
+        phoneVerified,
+        keepLogin: true,
+      });
       if (!res || res.success !== true) {
         showAlert(res?.error_message || "가입에 실패했어요.");
         return;
@@ -77,11 +142,20 @@ export default function OwnerSignupPage() {
         <Input
           type="password"
           autoComplete="new-password"
-          placeholder="비밀번호 (6자 이상)"
+          placeholder={`비밀번호 (${OWNER_PW_MIN}자 이상, 영문+숫자)`}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           disabled={busy}
         />
+
+        {password.length > 0 && (
+          <RuleRow>
+            <Rule $ok={pwLenOk}>{pwLenOk ? "✓" : "·"} {OWNER_PW_MIN}자 이상</Rule>
+            <Rule $ok={pwAlphaOk}>{pwAlphaOk ? "✓" : "·"} 영문</Rule>
+            <Rule $ok={pwDigitOk}>{pwDigitOk ? "✓" : "·"} 숫자</Rule>
+          </RuleRow>
+        )}
+
         <Input
           type="password"
           autoComplete="new-password"
@@ -90,8 +164,65 @@ export default function OwnerSignupPage() {
           onChange={(e) => setPassword2(e.target.value)}
           disabled={busy}
         />
+        {password2.length > 0 && !pwMatch && (
+          <RuleRow>
+            <Rule $ok={false}>· 비밀번호가 일치하지 않아요</Rule>
+          </RuleRow>
+        )}
 
-        <SubmitBtn type="submit" disabled={busy}>가입하기</SubmitBtn>
+        <FieldLabel>담당자 정보</FieldLabel>
+        <Input
+          type="text"
+          autoComplete="name"
+          placeholder="담당자 이름"
+          value={managerName}
+          onChange={(e) => setManagerName(e.target.value)}
+          disabled={busy}
+        />
+        <Row>
+          <Input
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder="휴대폰번호 (- 없이)"
+            value={managerPhone}
+            onChange={(e) => changePhone(e.target.value)}
+            disabled={busy || phoneVerified}
+            maxLength={11}
+          />
+          <SideBtn
+            type="button"
+            onClick={sendOtp}
+            disabled={busy || otpBusy || phoneVerified || !isKrMobile(managerPhone)}
+          >
+            {phoneVerified ? "인증완료" : otpSent ? "재발송" : "인증번호"}
+          </SideBtn>
+        </Row>
+
+        {otpSent && !phoneVerified && (
+          <Row>
+            <Input
+              type="tel"
+              inputMode="numeric"
+              placeholder="인증번호 6자리"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
+              disabled={busy || otpBusy}
+              maxLength={6}
+            />
+            <SideBtn type="button" onClick={confirmOtp} disabled={busy || otpBusy || otpCode.length < 4}>
+              확인
+            </SideBtn>
+          </Row>
+        )}
+
+        {phoneVerified && (
+          <RuleRow>
+            <Rule $ok={true}>✓ 휴대폰 인증이 완료됐어요</Rule>
+          </RuleRow>
+        )}
+
+        <SubmitBtn type="submit" disabled={busy || !phoneVerified}>가입하기</SubmitBtn>
 
         <Links>
           <LinkBtn type="button" onClick={() => navigate("/owner/login")}>
@@ -171,6 +302,48 @@ const Input = styled.input`
   &:focus { outline: none; border-color: ${({ theme }) => theme.colors.primary}; }
   &::placeholder { color: ${({ theme }) => theme.colors.textWeak}; }
   &:disabled { opacity: 0.6; }
+`;
+
+const RuleRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: -4px 2px 0;
+`;
+
+const Rule = styled.span`
+  font-size: 12.5px;
+  color: ${({ $ok, theme }) => ($ok ? theme.colors.primary : theme.colors.textWeak)};
+`;
+
+const Row = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+`;
+
+const SideBtn = styled.button`
+  flex: 0 0 auto;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  &:active { transform: translateY(1px); }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+`;
+
+const FieldLabel = styled.div`
+  margin: 6px 2px -2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SubmitBtn = styled.button`

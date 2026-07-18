@@ -6,7 +6,6 @@ import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { completeWebKakaoLogin } from "../../services/authService";
-import { completeOwnerWebKakaoLogin, LS_OWNER_KAKAO_FLOW } from "../../services/ownerAuthService";
 
 export default function KakaoCallbackPage() {
   const navigate = useNavigate();
@@ -32,29 +31,12 @@ export default function KakaoCallbackPage() {
 
     (async () => {
       try {
-        // 구장주 카카오 로그인 흐름이면 ownerAuth로 로그인 후 /owner 로
-        let ownerFlow = false;
-        try { ownerFlow = localStorage.getItem(LS_OWNER_KAKAO_FLOW) === "1"; } catch {}
+        // 카카오 로그인은 사용자 앱 전용이다.
+        // (구장주는 이메일/비밀번호만 — 소셜을 허용하면 uid가 사용자 계정과 같아져 알림·탈퇴가 얽힌다)
 
         // 커스텀 토큰 발급이 도는 동안 도착지 청크를 병렬로 받아둔다.
         // 실패해도 무시 — 라우팅 시 Suspense가 다시 받는다.
-        if (ownerFlow) {
-          import("../../layouts/OwnerLayout").catch(() => {});
-          import("../owner/OwnerEntry").catch(() => {});
-        } else {
-          import("../home/HomePage").catch(() => {});
-        }
-
-        if (ownerFlow) {
-          const res = await completeOwnerWebKakaoLogin(code);
-          if (res?.success) {
-            navigate("/owner", { replace: true });
-          } else {
-            console.error("[KakaoCallback owner] 실패:", res);
-            setError("카카오 로그인에 실패했어요. 다시 시도해 주세요.");
-          }
-          return;
-        }
+        import("../home/HomePage").catch(() => {});
 
         const res = await completeWebKakaoLogin(code);
         if (res?.success) {

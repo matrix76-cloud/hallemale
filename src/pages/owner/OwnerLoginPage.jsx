@@ -1,6 +1,8 @@
 /* eslint-disable */
 // src/pages/owner/OwnerLoginPage.jsx
-// 구장 관리자 로그인 — 이메일/비밀번호 + 카카오 (세션은 ownerAuth 로 사용자 앱과 분리)
+// 구장 관리자 로그인 — 이메일/비밀번호 전용 (세션은 ownerAuth 로 사용자 앱과 분리)
+// 소셜 로그인은 지원하지 않는다: 카카오 uid가 kakao:{회원번호}로 결정론적이라
+// 같은 계정으로 사용자앱에 로그인하면 uid가 겹쳐 알림·탈퇴가 얽힌다.
 // 로그인 / 비밀번호 찾기 2모드. 회원가입은 전용 페이지(/owner/signup).
 import { showAlert } from "../../utils/appDialog";
 import React, { useEffect, useState } from "react";
@@ -9,7 +11,6 @@ import { useNavigate } from "react-router-dom";
 import {
   ownerSignInEmail,
   ownerSendPasswordReset,
-  ownerSignInWithSocial,
 } from "../../services/ownerAuthService";
 import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
@@ -72,36 +73,6 @@ export default function OwnerLoginPage() {
     }
   };
 
-  const handleKakao = async () => {
-    if (busy) return;
-
-    setBusy(true);
-    try {
-      const res = await ownerSignInWithSocial({ provider: "kakao", keepLogin: true });
-
-      // 웹은 카카오 인가 페이지로 이동한다. 복귀(/oauth/kakao)에서 ownerAuth 로그인이
-      // 끝나고 /owner 로 넘어가므로 여기서는 더 볼 게 없다.
-      if (res?.strategy === "web_redirect_started") return;
-
-      if (!res || res.success !== true) {
-        const code = res?.error_code || "";
-        if (code === "not_in_app") {
-          showAlert("카카오 로그인을 시작하지 못했어요.");
-        } else if (code === "timeout") {
-          showAlert("로그인 시간이 초과되었어요. 다시 시도해 주세요.");
-        } else {
-          showAlert("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
-        }
-        setBusy(false);
-        return;
-      }
-      // 성공 시 화면 전환은 위 useEffect(인증 상태 변화 감지)에 일임한다.
-    } catch (err) {
-      showAlert("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
-      setBusy(false);
-    }
-  };
-
   const title = mode === "reset" ? "비밀번호 찾기" : "할래말래 사장님";
   const sub =
     mode === "reset"
@@ -150,21 +121,6 @@ export default function OwnerLoginPage() {
         <SubmitBtn type="submit" disabled={busy}>
           {submitLabel}
         </SubmitBtn>
-
-        {mode === "login" && (
-          <>
-            <Divider>또는</Divider>
-            <KakaoBtn type="button" onClick={handleKakao} disabled={busy}>
-              <KakaoIcon viewBox="0 0 18 18" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M9 1.5C4.86 1.5 1.5 4.14 1.5 7.39c0 2.08 1.38 3.9 3.46 4.95-.15.53-.55 1.98-.63 2.29-.1.38.14.38.29.27.12-.08 1.86-1.26 2.62-1.78.41.06.83.09 1.26.09 4.14 0 7.5-2.64 7.5-5.89S13.14 1.5 9 1.5Z"
-                />
-              </KakaoIcon>
-              카카오로 로그인
-            </KakaoBtn>
-          </>
-        )}
 
         <Links>
           {mode === "login" ? (
@@ -265,49 +221,6 @@ const SubmitBtn = styled.button`
   margin-top: 4px;
   &:active { transform: translateY(1px); }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-
-const Divider = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 2px 0;
-  color: ${({ theme }) => theme.colors.textWeak};
-  font-size: 12.5px;
-
-  &::before,
-  &::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: ${({ theme }) => theme.colors.border};
-  }
-`;
-
-/* 카카오 버튼 색은 카카오 로그인 디자인 가이드 고정값 — 테마 토큰으로 대체 불가 */
-const KakaoBtn = styled.button`
-  width: 100%;
-  height: 52px;
-  border-radius: 10px;
-  border: none;
-  background: #fee500;
-  color: #191600;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  &:active { transform: translateY(1px); }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-
-const KakaoIcon = styled.svg`
-  width: 18px;
-  height: 18px;
-  color: #191600;
 `;
 
 const Links = styled.div`

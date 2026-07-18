@@ -199,6 +199,26 @@ export const saveOwnerConsents = async ({
 };
 
 /**
+ * ✅ 구장주 계정 담당자 정보 저장 (가입 시점)
+ * - 사업자 정보(상호·사업자번호·대표자명)는 온보딩에서 따로 받는다.
+ *   여기 담당자는 "이 계정을 실제로 쓰는 사람"으로, 대표자와 다를 수 있다.
+ */
+export const saveOwnerManagerInfo = async ({ uid, name, phone }) => {
+  if (!uid) throw new Error("saveOwnerManagerInfo: uid is required");
+  const ref = doc(db, "users", uid);
+  await setDoc(
+    ref,
+    {
+      ownerManagerName: String(name || "").trim(),
+      ownerManagerPhone: String(phone || "").replace(/[^0-9]/g, ""),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+  return { uid };
+};
+
+/**
  * ✅ 회원가입 완료 화면 노출 완료 표시 — 이후 재노출 방지
  */
 export const markWelcomeSeen = async ({ uid }) => {
