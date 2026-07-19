@@ -11,6 +11,7 @@ import { useMatchingData } from "../../hooks/useMatchingData";
 import logoImg from "../../assets/images/logo.png";
 import { runSchemaDumpFront } from "../../services/schemaDumpService";
 import { track } from "../../utils/analytics";
+import { isReviewRawMode } from "../../dev/reviewDemo";
 
 // 로고/텍스트가 아래에서 살짝 떠오르며 페이드인
 const fadeUp = keyframes`
@@ -91,6 +92,8 @@ export default function SplashPage() {
 
   useEffect(() => {
     if (onceRef.current) return;
+    // 리뷰 도구(?reviewRaw=1)에서는 스플래시 화면 자체가 리뷰 대상이므로 자동 이동하지 않는다.
+    if (isReviewRawMode()) return;
     if (authLoading || clubLoading) return;
 
     if (!isLoggedIn) {
