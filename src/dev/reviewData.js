@@ -15,16 +15,19 @@ const S_MATCH = "12jjiBlz97nPTbiToCoT";          // 매치룸(accepted)
 const S_MATCH_FIN = "2OlhjwrsHlbvPFFPuQ1l";      // 지난 경기(finished)
 
 // ── 1. 인증·가입 ─────────────────────────────────────────────
+// 인증·가입 도메인은 raw:true — 로그인된 상태가 아니라 실제 로그인/가입 화면 자체를
+// 절차대로 봐야 하므로 자동로그인/게이트우회를 끄고 로그아웃 상태로 띄운다.
+// (평소 게이트로만 뜨는 약관동의·전화인증·가입완료는 리뷰 전용 라우트로 직접 렌더)
 export const AUTH_REVIEW = [
-  { id: "splash",         no: "1-01", name: "스플래시",       path: "/",                spec: [] },
-  { id: "welcome",        no: "1-02", name: "웰컴",           path: "/welcome",         spec: [] },
-  { id: "login",          no: "1-03", name: "로그인",         path: "/login",           spec: [] },
-  { id: "kakao-callback", no: "1-04", name: "카카오 콜백",     path: "/oauth/kakao",     spec: [] },
-  { id: "agreement",      no: "1-05", name: "약관 동의 게이트", path: "",                 spec: [] },
-  { id: "phone-verify",   no: "1-06", name: "전화번호 인증",   path: "",                 spec: [] },
-  { id: "signup-done",    no: "1-07", name: "회원가입 완료",   path: "",                 spec: [] },
-  { id: "club-onboarding",no: "1-08", name: "클럽 온보딩",     path: "/onboarding/club", spec: [] },
-  { id: "invites",        no: "1-09", name: "초대 받기",       path: "/invites",         spec: [] },
+  { id: "splash",         no: "1-01", name: "스플래시",       path: "/",                        raw: true, spec: [] },
+  { id: "welcome",        no: "1-02", name: "웰컴",           path: "/welcome",                 raw: true, spec: [] },
+  { id: "login",          no: "1-03", name: "로그인",         path: "/login",                   raw: true, spec: [] },
+  { id: "kakao-callback", no: "1-04", name: "카카오 콜백",     path: "/oauth/kakao",             raw: true, spec: [] },
+  { id: "agreement",      no: "1-05", name: "약관 동의",       path: "/review-auth/agreement",       raw: true, spec: [] },
+  { id: "phone-verify",   no: "1-06", name: "전화번호 인증",   path: "/review-auth/phone",           raw: true, spec: [] },
+  { id: "signup-done",    no: "1-07", name: "회원가입 완료",   path: "/review-auth/signup-complete", raw: true, spec: [] },
+  { id: "club-onboarding",no: "1-08", name: "클럽 온보딩",     path: "/onboarding/club",         raw: true, spec: [] },
+  { id: "invites",        no: "1-09", name: "초대 받기",       path: "/invites",                 spec: [] },
 ];
 
 // ── 2. 홈·랭킹·프로필 ────────────────────────────────────────

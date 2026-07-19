@@ -11,7 +11,12 @@ import { subscribeThread, postEntry, deleteEntry } from "./reviewThreadService";
 const ALL = DOMAINS.flatMap((d) => d.screens.map((s) => ({ ...s, domain: d.key })));
 
 // path 의 :param 을 프리뷰용 샘플 값으로 치환 (레이아웃 확인 용도 — 실데이터 아님)
-const previewPath = (path) => (path || "").replace(/:[A-Za-z0-9_]+/g, "sample");
+// raw=true(인증·가입 화면)는 ?reviewRaw=1 을 붙여 로그아웃 상태로 실제 인증 화면을 띄운다.
+const previewPath = (screen) => {
+  const p = (screen?.path || "").replace(/:[A-Za-z0-9_]+/g, "sample");
+  if (!p) return p;
+  return screen?.raw ? p + (p.includes("?") ? "&" : "?") + "reviewRaw=1" : p;
+};
 
 const CORAL = "#fc5b41";
 function roundRect(ctx, x, y, w, h, r) {
@@ -348,12 +353,12 @@ export default function AuthReview() {
             // 관리자 PC 화면: 1266px 논리폭을 0.6 스케일로 축소해 전체 레이아웃 프리뷰
             <div style={{ width: 760, height: "100%", maxHeight: 822, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.10)", background: "#fff" }}>
               <div style={{ width: 1266, height: 1370, transform: "scale(0.6)", transformOrigin: "top left" }}>
-                <iframe ref={iframeRef} key={cur.id} title={cur.name} src={previewPath(cur.path)} style={{ width: 1266, height: 1370, border: "none" }} />
+                <iframe ref={iframeRef} key={cur.id} title={cur.name} src={previewPath(cur)} style={{ width: 1266, height: 1370, border: "none" }} />
               </div>
             </div>
           ) : cur.path ? (
             <div style={{ position: "relative", width: 360, height: "100%", maxHeight: 720, borderRadius: 20, overflow: "hidden", border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.10)", background: "#fff" }}>
-              <iframe ref={iframeRef} key={cur.id} title={cur.name} src={previewPath(cur.path)} style={{ width: "100%", height: "100%", border: "none", pointerEvents: pinMode ? "none" : "auto" }} />
+              <iframe ref={iframeRef} key={cur.id} title={cur.name} src={previewPath(cur)} style={{ width: "100%", height: "100%", border: "none", pointerEvents: pinMode ? "none" : "auto" }} />
               {(pinMode || viewPins) && (
                 <div onClick={pinMode ? addPin : undefined} style={{ position: "absolute", inset: 0, cursor: pinMode ? "crosshair" : "default", background: pinMode ? "rgba(252,91,65,0.04)" : "transparent" }}>
                   {(pinMode ? draftPins : viewPins || []).map((p, i) => (

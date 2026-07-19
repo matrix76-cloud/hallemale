@@ -150,9 +150,12 @@ const AuthReview = lazy(() => import("../dev/AuthReview"));
 // 개발용 리뷰 허브(/review)의 iframe 안에서 화면을 미리보기로 열 때는 인증 게이트를 통과시킨다.
 // 앱은 평소 iframe 안에서 돌지 않으므로(RN은 WebView라 top===self) 이 조건은 리뷰 프레임에서만 참.
 // 크로스오리진 접근 예외가 나면 iframe 임베드로 간주. (seekone 처럼 로그인 없이 레이아웃을 보게 함)
+// 단 ?reviewRaw=1 (인증·가입 화면 리뷰)은 게이트를 그대로 태워 실제 로그인/가입 화면이 뜨게 한다.
 function inReviewFrame() {
   try {
-    return typeof window !== "undefined" && window.top !== window.self;
+    if (typeof window === "undefined") return false;
+    if (new URLSearchParams(window.location.search).has("reviewRaw")) return false;
+    return window.top !== window.self;
   } catch {
     return true;
   }
@@ -626,6 +629,11 @@ export default function AppRoutes() {
 
         {/* 개발용 화면 리뷰 허브 — 미연결(URL 직접 접근). 로그인 사용자만 기록 저장 가능. */}
         <Route path="/review/:id?" element={<AuthReview />} />
+
+        {/* 리뷰 전용: 평소 게이트로만 뜨는 인증 화면을 직접 렌더(리뷰에서 절차대로 확인) */}
+        <Route path="/review-auth/agreement" element={<AgreementGate />} />
+        <Route path="/review-auth/phone" element={<PhoneVerifyPage />} />
+        <Route path="/review-auth/signup-complete" element={<SignupCompletePage />} />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
