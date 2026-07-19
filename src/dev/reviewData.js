@@ -2,7 +2,17 @@
 // 리뷰 도구 데이터 — 도메인별 화면 목록 (할래말래 실제 라우트 기준 · AppRoutes.jsx).
 // 각 화면: { id(전역 유니크), no, name, path(빈 문자열=정책/게이트/화면없음), spec:[불릿, ★=핵심] }
 //  · spec 은 지금은 비워둠 — 필요한 화면부터 채운다(기획서 대조 등).
-//  · path 의 :param 은 리뷰 프레임에서 'sample' 로 치환되어 로드된다(레이아웃 프리뷰 용도).
+//  · 상세 화면(:param)은 데모 계정(팀청춘 클럽장)의 실제 문서 ID를 박아 실데이터가 뜨게 함.
+//    (없는 :param 은 리뷰 프레임에서 'sample' 로 치환되어 빈 화면으로 뜸)
+//  · 시드: scripts/seed-review-demo.mjs · 자동로그인: src/dev/reviewDemo.js
+
+// 데모 계정/데이터의 실제 ID (seed-review-demo.mjs 와 동기화)
+const DEMO_UID = "p9y3QI1A0wSiAXpOByX1ulOPD9O2"; // 리뷰데모 유저
+const DEMO_CLUB = "3fvB0Uolgp5dzziy3gLL";        // 팀청춘 (데모가 클럽장)
+const S_VENUE = "Mb9O0C1QuDnfmjfp3VXd";          // 한국외대 실내체육관
+const S_POST = "9hgBRey1ToAzs7UA01B5";           // 커뮤니티 글
+const S_MATCH = "12jjiBlz97nPTbiToCoT";          // 매치룸(accepted)
+const S_MATCH_FIN = "2OlhjwrsHlbvPFFPuQ1l";      // 지난 경기(finished)
 
 // ── 1. 인증·가입 ─────────────────────────────────────────────
 export const AUTH_REVIEW = [
@@ -23,10 +33,10 @@ export const HOME_REVIEW = [
   { id: "impact",         no: "2-02", name: "임팩트 캠페인",   path: "/impact",               spec: [] },
   { id: "player-ranking", no: "2-03", name: "선수 랭킹(전체)", path: "/playerRanking",        spec: [] },
   { id: "team-ranking",   no: "2-04", name: "팀 랭킹(전체)",   path: "/teamRanking",          spec: [] },
-  { id: "player-profile", no: "2-05", name: "선수 프로필",     path: "/player/:playerId",     spec: [] },
-  { id: "team-profile",   no: "2-06", name: "팀 프로필",       path: "/team/:teamId",         spec: [] },
-  { id: "player-matches", no: "2-07", name: "선수 경기기록",   path: "/player/:playerId/matches", spec: [] },
-  { id: "team-matches",   no: "2-08", name: "팀 경기기록",     path: "/team/:teamId/matches", spec: [] },
+  { id: "player-profile", no: "2-05", name: "선수 프로필",     path: `/player/${DEMO_UID}`,     spec: [] },
+  { id: "team-profile",   no: "2-06", name: "팀 프로필",       path: `/team/${DEMO_CLUB}`,      spec: [] },
+  { id: "player-matches", no: "2-07", name: "선수 경기기록",   path: `/player/${DEMO_UID}/matches`, spec: [] },
+  { id: "team-matches",   no: "2-08", name: "팀 경기기록",     path: `/team/${DEMO_CLUB}/matches`, spec: [] },
   { id: "event",          no: "2-09", name: "이벤트",          path: "/event/:id",            spec: [] },
 ];
 
@@ -38,8 +48,8 @@ export const MATCHING_REVIEW = [
   { id: "match-opponent",   no: "3-04", name: "상대 공개",       path: "/matching/opponent",       spec: [] },
   { id: "matching-manage",  no: "3-05", name: "매칭 관리",       path: "/matchingmanage",          spec: [] },
   { id: "match-roomlist",   no: "3-06", name: "매치룸 목록",     path: "/match-roomlist",          spec: [] },
-  { id: "match-roomdetail", no: "3-07", name: "매치룸 상세",     path: "/match-roomdetail/:roomId", spec: [] },
-  { id: "match-analysis",   no: "3-08", name: "매칭 분석",       path: "/matching/analysis/:clubId", spec: [] },
+  { id: "match-roomdetail", no: "3-07", name: "매치룸 상세",     path: `/match-roomdetail/${S_MATCH}`, spec: [] },
+  { id: "match-analysis",   no: "3-08", name: "매칭 분석",       path: `/matching/analysis/${DEMO_CLUB}`, spec: [] },
   { id: "my-team-matches",  no: "3-09", name: "내 팀 경기(기록탭)", path: "/records",              spec: [] },
   { id: "matches-finished", no: "3-10", name: "지난 경기",       path: "/matches/finished",        spec: [] },
 ];
@@ -47,8 +57,8 @@ export const MATCHING_REVIEW = [
 // ── 4. 구장 예약 ─────────────────────────────────────────────
 export const VENUE_REVIEW = [
   { id: "venues",          no: "4-01", name: "구장 목록",    path: "/venues",                          spec: [] },
-  { id: "venue-book",      no: "4-02", name: "구장 예약",    path: "/venue-book/:id",                  spec: [] },
-  { id: "court-book",      no: "4-03", name: "코트 예약",    path: "/venue-book/:id/court/:courtId",   spec: [] },
+  { id: "venue-book",      no: "4-02", name: "구장 예약",    path: `/venue-book/${S_VENUE}`,           spec: [] },
+  { id: "court-book",      no: "4-03", name: "코트 예약",    path: `/venue-book/${S_VENUE}/court/1`,   spec: [] },
   { id: "my-reservations", no: "4-04", name: "내 구장 예약", path: "/my/reservations",                 spec: [] },
   { id: "fav-venues",      no: "4-05", name: "찜한 구장",    path: "/my/fav-venues",                   spec: [] },
 ];
@@ -56,8 +66,8 @@ export const VENUE_REVIEW = [
 // ── 5. 팀 ───────────────────────────────────────────────────
 export const TEAM_REVIEW = [
   { id: "team-create",         no: "5-01", name: "팀 생성",       path: "/team/create",                          spec: [] },
-  { id: "team-manage",         no: "5-02", name: "팀 관리",       path: "/team/:clubId/manage",                  spec: [] },
-  { id: "team-join-requests",  no: "5-03", name: "가입 신청 목록", path: "/team/:clubId/join-requests",           spec: [] },
+  { id: "team-manage",         no: "5-02", name: "팀 관리",       path: `/team/${DEMO_CLUB}/manage`,             spec: [] },
+  { id: "team-join-requests",  no: "5-03", name: "가입 신청 목록", path: `/team/${DEMO_CLUB}/join-requests`,      spec: [] },
   { id: "team-join-detail",    no: "5-04", name: "가입 신청 상세", path: "/team/:clubId/join-requests/:requestId", spec: [] },
   { id: "my-team-invites",     no: "5-05", name: "받은 팀 초대",   path: "/my/team-invites",                      spec: [] },
   { id: "my-team-invite-detail", no: "5-06", name: "팀 초대 상세", path: "/my/team-invites/:clubId/:inviteId",    spec: [] },
@@ -67,7 +77,7 @@ export const TEAM_REVIEW = [
 export const COMMUNITY_REVIEW = [
   { id: "community",          no: "6-01", name: "커뮤니티 목록",  path: "/community",                     spec: [] },
   { id: "community-write",    no: "6-02", name: "글 작성",        path: "/community/write",               spec: [] },
-  { id: "community-detail",   no: "6-03", name: "글 상세",        path: "/communitypost/:postId",         spec: [] },
+  { id: "community-detail",   no: "6-03", name: "글 상세",        path: `/communitypost/${S_POST}`,       spec: [] },
   { id: "chats",              no: "6-04", name: "채팅 목록",      path: "/chats",                         spec: [] },
   { id: "chatroom",           no: "6-05", name: "채팅방",         path: "/chats/:chatId",                 spec: [] },
   { id: "notifications",      no: "6-06", name: "알림함",         path: "/notifications",                 spec: [] },
@@ -124,8 +134,9 @@ export const OWNER_REVIEW = [
 
 // ── 10. 관리자 페이지 (PC 풀와이드) ──────────────────────────
 export const ADMIN_REVIEW = [
-  { id: "admin-login",           no: "10-01", name: "관리자 로그인",   path: "/admin/login",              spec: [] },
-  { id: "admin-dashboard",       no: "10-02", name: "대시보드",        path: "/admin/dashboard",          spec: [] },
+  // 대시보드를 먼저 — 관리자 탭 진입 시 로그인폼 대신 로그인된 대시보드가 바로 보이게(데모 자동 진입)
+  { id: "admin-dashboard",       no: "10-01", name: "대시보드",        path: "/admin/dashboard",          spec: [] },
+  { id: "admin-login",           no: "10-02", name: "관리자 로그인",   path: "/admin/login",              spec: [] },
   { id: "admin-users-list",      no: "10-03", name: "회원 목록",       path: "/admin/users/list",         spec: [] },
   { id: "admin-users-ranking",   no: "10-04", name: "회원 랭킹",       path: "/admin/users/ranking",      spec: [] },
   { id: "admin-users-reports",   no: "10-05", name: "회원 신고",       path: "/admin/users/reports",      spec: [] },
@@ -137,7 +148,7 @@ export const ADMIN_REVIEW = [
   { id: "admin-matches-list",    no: "10-11", name: "매칭 목록",       path: "/admin/matches/list",       spec: [] },
   { id: "admin-matches-issues",  no: "10-12", name: "매칭 이슈",       path: "/admin/matches/issues",     spec: [] },
   { id: "admin-community-posts", no: "10-13", name: "커뮤니티 글",     path: "/admin/community/posts",    spec: [] },
-  { id: "admin-community-detail",no: "10-14", name: "커뮤니티 글 상세", path: "/admin/community/posts/:postId", spec: [] },
+  { id: "admin-community-detail",no: "10-14", name: "커뮤니티 글 상세", path: `/admin/community/posts/${S_POST}`, spec: [] },
   { id: "admin-community-reports",no: "10-15", name: "커뮤니티 신고",  path: "/admin/community/reports",  spec: [] },
   { id: "admin-notify-notices",  no: "10-16", name: "공지 관리",       path: "/admin/notify/notices",     spec: [] },
   { id: "admin-notify-push",     no: "10-17", name: "푸시 발송",       path: "/admin/notify/push",        spec: [] },

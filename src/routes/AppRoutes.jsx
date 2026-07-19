@@ -147,8 +147,20 @@ const OwnerNotificationsPage = lazy(() => import("../pages/owner/OwnerNotificati
 // ✅ 개발용 화면 리뷰 허브 (/review) — 개발자·카스 협업 도구. Firestore(reviewThreads) 공유.
 const AuthReview = lazy(() => import("../dev/AuthReview"));
 
+// 개발용 리뷰 허브(/review)의 iframe 안에서 화면을 미리보기로 열 때는 인증 게이트를 통과시킨다.
+// 앱은 평소 iframe 안에서 돌지 않으므로(RN은 WebView라 top===self) 이 조건은 리뷰 프레임에서만 참.
+// 크로스오리진 접근 예외가 나면 iframe 임베드로 간주. (seekone 처럼 로그인 없이 레이아웃을 보게 함)
+function inReviewFrame() {
+  try {
+    return typeof window !== "undefined" && window.top !== window.self;
+  } catch {
+    return true;
+  }
+}
+
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
+  if (inReviewFrame()) return children;
   if (loading) return <AppLoadingPage />;
   if (!isLoggedIn) return <Navigate to="/login" replace />;
   return children;
@@ -159,6 +171,7 @@ function RequireAuth({ children }) {
 // 전화번호를 키로 카카오/구글 동일인 계정을 통합한다. (RequireConsent 통과 후 진입)
 function RequirePhone({ children }) {
   const { userDoc, loading } = useAuth();
+  if (inReviewFrame()) return children;
   if (loading) return <AppLoadingPage />;
   if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
   if (userDoc?.phoneVerified === true) return children;
@@ -169,6 +182,7 @@ function RequirePhone({ children }) {
 // 동의 내역(users.termsConsent/privacyConsent/ageOver14Consent)이 없으면 진입을 막고 동의 화면을 띄운다.
 function RequireConsent({ children }) {
   const { userDoc, loading } = useAuth();
+  if (inReviewFrame()) return children;
   if (loading) return <AppLoadingPage />;
   const agreed =
     userDoc?.termsConsent === true &&
@@ -182,6 +196,7 @@ function RequireConsent({ children }) {
 // users.welcomeSeen 이 true 가 아니면 완료 화면을 띄운다. (RequirePhone 통과 후 진입)
 function RequireWelcome({ children }) {
   const { userDoc, loading } = useAuth();
+  if (inReviewFrame()) return children;
   if (loading) return <AppLoadingPage />;
   if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
   if (userDoc?.welcomeSeen === true) return children;
@@ -190,6 +205,7 @@ function RequireWelcome({ children }) {
 
 function RequireClub({ children }) {
   const { loading } = useClub();
+  if (inReviewFrame()) return children;
   if (loading) return <AppLoadingPage />;
   return children;
 }
@@ -198,6 +214,7 @@ function RequireClub({ children }) {
 // 미로그인 시 /owner/login 으로 (일반 /login 아님)
 function RequireOwnerAuth({ children }) {
   const { isLoggedIn, loading } = useOwnerAuth();
+  if (inReviewFrame()) return children;
   if (loading) return <AppLoadingPage />;
   if (!isLoggedIn) return <Navigate to="/owner/login" replace />;
   return children;
@@ -205,6 +222,7 @@ function RequireOwnerAuth({ children }) {
 
 function RequireAdmin({ children }) {
   const { loading, userDoc } = useAuth();
+  if (inReviewFrame()) return children;
   if (loading) return <AppLoadingPage />;
 
   // ✅ 진짜 Firebase 어드민 세션(admin 클레임)만 통과. localStorage 우회 제거.
