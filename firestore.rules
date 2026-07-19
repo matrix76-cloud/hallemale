@@ -118,6 +118,10 @@ service cloud.firestore {
     // ───── 어드민 계정 (어드민 전용) ─────
     match /admin_accounts/{id}            { allow read: if isAdmin(); allow write: if isAdmin(); }
 
+    // ───── 개발용 화면 리뷰 스레드 (개발자·카스 협업 · 배포 공유) ─────
+    //  /review 개발 도구가 화면별 피드백/기록을 저장하는 컬렉션. 로그인 사용자만 접근.
+    match /reviewThreads/{id}             { allow read: if signedIn(); allow write: if signedIn(); }
+
     // ───── 서버(Cloud Functions / Admin SDK) 전용 : 클라 접근 전면 차단 ─────
     match /phone_verifications/{id}       { allow read, write: if false; }
     match /password_reset_logs/{id}       { allow read, write: if false; }

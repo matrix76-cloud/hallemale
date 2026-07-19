@@ -144,6 +144,9 @@ const OwnerLegalPage = lazy(() => import("../pages/owner/OwnerLegalPage"));
 const OwnerInquiryPage = lazy(() => import("../pages/owner/OwnerInquiryPage"));
 const OwnerNotificationsPage = lazy(() => import("../pages/owner/OwnerNotificationsPage"));
 
+// ✅ 개발용 화면 리뷰 허브 (/review) — 개발자·카스 협업 도구. Firestore(reviewThreads) 공유.
+const AuthReview = lazy(() => import("../dev/AuthReview"));
+
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
   if (loading) return <AppLoadingPage />;
@@ -602,6 +605,9 @@ export default function AppRoutes() {
           <Route path="/owner/inquiry" element={<OwnerInquiryPage />} />
           <Route path="/owner/withdraw" element={<OwnerWithdrawPage />} />
         </Route>
+
+        {/* 개발용 화면 리뷰 허브 — 미연결(URL 직접 접근). 로그인 사용자만 기록 저장 가능. */}
+        <Route path="/review/:id?" element={<AuthReview />} />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
