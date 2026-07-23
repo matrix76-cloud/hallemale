@@ -13,6 +13,8 @@ const S_VENUE = "Mb9O0C1QuDnfmjfp3VXd";          // 한국외대 실내체육관
 const S_POST = "9hgBRey1ToAzs7UA01B5";           // 커뮤니티 글
 const S_MATCH = "12jjiBlz97nPTbiToCoT";          // 매치룸(accepted)
 const S_MATCH_FIN = "2OlhjwrsHlbvPFFPuQ1l";      // 지난 경기(finished)
+const S_EVENT = "Cqg0kRQh1qxBddC0bMXr";          // 이벤트 팝업(event_popups)
+const S_CHAT = "44g2JTuWxXVhCbPYUhYv2NLpuuL2__6P3ymwsl0OOINAPF2geHbTw3hax2"; // 채팅방(관리자 조회용)
 
 // ── 1. 인증·가입 ─────────────────────────────────────────────
 // 인증·가입 도메인은 raw:true — 로그인된 상태가 아니라 실제 로그인/가입 화면 자체를
@@ -40,7 +42,7 @@ export const HOME_REVIEW = [
   { id: "team-profile",   no: "2-06", name: "팀 프로필",       path: `/team/${DEMO_CLUB}`,      spec: [] },
   { id: "player-matches", no: "2-07", name: "선수 경기기록",   path: `/player/${DEMO_UID}/matches`, spec: [] },
   { id: "team-matches",   no: "2-08", name: "팀 경기기록",     path: `/team/${DEMO_CLUB}/matches`, spec: [] },
-  { id: "event",          no: "2-09", name: "이벤트",          path: "/event/:id",            spec: [] },
+  { id: "event",          no: "2-09", name: "이벤트",          path: `/event/${S_EVENT}`,     spec: [] },
 ];
 
 // ── 3. 매칭 ─────────────────────────────────────────────────
@@ -71,9 +73,7 @@ export const TEAM_REVIEW = [
   { id: "team-create",         no: "5-01", name: "팀 생성",       path: "/team/create",                          spec: [] },
   { id: "team-manage",         no: "5-02", name: "팀 관리",       path: `/team/${DEMO_CLUB}/manage`,             spec: [] },
   { id: "team-join-requests",  no: "5-03", name: "가입 신청 목록", path: `/team/${DEMO_CLUB}/join-requests`,      spec: [] },
-  { id: "team-join-detail",    no: "5-04", name: "가입 신청 상세", path: "/team/:clubId/join-requests/:requestId", spec: [] },
   { id: "my-team-invites",     no: "5-05", name: "받은 팀 초대",   path: "/my/team-invites",                      spec: [] },
-  { id: "my-team-invite-detail", no: "5-06", name: "팀 초대 상세", path: "/my/team-invites/:clubId/:inviteId",    spec: [] },
 ];
 
 // ── 6. 커뮤니티·채팅·알림 ────────────────────────────────────
@@ -82,9 +82,7 @@ export const COMMUNITY_REVIEW = [
   { id: "community-write",    no: "6-02", name: "글 작성",        path: "/community/write",               spec: [] },
   { id: "community-detail",   no: "6-03", name: "글 상세",        path: `/communitypost/${S_POST}`,       spec: [] },
   { id: "chats",              no: "6-04", name: "채팅 목록",      path: "/chats",                         spec: [] },
-  { id: "chatroom",           no: "6-05", name: "채팅방",         path: "/chats/:chatId",                 spec: [] },
   { id: "notifications",      no: "6-06", name: "알림함",         path: "/notifications",                 spec: [] },
-  { id: "notification-detail",no: "6-07", name: "알림 상세",      path: "/notificationsdetail/:notificationId", spec: [] },
 ];
 
 // ── 7. MY·설정 ──────────────────────────────────────────────
@@ -124,8 +122,6 @@ export const OWNER_REVIEW = [
   { id: "owner-privacy",      no: "9-04", name: "구장주 개인정보", path: "/owner/privacy",       spec: [] },
   { id: "owner-entry",        no: "9-05", name: "구장주 진입",     path: "/owner",               spec: [] },
   { id: "owner-onboarding",   no: "9-06", name: "구장 온보딩",     path: "/owner/onboarding",    spec: [] },
-  { id: "owner-register",     no: "9-07", name: "구장 등록",       path: "/owner/register",      spec: [] },
-  { id: "owner-pending",      no: "9-08", name: "승인 대기",       path: "/owner/pending",       spec: [] },
   { id: "owner-home",         no: "9-09", name: "구장주 홈(예약관리)", path: "/owner/home",      spec: [] },
   { id: "owner-sales",        no: "9-10", name: "매출",           path: "/owner/sales",         spec: [] },
   { id: "owner-venue",        no: "9-11", name: "구장 정보",       path: "/owner/venue",         spec: [] },
@@ -160,7 +156,7 @@ export const ADMIN_REVIEW = [
   { id: "admin-games-upcoming",  no: "10-20", name: "예정 경기",       path: "/admin/games/upcoming",     spec: [] },
   { id: "admin-games-past",      no: "10-21", name: "지난 경기",       path: "/admin/games/past",         spec: [] },
   { id: "admin-chat-list",       no: "10-22", name: "채팅 목록",       path: "/admin/chat/list",          spec: [] },
-  { id: "admin-chat-detail",     no: "10-23", name: "채팅방 상세",     path: "/admin/chat/list/:chatId",  spec: [] },
+  { id: "admin-chat-detail",     no: "10-23", name: "채팅방 상세",     path: `/admin/chat/list/${S_CHAT}`, spec: [] },
   { id: "admin-banners",         no: "10-24", name: "배너 관리",       path: "/admin/banners",            spec: [] },
   { id: "admin-venues",          no: "10-25", name: "구장 관리(승인)", path: "/admin/venues",             spec: [] },
   { id: "admin-settlements",     no: "10-26", name: "정산 관리",       path: "/admin/settlements",        spec: [] },
@@ -168,15 +164,6 @@ export const ADMIN_REVIEW = [
   { id: "admin-inquiries",       no: "10-28", name: "문의 관리",       path: "/admin/inquiries",          spec: [] },
   { id: "admin-popups",          no: "10-29", name: "이벤트 팝업",     path: "/admin/popups",             spec: [] },
   { id: "admin-updates",         no: "10-30", name: "앱 업데이트",     path: "/admin/updates",            spec: [] },
-];
-
-// ── 11. RN 앱 (WebView Shell) — 네이티브 작업·정책 항목(화면 없음) ─
-export const APP_REVIEW = [
-  { id: "app-shell",     no: "11-01", name: "WebView Shell",   path: "", spec: [] },
-  { id: "app-push",      no: "11-02", name: "FCM 푸시",        path: "", spec: [] },
-  { id: "app-social",    no: "11-03", name: "소셜 로그인(네이티브)", path: "", spec: [] },
-  { id: "app-back",      no: "11-04", name: "뒤로가기 인터셉트", path: "", spec: [] },
-  { id: "app-safearea",  no: "11-05", name: "Safe Area/헤더",  path: "", spec: [] },
 ];
 
 export const DOMAINS = [
@@ -190,5 +177,4 @@ export const DOMAINS = [
   { key: "legal",     label: "약관·정책",       screens: LEGAL_REVIEW },
   { key: "owner",     label: "구장앱(구장주)",   screens: OWNER_REVIEW },
   { key: "admin",     label: "관리자",          screens: ADMIN_REVIEW },
-  { key: "app",       label: "RN 앱",           screens: APP_REVIEW },
 ];
