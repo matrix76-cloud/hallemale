@@ -29,6 +29,7 @@ const InvitesPage = lazy(() => import("../pages/invites/InvitesPage"));
 const AgreementGate = lazy(() => import("../components/auth/AgreementGate"));
 const PhoneVerifyPage = lazy(() => import("../pages/auth/PhoneVerifyPage"));
 const SignupCompletePage = lazy(() => import("../pages/auth/SignupCompletePage"));
+const SignupBasicInfoPage = lazy(() => import("../pages/auth/SignupBasicInfoPage"));
 const MatchRoomListPage = lazy(() => import("../pages/matching/MatchRoomListPage"));
 const MatchRoomDetailPage = lazy(() => import("../pages/matching/MatchRoomDetailPage"));
 const MyProfilePage = lazy(() => import("../pages/my/MyProfilePage"));
@@ -188,6 +189,16 @@ function RequireWelcome({ children }) {
   if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
   if (userDoc?.welcomeSeen === true) return children;
   return <SignupCompletePage />;
+}
+
+// 전화인증 후 1회: 이름·생년월일·성별·활동지역 기본정보 입력 게이트.
+// users.basicInfoDone 이 true 가 아니면 기본정보 입력 화면을 띄운다. (RequirePhone 통과 후, RequireWelcome 앞)
+function RequireBasicInfo({ children }) {
+  const { userDoc, loading } = useAuth();
+  if (loading) return <AppLoadingPage />;
+  if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
+  if (userDoc?.basicInfoDone === true) return children;
+  return <SignupBasicInfoPage />;
 }
 
 function RequireClub({ children }) {
@@ -467,11 +478,13 @@ export default function AppRoutes() {
             <RequireAuth>
               <RequireConsent>
                 <RequirePhone>
+                <RequireBasicInfo>
                 <RequireWelcome>
                 <RequireClub>
                   <MainLayout />
                 </RequireClub>
                 </RequireWelcome>
+                </RequireBasicInfo>
                 </RequirePhone>
               </RequireConsent>
             </RequireAuth>
@@ -555,11 +568,13 @@ export default function AppRoutes() {
             <RequireAuth>
               <RequireConsent>
                 <RequirePhone>
+                <RequireBasicInfo>
                 <RequireWelcome>
                 <RequireClub>
                   <MainLayout hideHeader />
                 </RequireClub>
                 </RequireWelcome>
+                </RequireBasicInfo>
                 </RequirePhone>
               </RequireConsent>
             </RequireAuth>

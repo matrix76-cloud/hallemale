@@ -273,6 +273,12 @@ export const updateUserProfile = async ({
   weightKg,
   birthYear,
 
+  // ✅ 가입 기본정보 (이름·생년월일·성별)
+  realName,
+  birthDate,
+  gender,
+  basicInfoDone,
+
   intro,
   careers,
 
@@ -341,6 +347,12 @@ export const updateUserProfile = async ({
   if (typeof heightCm === "number" || heightCm === null) payload.heightCm = heightCm;
   if (typeof weightKg === "number" || weightKg === null) payload.weightKg = weightKg;
   if (typeof birthYear === "number" || birthYear === null) payload.birthYear = birthYear;
+
+  // ✅ 가입 기본정보
+  if (typeof realName === "string") payload.realName = realName.trim();
+  if (typeof birthDate === "string" || birthDate === null) payload.birthDate = birthDate;
+  if (typeof gender === "string" || gender === null) payload.gender = gender;
+  if (typeof basicInfoDone === "boolean") payload.basicInfoDone = basicInfoDone;
 
   if (typeof intro === "string") payload.intro = intro;
   if (Array.isArray(careers)) payload.careers = careers;
