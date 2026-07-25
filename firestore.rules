@@ -22,7 +22,14 @@ service cloud.firestore {
     match /users_by_phone/{id}           { allow read: if true; allow write: if signedIn(); }
     match /phones/{id}                    { allow read: if true; allow write: if signedIn(); }
     match /clubs/{id}                     { allow read: if true; allow write: if signedIn(); }
-    match /clubs/{id}/{sub=**}            { allow read: if true; allow write: if signedIn(); }
+    // 팀 로스터(members)·초대(invites)는 공개(팀 프로필/초대 링크). 가입신청(joinRequests)은
+    // 지원자 신체정보(키/몸무게·지역)가 playerSnapshot 에 담겨 있어 비로그인 열람을 막는다.
+    // (조회 주체는 팀장·어드민뿐 — 모두 로그인 상태라 signedIn() 로 정상 동작)
+    match /clubs/{id}/members/{m}         { allow read: if true;       allow write: if signedIn(); }
+    match /clubs/{id}/invites/{iv}        { allow read: if true;       allow write: if signedIn(); }
+    match /clubs/{id}/joinRequests/{jr}   { allow read: if signedIn();  allow write: if signedIn(); }
+    // 그 외 clubs 하위 문서: 공개읽기 캐치올 제거 → 쓰기만 허용(읽기는 위 명시 규칙만 통과)
+    match /clubs/{id}/{sub=**}            { allow write: if signedIn(); }
     // 팀 초대: collectionGroup(invites) 조회 지원 (MyTeamInvitesPage)
     match /{path=**}/invites/{inviteId}  { allow read: if signedIn(); allow write: if signedIn(); }
     match /match_requests/{id}            { allow read: if true; allow write: if signedIn(); }
@@ -59,6 +66,20 @@ service cloud.firestore {
       allow read: if true;
       allow write: if signedIn() && request.resource.data.uid == request.auth.uid;
     }
+    // 결제 흐름(토스) 필드 — 클라이언트는 절대 못 바꾼다. 서버(Admin SDK)만 기록.
+    //  (안 잠그면 팀장/예약자가 paid=true 로 찍어 무료 예약을 만들 수 있다)
+    function paymentFieldsUntouched() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'paid', 'paidByA', 'paidByB', 'paymentMethod', 'paymentDeadline',
+        'paymentKey', 'paymentKeyA', 'paymentKeyB', 'teamAPayerUid', 'teamBPayerUid'
+      ]);
+    }
+    // 금액 필드 — 구장주/어드민만 조정 가능(요금 정정). 예약자·팀장은 못 건드린다.
+    function priceFieldsUntouched() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'price', 'shareA', 'shareB', 'splitTotal'
+      ]);
+    }
     match /venueReservations/{id} {
       allow read: if true;
       allow create: if signedIn()
@@ -78,7 +99,10 @@ service cloud.firestore {
                     && (request.resource.data.date == resource.data.date
                         || inBookingWindow(request.resource.data.date)
                         || isVenueOwner(resource.data.venueId)
-                        || isAdmin());
+                        || isAdmin())
+                    // 결제 결과는 서버만 기록 / 금액 정정은 구장주·어드민만
+                    && paymentFieldsUntouched()
+                    && (priceFieldsUntouched() || isVenueOwner(resource.data.venueId) || isAdmin());
       allow delete: if signedIn()
                     && (isVenueOwner(resource.data.venueId)
                         || request.auth.uid == resource.data.userId
@@ -122,10 +146,13 @@ service cloud.firestore {
     //  /review 개발 도구가 화면별 피드백/기록을 저장하는 컬렉션.
     //  ⚠️ 전면 공개 — 로그인 없이 누구나 읽기·쓰기·삭제 가능. AI 에이전트가 인증 없이
     //     스레드를 읽고 기록하려고 푼 것이다. 리뷰 작업이 끝나면 signedIn()으로 되돌릴 것.
-    match /reviewThreads/{id}             { allow read, write: if true; }
+    match /reviewThreads/{id}             { allow read, write: if signedIn(); }
 
     // ───── 서버(Cloud Functions / Admin SDK) 전용 : 클라 접근 전면 차단 ─────
     match /phone_verifications/{id}       { allow read, write: if false; }
+    // 토스 결제 주문·원장 — 금액/결제키가 들어 있어 클라 접근 불필요(결과는 예약 문서로 내려간다)
+    match /paymentOrders/{id}             { allow read, write: if false; }
+    match /payments/{id}                  { allow read, write: if false; }
     match /password_reset_logs/{id}       { allow read, write: if false; }
     match /_system/{id}                   { allow read, write: if false; }
 
