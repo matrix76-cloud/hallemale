@@ -18,7 +18,26 @@ service cloud.firestore {
     function isAdmin()  { return signedIn() && request.auth.token.admin == true; }
 
     // ───── 유저 / 팀 / 매칭 (공개 읽기, 로그인 쓰기) ─────
-    match /users/{id}                    { allow read: if true; allow write: if signedIn(); }
+    // users 쓰기: 본인 문서는 전체 허용. 남의 문서(강퇴·팀장이임·가입수락·경기스탯·RN토큰 저장)는
+    // 운영 필드만 허용하고 신원/게이트/금액 필드는 잠근다 — 타인 계정에 phoneVerified·약관동의·
+    // isAdmin·피지잔액을 써넣는 위조와 계정 오염을 차단. (정당한 교차쓰기는 아래 보호필드를 안 건드림)
+    function usersProtected() {
+      return [
+        'email', 'phone', 'phoneE164', 'phoneVerified',
+        'termsConsent', 'privacyConsent', 'ageOver14Consent', 'welcomeSeen',
+        'isAdmin', 'fizzBalance', 'fizzUpdatedAt'
+      ];
+    }
+    match /users/{id} {
+      allow read: if true;
+      allow create: if signedIn()
+                    && (request.auth.uid == id
+                        || !request.resource.data.keys().hasAny(usersProtected()));
+      allow update: if signedIn()
+                    && (request.auth.uid == id
+                        || !request.resource.data.diff(resource.data).affectedKeys().hasAny(usersProtected()));
+      allow delete: if signedIn() && request.auth.uid == id;
+    }
     match /users_by_phone/{id}           { allow read: if true; allow write: if signedIn(); }
     match /phones/{id}                    { allow read: if true; allow write: if signedIn(); }
     match /clubs/{id}                     { allow read: if true; allow write: if signedIn(); }
