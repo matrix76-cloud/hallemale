@@ -637,6 +637,7 @@ export default function AppRoutes() {
         <Route path="/review-auth/agreement" element={<AgreementGate />} />
         <Route path="/review-auth/phone" element={<PhoneVerifyPage />} />
         <Route path="/review-auth/signup-complete" element={<SignupCompletePage />} />
+        <Route path="/review-auth/basic-info" element={<SignupBasicInfoPage />} />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

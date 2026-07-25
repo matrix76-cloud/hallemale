@@ -38,10 +38,10 @@ const TableWrap = styled.div`
 `;
 
 const Table = styled.div`
-  min-width: 2540px;
+  min-width: 2880px;
 `;
 
-const COLS = "72px 160px 100px 210px 150px 220px 100px 160px 120px 120px 260px 110px 110px 240px 160px 170px 120px";
+const COLS = "72px 160px 120px 64px 120px 100px 210px 150px 220px 100px 160px 120px 120px 260px 110px 110px 240px 160px 170px 120px";
 
 // users.provider → 표시용 가입경로
 const PROVIDER_LABEL = { kakao: "카카오", google: "구글", apple: "애플", password: "이메일" };
@@ -491,6 +491,14 @@ function normalizeText(s) {
   return String(s || "").trim().toLowerCase();
 }
 
+// 성별 코드 → 표시 라벨 (가입 기본정보는 male/female 로 저장)
+function genderLabel(g) {
+  const v = String(g || "").toLowerCase();
+  if (v === "male" || v === "m" || v === "남" || v === "남성") return "남";
+  if (v === "female" || v === "f" || v === "여" || v === "여성") return "여";
+  return "-";
+}
+
 export default function AdminPlayersListPage() {
   const navigate = useNavigate();
 
@@ -768,6 +776,9 @@ export default function AdminPlayersListPage() {
             <Head>
               <div>아바타</div>
               <div>닉네임</div>
+              <div>이름</div>
+              <div>성별</div>
+              <div>생년월일</div>
               <div>회원 정보</div>
               <div>uid</div>
               <div>전화번호</div>
@@ -836,6 +847,20 @@ export default function AdminPlayersListPage() {
                     >
                       <Trunc>{nickname}</Trunc>
                     </LinkText>
+                  </Cell>
+
+                  <Cell title={r?.realName || ""}>
+                    <Trunc>{r?.realName || "-"}</Trunc>
+                  </Cell>
+
+                  <Cell>
+                    <Trunc>{genderLabel(r?.gender)}</Trunc>
+                  </Cell>
+
+                  <Cell title={r?.birthDate || ""}>
+                    <Mono>
+                      <Trunc>{r?.birthDate || (r?.birthYear ? String(r.birthYear) : "-")}</Trunc>
+                    </Mono>
                   </Cell>
 
                   <Cell>

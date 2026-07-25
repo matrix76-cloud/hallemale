@@ -83,6 +83,13 @@ function mapUserRow(docSnap) {
   const uid = safeString(docSnap?.id || v?.uid || v?.id || v?.userId);
 
   const nickname = safeString(v?.nickname);
+
+  // 가입 기본정보 (이름·생년월일·성별) — 관리자 신원 확인용
+  const realName = safeString(v?.realName);
+  const birthDate = safeString(v?.birthDate);
+  const birthYear = safeNumber(v?.birthYear, 0);
+  const gender = safeString(v?.gender);
+
   const region = safeString(v?.region);
   const regionSido = safeString(v?.regionSido);
   const regionGu = safeString(v?.regionGu);
@@ -124,6 +131,12 @@ function mapUserRow(docSnap) {
 
     nickname,
     avatarUrl,
+
+    // ✅ 가입 기본정보
+    realName,
+    birthDate,
+    birthYear,
+    gender,
 
     email,
     phoneE164,

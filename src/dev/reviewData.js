@@ -27,9 +27,10 @@ export const AUTH_REVIEW = [
   { id: "kakao-callback", no: "1-04", name: "카카오 콜백",     path: "/oauth/kakao",             raw: true, spec: [] },
   { id: "agreement",      no: "1-05", name: "약관 동의",       path: "/review-auth/agreement",       raw: true, spec: [] },
   { id: "phone-verify",   no: "1-06", name: "전화번호 인증",   path: "/review-auth/phone",           raw: true, spec: [] },
-  { id: "signup-done",    no: "1-07", name: "회원가입 완료",   path: "/review-auth/signup-complete", raw: true, spec: [] },
-  { id: "club-onboarding",no: "1-08", name: "클럽 온보딩",     path: "/onboarding/club",         raw: true, spec: [] },
-  { id: "invites",        no: "1-09", name: "초대 받기",       path: "/invites",                 spec: [] },
+  { id: "basic-info",     no: "1-07", name: "기본정보 입력",   path: "/review-auth/basic-info",      raw: true, spec: [] },
+  { id: "signup-done",    no: "1-08", name: "회원가입 완료",   path: "/review-auth/signup-complete", raw: true, spec: [] },
+  { id: "club-onboarding",no: "1-09", name: "클럽 온보딩",     path: "/onboarding/club",         raw: true, spec: [] },
+  { id: "invites",        no: "1-10", name: "초대 받기",       path: "/invites",                 spec: [] },
 ];
 
 // ── 2. 홈·랭킹·프로필 ────────────────────────────────────────
