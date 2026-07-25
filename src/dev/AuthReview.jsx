@@ -77,10 +77,13 @@ export default function AuthReview() {
   const isPC = cur.domain === "admin"; // 관리자=PC 풀와이드 → 넓은 프레임(스케일 축소)
   const [thread, setThread] = useState(null); // { id: [{by,at,text}] }
   const [draft, setDraft] = useState("");
-  const [author, setAuthor] = useState("개발자"); // 작성자: 개발자 | 카스
+  const [author, setAuthor] = useState("개발자"); // 작성자: 개발자 | AI
   const [attachImgs, setAttachImgs] = useState([]); // 첨부 스샷 dataURL[]
   const [pinMode, setPinMode] = useState(false); // 핀 찍기 모드
   const [draftPins, setDraftPins] = useState([]); // 작성 중 핀 [{x,y,label,target}]
+  const [pinShotDone, setPinShotDone] = useState(false); // 현재 핀들이 이미 캡처돼 첨부됐는지
+  const stageRef = useRef(null);                   // 폰 프레임이 놓일 영역 (가용 높이 측정용)
+  const [phoneScale, setPhoneScale] = useState(1); // 창이 844보다 짧을 때만 1 미만
   const [viewPins, setViewPins] = useState(null); // 기록 클릭 시 화면에 표시할 핀
   const [specExpanded, setSpecExpanded] = useState(false); // 기획 펼치기(기본 접힘)
   const [sending, setSending] = useState(false);
@@ -116,6 +119,17 @@ export default function AuthReview() {
     } catch { return null; }
   }, [stopShare]);
   useEffect(() => () => stopShare(), [stopShare]);
+
+  // 폰 프레임은 항상 390×844로 렌더한다. 세로가 모자라면 통째로 축소해 비율을 지킨다.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const fit = () => setPhoneScale(Math.min(1, el.clientHeight / PHONE_H));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [cur.path, isPC]);
 
   // 핀이 가리킨 실제 요소 정보(개발자가 위치를 정확히 읽음)
   const describeTarget = (clientX, clientY) => {
@@ -161,13 +175,13 @@ export default function AuthReview() {
     await new Promise((r) => setTimeout(r, 280));
     let dataUrl = "";
     try { dataUrl = await captureFrame(draftPins); } catch { /* noop */ }
-    if (dataUrl) setAttachImgs((p) => [...p, dataUrl]);
+    if (dataUrl) { setAttachImgs((p) => [...p, dataUrl]); setPinShotDone(true); }
     setBusy("");
   };
 
   const entries = (thread && thread[cur.id]) || [];
 
-  // 미답변 수 — 개발자가 올린 질문/지시(root) 중 카스 답글(replyTo)이 안 달린 것
+  // 미답변 수 — 개발자가 올린 질문/지시(root) 중 AI 답글(replyTo)이 안 달린 것
   const unanswered = (sid) => {
     const items = (thread && thread[sid]) || [];
     const answered = new Set(items.filter((x) => x.replyTo).map((x) => x.replyTo));
@@ -178,11 +192,22 @@ export default function AuthReview() {
   // 기록 남기기 → Firestore (실시간 반영, 배포 공유)
   const post = async () => {
     const text = draft.trim();
-    if ((!text && !attachImgs.length) || sending) return;
+    if ((!text && !attachImgs.length && !draftPins.length) || sending) return;
     setSending(true);
     try {
-      await postEntry({ screenId: cur.id, by: author, text, imgs: attachImgs, pins: draftPins });
-      setDraft(""); setAttachImgs([]); setDraftPins([]); setPinMode(false);
+      // 핀만 찍고 캡처를 안 누른 채 올리면 좌표만 남아, 나중에 읽는 사람이 핀 번호와
+      // 화면을 맞출 수 없다 → 여기서 자동으로 한 장 박아 첨부한다.
+      // 전송 흐름이 끊기지 않게 화면공유 권한은 새로 묻지 않는다(있으면 쓰고, 없으면 html2canvas).
+      let imgs = attachImgs;
+      if (draftPins.length && !pinShotDone) {
+        setBusy("핀 캡처 중...");
+        setPinMode(false);
+        await new Promise((r) => setTimeout(r, 280)); // 화면 위 핀 오버레이가 걷힐 때까지 (이중 표시 방지)
+        try { const shot = await captureFrame(draftPins); if (shot) imgs = [...imgs, shot]; } catch { /* noop */ }
+        setBusy("");
+      }
+      await postEntry({ screenId: cur.id, by: author, text, imgs, pins: draftPins });
+      setDraft(""); setAttachImgs([]); setDraftPins([]); setPinMode(false); setPinShotDone(false);
     } catch (e) {
       alert("저장 실패: " + (e?.message || e));
     } finally {
@@ -223,9 +248,10 @@ export default function AuthReview() {
     const r = e.currentTarget.getBoundingClientRect();
     const x = +(((e.clientX - r.left) / r.width) * 100).toFixed(1);
     const y = +(((e.clientY - r.top) / r.height) * 100).toFixed(1);
-    const label = `${author}${draftPins.length + 1}`; // 작성자+번호(예: 카스1) — 캡처 이미지에 박혀 번호 겹침 혼란 없음
+    const label = `${author}${draftPins.length + 1}`; // 작성자+번호(예: AI1) — 캡처 이미지에 박혀 번호 겹침 혼란 없음
     const target = describeTarget(e.clientX, e.clientY);
     setDraftPins((p) => [...p, { x, y, label, target }]);
+    setPinShotDone(false); // 핀이 늘었으니 이전 캡처는 낡았다 → 전송 시 다시 뜬다
   };
 
   // 기록 1건 삭제 (confirm 후) — Firestore docId(pid). 글 삭제 시 그 댓글도 함께.
@@ -234,7 +260,7 @@ export default function AuthReview() {
     try { await deleteEntry(pid); } catch (e) { alert("삭제 실패: " + (e?.message || e)); }
   };
 
-  // 기록 카드 (isReply=true면 개발자 글 밑에 카스 답글처럼 들여쓰기)
+  // 기록 카드 (isReply=true면 개발자 글 밑에 AI 답글처럼 들여쓰기)
   const renderCard = (e, isReply) => {
     const st = BY_STYLE[e.by] || BY_STYLE["개발자"];
     return (
@@ -288,7 +314,7 @@ export default function AuthReview() {
             );
           })}
           <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 12, color: C.gray }}>화면 리뷰 · 좌=화면 / 우상=기획 / 우하=기록(개발자·카스)</span>
+          <span style={{ fontSize: 12, color: C.gray }}>화면 리뷰 · 좌=화면 / 우상=기획 / 우하=기록(개발자·AI)</span>
         </div>
 
         {/* 현재 화면 정보 */}
@@ -322,9 +348,9 @@ export default function AuthReview() {
 
       {/* 본문: 좌 화면 / 우 (기획 + 노트) */}
       <div style={{ flex: 1, display: "flex", minHeight: 0, padding: 18, gap: 18 }}>
-        <div style={{ flex: "none", width: isPC ? 780 : 380, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <div style={{ flex: "none", width: isPC ? 780 : PHONE_W + 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
           {cur.path && !isPC && (
-            <div style={{ width: 360, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ width: PHONE_W, flex: "none", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <button onClick={() => { setPinMode((v) => !v); setViewPins(null); }} style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 8, cursor: "pointer", border: `1px solid ${pinMode ? "#c2410c" : C.line}`, background: pinMode ? "#c2410c" : "#fff", color: pinMode ? "#fff" : C.gray }}>
                 {pinMode ? "핀 찍는 중 · 화면 클릭" : "핀 찍기"}
               </button>
@@ -333,9 +359,12 @@ export default function AuthReview() {
                   <span style={{ fontSize: 12, color: C.gray, fontWeight: 600 }}>핀 {draftPins.length}
                     <button onClick={() => setDraftPins([])} style={{ marginLeft: 5, color: "#c2410c", fontWeight: 700, cursor: "pointer", background: "none", border: "none" }}>지우기</button>
                   </span>
-                  <button onClick={captureWithPins} disabled={!!busy} title="화면공유로 지도까지 캡처 + 핀 박아 첨부" style={{ fontSize: 12, fontWeight: 800, padding: "5px 12px", borderRadius: 8, cursor: busy ? "default" : "pointer", border: "none", background: "#111827", color: "#fff" }}>
+                  <button onClick={captureWithPins} disabled={!!busy} title="화면공유로 지도까지 캡처 + 핀 박아 첨부 (지도 배경까지 담으려면 여기서 미리 캡처)" style={{ fontSize: 12, fontWeight: 800, padding: "5px 12px", borderRadius: 8, cursor: busy ? "default" : "pointer", border: "none", background: "#111827", color: "#fff" }}>
                     {busy || "핀 박아 캡처"}
                   </button>
+                  <span style={{ fontSize: 11, color: pinShotDone ? "#10b981" : C.gray2, fontWeight: 700 }}>
+                    {pinShotDone ? "캡처 첨부됨" : "기록 누르면 자동 캡처"}
+                  </span>
                 </>
               )}
               {sharing && (
@@ -357,7 +386,9 @@ export default function AuthReview() {
               </div>
             </div>
           ) : cur.path ? (
-            <div style={{ position: "relative", width: 360, height: "100%", maxHeight: 720, borderRadius: 20, overflow: "hidden", border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.10)", background: "#fff" }}>
+            <div ref={stageRef} style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {/* boxSizing:content-box — 전역 border-box면 테두리 2px이 먹혀 내부가 388×842가 된다 */}
+            <div style={{ position: "relative", boxSizing: "content-box", width: PHONE_W, height: PHONE_H, flex: "none", transform: `scale(${phoneScale})`, transformOrigin: "center center", borderRadius: 20, overflow: "hidden", border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.10)", background: "#fff" }}>
               <iframe ref={iframeRef} key={cur.id} title={cur.name} src={previewPath(cur)} style={{ width: "100%", height: "100%", border: "none", pointerEvents: pinMode ? "none" : "auto" }} />
               {(pinMode || viewPins) && (
                 <div onClick={pinMode ? addPin : undefined} style={{ position: "absolute", inset: 0, cursor: pinMode ? "crosshair" : "default", background: pinMode ? "rgba(252,91,65,0.04)" : "transparent" }}>
@@ -372,8 +403,9 @@ export default function AuthReview() {
                 </div>
               )}
             </div>
+            </div>
           ) : (
-            <div style={{ width: 360, height: 460, borderRadius: 20, border: `1px dashed ${C.line2}`, display: "flex", alignItems: "center", justifyContent: "center", color: C.gray2, fontSize: 14, textAlign: "center", padding: 24 }}>
+            <div style={{ width: PHONE_W, height: 460, borderRadius: 20, border: `1px dashed ${C.line2}`, display: "flex", alignItems: "center", justifyContent: "center", color: C.gray2, fontSize: 14, textAlign: "center", padding: 24 }}>
               화면 없음 — 정책/로직 항목입니다.<br />오른쪽 기획 내용을 참고하세요.
             </div>
           )}
@@ -401,10 +433,10 @@ export default function AuthReview() {
             </div>
           </section>
 
-          {/* 기록 스레드 — 개발자·카스 시간순, Firestore(reviewThreads) 저장 */}
+          {/* 기록 스레드 — 개발자·AI 시간순, Firestore(reviewThreads) 저장 */}
           <section style={{ flex: 1, minHeight: 0, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, display: "flex", flexDirection: "column" }}>
             <div style={{ flex: "none", padding: "11px 16px", borderBottom: `1px solid ${C.line}`, fontSize: 13, fontWeight: 800, display: "flex", justifyContent: "space-between" }}>
-              <span>기록 <span style={{ color: C.gray, fontWeight: 600 }}>개발자 · 카스 (시간순)</span></span>
+              <span>기록 <span style={{ color: C.gray, fontWeight: 600 }}>개발자 · AI (시간순)</span></span>
               <span style={{ fontSize: 11, color: C.gray2, fontWeight: 600 }}>Firestore · reviewThreads</span>
             </div>
 
@@ -413,7 +445,7 @@ export default function AuthReview() {
               {entries.length === 0 ? (
                 <div style={{ color: C.gray2, fontSize: 13, textAlign: "center", padding: "20px 0" }}>아직 기록이 없습니다. 아래에 남겨보세요.</div>
               ) : (
-                // 개발자 글(root) + 그 밑에 카스 답글(replyTo=root.pid) 들여쓰기
+                // 개발자 글(root) + 그 밑에 AI 답글(replyTo=root.pid) 들여쓰기
                 entries.filter((e) => !e.replyTo).flatMap((root) => [
                   renderCard(root, false),
                   ...entries.filter((c) => c.replyTo && c.replyTo === root.pid).map((c) => renderCard(c, true)),
@@ -421,11 +453,11 @@ export default function AuthReview() {
               )}
             </div>
 
-            {/* 입력 — 작성자(개발자/카스) 선택 후 기록 (Enter=전송 / Shift+Enter=줄바꿈) */}
+            {/* 입력 — 작성자(개발자/AI) 선택 후 기록 (Enter=전송 / Shift+Enter=줄바꿈) */}
             <div style={{ flex: "none", borderTop: `1px solid ${C.line}`, padding: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                 <span style={{ fontSize: 12, color: C.gray, fontWeight: 700 }}>작성자</span>
-                {["개발자", "카스"].map((a) => {
+                {["개발자", "AI"].map((a) => {
                   const on = author === a;
                   const st = BY_STYLE[a];
                   return (
@@ -473,11 +505,14 @@ export default function AuthReview() {
 }
 
 const C = { ink: "#18181b", ink2: "#3f3f46", gray: "#71717a", gray2: "#a1a1aa", line: "#e4e4e7", line2: "#d4d4d8", bg: "#f4f5f7", card: "#ffffff" };
-// 미답변 N 뱃지 — 개발자 질문에 카스 답글 안 달린 화면/도메인 표시(코랄 원 + 흰 숫자)
+// 미답변 N 뱃지 — 개발자 질문에 AI 답글 안 달린 화면/도메인 표시(코랄 원 + 흰 숫자)
 const NBADGE = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 16, height: 16, marginLeft: 5, padding: "0 4px", borderRadius: 8, background: "#fc5b41", color: "#fff", fontSize: 10, fontWeight: 800, lineHeight: 1, verticalAlign: "middle" };
-// 작성자별 카드 색 (카스=파랑 / 개발자=검정)
+// 작성자별 카드 색 (AI=파랑 / 개발자=검정)
 const BY_STYLE = {
-  카스: { ink: "#2563eb", line: "#bfdbfe", bg: "#f0f7ff" },
+  AI: { ink: "#2563eb", line: "#bfdbfe", bg: "#f0f7ff" },
   개발자: { ink: "#18181b", line: "#e4e4e7", bg: "#fafafa" },
 };
+// 실제 폰 논리 해상도(iPhone 12~15 / 갤럭시 S 계열 기준). iframe은 항상 이 크기로 렌더해
+// 앱이 인식하는 뷰포트를 실기기와 같게 유지하고, 창이 짧으면 비율 그대로 축소만 한다.
+const PHONE_W = 390, PHONE_H = 844;
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif";

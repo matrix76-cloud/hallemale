@@ -144,7 +144,7 @@ const OwnerLegalPage = lazy(() => import("../pages/owner/OwnerLegalPage"));
 const OwnerInquiryPage = lazy(() => import("../pages/owner/OwnerInquiryPage"));
 const OwnerNotificationsPage = lazy(() => import("../pages/owner/OwnerNotificationsPage"));
 
-// ✅ 개발용 화면 리뷰 허브 (/review) — 개발자·카스 협업 도구. Firestore(reviewThreads) 공유.
+// ✅ 개발용 화면 리뷰 허브 (/review) — 개발자·AI 협업 도구. Firestore(reviewThreads) 공유.
 const AuthReview = lazy(() => import("../dev/AuthReview"));
 
 // 개발용 리뷰 허브(/review)의 iframe 안에서 화면을 미리보기로 열 때는 인증 게이트를 통과시킨다.
@@ -229,7 +229,9 @@ function RequireAdmin({ children }) {
   if (loading) return <AppLoadingPage />;
 
   // ✅ 진짜 Firebase 어드민 세션(admin 클레임)만 통과. localStorage 우회 제거.
-  const isAdmin = userDoc?.isAdmin === true;
+  //    userDoc.isAdmin 은 users 문서 필드라 본인이 써넣어 위조 가능 → 클레임에서만
+  //    세워지는 adminClaim 으로 판정한다(AuthContext).
+  const isAdmin = userDoc?.adminClaim === true;
   if (!isAdmin) return <Navigate to="/admin/login" replace />;
 
   return children;

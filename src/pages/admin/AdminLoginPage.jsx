@@ -152,8 +152,11 @@ export default function AdminLoginPage() {
   const [busy, setBusy] = useState(false);
 
   // 이미 어드민 Firebase 세션이 있으면 대시보드로
+  //  판정은 RequireAdmin 과 동일하게 admin 클레임(adminClaim)만 인정한다.
+  //  users 문서의 isAdmin 으로 판정하면, 위조된 계정이 여기서 대시보드로 튕기고
+  //  RequireAdmin 이 다시 로그인으로 되돌려 무한 리다이렉트가 된다.
   useEffect(() => {
-    if (userDoc?.isAdmin === true) nav("/admin/dashboard", { replace: true });
+    if (userDoc?.adminClaim === true) nav("/admin/dashboard", { replace: true });
   }, [userDoc, nav]);
 
   const onSubmit = async (e) => {

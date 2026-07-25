@@ -63,3 +63,13 @@ const { requestPhoneOtp, verifyPhoneOtp, purgePhoneVerificationsDaily } = requir
 exports.requestPhoneOtp = requestPhoneOtp;
 exports.verifyPhoneOtp = verifyPhoneOtp;
 exports.purgePhoneVerificationsDaily = purgePhoneVerificationsDaily;
+
+// ✅ 경기 확정/취소 카카오 알림톡 (직접입력 매칭 ③④) — match_requests status 전이 트리거
+const { matchAlimtalkOnStatusChange } = require("./jobs/matchAlimtalk");
+exports.matchAlimtalkOnStatusChange = matchAlimtalkOnStatusChange;
+
+// ⏸ 제휴구장 결제/환불 알림톡 (①②) — 코드 완료(pre-write), 배포 보류.
+//    활성 조건: PG 실연동 + REFUND_CREDIT_ENABLED=true + 템플릿 ①② 승인(template_id 입력) + 약관 제3조 갱신.
+//    준비되면 아래 2줄 주석 해제.
+// const { venueAlimtalkOnStatusChange } = require("./jobs/venueAlimtalk");
+// exports.venueAlimtalkOnStatusChange = venueAlimtalkOnStatusChange;

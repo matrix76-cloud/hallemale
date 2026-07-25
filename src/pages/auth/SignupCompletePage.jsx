@@ -7,7 +7,6 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { markWelcomeSeen, attachReferrer } from "../../services/userService";
-import { images } from "../../utils/imageAssets";
 import { showAlert } from "../../utils/appDialog";
 import { track } from "../../utils/analytics";
 import { getStoredReferrer, clearStoredReferrer } from "../../utils/referral";
@@ -52,14 +51,6 @@ export default function SignupCompletePage() {
   return (
     <Wrap>
       <Inner>
-        <Hero>
-          <HeroImg
-            src={images.welcomeHero}
-            alt=""
-            onError={(e) => { e.currentTarget.style.display = "none"; }}
-          />
-        </Hero>
-
         <Badge>🎉</Badge>
         <Title>회원가입 완료!</Title>
         <Sub>
@@ -96,20 +87,6 @@ const Inner = styled.div`
   align-items: center;
   min-height: 0;
   padding-top: 72px;
-`;
-
-const Hero = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-`;
-
-const HeroImg = styled.img`
-  width: 200px;
-  max-width: 60%;
-  height: auto;
-  object-fit: contain;
 `;
 
 const Badge = styled.div`

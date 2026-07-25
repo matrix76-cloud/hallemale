@@ -118,9 +118,11 @@ service cloud.firestore {
     // ───── 어드민 계정 (어드민 전용) ─────
     match /admin_accounts/{id}            { allow read: if isAdmin(); allow write: if isAdmin(); }
 
-    // ───── 개발용 화면 리뷰 스레드 (개발자·카스 협업 · 배포 공유) ─────
-    //  /review 개발 도구가 화면별 피드백/기록을 저장하는 컬렉션. 로그인 사용자만 접근.
-    match /reviewThreads/{id}             { allow read: if signedIn(); allow write: if signedIn(); }
+    // ───── 개발용 화면 리뷰 스레드 (개발자·AI 협업 · 배포 공유) ─────
+    //  /review 개발 도구가 화면별 피드백/기록을 저장하는 컬렉션.
+    //  ⚠️ 전면 공개 — 로그인 없이 누구나 읽기·쓰기·삭제 가능. AI 에이전트가 인증 없이
+    //     스레드를 읽고 기록하려고 푼 것이다. 리뷰 작업이 끝나면 signedIn()으로 되돌릴 것.
+    match /reviewThreads/{id}             { allow read, write: if true; }
 
     // ───── 서버(Cloud Functions / Admin SDK) 전용 : 클라 접근 전면 차단 ─────
     match /phone_verifications/{id}       { allow read, write: if false; }

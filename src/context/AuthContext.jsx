@@ -101,6 +101,10 @@ export function AuthProvider({ children }) {
             id: user.uid,
             uid: user.uid,
             isAdmin: true,
+            // 🔒 관리자 콘솔 진입 판정용. users 문서의 isAdmin 필드는 로그인만 하면
+            //    누구나 자기 문서에 써넣을 수 있어(firestore.rules: users write=signedIn)
+            //    위조 가능하므로, 서버가 발급한 admin 클레임에서만 세워지는 이 플래그를 쓴다.
+            adminClaim: true,
             role: String(claims.adminRole || "admin"),
             adminId: String(claims.adminId || ""),
             nickname: String(claims.adminName || "관리자"),

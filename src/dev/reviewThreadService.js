@@ -1,5 +1,5 @@
 /* eslint-disable */
-// 리뷰 스레드 백엔드 — Firestore(reviewThreads). 배포 URL 에서도 개발자·카스가 같은 기록을 공유.
+// 리뷰 스레드 백엔드 — Firestore(reviewThreads). 배포 URL 에서도 개발자·AI가 같은 기록을 공유.
 // 각 문서 = 한 기록 { screenId, by, at, text, replyTo, imgs, pins, ts }
 //  - pid = Firestore 문서 id (댓글 replyTo 가 이 id 를 가리킴)
 //  - imgs = 압축된 dataURL 배열(문서 1MB 제한 대비 프론트에서 리사이즈). Storage 미사용.
