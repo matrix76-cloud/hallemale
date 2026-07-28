@@ -24,7 +24,8 @@ import {
   FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
 import { BOOKING_WINDOW_DAYS } from "../../constants/booking";
-import { CANCEL_POLICY_TIERS, CANCEL_POLICY_NOTE } from "../../constants/cancelPolicy";
+import { CANCEL_POLICY_TIERS, CANCEL_POLICY_NOTE, CANCEL_POLICY_NOTE_ONSITE } from "../../constants/cancelPolicy";
+import { PG_ENABLED } from "../../constants/payments";
 import { openDirections, openMapView, copyText, fullAddress } from "../../utils/venueLink";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
@@ -509,9 +510,9 @@ export default function VenueBookingPage() {
             </PolicyRow>
           ))}
         </PolicyTable>
-        <PolicyNote>{CANCEL_POLICY_NOTE}</PolicyNote>
+        <PolicyNote>{PG_ENABLED ? CANCEL_POLICY_NOTE : CANCEL_POLICY_NOTE_ONSITE}</PolicyNote>
         {venue.refundPolicy ? (
-          <DirBox><b>이 구장 자체 안내</b><InfoPre>{venue.refundPolicy}</InfoPre></DirBox>
+          <DirBox><b>이 구장 이용 안내</b><InfoPre>{venue.refundPolicy}</InfoPre></DirBox>
         ) : null}
       </Section>
 

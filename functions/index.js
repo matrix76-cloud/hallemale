@@ -68,6 +68,16 @@ exports.purgePhoneVerificationsDaily = purgePhoneVerificationsDaily;
 const { matchAlimtalkOnStatusChange } = require("./jobs/matchAlimtalk");
 exports.matchAlimtalkOnStatusChange = matchAlimtalkOnStatusChange;
 
+// ✅ 토스페이먼츠 결제위젯 — 주문 생성 + 결제 승인 (금액은 서버가 예약 문서에서 계산)
+const { createTossOrder, confirmTossPayment } = require("./payments/toss");
+exports.createTossOrder = createTossOrder;
+exports.confirmTossPayment = confirmTossPayment;
+
+// ✅ 결제 예약 뒤처리 — 결제완료 시 확정 동기화(트리거) + 결제마감 만료 환불(10분마다)
+const { venuePaidConfirmTrigger, venuePaymentExpireTick } = require("./jobs/venuePaymentJobs");
+exports.venuePaidConfirmTrigger = venuePaidConfirmTrigger;
+exports.venuePaymentExpireTick = venuePaymentExpireTick;
+
 // ⏸ 제휴구장 결제/환불 알림톡 (①②) — 코드 완료(pre-write), 배포 보류.
 //    활성 조건: PG 실연동 + REFUND_CREDIT_ENABLED=true + 템플릿 ①② 승인(template_id 입력) + 약관 제3조 갱신.
 //    준비되면 아래 2줄 주석 해제.

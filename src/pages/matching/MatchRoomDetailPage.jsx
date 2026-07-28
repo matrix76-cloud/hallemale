@@ -38,6 +38,7 @@ import MatchAcceptedCelebration from "../../components/matchRoom/MatchAcceptedCe
 import MatchFinalCelebration from "../../components/matchRoom/MatchFinalCelebration";
 import CancelReasonSheet from "../../components/matchRoom/CancelReasonSheet";
 import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
+import { PG_ENABLED } from "../../constants/payments";
 import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import useVisualViewportHeightVar from "../../hooks/useVisualViewportHeightVar";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
@@ -1232,6 +1233,13 @@ const PaidRow = styled.div`
 `;
 const PaidDivider = styled.div`height: 1px; background: ${({ theme }) => mrp(theme.mode).line}; margin: 8px 0 2px;`;
 const PaidNote = styled.div`margin-top: 8px; font-size: 12px; line-height: 1.5; color: ${({ theme }) => mrp(theme.mode).t3};`;
+const PayNowBtn = styled.button`
+  margin-top: 10px; width: 100%; height: 46px;
+  border: none; border-radius: 12px; cursor: pointer;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff; font-size: 14.5px; font-weight: 800;
+  &:active { transform: translateY(1px); }
+`;
 const PaidCode = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   margin: -2px 0 10px; padding: 8px 11px; border-radius: 10px;
@@ -5504,16 +5512,21 @@ export default function MatchRoomDetailPage() {
               </TicketBody>
             </Ticket>
 
-            {/* ✅ 제휴구장 예약: 예약완료 + 현장 결제 예정 금액 카드 (앱 결제 없음, 현장 정산) */}
+            {/* ✅ 제휴구장 예약 카드. 앱내 결제 ON이면 우리 팀 몫 결제 버튼까지 여기서 처리한다. */}
             {partnerPay?.pb && (() => {
               const pb = partnerPay.pb;
               const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
               const myShare = side === "A" ? pb.shareA : pb.shareB;
+              const resv = partnerPay.resv;
+              const myPaid = side === "A" ? !!resv?.paidByA : !!resv?.paidByB;
+              const oppPaid = side === "A" ? !!resv?.paidByB : !!resv?.paidByA;
+              // 결제 대기(구장주 승인 완료) 상태에서 아직 우리 몫을 안 냈으면 결제로 보낸다.
+              const needPay = PG_ENABLED && toStr(resv?.status) === "pending" && !myPaid;
               return (
                 <PaidCard>
                   <PaidHead>
-                    <PaidTitle>🎟️ 구장 예약 완료</PaidTitle>
-                    <PaidBadge>예약확정</PaidBadge>
+                    <PaidTitle>{needPay ? "🎟️ 구장 예약 승인" : "🎟️ 구장 예약 완료"}</PaidTitle>
+                    <PaidBadge>{needPay ? "결제대기" : "예약확정"}</PaidBadge>
                   </PaidHead>
                   {toStr(pb.reservationCode) ? (
                     <PaidCode>
@@ -5528,8 +5541,28 @@ export default function MatchRoomDetailPage() {
                   <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><b>{Number(pb.shareA || 0).toLocaleString()}원</b></PaidRow>
                   <PaidRow><span>{toStr(pb.opponentTeamName) || "B팀"}</span><b>{Number(pb.shareB || 0).toLocaleString()}원</b></PaidRow>
                   <PaidDivider />
-                  <PaidRow $big><span>우리 팀 현장 결제 예정 (1/2)</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
-                  <PaidNote>앱에서 결제되지 않아요. 경기 당일 구장에서 현장 정산합니다.</PaidNote>
+                  <PaidRow $big>
+                    <span>{PG_ENABLED ? `우리 팀 몫 (1/2)${myPaid ? " · 결제완료" : ""}` : "우리 팀 현장 결제 예정 (1/2)"}</span>
+                    <b>{Number(myShare || 0).toLocaleString()}원</b>
+                  </PaidRow>
+                  {PG_ENABLED ? (
+                    <>
+                      {needPay ? (
+                        <PayNowBtn type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
+                          {Number(myShare || 0).toLocaleString()}원 결제하기
+                        </PayNowBtn>
+                      ) : null}
+                      <PaidNote>
+                        {myPaid && !oppPaid
+                          ? "우리 팀 몫은 결제됐어요. 상대 팀이 결제하면 경기가 확정돼요. 2시간 안에 결제되지 않으면 자동 취소되고 전액 환불됩니다."
+                          : needPay
+                            ? "양 팀이 각자 몫을 결제하면 경기가 확정돼요."
+                            : "결제가 완료됐어요."}
+                      </PaidNote>
+                    </>
+                  ) : (
+                    <PaidNote>앱에서 결제되지 않아요. 경기 당일 구장에서 현장 정산합니다.</PaidNote>
+                  )}
                   {toStr(pb.ownerNote) ? (
                     <PaidOwnerNote><b>구장 안내</b>{toStr(pb.ownerNote)}</PaidOwnerNote>
                   ) : null}

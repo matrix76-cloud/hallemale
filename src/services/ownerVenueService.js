@@ -30,6 +30,7 @@ import {
 } from "firebase/firestore";
 import { payFizz } from "./fizzService";
 import { BOOKING_WINDOW_DAYS, isBookableDate } from "../constants/booking";
+import { PG_ENABLED, PAYMENT_WINDOW_MS } from "../constants/payments";
 
 function hhmmToMin(v) {
   const [h, m] = String(v || "0:0").split(":").map((x) => parseInt(x, 10) || 0);
@@ -908,7 +909,7 @@ async function notifyBookingUserOnStatusChange(data, action) {
   const where = `${safeStr(data.venueName)}${safeStr(data.courtName) ? ` · ${safeStr(data.courtName)}` : ""}`;
   const note = safeStr(data.ownerNote);
   const M = {
-    confirmed: { subType: "venueReservationConfirmed", title: "예약이 확정됐어요 🎉", body: `${when} · ${where} 예약이 확정됐어요. 이용료는 현장에서 정산해요.${note ? `\n구장 안내: ${note}` : ""}` },
+    confirmed: { subType: "venueReservationConfirmed", title: "예약이 확정됐어요 🎉", body: `${when} · ${where} 예약이 확정됐어요.${PG_ENABLED ? "" : " 이용료는 현장에서 정산해요."}${note ? `\n구장 안내: ${note}` : ""}` },
     rejected:  { subType: "venueReservationRejected",  title: "예약이 반려됐어요",     body: `${when} · ${where} 예약 요청이 구장 사정으로 반려됐어요. 다른 시간을 선택해 주세요.` },
     cancelled: { subType: "venueReservationCancelled", title: "예약이 취소됐어요",     body: `${when} · ${where} 예약이 취소됐어요.` },
     noshow:    { subType: "venueReservationNoshow",    title: "노쇼로 처리됐어요",       body: `${when} · ${where} 예약이 노쇼로 처리됐어요.` },
@@ -936,6 +937,46 @@ async function notifyBookingUserOnStatusChange(data, action) {
     });
   } catch (e) {
     console.warn("[notifyBookingUserOnStatusChange] failed:", e?.message || e);
+  }
+}
+
+/**
+ * 구장주 승인 직후 "결제해 주세요" 통보 (앱내 결제 ON일 때만).
+ * 매칭 예약은 양 팀장이 각자 몫을 내야 하므로 둘 다에게 보낸다.
+ */
+async function notifyPaymentRequested(data) {
+  const rid = safeStr(data?.id);
+  const when = `${safeStr(data.date)} ${safeStr(data.startTime)}~${safeStr(data.endTime)}`;
+  const where = `${safeStr(data.venueName)}${safeStr(data.courtName) ? ` · ${safeStr(data.courtName)}` : ""}`;
+  const isMatch = !!safeStr(data.matchId);
+  const targetIds = isMatch
+    ? [safeStr(data.teamALeaderUid), safeStr(data.teamBLeaderUid)].filter(Boolean)
+    : [safeStr(data.userId)].filter(Boolean);
+  if (!targetIds.length) return;
+
+  try {
+    await addDoc(collection(db, "notifications"), {
+      kind: "venue",
+      subType: "venueReservationPaymentRequested",
+      type: "venue_reservation",
+      title: "구장 예약이 승인됐어요 · 결제해 주세요",
+      body: isMatch
+        ? `${when} · ${where} 예약이 승인됐어요. 2시간 안에 우리 팀 몫을 결제해야 경기가 확정돼요.`
+        : `${when} · ${where} 예약이 승인됐어요. 2시간 안에 결제해야 예약이 확정돼요.`,
+      targetType: "USER",
+      targetIds,
+      linkType: "venue",
+      linkTargetId: safeStr(data.venueId),
+      meta: { venueId: safeStr(data.venueId), reservationId: rid, deepLink: `/pay/${rid}` },
+      push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      audience: "user",
+      prefsCategory: "venue",
+      readBy: {},
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn("[notifyPaymentRequested] failed:", e?.message || e);
   }
 }
 
@@ -968,6 +1009,19 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
       (r) => r.id !== rid && r.status === "confirmed" && rangesOverlap(cur.startTime, cur.endTime, r.startTime, r.endTime)
     );
     if (clash) throw new Error("이미 확정된 예약이 있는 시간대예요. 이 요청은 반려해 주세요.");
+  }
+
+  // 💳 앱내 결제 ON: 승인은 확정이 아니라 "결제 대기"다. 결제가 끝나야(서버 승인) confirmed.
+  //    OFF(현장정산)면 기존대로 승인 즉시 확정.
+  if (PG_ENABLED && next === "confirmed") {
+    await updateDoc(dref, {
+      status: "pending",
+      ownerNote,
+      paymentDeadline: new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString(),
+      updatedAt: serverTimestamp(),
+    });
+    await notifyPaymentRequested({ ...cur, id: rid, ownerNote });
+    return;
   }
 
   await updateDoc(dref, {
@@ -1014,6 +1068,8 @@ async function setReservationEndStatus(reservationId, nextStatus) {
 
   await updateDoc(dref, {
     status: nextStatus,
+    // 귀책 기록 — 서버 환불 계산이 이 값으로 위약금 여부를 가른다(구장 사정이면 전액 환불).
+    canceledBy: "owner",
     updatedAt: serverTimestamp(),
   });
   // 매칭 예약 반려/취소 → 매칭룸 조율중(accepted) 복귀 + 재제안 유도 알림
@@ -1343,7 +1399,7 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
     userNote: safeStr(userNote).slice(0, 300), // 구장에 전달할 요청사항 (선택)
     price,
     paid: false,
-    paymentMethod: "onsite",
+    paymentMethod: PG_ENABLED ? "toss" : "onsite",
     status: "requested",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -1477,7 +1533,7 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
       courtId: safeStr(pb.courtId), courtName: safeStr(pb.courtName),
       date: safeStr(pb.date), startTime: safeStr(pb.startTime), endTime: safeStr(pb.endTime),
       userId: safeStr(pb.proposerUid), userName: safeStr(pb.proposerTeamName), teamName: safeStr(pb.proposerTeamName),
-      price: toNum(pb.totalPrice) ?? 0, paid: false, paymentMethod: "onsite", source: "match",
+      price: toNum(pb.totalPrice) ?? 0, paid: false, paymentMethod: PG_ENABLED ? "toss" : "onsite", source: "match",
       status: "requested",
       matchId: id, splitTotal: toNum(pb.totalPrice) ?? 0,
       shareA: toNum(pb.shareA) ?? 0, shareB: toNum(pb.shareB) ?? 0,

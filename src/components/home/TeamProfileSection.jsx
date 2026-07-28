@@ -202,6 +202,43 @@ const BigSubtitle = styled.div`
   letter-spacing: -0.3px;
 `;
 
+/* 구장 예약 바로가기 — 매칭하기 카드와 같은 형태, 색만 주황(매칭=보라와 역할 구분) */
+const WideActionCard = styled.button`
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 84px;
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #FB923C 0%, #F97316 100%);
+  box-shadow: 0 14px 26px -10px rgba(234, 88, 12, 0.6);
+  padding: 16px 16px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  text-align: left;
+
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
+/* 3D 캘린더 — 매칭하기 농구공과 동일한 코너 배치 */
+const WideIcon = styled.img`
+  position: absolute;
+  right: 2px;
+  bottom: -2px;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.3));
+  pointer-events: none;
+`;
+
 /* ✅ 매칭룸 카드(매칭하기 버튼처럼 코너 3D) */
 const MatchRoomCard = styled.div`
   position: relative;
@@ -551,6 +588,12 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
           <BigIcon src={images.emoji3dBasketball} alt="" />
         </BigActionCard>
       </ProfileRow>
+
+      <WideActionCard type="button" onClick={() => navigate("/venues")}>
+        <BigTitle>구장 예약 바로가기</BigTitle>
+        <BigSubtitle>제휴 구장 코트·시간 예약하기</BigSubtitle>
+        <WideIcon src={images.emoji3dCalendar} alt="" />
+      </WideActionCard>
 
       <ActionsCol>
         <MatchRoomCard>

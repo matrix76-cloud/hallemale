@@ -52,7 +52,7 @@ const MATCH_CANCEL_REASON_LABELS = MATCH_CANCEL_REASONS.reduce((m, r) => { m[r.k
 const REFUND_CREDIT_ENABLED = false;
 
 // 제휴구장 결제 예약이 있으면 취소 + 환불(구조) 처리. 직접입력 등 결제 없으면 null 반환.
-async function refundPartnerReservationIfPaid(matchId, reasonStr) {
+async function refundPartnerReservationIfPaid(matchId, reasonStr, cancelledByClubId = "") {
   const snap = await getDocs(
     query(collection(db, "venueReservations"), where("matchId", "==", toStr(matchId)))
   );
@@ -82,6 +82,9 @@ async function refundPartnerReservationIfPaid(matchId, reasonStr) {
   const refundStatus = REFUND_CREDIT_ENABLED ? "refunded" : "pending";
   await updateDoc(doc(db, "venueReservations", resvDoc.id), {
     status: "cancelled",
+    // 귀책 기록 — 취소한 팀만 위약금을 물고 상대 팀은 전액 환불받는다(서버가 이 값으로 계산).
+    canceledBy: "team",
+    cancelledByClubId: toStr(cancelledByClubId),
     refunded: REFUND_CREDIT_ENABLED,
     refundStatus, // "refunded"(완료) | "pending"(환불 대기 — PG 연동 전)
     refundAmount: total,
@@ -1491,7 +1494,7 @@ export async function cancelMatchRequest({
   // 제휴구장 결제 예약이면 환불(구조) 처리 — 직접입력은 null
   let refund = null;
   try {
-    refund = await refundPartnerReservationIfPaid(id, reasonStr);
+    refund = await refundPartnerReservationIfPaid(id, reasonStr, by);
   } catch (e) {
     console.warn("[cancelMatchRequest] refund failed:", e?.message || e);
   }

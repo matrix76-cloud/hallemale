@@ -45,11 +45,12 @@ tail -f /dev/null | PORT=3000 BROWSER=none npm start
 
 ```
 이메일 : review-demo@hallamalle.com
-비밀번호: reviewDemo2026!
+비밀번호: (공개 저장소라 문서에 적지 않습니다 — 팀 내부 채널에서 확인)
 ```
 
 - 이 계정은 `isAdmin=true` + 데이터가 가장 풍부한 팀의 클럽장으로 세팅됩니다(시드 스크립트가 처리).
-- 자동 로그인 코드: `src/dev/reviewDemo.js` — 값이 바뀌면 `scripts/seed-review-demo.mjs` 의 상수와 **반드시 동일**하게 유지하세요.
+- 시드 스크립트는 비밀번호를 `DEMO_PW` 환경변수로 받습니다: `DEMO_PW=... node scripts/seed-review-demo.mjs`
+- 자동 로그인 코드: `src/dev/reviewDemo.js` — 값이 바뀌면 시드 스크립트에 넘기는 `DEMO_PW` 와 **반드시 동일**하게 유지하세요.
 
 ### 인증 게이트 우회 원리 (중요)
 

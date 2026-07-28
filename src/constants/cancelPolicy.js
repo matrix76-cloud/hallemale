@@ -1,23 +1,31 @@
 // src/constants/cancelPolicy.js
-// 구장 예약 취소 정책 — 플랫폼 공통 기본값.
+// 구장 예약 취소·환불 정책 — 플랫폼 공통 기준(구장별로 다르게 두지 않는다).
 //
-// 할래말래는 무결제 예약중개(현장 정산, constants/payments.js PG_ENABLED=false)라
-// "결제금액 N% 차감" 같은 환불 단계가 존재하지 않는다. 그래서 단계는 "환불률"이 아니라
-// "취소가 구장에 주는 부담 / 이용자에게 남는 기록"으로 구성한다.
+// 구장마다 다른 환불율을 쓰면 ① 분담결제에서 두 팀 환불액이 갈려 분쟁이 나고
+// ② 자동 환불 계산이 구장별로 갈라져 돈 계산 사고가 난다. 그래서 플랫폼이 하나로 정한다.
 //
-// 실제 강제 규칙은 ownerVenueService.cancelMyReservation 하나뿐이다:
-//   requested·confirmed 이고 시작 시각 이전이면 취소 가능, 그 외 불가.
-// 아래 문구는 그 동작을 그대로 설명한다 — UI가 서비스보다 엄격한 척하지 않게 할 것.
+// 결제 여부에 따라 같은 표가 두 가지로 읽힌다 (constants/payments.js PG_ENABLED):
+//   OFF(현장정산) → 환불할 결제금이 없으므로 "취소 가능 여부"만 의미가 있다.
+//   ON(앱내 결제) → 아래 환불율로 부분 환불된다. 계산은 refundRate() 하나로 통일.
+//
+// ⚠️ 토스페이먼츠 심사 요건: 무형재화(용역)는 "제공이 개시되지 않은 부분"에 대해 환불이
+//    가능해야 하고, 환불정책을 구매페이지·이용약관에 기재해야 한다. 그래서
+//    ① 이용 시작 전에는 항상 취소가 가능하고(임박 취소는 위약금 공제),
+//    ② 결제 화면(PaymentPage)과 약관에 이 표를 그대로 노출한다.
 
-/** 취소 규정 테이블 (구장 상세 · 예약 시트에서 그대로 렌더) */
+/** 취소 규정 테이블 (구장 상세 · 예약 시트 · 결제 화면에서 그대로 렌더) */
 export const CANCEL_POLICY_TIERS = [
-  { when: "이용 2일 전까지", what: "자유롭게 취소 · 불이익 없음", tone: "ok" },
-  { when: "이용 1일 전", what: "취소 가능 · 구장에 즉시 통보돼요", tone: "warn" },
-  { when: "이용 당일", what: "취소 가능하나 노쇼로 기록될 수 있어요", tone: "warn" },
-  { when: "이용 시작 후", what: "앱 취소 불가 · 구장에 직접 문의", tone: "danger" },
+  { when: "이용 2일 전까지", what: "전액 환불", refundRate: 1, tone: "ok" },
+  { when: "이용 1일 전", what: "50% 환불 (50% 위약금)", refundRate: 0.5, tone: "warn" },
+  { when: "이용 당일", what: "환불 불가", refundRate: 0, tone: "danger" },
+  { when: "이용 시작 후", what: "환불 불가 · 앱 취소 불가", refundRate: 0, tone: "danger" },
 ];
 
 export const CANCEL_POLICY_NOTE =
+  "구장 사정으로 예약이 반려·취소되거나, 상대 팀 미결제로 경기가 성사되지 않은 경우에는 위약금 없이 전액 환불돼요.";
+
+/** 결제 없이 운영할 때(현장정산) 쓰는 안내 — 환불할 결제금이 없다는 사실을 그대로 말한다. */
+export const CANCEL_POLICY_NOTE_ONSITE =
   "이용료는 현장에서 정산하므로 앱에서 환불받을 금액은 없어요. 다만 당일 취소·노쇼가 반복되면 예약이 제한될 수 있어요.";
 
 const toStr = (v) => String(v || "").trim();
@@ -45,6 +53,21 @@ export function cancelStageIndex(date, startTime, now = new Date()) {
   if (days <= 0) return 2;
   if (days === 1) return 1;
   return 0;
+}
+
+/**
+ * 이용자 귀책 취소 시 환불율 (0~1). CANCEL_POLICY_TIERS 와 1:1로 붙어 있다.
+ * 구장 사정 취소·미결제 자동취소·상대팀 귀책은 이 함수를 쓰지 않고 무조건 전액 환불이다.
+ */
+export function refundRate(date, startTime, now = new Date()) {
+  const tier = CANCEL_POLICY_TIERS[cancelStageIndex(date, startTime, now)];
+  return tier ? tier.refundRate : 0;
+}
+
+/** 환불 예정액 (원 단위 내림 — 부분환불에서 1원이라도 더 나가지 않게) */
+export function refundAmount(paidAmount, date, startTime, now = new Date()) {
+  const paid = Number(paidAmount) || 0;
+  return Math.floor(paid * refundRate(date, startTime, now));
 }
 
 /** "7월 20일 (월) 19:00" */

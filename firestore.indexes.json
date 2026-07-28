@@ -1,6 +1,20 @@
 {
   "indexes": [
     {
+      "collectionGroup": "venueReservations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "paymentDeadline",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "chatRooms",
       "queryScope": "COLLECTION",
       "fields": [

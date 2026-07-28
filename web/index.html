@@ -297,6 +297,18 @@ header.scrolled .nav-menu a{color:var(--ink-2)}
   background:#fff;border-radius:100px;padding:11px 18px;box-shadow:0 4px 14px rgba(26,16,48,.05)}
 .ven-steps li i{font-family:'Archivo';font-style:normal;font-size:12px;font-weight:800;color:var(--brand)}
 .ven-steps .arw{background:none;box-shadow:none;padding:0;color:var(--ink-3)}
+/* 이용 요금 안내 — 비로그인 방문자도 "무엇을 얼마에" 파는지 볼 수 있게 (결제 심사 필수 표시) */
+.ven-price{margin-top:32px;border:1px solid var(--line);border-radius:22px;padding:28px 32px;background:#fff}
+.ven-price h3{font-size:18px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.ven-price>p{margin-top:8px;font-size:14px;line-height:1.65;color:var(--ink-2)}
+.vp-rows{margin-top:20px;display:grid;gap:12px}
+.vp-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.vp-row:last-child{border-bottom:0;padding-bottom:0}
+.vp-row dt{font-size:14px;font-weight:700;color:var(--ink);flex:none}
+.vp-row dd{margin:0;font-size:14px;line-height:1.6;color:var(--ink-2);text-align:right}
+.vp-note{margin-top:18px;font-size:13px;line-height:1.6;color:var(--ink-3)}
+.vp-note a{color:var(--ink-2);text-decoration:underline}
+@media(max-width:640px){.ven-price{padding:24px 20px}.vp-row{flex-direction:column;gap:4px}.vp-row dd{text-align:left}}
 .ven-cta{margin-top:32px;background:var(--dark);border-radius:22px;padding:28px 32px;display:flex;
   align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .ven-cta b{display:block;font-size:18px;font-weight:800;color:#fff;letter-spacing:-.02em}
@@ -681,6 +693,34 @@ section[id]{scroll-margin-top:88px}
       <li class="arw">→</li>
       <li><i>05</i> 경기 확정</li>
     </ul>
+
+    <section class="ven-price" aria-labelledby="ven-price-h">
+      <h3 id="ven-price-h">이용 요금 안내</h3>
+      <p>할래말래는 제휴 구장의 코트·시간 예약을 중개합니다. 이용요금은 각 구장이 책정하며, 앱의 구장 상세 화면에서 코트별·시간대별 요금을 예약 전에 확인할 수 있습니다.</p>
+      <dl class="vp-rows">
+        <div class="vp-row">
+          <dt>판매 상품</dt>
+          <dd>제휴 구장의 코트 시간 예약 (1시간 단위)</dd>
+        </div>
+        <div class="vp-row">
+          <dt>이용 요금</dt>
+          <dd>구장·코트·시간대에 따라 다름 · 현재 등록 구장 기준 <b>시간당 35,000원 ~ 50,000원</b></dd>
+        </div>
+        <div class="vp-row">
+          <dt>예약 확정</dt>
+          <dd>예약 요청 → 구장 승인 → 결제 완료 시 확정<br><span style="color:var(--ink-3)">(인앱 결제 개시 전까지는 이용 당일 구장에서 현장 정산)</span></dd>
+        </div>
+        <div class="vp-row">
+          <dt>비용 분담</dt>
+          <dd>매칭 경기는 양 팀이 요금을 절반씩 나누어 각자 결제</dd>
+        </div>
+        <div class="vp-row">
+          <dt>취소·환불</dt>
+          <dd>이용 2일 전까지 100% · 전일 50% · 당일 이후 환불 불가<br><span style="color:var(--ink-3)">구장 사정 취소·상대 팀 미결제로 인한 취소는 전액 환불</span></dd>
+        </div>
+      </dl>
+      <p class="vp-note">전 구장에 동일한 취소·환불 기준을 적용합니다. 자세한 내용은 <a href="refund.html">취소 및 환불 정책</a>을 확인해 주세요.</p>
+    </section>
 
     <div class="ven-cta">
       <div>

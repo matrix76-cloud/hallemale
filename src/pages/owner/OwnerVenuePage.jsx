@@ -396,8 +396,11 @@ export default function OwnerVenuePage() {
       </Card>
       <Card>
         <SecTitle><LuReceipt size={16} /> 취소·노쇼 안내</SecTitle>
-        <Caption>예약 취소·노쇼 시 지켜야 할 안내 (현장 정산이라 별도 환불은 없어요).</Caption>
-        <Textarea value={refundPolicy} onChange={(e) => setRefundPolicy(e.target.value)} placeholder={"• 이용 1일 전까지 취소해 주세요.\n• 당일 취소·노쇼는 삼가주세요."} />
+        <Caption>
+          예약 취소·노쇼 시 지켜야 할 안내를 적어주세요. <b>환불 비율은 할래말래 공통 기준</b>이라
+          구장별로 다르게 적용되지 않으니, 여기에는 적지 말아주세요.
+        </Caption>
+        <Textarea value={refundPolicy} onChange={(e) => setRefundPolicy(e.target.value)} placeholder={"• 우천/천재지변 시 협의 후 일정 변경 가능\n• 당일 취소·노쇼는 삼가주세요."} />
       </Card>
 
       {/* 예약 확정 안내문 — 승인 시 예약자에게 자동으로 전달 */}

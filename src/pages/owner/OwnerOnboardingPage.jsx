@@ -26,8 +26,10 @@ import OwnerSpinner from "./components/OwnerSpinner";
 import CourtHoursEditor from "./components/CourtHoursEditor";
 import VenueMapPicker from "./components/VenueMapPicker";
 
+// 환불 비율은 플랫폼 공통 기준(constants/cancelPolicy.js)이라 여기 적지 않는다.
+// 이 필드는 구장 고유 안내(우천·일정변경·노쇼 당부)만 담는다.
 const DEFAULT_REFUND =
-  "• 이용 1일 전까지 취소해 주세요.\n• 당일 취소·노쇼는 삼가주세요. 반복 시 예약이 제한될 수 있어요.\n• 우천/천재지변 시 협의 후 일정 변경 가능";
+  "• 당일 취소·노쇼는 삼가주세요. 반복 시 예약이 제한될 수 있어요.\n• 우천/천재지변 시 협의 후 일정 변경 가능";
 
 function makeCourt(idx) {
   return { name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60, hours: defaultCourtHours() };

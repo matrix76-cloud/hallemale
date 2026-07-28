@@ -16,6 +16,7 @@ import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
 import { copyText, fullAddress, openDirections, openMapView } from "../../utils/venueLink";
 import { cancelDeadlineText, usableFromText } from "../../constants/cancelPolicy";
+import { PG_ENABLED } from "../../constants/payments";
 import {
   FiMapPin, FiCalendar, FiClock, FiHash, FiPhone, FiInfo,
   FiCopy, FiMap, FiNavigation, FiFileText,
@@ -26,6 +27,7 @@ const toStr = (v) => String(v || "").trim();
 // 상태 라벨 + 색상 (tone: warn/ok/gray/info/danger)
 const STATUS_META = {
   requested: { label: "승인 대기", tone: "warn" },
+  pending: { label: "결제 대기", tone: "warn" },
   confirmed: { label: "예약 확정", tone: "ok" },
   done: { label: "이용 완료", tone: "info" },
   rejected: { label: "반려됨", tone: "gray" },
@@ -51,7 +53,12 @@ function canCancel(r) {
   // 매칭 예약은 여기서 취소 불가. cancelMyReservation 은 match_requests 를 동기화하지 않아
   // 예약만 취소되고 경기는 confirmed 로 남는다. 취소는 매칭룸 경로로만.
   if (toStr(r.matchId)) return false;
-  return ["requested", "confirmed"].includes(toStr(r.status)) && isFuture(r);
+  return ["requested", "pending", "confirmed"].includes(toStr(r.status)) && isFuture(r);
+}
+
+/** 결제 대기(구장주 승인 완료) 상태 — 이때만 결제 버튼을 띄운다. */
+function needsPayment(r) {
+  return PG_ENABLED && toStr(r.status) === "pending" && isFuture(r);
 }
 
 export default function MyReservationsPage() {
@@ -200,7 +207,11 @@ export default function MyReservationsPage() {
 
   return (
     <Wrap>
-      <Notice>예약은 구장 승인 후 확정돼요. 이용료는 현장에서 정산합니다.</Notice>
+      <Notice>
+        {PG_ENABLED
+          ? "예약은 구장 승인 후 결제하면 확정돼요. 승인 후 2시간 안에 결제해 주세요."
+          : "예약은 구장 승인 후 확정돼요. 이용료는 현장에서 정산합니다."}
+      </Notice>
       <List>
         {sorted.map((r) => {
           const meta = STATUS_META[r.status] || STATUS_META.requested;
@@ -269,13 +280,23 @@ export default function MyReservationsPage() {
               ) : null}
 
               <BottomRow>
-                <Price>{(Number(r.price) || 0).toLocaleString()}원 <small>· 현장 정산</small></Price>
+                <Price>
+                  {(Number(r.price) || 0).toLocaleString()}원
+                  {PG_ENABLED ? null : <small>· 현장 정산</small>}
+                </Price>
                 {canCancel(r) ? (
                   <CancelBtn type="button" disabled={busyId === r.id} onClick={() => handleCancel(r)}>
                     {busyId === r.id ? "취소 중…" : "예약 취소"}
                   </CancelBtn>
                 ) : null}
               </BottomRow>
+
+              {/* 승인 완료 → 결제해야 확정. 매칭 예약도 각 팀장이 여기서 자기 몫을 결제할 수 있다. */}
+              {needsPayment(r) ? (
+                <PayBtn type="button" onClick={() => navigate(`/pay/${r.id}`)}>
+                  결제하고 예약 확정하기
+                </PayBtn>
+              ) : null}
 
               {canCancel(r) ? (
                 <CancelHint>{cancelDeadlineText(r.date, r.startTime)}</CancelHint>
@@ -547,6 +568,20 @@ const CancelBtn = styled.button`
   font-weight: 700;
   cursor: pointer;
   &:disabled { opacity: 0.55; cursor: not-allowed; }
+  &:active { transform: translateY(1px); }
+`;
+
+const PayBtn = styled.button`
+  margin-top: 8px;
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
   &:active { transform: translateY(1px); }
 `;
 

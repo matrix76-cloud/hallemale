@@ -19,17 +19,18 @@ const LUNA_API_KEY = defineSecret("LUNA_API_KEY");
 //    classmanage 검증 엔드포인트는 jupiter. 계정 API가 다르면 여기만 교체.
 const ENDPOINT = "https://jupiter.lunasoft.co.kr/api/alimtalk/message/send";
 
-// 버튼 웹링크 도메인 — 실제 할래말래 웹 도메인으로 교체(미확정: 파이어베이스 기본).
+// 버튼 웹링크 도메인 — 템플릿 심사에 등록한 도메인과 일치해야 발송된다.
 //   앱 출시 후 이 도메인에 유니버설/앱링크를 걸면 같은 URL이 앱을 연다(템플릿 재심사 불필요).
-const APP_WEB_BASE = process.env.APP_WEB_BASE || "https://halle-bf789.web.app";
+//   ※ www 는 DNS 미설정(2026-07-25 확인) → apex 도메인만 사용할 것.
+const APP_WEB_BASE = process.env.APP_WEB_BASE || "https://hallaemallae.com";
 const matchDeepLink = (matchId) => `${APP_WEB_BASE}/match-roomdetail/${matchId}`;
 
 // 승인된 template_id 를 채운다. 미설정(빈값)이면 발송 단계에서 명시적 에러로 막힘.
 //   ③④(직접입력) = 검수 요청됨 → 승인되면 id 입력.
 //   ①②(제휴구장·결제) = PG 실연동 후 등록 예정.
 const TEMPLATES = {
-  matchConfirmedDirect: { id: "", name: "경기확정(직접입력)" }, // ⏳ 검수중 2026-07-23
-  matchCanceledDirect: { id: "", name: "경기취소(직접입력)" }, // ⏳ 검수중 2026-07-23
+  matchConfirmedDirect: { id: "50001", name: "경기확정(직접입력)" }, // ✅ 승인 2026-07-25
+  matchCanceledDirect: { id: "50002", name: "경기취소(직접입력)" }, // ✅ 승인 2026-07-25
   matchConfirmed: { id: "", name: "경기확정(제휴구장)" }, // 미등록(결제 연동 후)
   matchCanceled: { id: "", name: "경기취소(제휴구장)" }, // 미등록(결제 연동 후)
 };
@@ -96,8 +97,10 @@ const BODY = {
 - 결제금액 : ${v.금액}원
 - 환불예정금액 : ${v.환불금액}원
 
-환불은 확인일로부터 3영업일 이내 개시되며,
-카드 결제는 카드사 정책에 따라 통상 3~7영업일 소요됩니다.
+환불은 결제하신 카드로 자동 처리되며,
+카드사 사정에 따라 영업일 기준 3~5일 정도 소요될 수 있어요.
+취소 시점에 따라 위약금이 공제되어
+환불액이 결제금액과 다를 수 있습니다.
 
 자세한 내용은 앱에서 확인하실 수 있습니다.`,
 };
@@ -125,7 +128,10 @@ async function sendAlimtalk(tplKey, phone, vars = {}, opts = {}) {
   const api_key = LUNA_API_KEY.value();
   if (!userid || !api_key) throw new Error("루나소프트 설정값(LUNA_USERID/LUNA_API_KEY) 미입력");
 
-  const to = String(phone || "").replace(/\D/g, "");
+  // 수신번호 정규화 — users.phoneE164 는 "+821012345678" 형태로 저장되는데
+  // 루나는 국내표기(01012345678)를 받는다. 숫자만 남긴 뒤 82 국가코드를 0으로 되돌림.
+  const digits = String(phone || "").replace(/\D/g, "");
+  const to = digits.startsWith("82") ? `0${digits.slice(2)}` : digits;
   if (!to) throw new Error("수신 전화번호 없음");
 
   const content = build(vars);

@@ -28,7 +28,11 @@ const firebaseConfig = {
 
 // ── 데모 계정 (리뷰 도구 자동 로그인과 동일해야 함: src/dev/reviewDemo.js) ──
 const DEMO_EMAIL = "review-demo@hallamalle.com";
-const DEMO_PW = "reviewDemo2026!";
+const DEMO_PW = process.env.DEMO_PW;
+if (!DEMO_PW) {
+  console.error("DEMO_PW 환경변수가 필요합니다. 예) DEMO_PW=... node scripts/seed-review-demo.mjs");
+  process.exit(1);
+}
 
 const args = process.argv.slice(2);
 const getArg = (k, d = "") => {
@@ -129,7 +133,7 @@ const memberDoc = {
 const prevOwnerUid = String(club.ownerUid || "").trim();
 
 console.log("\n── 시드 계획 ──");
-console.log(`  계정 : ${DEMO_EMAIL} / ${DEMO_PW}`);
+console.log(`  계정 : ${DEMO_EMAIL}`);
 console.log(`  UID  : ${uid}`);
 console.log(`  팀   : ${club.name} (${clubId}) — 데모를 클럽장(owner)으로 승격`);
 console.log(`  기존 owner: ${prevOwnerUid || "(없음)"} → 일반 멤버로 강등`);
