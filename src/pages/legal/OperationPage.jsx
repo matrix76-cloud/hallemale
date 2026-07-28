@@ -12,7 +12,8 @@ const Page = styled.main`
   color: ${({ theme }) => theme.colors.textNormal};
   display: flex;
   justify-content: center;
-  padding: 28px 16px 80px;
+  padding: calc(28px + env(safe-area-inset-top)) 16px
+    calc(80px + env(safe-area-inset-bottom));
 `;
 
 const Sheet = styled.div`
