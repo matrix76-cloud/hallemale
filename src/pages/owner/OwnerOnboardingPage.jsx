@@ -17,6 +17,8 @@ import {
   defaultCourtHours,
   FACILITY_OPTIONS,
   SURFACE_OPTIONS,
+  OWNER_TYPE_OPTIONS,
+  ownerTypeOption,
   isValidBizNo,
 } from "../../services/ownerVenueService";
 import {
@@ -35,9 +37,11 @@ function makeCourt(idx) {
   return { name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60, hours: defaultCourtHours() };
 }
 
-// 단계 정의 (intro 제외한 본문 단계 순서) — 농구 전용이라 종목 선택 단계 없음
-const STEPS = ["intro", "name", "location", "photos", "facilities", "courts", "notice", "keywords", "contact", "review"];
-const CONTENT_TOTAL = STEPS.length - 1; // intro 제외
+// 단계 정의 — 농구 전용이라 종목 선택 단계 없음.
+// ownerType 이 맨 앞: 학교·기관은 사업자등록증이 없어 contact 단계 구성 자체가 달라진다.
+const STEPS = ["ownerType", "intro", "name", "location", "photos", "facilities", "courts", "notice", "keywords", "contact", "review"];
+const LEAD_STEPS = 2; // ownerType + intro — 진행바에서 제외
+const CONTENT_TOTAL = STEPS.length - LEAD_STEPS;
 
 export default function OwnerOnboardingPage() {
   const navigate = useNavigate();
@@ -53,8 +57,9 @@ export default function OwnerOnboardingPage() {
   const [form, setForm] = useState({
     name: "", address: "", addressDetail: "", region: "", lat: "", lng: "",
     phone: "", directions: "", description: "", rules: "", refundPolicy: DEFAULT_REFUND,
-    bizName: "", bizNo: "", ownerName: "", contactPhone: "",
+    bizName: "", bizNo: "", deptName: "", ownerName: "", contactPhone: "",
   });
+  const [ownerType, setOwnerType] = useState("business");
   const [sportTypes, setSportTypes] = useState(["농구"]); // 농구 전용
   const [photos, setPhotos] = useState([]); // [{url, storagePath}]
   const [facilities, setFacilities] = useState([]);
@@ -75,8 +80,10 @@ export default function OwnerOnboardingPage() {
       region: venue.region || "", lat: venue.lat ?? "", lng: venue.lng ?? "",
       phone: venue.phone || "", directions: venue.directions || "",
       description: venue.description || "", rules: venue.rules || "", refundPolicy: venue.refundPolicy || DEFAULT_REFUND,
-      bizName: venue.bizName || "", bizNo: venue.bizNo || "", ownerName: venue.ownerName || "", contactPhone: venue.contactPhone || "",
+      bizName: venue.bizName || "", bizNo: venue.bizNo || "", deptName: venue.deptName || "",
+      ownerName: venue.ownerName || "", contactPhone: venue.contactPhone || "",
     });
+    setOwnerType(venue.ownerType || "business");
     setSportTypes(venue.sportTypes?.length ? venue.sportTypes : ["농구"]);
     setPhotos((venue.photos || []).map((url, i) => ({ url, storagePath: venue.storagePaths?.[i] || "" })));
     setFacilities(venue.facilities || []);
@@ -138,6 +145,15 @@ export default function OwnerOnboardingPage() {
   useEffect(() => { track("owner_onboarding_view"); }, []);
 
   const id = STEPS[step];
+  const typeOpt = ownerTypeOption(ownerType);
+
+  // 주체를 바꾸면 이전 주체에서만 쓰던 값이 남지 않게 정리한다.
+  // (사업자 → 학교로 바꿨는데 사업자등록번호가 남아 심사에 잘못 올라가는 것 방지)
+  const pickOwnerType = (key) => {
+    setOwnerType(key);
+    if (!ownerTypeOption(key).needsBizNo) set({ bizNo: "" });
+    else set({ deptName: "" });
+  };
 
   // 운영시간이 명시적으로 전부 휴무면 예약 불가한 유령 구장이 됨 → 최소 1개 요일 운영 필요.
   // (미설정 hours는 에디터 기본값이 적용되므로 통과)
@@ -154,7 +170,8 @@ export default function OwnerOnboardingPage() {
     if (id === "location") return !!form.address.trim();
     if (id === "photos") return photos.length > 0;
     if (id === "courts") return courts.length > 0 && courts.every((c) => c.name.trim() && hasAnyOpenDay(c.hours));
-    if (id === "contact") return !form.bizNo.trim() || isValidBizNo(form.bizNo);
+    if (id === "contact")
+      return !typeOpt.needsBizNo || !form.bizNo.trim() || isValidBizNo(form.bizNo);
     return true;
   })();
 
@@ -176,11 +193,11 @@ export default function OwnerOnboardingPage() {
     if (!form.name.trim()) { setStep(STEPS.indexOf("name")); return showAlert("구장명을 입력해주세요."); }
     if (!form.address.trim()) { setStep(STEPS.indexOf("location")); return showAlert("주소를 입력해주세요."); }
     if (photos.length === 0) { setStep(STEPS.indexOf("photos")); return showAlert("구장 사진을 최소 1장 등록해주세요."); }
-    if (form.bizNo.trim() && !isValidBizNo(form.bizNo)) { setStep(STEPS.indexOf("contact")); return showAlert("사업자등록번호 형식이 올바르지 않아요. 다시 확인해주세요."); }
+    if (typeOpt.needsBizNo && form.bizNo.trim() && !isValidBizNo(form.bizNo)) { setStep(STEPS.indexOf("contact")); return showAlert("사업자등록번호 형식이 올바르지 않아요. 다시 확인해주세요."); }
     setBusy(true);
     try {
       const payload = {
-        ownerUid: uid, ...form,
+        ownerUid: uid, ...form, ownerType,
         sportTypes, parking, keywords, displayMode, displayName,
         photos: photos.map((p) => p.url), storagePaths: photos.map((p) => p.storagePath),
         facilities, courts,
@@ -203,6 +220,35 @@ export default function OwnerOnboardingPage() {
   };
 
   if (ownerLoading) return <OwnerSpinner label="불러오는 중…" />;
+
+  // ── 운영 주체 선택 (온보딩 진입 첫 화면) ──
+  if (id === "ownerType") {
+    return (
+      <Shell>
+        <Scroll>
+          <StepTitle>어떤 곳을 운영하세요?</StepTitle>
+          <StepSub>고른 내용에 맞춰 등록에 필요한 정보만 여쭤볼게요.</StepSub>
+          <TypeList>
+            {OWNER_TYPE_OPTIONS.map((o) => (
+              <TypeCard
+                key={o.key}
+                type="button"
+                $on={ownerType === o.key}
+                onClick={() => pickOwnerType(o.key)}
+              >
+                <TypeLabel>{o.label}</TypeLabel>
+                <TypeDesc>{o.desc}</TypeDesc>
+              </TypeCard>
+            ))}
+          </TypeList>
+        </Scroll>
+        <Footer>
+          <BackText type="button" onClick={goBack}>뒤로</BackText>
+          <NextBtn type="button" onClick={goNext}>다음</NextBtn>
+        </Footer>
+      </Shell>
+    );
+  }
 
   // ── 인트로 ──
   if (id === "intro") {
@@ -227,11 +273,13 @@ export default function OwnerOnboardingPage() {
 
   return (
     <Shell>
-      <Progress><Bar style={{ width: `${(step / CONTENT_TOTAL) * 100}%` }} /></Progress>
+      <Progress><Bar style={{ width: `${((step - LEAD_STEPS + 1) / CONTENT_TOTAL) * 100}%` }} /></Progress>
 
       <Scroll>
-        <StepTitle>{TITLES[id]}</StepTitle>
-        {SUBS[id] && <StepSub>{SUBS[id]}</StepSub>}
+        <StepTitle>{id === "contact" ? CONTACT_TITLE[ownerType] : TITLES[id]}</StepTitle>
+        {(id === "contact" ? CONTACT_SUB[ownerType] : SUBS[id]) && (
+          <StepSub>{id === "contact" ? CONTACT_SUB[ownerType] : SUBS[id]}</StepSub>
+        )}
 
         {id === "name" && (
           <Field>
@@ -397,20 +445,28 @@ export default function OwnerOnboardingPage() {
         {id === "contact" && (
           <>
             <Field><Label>구장 연락처</Label><Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" /></Field>
-            <SubHead>🧾 사업자 / 관리자 정보 <Opt>(심사용 · 비공개)</Opt></SubHead>
+            <SubHead>{CONTACT_HEAD[ownerType]} <Opt>(심사용 · 비공개)</Opt></SubHead>
             <Row>
-              <Field><Label>대표자명</Label><Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder="예: 홍길동" /></Field>
-              <Field><Label>관리자 연락처</Label><Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" /></Field>
+              <Field><Label>{typeOpt.personLabel}</Label><Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder={typeOpt.personPlaceholder} /></Field>
+              <Field><Label>담당자 연락처</Label><Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" /></Field>
             </Row>
             <Row>
-              <Field><Label>상호(사업자명)</Label><Input value={form.bizName} onChange={(e) => set({ bizName: e.target.value })} placeholder="예: ○○스포츠" /></Field>
-              <Field><Label>사업자등록번호</Label><Input value={form.bizNo} onChange={(e) => set({ bizNo: e.target.value })} placeholder="예: 123-45-67890" /></Field>
+              <Field><Label>{typeOpt.orgLabel}</Label><Input value={form.bizName} onChange={(e) => set({ bizName: e.target.value })} placeholder={typeOpt.orgPlaceholder} /></Field>
+              {typeOpt.needsBizNo ? (
+                <Field><Label>사업자등록번호</Label><Input value={form.bizNo} onChange={(e) => set({ bizNo: e.target.value })} placeholder="예: 123-45-67890" /></Field>
+              ) : (
+                <Field><Label>담당 부서 <Opt>(선택)</Opt></Label><Input value={form.deptName} onChange={(e) => set({ deptName: e.target.value })} placeholder={ownerType === "school" ? "예: 체육부" : "예: 시설운영팀"} /></Field>
+              )}
             </Row>
+            {!typeOpt.needsBizNo && (
+              <StepHint>사업자등록번호는 받지 않아요. 승인 심사 때 담당자 연락처로 확인 연락을 드려요.</StepHint>
+            )}
           </>
         )}
 
         {id === "review" && (
           <ReviewList>
+            <ReviewRow><b>운영 주체</b><span>{typeOpt.label}</span></ReviewRow>
             <ReviewRow><b>구장명</b><span>{form.name || "-"}</span></ReviewRow>
             <ReviewRow><b>주소</b><span>{form.address || "-"}{form.addressDetail ? ` ${form.addressDetail}` : ""}</span></ReviewRow>
             <ReviewRow><b>사진</b><span>{photos.length}장</span></ReviewRow>
@@ -446,8 +502,23 @@ const TITLES = {
   courts: "예약받을 코트를 등록해요",
   notice: "이용 안내를 적어주세요",
   keywords: "검색에 뜰 키워드를 골라주세요",
-  contact: "연락처와 사업자 정보를 입력해요",
   review: "입력한 내용을 확인해요",
+};
+// contact 단계만 운영 주체별로 제목·안내·소제목이 갈린다.
+const CONTACT_TITLE = {
+  business: "연락처와 사업자 정보를 입력해요",
+  school: "연락처와 학교 정보를 입력해요",
+  org: "연락처와 기관 정보를 입력해요",
+};
+const CONTACT_SUB = {
+  business: "사업자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+  school: "학교 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+  org: "기관 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+};
+const CONTACT_HEAD = {
+  business: "🧾 사업자 / 관리자 정보",
+  school: "🏫 학교 / 담당자 정보",
+  org: "🏛️ 기관 / 담당자 정보",
 };
 const SUBS = {
   location: "지도를 움직여 핀을 맞추면 주소가 자동으로 입력돼요.",
@@ -456,7 +527,6 @@ const SUBS = {
   courts: "코트마다 종류·바닥·가격·운영시간을 따로 설정해요.",
   notice: "이용자에게 보여지는 안내예요.",
   keywords: "이용자가 검색할 만한 단어를 넣어주세요.",
-  contact: "사업자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
 };
 
 const Shell = styled.div`
@@ -551,6 +621,37 @@ const NextBtn = styled.button`
   cursor: pointer;
   &:active { transform: translateY(1px); }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+const TypeList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+`;
+const TypeCard = styled.button`
+  width: 100%;
+  text-align: left;
+  padding: 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  background: ${({ theme }) => theme.colors.bg};
+  border: 1.5px solid ${({ theme, $on }) => ($on ? theme.colors.primary : theme.colors.border)};
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  &:active { transform: translateY(1px); }
+`;
+const TypeLabel = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+const TypeDesc = styled.div`
+  font-size: 13px;
+  line-height: 1.45;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Intro = styled.div`

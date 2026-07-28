@@ -30,7 +30,12 @@ import {
 } from "firebase/firestore";
 import { payFizz } from "./fizzService";
 import { BOOKING_WINDOW_DAYS, isBookableDate } from "../constants/booking";
-import { PG_ENABLED, PAYMENT_WINDOW_MS } from "../constants/payments";
+import { PG_ENABLED, PAYMENT_WINDOW_MS, PLATFORM_FEE_RATE } from "../constants/payments";
+import { hasMock, mockData } from "../dev/mockBus";
+
+// 리뷰 보드 목업 — venueRow()/reservationRow() 가 스냅샷을 받으므로 최소 인터페이스만 흉내낸다.
+const mockSnap = (id, data) => ({ id, exists: () => true, data: () => data });
+
 
 function hhmmToMin(v) {
   const [h, m] = String(v || "0:0").split(":").map((x) => parseInt(x, 10) || 0);
@@ -287,8 +292,10 @@ export async function registerVenue({
   rules,
   refundPolicy,
   defaultOwnerNote,
+  ownerType,
   bizName,
   bizNo,
+  deptName,
   ownerName,
   contactPhone,
   courts = [],
@@ -339,8 +346,12 @@ export async function registerVenue({
     // 구장주가 승인할 때마다 손으로 다시 쓰지 않도록 구장 단위로 한 번만 등록한다.
     defaultOwnerNote: safeStr(defaultOwnerNote),
 
+    // 운영 주체 — 학교·기관은 사업자등록증이 없고(고유번호증) 담당자가 바뀌므로
+    // 심사에서 확인할 서류·연락 대상이 달라진다. 심사·문구 분기에만 쓰고 사용자에겐 노출하지 않는다.
+    ownerType: OWNER_TYPES.includes(ownerType) ? ownerType : "business",
     bizName: safeStr(bizName),
     bizNo: safeStr(bizNo),
+    deptName: safeStr(deptName),
     ownerName: safeStr(ownerName),
     contactPhone: safeStr(contactPhone),
 
@@ -390,6 +401,10 @@ export async function getMyVenue(ownerUid) {
 export async function getVenue(id) {
   const vid = safeStr(id);
   if (!vid) return null;
+  if (hasMock("venueDocs")) {
+    const raw = mockData("venueDocs")[vid];
+    return raw ? venueRow(mockSnap(vid, raw)) : null;
+  }
   const snap = await getDoc(doc(db, "venues", vid));
   if (!snap.exists()) return null;
   return venueRow(snap);
@@ -432,8 +447,11 @@ export async function updateMyVenue(id, patch = {}) {
   if (patch.rules !== undefined) update.rules = safeStr(patch.rules);
   if (patch.refundPolicy !== undefined) update.refundPolicy = safeStr(patch.refundPolicy);
   if (patch.defaultOwnerNote !== undefined) update.defaultOwnerNote = safeStr(patch.defaultOwnerNote).slice(0, 300);
+  if (patch.ownerType !== undefined)
+    update.ownerType = OWNER_TYPES.includes(patch.ownerType) ? patch.ownerType : "business";
   if (patch.bizName !== undefined) update.bizName = safeStr(patch.bizName);
   if (patch.bizNo !== undefined) update.bizNo = safeStr(patch.bizNo);
+  if (patch.deptName !== undefined) update.deptName = safeStr(patch.deptName);
   if (patch.ownerName !== undefined) update.ownerName = safeStr(patch.ownerName);
   if (patch.contactPhone !== undefined) update.contactPhone = safeStr(patch.contactPhone);
   if (patch.courts !== undefined) {
@@ -506,6 +524,12 @@ export async function submitBusinessVerification(id, { bizNo, bizName, ownerName
   });
 }
 
+/** 정산 계좌를 받을 수 있는 은행 목록 */
+export const SETTLEMENT_BANKS = [
+  "국민", "신한", "우리", "하나", "농협", "기업", "SC제일", "씨티",
+  "카카오뱅크", "케이뱅크", "토스뱅크", "새마을금고", "신협", "우체국", "부산", "대구", "경남", "광주", "전북", "제주",
+];
+
 // 국세청 진위확인 Cloud Function 엔드포인트
 const VERIFY_BUSINESS_URL = "https://asia-northeast3-halle-bf789.cloudfunctions.net/verifyBusiness";
 
@@ -550,13 +574,24 @@ export async function saveSalesReport(id, { number, certUrl, exempt } = {}) {
   });
 }
 
-/** 구장주: 정산 계좌 저장 (1원 인증은 데모로 즉시 verified) */
+/**
+ * 구장주: 정산 계좌 저장. 결제 대금은 플랫폼이 집금해 이 계좌로 지급한다(모델 A).
+ *
+ * ⚠️ verified 는 여기서 켜지 않는다. 예전엔 저장 즉시 true 로 찍었는데, 실명확인을 아무것도
+ *    하지 않고 "확인됨"으로 표시하는 것이라 실제로 돈이 나가는 지금 구조에서는 위험하다.
+ *    계좌 실명확인은 지급대행 신청 후 붙이고, 그전까지는 어드민이 첫 지급 때 대조한다.
+ */
 export async function saveSettlementAccount(id, { bank, account, holder } = {}) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
-  if (!safeStr(bank) || !safeStr(account)) throw new Error("은행/계좌번호를 입력해주세요.");
+  const b = safeStr(bank);
+  const acc = safeStr(account).replace(/[^0-9]/g, "");
+  const h = safeStr(holder);
+  if (!b) throw new Error("은행을 선택해주세요.");
+  if (acc.length < 10 || acc.length > 16) throw new Error("계좌번호를 정확히 입력해주세요.");
+  if (!h) throw new Error("예금주를 입력해주세요.");
   await updateDoc(doc(db, "venues", vid), {
-    settlement: { bank: safeStr(bank), account: safeStr(account), holder: safeStr(holder), verified: true },
+    settlement: { bank: b, account: acc, holder: h, verified: false },
     updatedAt: serverTimestamp(),
   });
 }
@@ -733,6 +768,8 @@ function reservationRow(d) {
     teamName: safeStr(data.teamName),
     phone: safeStr(data.phone),
     price: toNum(data.price) ?? 0,
+    // 예약 시점에 고정된 플랫폼 이용료율. 구버전 예약엔 없으므로 화면에서 현재 요율로 폴백한다.
+    feeRate: toNum(data.feeRate),
     status: ["requested", "pending", "confirmed", "rejected", "cancelled", "done", "noshow"].includes(data.status)
       ? data.status
       : "requested",
@@ -774,6 +811,12 @@ function reservationRow(d) {
 export async function listReservations({ venueId, date = "", courtId = "" } = {}) {
   const vid = safeStr(venueId);
   if (!vid) return [];
+  if (hasMock("venueReservationDocs")) {
+    const m = mockData("venueReservationDocs");
+    return Object.keys(m)
+      .filter((id) => m[id].venueId === vid && (!date || m[id].date === date) && (!courtId || m[id].courtId === courtId))
+      .map((id) => reservationRow(mockSnap(id, m[id])));
+  }
   const snap = await getDocs(
     query(collection(db, "venueReservations"), where("venueId", "==", vid))
   );
@@ -1105,6 +1148,12 @@ export async function cancelReservation(reservationId) {
 export async function listMyReservations(uid) {
   const u = safeStr(uid);
   if (!u) return [];
+  if (hasMock("venueReservationDocs")) {
+    const m = mockData("venueReservationDocs");
+    return Object.keys(m)
+      .filter((id) => m[id].userId === u)
+      .map((id) => reservationRow(mockSnap(id, m[id])));
+  }
   const snap = await getDocs(
     query(collection(db, "venueReservations"), where("userId", "==", u))
   );
@@ -1299,6 +1348,10 @@ export async function createOwnerReservation({
 
 /** 예약 가능한 구장 목록 — 승인 + 활성 + 코트 보유 */
 export async function listBookableVenues() {
+  if (hasMock("venueDocs")) {
+    const m = mockData("venueDocs");
+    return Object.keys(m).map((id) => venueRow(mockSnap(id, m[id])));
+  }
   const snap = await getDocs(
     query(collection(db, "venues"), where("status", "==", "approved"))
   );
@@ -1400,6 +1453,8 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
     price,
     paid: false,
     paymentMethod: PG_ENABLED ? "toss" : "onsite",
+    // 플랫폼 이용료율을 예약 시점에 고정 — 요율을 바꿔도 이미 잡힌 예약의 결제액은 안 흔들린다.
+    feeRate: PLATFORM_FEE_RATE,
     status: "requested",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -1534,6 +1589,8 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
       date: safeStr(pb.date), startTime: safeStr(pb.startTime), endTime: safeStr(pb.endTime),
       userId: safeStr(pb.proposerUid), userName: safeStr(pb.proposerTeamName), teamName: safeStr(pb.proposerTeamName),
       price: toNum(pb.totalPrice) ?? 0, paid: false, paymentMethod: PG_ENABLED ? "toss" : "onsite", source: "match",
+      // 플랫폼 이용료율을 예약 시점에 고정 (bookVenue 와 동일 이유)
+      feeRate: PLATFORM_FEE_RATE,
       status: "requested",
       matchId: id, splitTotal: toNum(pb.totalPrice) ?? 0,
       shareA: toNum(pb.shareA) ?? 0, shareB: toNum(pb.shareB) ?? 0,
@@ -1623,6 +1680,7 @@ export async function expireMatchReservationIfNeeded(matchId) {
 
 /** 매칭의 분할예약 결제현황 (구장앱/매칭룸 표시용) */
 export async function getMatchReservationStatus(matchId) {
+  if (hasMock("matchReservation")) return mockData("matchReservation");
   await expireMatchReservationIfNeeded(matchId);
   const r = await findMatchReservation(matchId);
   if (!r) return null;
@@ -1655,6 +1713,7 @@ function blockRow(d) {
 export async function listBlocks({ venueId, date = "", courtId = "" } = {}) {
   const vid = safeStr(venueId);
   if (!vid) return [];
+  if (hasMock("venueBlocks")) return mockData("venueBlocks");
   const snap = await getDocs(
     query(collection(db, "venueBlocks"), where("venueId", "==", vid))
   );
@@ -1690,6 +1749,49 @@ export async function removeBlock(blockId) {
   if (!bid) throw new Error("blockId가 비어있습니다.");
   await deleteDoc(doc(db, "venueBlocks", bid));
 }
+
+/* ============================================================
+ * 운영 주체 — 온보딩 첫 단계에서 고르고, 사업자 정보 단계 구성이 갈린다.
+ * 학교·기관은 사업자등록증 대신 고유번호증을 쓰고 담당 부서·담당자로 연락한다.
+ * ========================================================== */
+
+export const OWNER_TYPE_OPTIONS = [
+  {
+    key: "business",
+    label: "개인 · 사업자",
+    desc: "사업자등록증이 있는 민간 체육관·코트",
+    orgLabel: "상호(사업자명)",
+    orgPlaceholder: "예: ○○스포츠",
+    personLabel: "대표자명",
+    personPlaceholder: "예: 홍길동",
+    needsBizNo: true,
+  },
+  {
+    key: "school",
+    label: "학교",
+    desc: "초·중·고, 대학교 체육관 · 운동장",
+    orgLabel: "학교명",
+    orgPlaceholder: "예: ○○고등학교",
+    personLabel: "담당 선생님",
+    personPlaceholder: "예: 홍길동 선생님",
+    needsBizNo: false,
+  },
+  {
+    key: "org",
+    label: "기관 · 단체",
+    desc: "공공체육관, 시설관리공단, 교회·복지관 등",
+    orgLabel: "기관·단체명",
+    orgPlaceholder: "예: ○○시설관리공단",
+    personLabel: "담당자명",
+    personPlaceholder: "예: 홍길동",
+    needsBizNo: false,
+  },
+];
+
+export const OWNER_TYPES = OWNER_TYPE_OPTIONS.map((o) => o.key);
+
+export const ownerTypeOption = (key) =>
+  OWNER_TYPE_OPTIONS.find((o) => o.key === key) || OWNER_TYPE_OPTIONS[0];
 
 /* ============================================================
  * 시설물(편의시설) 선택지 — 등록 폼/표시 공용
