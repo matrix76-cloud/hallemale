@@ -89,15 +89,6 @@ const AddPhoto = styled.button`
   gap: 4px;
 `;
 
-const CourtCard = styled.div`
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 12px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`;
-
 const CourtHead = styled.div`
   display: flex;
   align-items: center;
@@ -134,10 +125,97 @@ const AddressBtn = styled.button`
   & .search { color: ${({ theme }) => theme.colors.primary}; font-weight: 700; font-size: 13px; flex-shrink: 0; }
 `;
 
+// ── 단계 정의 ────────────────────────────────────────────────
+// 한 화면에 다 넣으면 스크롤이 길어 이탈한다. 한 단계 = 한 가지 질문만 묻는다.
+const STEPS = [
+  { key: "basic",   title: "구장 기본 정보",  desc: "구장 이름과 위치를 알려주세요." },
+  { key: "photo",   title: "구장 사진",       desc: "전경·코트·시설 사진을 올려주세요." },
+  { key: "facility",title: "편의시설",        desc: "제공하는 시설을 골라주세요." },
+  { key: "court",   title: "예약 대상 코트",  desc: "예약받을 코트와 요금을 정해주세요." },
+  { key: "hours",   title: "운영 시간",       desc: "코트별로 예약을 받을 요일과 시간이에요." },
+  { key: "notice",  title: "이용 안내",       desc: "예약자에게 보여줄 안내문이에요." },
+  { key: "biz",     title: "사업자 정보",     desc: "심사 확인용이라 사용자에게는 안 보여요." },
+  { key: "confirm", title: "입력 내용 확인",  desc: "제출 전에 한 번만 확인해 주세요." },
+];
+
+const Progress = styled.div`
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+`;
+const ProgressBar = styled.div`
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
+  transition: background 0.2s;
+`;
+const StepCount = styled.div`
+  font-size: 12.5px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.primary};
+  margin-bottom: 6px;
+`;
+const StepTitle = styled.h2`
+  margin: 0 0 6px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+const StepDesc = styled.p`
+  margin: 0 0 20px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+// 하단 고정 버튼 — 스크롤과 무관하게 항상 같은 자리(토스식)
+const BottomBar = styled.div`
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  padding: 12px 0 max(12px, env(safe-area-inset-bottom));
+  background: ${({ theme }) => theme.colors.bg};
+`;
+const BackBtn = styled(GhostBtn)`
+  flex: 0 0 92px;
+`;
+// 확인 단계 요약 줄
+const SumRow = styled.div`
+  display: flex;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  font-size: 13.5px;
+  &:last-child { border-bottom: none; }
+`;
+const SumKey = styled.span`
+  flex: 0 0 96px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+const SumVal = styled.span`
+  flex: 1;
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-weight: 600;
+  word-break: break-all;
+  white-space: pre-line;
+`;
+
 export default function OwnerRegisterPage() {
   const navigate = useNavigate();
   const { uid, venue, loading: ownerLoading, refresh } = useOwner();
   const fileRef = useRef(null);
+  // ?step=<key> 로 특정 단계부터 열 수 있다 (리뷰 보드가 8단계를 각각 프레임으로 띄운다).
+  const [step, setStep] = useState(() => {
+    try {
+      const k = new URLSearchParams(window.location.search).get("step");
+      const i = STEPS.findIndex((s) => s.key === k);
+      return i >= 0 ? i : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
 
   // 이미 구장이 있으면(대기/승인/반려 무관) 새로 만들지 않고 기존 구장 수정 모드
   const editingId = venue ? venue.id : null;
@@ -229,7 +307,7 @@ export default function OwnerRegisterPage() {
     e.target.value = "";
     setUploading(true);
     try {
-      const { imageUrl, storagePath } = await uploadVenueImage(file);
+      const { imageUrl, storagePath } = await uploadVenueImage(file, { asOwner: true });
       setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
     } catch (err) {
       showAlert(err?.message || "사진 업로드에 실패했어요.");
@@ -239,6 +317,38 @@ export default function OwnerRegisterPage() {
   };
 
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+
+  // 단계별 통과 조건 — 못 채운 채로 다음 단계로 넘어가지 않게 막는다.
+  // (사진·편의시설·안내문은 선택이라 조건 없음)
+  const stepError = () => {
+    const k = STEPS[step].key;
+    if (k === "basic") {
+      if (!form.name.trim()) return "구장명을 입력해주세요.";
+      if (!form.address.trim()) return "주소를 검색해 선택해주세요.";
+    }
+    if (k === "court") {
+      if (!courts.length) return "예약 대상(코트)을 최소 1개 등록해주세요.";
+      if (courts.some((c) => !c.name.trim())) return "코트 이름을 모두 입력해주세요.";
+    }
+    return "";
+  };
+
+  const goNext = () => {
+    const err = stepError();
+    if (err) return showAlert(err);
+    if (step < STEPS.length - 1) {
+      setStep((s) => s + 1);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    handleSubmit();
+  };
+
+  const goBack = () => {
+    if (step === 0) return navigate(-1);
+    setStep((s) => s - 1);
+    window.scrollTo({ top: 0 });
+  };
 
   const handleSubmit = async () => {
     if (!form.name.trim()) return showAlert("구장명을 입력해주세요.");
@@ -257,7 +367,7 @@ export default function OwnerRegisterPage() {
         courts,
       };
       if (editingId) {
-        await updateMyVenue(editingId, payload);
+        await updateMyVenue(editingId, payload, { asOwner: true });
         await resubmitVenue(editingId);
       } else {
         await registerVenue(payload);
@@ -273,151 +383,211 @@ export default function OwnerRegisterPage() {
 
   if (ownerLoading) return <OwnerSpinner label="불러오는 중…" />;
 
+  const stepKey = STEPS[step].key;
+  const isLast = step === STEPS.length - 1;
+  const won = (v) => (v === "" || v == null ? "미입력" : Number(v).toLocaleString() + "원");
+
   return (
     <Page>
-      <Card>
-        <SectionTitle>📸 구장 사진</SectionTitle>
-        <SectionDesc>구장 전경, 코트, 시설 사진을 등록해주세요. (여러 장 가능)</SectionDesc>
-        <PhotoStrip>
-          {photos.map((p, i) => (
-            <PhotoBox key={i}>
-              <PhotoImg src={p.url} alt={`구장 사진 ${i + 1}`} />
-              <RemovePhoto type="button" onClick={() => removePhoto(i)}>×</RemovePhoto>
-            </PhotoBox>
-          ))}
-          <AddPhoto type="button" onClick={handlePickPhoto} disabled={uploading}>
-            {uploading ? "업로드 중…" : <><span style={{ fontSize: 20 }}>＋</span><span>사진 추가</span></>}
-          </AddPhoto>
-        </PhotoStrip>
-        <HiddenFile ref={fileRef} type="file" accept="image/*" onChange={handleFile} />
-      </Card>
-
-      <Card>
-        <SectionTitle>🏟️ 기본 정보</SectionTitle>
-        <Field>
-          <Label>구장명</Label>
-          <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="예: 용산 더베이스 농구장" />
-        </Field>
-        <Field>
-          <Label>주소</Label>
-          <AddressBtn type="button" onClick={handleAddressSearch} $filled={!!form.address}>
-            <span>{form.address || "주소 검색하기"}</span>
-            <span className="search">🔍 검색</span>
-          </AddressBtn>
-        </Field>
-        <Field>
-          <Label>상세 주소</Label>
-          <Input value={form.addressDetail} onChange={(e) => set({ addressDetail: e.target.value })} placeholder="예: 지하 2층 / B코트" />
-        </Field>
-        <Field>
-          <Label>구장 연락처</Label>
-          <Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" />
-        </Field>
-      </Card>
-
-      <Card>
-        <SectionTitle>🚿 편의시설</SectionTitle>
-        <SectionDesc>제공하는 시설을 모두 선택해주세요.</SectionDesc>
-        <ChipWrap>
-          {FACILITY_OPTIONS.map((f) => (
-            <Chip key={f} type="button" $on={facilities.includes(f)} onClick={() => toggleFacility(f)}>
-              {f}
-            </Chip>
-          ))}
-        </ChipWrap>
-      </Card>
-
-      <Card>
-        <SectionTitle>🏀 예약 대상 (코트)</SectionTitle>
-        <SectionDesc>예약받을 코트/면을 추가하세요. 코트마다 운영시간·가격을 따로 설정합니다.</SectionDesc>
-        {courts.map((c, i) => (
-          <CourtCard key={i}>
-            <CourtHead>
-              <Label>코트 {i + 1}</Label>
-              {courts.length > 1 && <DelLink type="button" onClick={() => removeCourt(i)}>삭제</DelLink>}
-            </CourtHead>
-            <Row>
-              <Field>
-                <Label>이름</Label>
-                <Input value={c.name} onChange={(e) => setCourt(i, { name: e.target.value })} placeholder="예: A코트" />
-              </Field>
-              <Field>
-                <Label>종류</Label>
-                <Select value={c.type} onChange={(e) => setCourt(i, { type: e.target.value })}>
-                  <option value="indoor">실내</option>
-                  <option value="outdoor">실외</option>
-                </Select>
-              </Field>
-            </Row>
-            <Row>
-              <Field>
-                <Label>시간당 가격(원)</Label>
-                <Input type="number" value={c.pricePerHour} onChange={(e) => setCourt(i, { pricePerHour: e.target.value })} placeholder="예: 40000" />
-              </Field>
-              <Field>
-                <Label>슬롯 단위(분)</Label>
-                <Select value={c.slotMinutes} onChange={(e) => setCourt(i, { slotMinutes: Number(e.target.value) })}>
-                  <option value={30}>30분</option>
-                  <option value={60}>60분</option>
-                  <option value={90}>90분</option>
-                  <option value={120}>120분</option>
-                </Select>
-              </Field>
-            </Row>
-            <Field>
-              <Label>요일별 운영시간</Label>
-              <CourtHoursEditor hours={c.hours} onChange={(hours) => setCourt(i, { hours })} />
-            </Field>
-          </CourtCard>
+      {/* 진행률 + 이번 단계에서 묻는 것 */}
+      <Progress>
+        {STEPS.map((st, i) => (
+          <ProgressBar key={st.key} $on={i <= step} />
         ))}
-        <GhostBtn type="button" onClick={addCourt}>＋ 코트 추가</GhostBtn>
-      </Card>
+      </Progress>
+      <StepCount>{step + 1} / {STEPS.length}</StepCount>
+      <StepTitle>{STEPS[step].title}</StepTitle>
+      <StepDesc>{STEPS[step].desc}</StepDesc>
 
-      <Card>
-        <SectionTitle>📝 안내</SectionTitle>
-        <Field>
-          <Label>구장 소개</Label>
-          <Textarea value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="구장 특징, 바닥 재질, 주차 안내 등" />
-        </Field>
-        <Field>
-          <Label>이용 규칙</Label>
-          <Textarea value={form.rules} onChange={(e) => set({ rules: e.target.value })} placeholder="예: 실내화 필수, 음식물 반입 금지 등" />
-        </Field>
-        <Field>
-          <Label>취소·노쇼 안내</Label>
-          <Textarea value={form.refundPolicy} onChange={(e) => set({ refundPolicy: e.target.value })} />
-        </Field>
-      </Card>
+      {stepKey === "basic" && (
+        <Card>
+          <Field>
+            <Label>구장명</Label>
+            <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="예: 용산 더베이스 농구장" />
+          </Field>
+          <Field>
+            <Label>주소</Label>
+            <AddressBtn type="button" onClick={handleAddressSearch} $filled={!!form.address}>
+              <span>{form.address || "주소 검색하기"}</span>
+              <span className="search">🔍 검색</span>
+            </AddressBtn>
+          </Field>
+          <Field>
+            <Label>상세 주소</Label>
+            <Input value={form.addressDetail} onChange={(e) => set({ addressDetail: e.target.value })} placeholder="예: 지하 2층 / B코트" />
+          </Field>
+          <Field>
+            <Label>구장 연락처</Label>
+            <Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" />
+          </Field>
+        </Card>
+      )}
 
-      <Card>
-        <SectionTitle>🧾 사업자 / 관리자 정보 (심사용)</SectionTitle>
-        <SectionDesc>심사 확인용 정보로, 사용자에게 공개되지 않습니다.</SectionDesc>
-        <Row>
-          <Field>
-            <Label>대표자명</Label>
-            <Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder="예: 홍길동" />
-          </Field>
-          <Field>
-            <Label>관리자 연락처</Label>
-            <Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" />
-          </Field>
-        </Row>
-        <Row>
-          <Field>
-            <Label>상호(사업자명)</Label>
-            <Input value={form.bizName} onChange={(e) => set({ bizName: e.target.value })} placeholder="예: ○○스포츠" />
-          </Field>
-          <Field>
-            <Label>사업자등록번호</Label>
-            <Input value={form.bizNo} onChange={(e) => set({ bizNo: e.target.value })} placeholder="예: 123-45-67890" />
-          </Field>
-        </Row>
-      </Card>
+      {stepKey === "photo" && (
+        <Card>
+          <SectionDesc>첫 번째 사진이 목록의 대표 이미지로 쓰여요. 나중에 바꿀 수 있어요.</SectionDesc>
+          <PhotoStrip>
+            {photos.map((p, i) => (
+              <PhotoBox key={i}>
+                <PhotoImg src={p.url} alt={`구장 사진 ${i + 1}`} />
+                <RemovePhoto type="button" onClick={() => removePhoto(i)}>×</RemovePhoto>
+              </PhotoBox>
+            ))}
+            <AddPhoto type="button" onClick={handlePickPhoto} disabled={uploading}>
+              {uploading ? "업로드 중…" : <><span style={{ fontSize: 20 }}>＋</span><span>사진 추가</span></>}
+            </AddPhoto>
+          </PhotoStrip>
+          <HiddenFile ref={fileRef} type="file" accept="image/*" onChange={handleFile} />
+        </Card>
+      )}
 
-      <PrimaryBtn type="button" onClick={handleSubmit} disabled={busy || uploading}>
-        {busy ? "신청 중…" : editingId ? "수정하고 다시 신청" : "구장 등록 신청"}
-      </PrimaryBtn>
-      <div style={{ height: 12 }} />
+      {stepKey === "facility" && (
+        <Card>
+          <ChipWrap>
+            {FACILITY_OPTIONS.map((f) => (
+              <Chip key={f} type="button" $on={facilities.includes(f)} onClick={() => toggleFacility(f)}>
+                {f}
+              </Chip>
+            ))}
+          </ChipWrap>
+        </Card>
+      )}
+
+      {stepKey === "court" && (
+        <>
+          {courts.map((c, i) => (
+            <Card key={i}>
+              <CourtHead>
+                <Label>코트 {i + 1}</Label>
+                {courts.length > 1 && <DelLink type="button" onClick={() => removeCourt(i)}>삭제</DelLink>}
+              </CourtHead>
+              <Row>
+                <Field>
+                  <Label>이름</Label>
+                  <Input value={c.name} onChange={(e) => setCourt(i, { name: e.target.value })} placeholder="예: A코트" />
+                </Field>
+                <Field>
+                  <Label>종류</Label>
+                  <Select value={c.type} onChange={(e) => setCourt(i, { type: e.target.value })}>
+                    <option value="indoor">실내</option>
+                    <option value="outdoor">실외</option>
+                  </Select>
+                </Field>
+              </Row>
+              <Row>
+                <Field>
+                  <Label>시간당 가격(원)</Label>
+                  <Input type="number" value={c.pricePerHour} onChange={(e) => setCourt(i, { pricePerHour: e.target.value })} placeholder="예: 40000" />
+                </Field>
+                <Field>
+                  <Label>슬롯 단위(분)</Label>
+                  <Select value={c.slotMinutes} onChange={(e) => setCourt(i, { slotMinutes: Number(e.target.value) })}>
+                    <option value={30}>30분</option>
+                    <option value={60}>60분</option>
+                    <option value={90}>90분</option>
+                    <option value={120}>120분</option>
+                  </Select>
+                </Field>
+              </Row>
+            </Card>
+          ))}
+          <GhostBtn type="button" onClick={addCourt}>＋ 코트 추가</GhostBtn>
+        </>
+      )}
+
+      {stepKey === "hours" && (
+        <>
+          {courts.map((c, i) => (
+            <Card key={i}>
+              <SectionTitle>{c.name || `코트 ${i + 1}`}</SectionTitle>
+              <CourtHoursEditor hours={c.hours} onChange={(hours) => setCourt(i, { hours })} />
+            </Card>
+          ))}
+        </>
+      )}
+
+      {stepKey === "notice" && (
+        <Card>
+          <Field>
+            <Label>구장 소개</Label>
+            <Textarea value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="구장 특징, 바닥 재질, 주차 안내 등" />
+          </Field>
+          <Field>
+            <Label>이용 규칙</Label>
+            <Textarea value={form.rules} onChange={(e) => set({ rules: e.target.value })} placeholder="예: 실내화 필수, 음식물 반입 금지 등" />
+          </Field>
+          <Field>
+            <Label>취소·노쇼 안내</Label>
+            <Textarea value={form.refundPolicy} onChange={(e) => set({ refundPolicy: e.target.value })} />
+          </Field>
+        </Card>
+      )}
+
+      {stepKey === "biz" && (
+        <Card>
+          <Row>
+            <Field>
+              <Label>대표자명</Label>
+              <Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder="예: 홍길동" />
+            </Field>
+            <Field>
+              <Label>관리자 연락처</Label>
+              <Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" />
+            </Field>
+          </Row>
+          <Row>
+            <Field>
+              <Label>상호(사업자명)</Label>
+              <Input value={form.bizName} onChange={(e) => set({ bizName: e.target.value })} placeholder="예: ○○스포츠" />
+            </Field>
+            <Field>
+              <Label>사업자등록번호</Label>
+              <Input value={form.bizNo} onChange={(e) => set({ bizNo: e.target.value })} placeholder="예: 123-45-67890" />
+            </Field>
+          </Row>
+        </Card>
+      )}
+
+      {stepKey === "confirm" && (
+        <>
+          <Card>
+            <SectionTitle>🏟️ 기본 정보</SectionTitle>
+            <SumRow><SumKey>구장명</SumKey><SumVal>{form.name || "미입력"}</SumVal></SumRow>
+            <SumRow><SumKey>주소</SumKey><SumVal>{[form.address, form.addressDetail].filter(Boolean).join(" ") || "미입력"}</SumVal></SumRow>
+            <SumRow><SumKey>연락처</SumKey><SumVal>{form.phone || "미입력"}</SumVal></SumRow>
+            <SumRow><SumKey>사진</SumKey><SumVal>{photos.length}장</SumVal></SumRow>
+            <SumRow><SumKey>편의시설</SumKey><SumVal>{facilities.length ? facilities.join(", ") : "선택 안 함"}</SumVal></SumRow>
+          </Card>
+          <Card>
+            <SectionTitle>🏀 코트 {courts.length}개</SectionTitle>
+            {courts.map((c, i) => (
+              <SumRow key={i}>
+                <SumKey>{c.name || `코트 ${i + 1}`}</SumKey>
+                <SumVal>{c.type === "outdoor" ? "실외" : "실내"} · {won(c.pricePerHour)}/시간 · {c.slotMinutes}분 단위</SumVal>
+              </SumRow>
+            ))}
+          </Card>
+          <Card>
+            <SectionTitle>🧾 사업자 정보</SectionTitle>
+            <SumRow><SumKey>대표자명</SumKey><SumVal>{form.ownerName || "미입력"}</SumVal></SumRow>
+            <SumRow><SumKey>상호</SumKey><SumVal>{form.bizName || "미입력"}</SumVal></SumRow>
+            <SumRow><SumKey>사업자번호</SumKey><SumVal>{form.bizNo || "미입력"}</SumVal></SumRow>
+            <SumRow><SumKey>관리자 연락처</SumKey><SumVal>{form.contactPhone || "미입력"}</SumVal></SumRow>
+          </Card>
+          <SectionDesc>
+            제출하면 관리자 심사가 시작돼요. 보통 1~2 영업일 안에 결과를 알려드려요.
+          </SectionDesc>
+        </>
+      )}
+
+      <BottomBar>
+        <BackBtn type="button" onClick={goBack} disabled={busy}>
+          {step === 0 ? "취소" : "이전"}
+        </BackBtn>
+        <PrimaryBtn type="button" onClick={goNext} disabled={busy || uploading}>
+          {busy ? "신청 중…" : isLast ? (editingId ? "수정하고 다시 신청" : "구장 등록 신청") : "다음"}
+        </PrimaryBtn>
+      </BottomBar>
     </Page>
   );
 }

@@ -7,6 +7,7 @@
 // ✅ 디버깅 로그 포함
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   arrayRemove,
   collection,
@@ -66,6 +67,10 @@ export async function listNotificationsForUser({ uid, clubId = "", limitCount = 
   if (!uid) {
     console.warn("[noti] listNotificationsForUser: uid is empty");
     return [];
+  }
+
+  if (hasMock("notifications")) {
+    return mockData("notifications").filter((n) => (n.targetIds || []).includes(uid));
   }
 
   const col = collection(db, "notifications");
@@ -136,6 +141,16 @@ export function subscribeNotificationsForUser(
     return () => {};
   }
 
+  // 리뷰 보드 목업 — 실시간 구독 없이 고정 목록을 한 번 넘긴다(대상 앱 필터는 실제와 동일하게 적용).
+  if (hasMock("notifications")) {
+    const rows = mockData("notifications")
+      .filter((n) => (n.targetIds || []).includes(uid))
+      .filter((n) => String(n.kind || "").trim() !== "system")
+      .filter((n) => resolveNotiAudience(n) === audience);
+    onChange && onChange(sortByCreatedAtDesc(rows));
+    return () => {};
+  }
+
   const col = collection(db, "notifications");
   const qUser = query(col, where("targetIds", "array-contains", uid), limit(limitCount));
 
@@ -190,16 +205,17 @@ export function computeReadForUi({ items, uid }) {
 }
 
 // ✅ 여러 알림을 한 번에 읽음 처리 (자동읽음용)
-export async function markNotificationsRead({ ids, uid }) {
+/** dbi: 구장주(ownerAuth 세션)는 ownerDb 를 넘긴다 — notifications 쓰기가 signedIn()을 요구한다. */
+export async function markNotificationsRead({ ids, uid }, dbi = db) {
   const list = Array.from(new Set((ids || []).filter(Boolean)));
   if (!uid || list.length === 0) return;
 
   // writeBatch는 1회 500건 제한 → 안전하게 나눠서 처리
   const CHUNK = 400;
   for (let i = 0; i < list.length; i += CHUNK) {
-    const batch = writeBatch(db);
+    const batch = writeBatch(dbi);
     list.slice(i, i + CHUNK).forEach((id) => {
-      batch.update(doc(db, "notifications", id), {
+      batch.update(doc(dbi, "notifications", id), {
         [`readBy.${uid}`]: serverTimestamp(),
       });
     });
@@ -251,6 +267,7 @@ export async function clearNotificationsForUser({ uid } = {}) {
 export async function getNotificationById(notificationId) {
   const id = String(notificationId || "").trim();
   if (!id) return null;
+  if (hasMock("notifications")) return mockData("notifications").find((n) => n.id === id) || null;
   try {
     const snap = await getDoc(doc(db, "notifications", id));
     if (!snap.exists()) return null;

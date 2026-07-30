@@ -9,7 +9,9 @@ import { getUserDoc } from "../services/userService";
 import { registerFcmToken } from "../services/fcmService";
 import { parseAppMessage, isInWebView, postToApp } from "../bridge/webviewBridge";
 import { identify } from "../utils/analytics";
-import { db } from "../services/firebase";
+import { mockMerge } from "../dev/mockBus";
+// ownerDb — 구장주 세션(ownerApp)에 묶인 Firestore. 기본 db 로 쓰면 규칙에 구장주가 안 보인다.
+import { ownerDb } from "../services/firebase";
 import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 
 const OwnerContext = createContext(null);
@@ -80,7 +82,7 @@ export function OwnerProvider({ children }) {
     if (!uid) return;
 
     // 웹(비 WebView): 브라우저 알림 권한 → users/{uid}.fcmTokens
-    registerFcmToken(uid).catch(() => {});
+    registerFcmToken(uid, ownerDb).catch(() => {});
 
     // RN WebView(오너 네이티브 앱): 네이티브가 토큰 전달 → users/{uid}.fcmTokens(객체형)
     const saveRnToken = async (payload) => {
@@ -88,7 +90,7 @@ export function OwnerProvider({ children }) {
       if (!token) return;
       const platform = String(payload?.platform || payload?.os || "").toLowerCase() || "rn";
       try {
-        await updateDoc(doc(db, "users", uid), {
+        await updateDoc(doc(ownerDb, "users", uid), {
           fcmTokens: arrayUnion({ token, platform, updatedAt: new Date().toISOString() }),
           updatedAt: serverTimestamp(),
         });
@@ -140,7 +142,7 @@ export function OwnerProvider({ children }) {
     status: venue?.status || (loading ? "loading" : "none"),
   };
 
-  return <OwnerContext.Provider value={value}>{children}</OwnerContext.Provider>;
+  return <OwnerContext.Provider value={mockMerge("owner", value)}>{children}</OwnerContext.Provider>;
 }
 
 export function useOwner() {

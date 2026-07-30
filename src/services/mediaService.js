@@ -147,7 +147,10 @@ export const uploadUserAvatar = async ({ uid, file }) => {
  *    id, type:"image", url, storagePath, createdAt
  *  }
  */
-export const uploadCompressedImageMedia = async ({ scope, ownerId, file, kind = "highlight" }) => {
+/* storageRef: 쓸 Storage 핸들. 구장주(ownerAuth 세션)는 ownerStorage 를 넘겨야 한다 —
+ * storage.rules 가 request.auth != null 을 요구하는데, 기본 storage 는 사용자 앱 세션에 묶여
+ * 있어 사용자 앱에 로그인돼 있지 않으면 구장 사진·서류 업로드가 통째로 거부된다. */
+export const uploadCompressedImageMedia = async ({ scope, ownerId, file, kind = "highlight", storageRef: st = storage }) => {
   if (!scope) throw new Error("uploadCompressedImageMedia: scope is required");
   if (!ownerId) throw new Error("uploadCompressedImageMedia: ownerId is required");
   if (!file) throw new Error("uploadCompressedImageMedia: file is required");
@@ -185,7 +188,7 @@ export const uploadCompressedImageMedia = async ({ scope, ownerId, file, kind = 
 
   const ext = safeExtFromMime(compressed?.file?.type || "image/jpeg");
   const storagePath = `media/${scope}/${ownerId}/${id}_${ts}.${ext}`;
-  const storageRef = ref(storage, storagePath);
+  const storageRef = ref(st, storagePath);
 
   await uploadBytes(storageRef, compressed.file, {
     contentType: compressed.file.type || "image/jpeg",

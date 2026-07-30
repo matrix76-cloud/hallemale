@@ -197,7 +197,7 @@ export default function OwnerHomePage(){
     const r=approveTarget; if(!r)return;
     setBusy(true);
     try{
-      await setReservationStatus(r.id,"confirmed",{ownerNote:approveNote.trim()});
+      await setReservationStatus(r.id,"confirmed",{ownerNote:approveNote.trim(),asOwner:true});
       track("owner_reservation_approve", { is_match: !!r.matchId }); // 운영 전환 — 예약 승인
       await load();
       setApproveTarget(null); setDetailResv(null);
@@ -208,11 +208,11 @@ export default function OwnerHomePage(){
   const rejectResv=async(r)=>{
     const isMatch=!!r.matchId;
     if(!await ask({title:"예약 반려",message:`${nm(r)} 예약을 반려할까요?${isMatch?"\n두 팀에 반려 알림이 가고, 다른 구장·시간으로 다시 제안할 수 있어요.":""}`,confirmLabel:"반려",danger:true}))return;
-    setBusy(true);try{await rejectReservation(r.id);track("owner_reservation_reject", { is_match: isMatch });await load();toast("예약을 반려했어요.");}catch(e){toast(e?.message||"반려에 실패했어요.");}finally{setBusy(false);}
+    setBusy(true);try{await rejectReservation(r.id,{asOwner:true});track("owner_reservation_reject", { is_match: isMatch });await load();toast("예약을 반려했어요.");}catch(e){toast(e?.message||"반려에 실패했어요.");}finally{setBusy(false);}
   };
   const markDone=async(r)=>{
     if(!await ask({title:"이용 완료 처리",message:`${nm(r)} 예약을 이용 완료로 처리할까요?`,confirmLabel:"완료 처리"}))return;
-    setBusy(true);try{await setReservationStatus(r.id,"done");await load();setDetailResv(null);toast("이용 완료로 처리했어요.");}catch(e){toast(e?.message||"처리에 실패했어요.");}finally{setBusy(false);}
+    setBusy(true);try{await setReservationStatus(r.id,"done",{asOwner:true});await load();setDetailResv(null);toast("이용 완료로 처리했어요.");}catch(e){toast(e?.message||"처리에 실패했어요.");}finally{setBusy(false);}
   };
   const noshowResv=async(r)=>{
     if(!await ask({title:"노쇼 처리",message:`${nm(r)} 예약을 노쇼로 처리할까요?\n노쇼 이력이 기록돼요.`,confirmLabel:"노쇼 처리",danger:true}))return;
@@ -220,7 +220,7 @@ export default function OwnerHomePage(){
   };
   const cancelResv=async(r)=>{
     if(!await ask({title:"예약 취소",message:`${nm(r)} 예약을 취소할까요?`,confirmLabel:"예약 취소",danger:true}))return;
-    setBusy(true);try{await cancelReservation(r.id);await load();setDetailResv(null);toast("예약을 취소했어요.");}catch(e){toast(e?.message||"취소에 실패했어요.");}finally{setBusy(false);}
+    setBusy(true);try{await cancelReservation(r.id,{asOwner:true});await load();setDetailResv(null);toast("예약을 취소했어요.");}catch(e){toast(e?.message||"취소에 실패했어요.");}finally{setBusy(false);}
   };
 
   if(ownerLoading)return <Page><OwnerSpinner label="불러오는 중…"/></Page>;

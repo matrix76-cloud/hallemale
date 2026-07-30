@@ -1,6 +1,9 @@
 /* eslint-disable */
 // src/services/userService.js
-import { db } from "./firebase";
+// ownerDb: 구장주 세션(ownerApp)에 묶인 Firestore. 구장주 전용 저장(owner*)은 이걸 써야
+// 보안규칙이 "본인 문서 쓰기"로 인정한다 — 기본 db 는 사용자 앱 세션이라 구장주가 안 보인다.
+import { db, ownerDb } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   doc,
   getDoc,
@@ -15,6 +18,7 @@ import {
   limit,
 } from "firebase/firestore";
 import { getNameChangeStatus } from "../utils/nameChange";
+import { OWNER_TYPES } from "../constants/ownerType";
 import { clearNotificationsForUser } from "./notificationService";
 
 /**
@@ -34,14 +38,21 @@ export async function isNicknameTaken(nickname, exceptUid = "") {
 /**
  * users/{uid} 최소 스키마 보장
  * ✅ 신규: activeTeamId는 "" (무소속 SSOT)
+ *
+ * dbi: 쓸 Firestore 핸들. 구장주(ownerAuth 세션)는 ownerDb 를 넘겨야 한다 —
+ *      기본 db 는 사용자 앱 세션에 묶여 있어, 규칙이 email·phoneVerified 같은
+ *      보호필드 쓰기를 "남의 문서에 위조"로 보고 막는다(usersProtected).
  */
-export const ensureUserDoc = async ({ uid, email, provider = "", phoneE164 = "", phoneVerified = false }) => {
+export const ensureUserDoc = async (
+  { uid, email, provider = "", phoneE164 = "", phoneVerified = false },
+  dbi = db
+) => {
   if (!uid) throw new Error("ensureUserDoc: uid is required");
 
   // ✅ 소셜 UID가 이미 기존 사용자에게 연결되어 있으면 빈 문서 생성 스킵
   try {
     const linkedQ = query(
-      collection(db, "users"),
+      collection(dbi, "users"),
       where("linkedSocialUid", "==", uid),
       limit(1)
     );
@@ -55,7 +66,7 @@ export const ensureUserDoc = async ({ uid, email, provider = "", phoneE164 = "",
     console.warn("[userService] linkedSocialUid lookup failed (non-critical):", e?.message);
   }
 
-  const ref = doc(db, "users", uid);
+  const ref = doc(dbi, "users", uid);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
@@ -128,6 +139,7 @@ export const ensureUserDoc = async ({ uid, email, provider = "", phoneE164 = "",
 
 export const getUserDoc = async (uid) => {
   if (!uid) return null;
+  if (hasMock("userDocs")) return mockData("userDocs")[uid] || null;
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
@@ -182,7 +194,7 @@ export const saveOwnerConsents = async ({
   if (!ownerTerms || !privacy || !adult) {
     throw new Error("필수 항목(구장 관리자 이용약관·개인정보처리방침·만 19세 이상)에 모두 동의해야 합니다.");
   }
-  const ref = doc(db, "users", uid);
+  const ref = doc(ownerDb, "users", uid);
   await setDoc(
     ref,
     {
@@ -199,13 +211,30 @@ export const saveOwnerConsents = async ({
 };
 
 /**
+ * ✅ 구장주 운영 주체 저장 (가입 직후 1회)
+ * 계정 단위 값이다 — 한 사람이 학교 체육관 두 곳을 올리든 주체는 하나다.
+ * 이 값으로 동의 문구·온보딩 질문·인증 서류가 갈리므로 구장 등록보다 먼저 받는다.
+ */
+export const saveOwnerType = async ({ uid, ownerType }) => {
+  if (!uid) throw new Error("saveOwnerType: uid is required");
+  if (!OWNER_TYPES.includes(ownerType)) throw new Error("운영 주체를 선택해주세요.");
+  const ref = doc(ownerDb, "users", uid);
+  await setDoc(
+    ref,
+    { ownerType, ownerTypeAt: serverTimestamp(), updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+  return { uid, ownerType };
+};
+
+/**
  * ✅ 구장주 계정 담당자 정보 저장 (가입 시점)
  * - 사업자 정보(상호·사업자번호·대표자명)는 온보딩에서 따로 받는다.
  *   여기 담당자는 "이 계정을 실제로 쓰는 사람"으로, 대표자와 다를 수 있다.
  */
 export const saveOwnerManagerInfo = async ({ uid, name, phone }) => {
   if (!uid) throw new Error("saveOwnerManagerInfo: uid is required");
-  const ref = doc(db, "users", uid);
+  const ref = doc(ownerDb, "users", uid);
   await setDoc(
     ref,
     {
@@ -393,6 +422,7 @@ function safeTrim(v) {
 export async function getUserProfileByUid(uid) {
   const u = safeTrim(uid);
   if (!u) return null;
+  if (hasMock("userDocs")) return mockData("userDocs")[u] || null;
 
   // 1) authUid 직접
   const directSnap = await getDoc(doc(db, "users", u));

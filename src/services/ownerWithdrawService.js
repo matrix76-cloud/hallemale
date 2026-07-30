@@ -10,7 +10,9 @@
 //   2) 서버(deleteAccount, Admin SDK)로 users 문서 + Auth 계정 삭제 (requires-recent-login 없음)
 //      실패 시 클라이언트 deleteUser 폴백
 
-import { db, storage, ownerAuth } from "./firebase";
+// 구장주 세션(ownerApp)에 묶인 핸들로 지운다. 기본 db/storage 는 사용자 앱 세션이라
+// 규칙에 구장주로 보이지 않아 구장·예약 삭제(isVenueOwner)와 사진 삭제가 전부 거부된다.
+import { ownerDb as db, ownerStorage as storage, ownerAuth } from "./firebase";
 import {
   collection,
   query,

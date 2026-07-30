@@ -47,10 +47,19 @@ export const storage = getStorage(app);
 //    같은 origin이라도 별도 Firebase 앱("owner")으로 분리하면 Auth 세션 저장소가
 //    독립적으로 관리되어, 사용자 앱 로그인과 구장주 로그인이 서로 섞이지 않는다.
 //    (같은 브라우저에서 사용자=A계정 / 구장주=B계정 동시 로그인 가능)
-//    Firestore/Storage는 같은 프로젝트(db) 공유 — 보안규칙 전면허용 상태라 동작에 무관.
 export const ownerApp =
   getApps().find((a) => a.name === "owner") || initializeApp(firebaseConfig, "owner");
 export const ownerAuth = getAuth(ownerApp);
+
+// ⚠️ Firestore/Storage 요청에 실리는 request.auth 는 "그 핸들이 어느 앱에 묶였는가"로 정해진다.
+//    위 db/storage 는 기본 앱(=사용자 앱 세션)에 묶여 있어서, 구장주가 그걸로 쓰면
+//    보안규칙에는 구장주가 아니라 사용자 앱 세션(로그아웃이면 null)으로 보인다.
+//    → isVenueOwner()(venues.ownerUid == request.auth.uid)·payments.ownerUid 판정이 전부 빗나가고,
+//      users/{구장주uid} 쓰기와 Storage 업로드(storage.rules: request.auth != null)도 막힌다.
+//    구장주 세션으로 하는 읽기/쓰기는 반드시 아래 핸들을 쓴다.
+//    (예전엔 "보안규칙 전면허용이라 무관"이라 적혀 있었는데, 규칙을 잠근 순간 그 전제가 깨졌다)
+export const ownerDb = getFirestore(ownerApp);
+export const ownerStorage = getStorage(ownerApp);
 
 // Analytics는 브라우저에서만 + measurementId 있을 때만 안전하게 활성화
 export const getAnalyticsIfAvailable = async () => {

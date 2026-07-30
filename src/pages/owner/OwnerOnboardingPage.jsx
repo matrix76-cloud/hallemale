@@ -17,10 +17,9 @@ import {
   defaultCourtHours,
   FACILITY_OPTIONS,
   SURFACE_OPTIONS,
-  OWNER_TYPE_OPTIONS,
-  ownerTypeOption,
   isValidBizNo,
 } from "../../services/ownerVenueService";
+import { ownerTypeOption, resolveOwnerType } from "../../constants/ownerType";
 import {
   Field, Label, Input, Textarea, Select, Row, Chip, ChipWrap, GhostBtn,
 } from "./components/ownerUi";
@@ -38,14 +37,15 @@ function makeCourt(idx) {
 }
 
 // 단계 정의 — 농구 전용이라 종목 선택 단계 없음.
-// ownerType 이 맨 앞: 학교·기관은 사업자등록증이 없어 contact 단계 구성 자체가 달라진다.
-const STEPS = ["ownerType", "intro", "name", "location", "photos", "facilities", "courts", "notice", "keywords", "contact", "review"];
-const LEAD_STEPS = 2; // ownerType + intro — 진행바에서 제외
+// 운영 주체(개인·사업자/학교/기관)는 가입 직후 계정 단위로 이미 받았으므로(OwnerTypeGate)
+// 여기서 다시 묻지 않고, 그 값에 맞춰 질문과 문구만 바꾼다.
+const STEPS = ["intro", "name", "location", "photos", "facilities", "courts", "notice", "keywords", "contact", "review"];
+const LEAD_STEPS = 1; // intro — 진행바에서 제외
 const CONTENT_TOTAL = STEPS.length - LEAD_STEPS;
 
 export default function OwnerOnboardingPage() {
   const navigate = useNavigate();
-  const { uid, venue, loading: ownerLoading, refresh, setActiveVenue } = useOwner();
+  const { uid, venue, userDoc, loading: ownerLoading, refresh, setActiveVenue } = useOwner();
   const fileRef = useRef(null);
 
   // ?new=1 → 다구장 "구장 추가"(신규 등록). 활성 구장이 있어도 편집이 아니라 새 구장 폼으로.
@@ -59,7 +59,6 @@ export default function OwnerOnboardingPage() {
     phone: "", directions: "", description: "", rules: "", refundPolicy: DEFAULT_REFUND,
     bizName: "", bizNo: "", deptName: "", ownerName: "", contactPhone: "",
   });
-  const [ownerType, setOwnerType] = useState("business");
   const [sportTypes, setSportTypes] = useState(["농구"]); // 농구 전용
   const [photos, setPhotos] = useState([]); // [{url, storagePath}]
   const [facilities, setFacilities] = useState([]);
@@ -83,7 +82,6 @@ export default function OwnerOnboardingPage() {
       bizName: venue.bizName || "", bizNo: venue.bizNo || "", deptName: venue.deptName || "",
       ownerName: venue.ownerName || "", contactPhone: venue.contactPhone || "",
     });
-    setOwnerType(venue.ownerType || "business");
     setSportTypes(venue.sportTypes?.length ? venue.sportTypes : ["농구"]);
     setPhotos((venue.photos || []).map((url, i) => ({ url, storagePath: venue.storagePaths?.[i] || "" })));
     setFacilities(venue.facilities || []);
@@ -122,7 +120,7 @@ export default function OwnerOnboardingPage() {
     e.target.value = "";
     setUploading(true);
     try {
-      const { imageUrl, storagePath } = await uploadVenueImage(file);
+      const { imageUrl, storagePath } = await uploadVenueImage(file, { asOwner: true });
       setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
     } catch (err) {
       showAlert(err?.message || "사진 업로드에 실패했어요.");
@@ -145,15 +143,9 @@ export default function OwnerOnboardingPage() {
   useEffect(() => { track("owner_onboarding_view"); }, []);
 
   const id = STEPS[step];
+  // 계정에 저장된 운영 주체(가입 직후 선택). 계정 값이 없는 레거시 구장주는 구장 문서 값으로 폴백.
+  const ownerType = resolveOwnerType(userDoc, venue);
   const typeOpt = ownerTypeOption(ownerType);
-
-  // 주체를 바꾸면 이전 주체에서만 쓰던 값이 남지 않게 정리한다.
-  // (사업자 → 학교로 바꿨는데 사업자등록번호가 남아 심사에 잘못 올라가는 것 방지)
-  const pickOwnerType = (key) => {
-    setOwnerType(key);
-    if (!ownerTypeOption(key).needsBizNo) set({ bizNo: "" });
-    else set({ deptName: "" });
-  };
 
   // 운영시간이 명시적으로 전부 휴무면 예약 불가한 유령 구장이 됨 → 최소 1개 요일 운영 필요.
   // (미설정 hours는 에디터 기본값이 적용되므로 통과)
@@ -198,12 +190,16 @@ export default function OwnerOnboardingPage() {
     try {
       const payload = {
         ownerUid: uid, ...form, ownerType,
+        // 주체에 해당하지 않는 값은 올리지 않는다 — 계정 주체가 바뀐 뒤 재신청할 때
+        // 예전 사업자등록번호(또는 담당 부서)가 심사에 남아 올라가는 것 방지.
+        bizNo: typeOpt.needsBizNo ? form.bizNo : "",
+        deptName: typeOpt.needsBizNo ? "" : form.deptName,
         sportTypes, parking, keywords, displayMode, displayName,
         photos: photos.map((p) => p.url), storagePaths: photos.map((p) => p.storagePath),
         facilities, courts,
       };
       if (editingId) {
-        await updateMyVenue(editingId, payload);
+        await updateMyVenue(editingId, payload, { asOwner: true });
         await resubmitVenue(editingId);
       } else {
         const created = await registerVenue(payload);
@@ -221,45 +217,18 @@ export default function OwnerOnboardingPage() {
 
   if (ownerLoading) return <OwnerSpinner label="불러오는 중…" />;
 
-  // ── 운영 주체 선택 (온보딩 진입 첫 화면) ──
-  if (id === "ownerType") {
-    return (
-      <Shell>
-        <Scroll>
-          <StepTitle>어떤 곳을 운영하세요?</StepTitle>
-          <StepSub>고른 내용에 맞춰 등록에 필요한 정보만 여쭤볼게요.</StepSub>
-          <TypeList>
-            {OWNER_TYPE_OPTIONS.map((o) => (
-              <TypeCard
-                key={o.key}
-                type="button"
-                $on={ownerType === o.key}
-                onClick={() => pickOwnerType(o.key)}
-              >
-                <TypeLabel>{o.label}</TypeLabel>
-                <TypeDesc>{o.desc}</TypeDesc>
-              </TypeCard>
-            ))}
-          </TypeList>
-        </Scroll>
-        <Footer>
-          <BackText type="button" onClick={goBack}>뒤로</BackText>
-          <NextBtn type="button" onClick={goNext}>다음</NextBtn>
-        </Footer>
-      </Shell>
-    );
-  }
-
   // ── 인트로 ──
   if (id === "intro") {
     return (
       <Shell>
         <Intro>
           <IntroLogo>🏟️</IntroLogo>
+          {/* 가입 때 고른 주체를 다시 보여준다 — 잘못 고른 걸 여기서 알아차릴 수 있게. */}
+          <TypeTag>{typeOpt.label}</TypeTag>
           <IntroTitle>{editingId ? "구장 정보를 다시 등록해요" : "구장 등록을 시작해요"}</IntroTitle>
           <IntroSub>
             몇 단계만 거치면 예약을 받을 수 있어요.{"\n"}
-            사진·위치·코트·이용요금을 차근차근 입력해 주세요.{"\n\n"}
+            {typeOpt.introSub}{"\n\n"}
             이용요금은 앱에서 결제되지 않아요.{"\n"}
             회원이 예약을 요청하면 승인하시고, 요금은 현장에서 직접 정산해요.
           </IntroSub>
@@ -276,15 +245,15 @@ export default function OwnerOnboardingPage() {
       <Progress><Bar style={{ width: `${((step - LEAD_STEPS + 1) / CONTENT_TOTAL) * 100}%` }} /></Progress>
 
       <Scroll>
-        <StepTitle>{id === "contact" ? CONTACT_TITLE[ownerType] : TITLES[id]}</StepTitle>
-        {(id === "contact" ? CONTACT_SUB[ownerType] : SUBS[id]) && (
-          <StepSub>{id === "contact" ? CONTACT_SUB[ownerType] : SUBS[id]}</StepSub>
+        <StepTitle>{id === "contact" ? typeOpt.contactTitle : TITLES[id]}</StepTitle>
+        {(id === "contact" ? typeOpt.contactSub : SUBS[id]) && (
+          <StepSub>{id === "contact" ? typeOpt.contactSub : SUBS[id]}</StepSub>
         )}
 
         {id === "name" && (
           <Field>
             <Label>구장명</Label>
-            <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="예: 용산 더베이스 농구장" autoFocus />
+            <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder={typeOpt.venueNamePlaceholder} autoFocus />
           </Field>
         )}
 
@@ -445,7 +414,7 @@ export default function OwnerOnboardingPage() {
         {id === "contact" && (
           <>
             <Field><Label>구장 연락처</Label><Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" /></Field>
-            <SubHead>{CONTACT_HEAD[ownerType]} <Opt>(심사용 · 비공개)</Opt></SubHead>
+            <SubHead>{typeOpt.contactHead} <Opt>(심사용 · 비공개)</Opt></SubHead>
             <Row>
               <Field><Label>{typeOpt.personLabel}</Label><Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder={typeOpt.personPlaceholder} /></Field>
               <Field><Label>담당자 연락처</Label><Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" /></Field>
@@ -504,22 +473,7 @@ const TITLES = {
   keywords: "검색에 뜰 키워드를 골라주세요",
   review: "입력한 내용을 확인해요",
 };
-// contact 단계만 운영 주체별로 제목·안내·소제목이 갈린다.
-const CONTACT_TITLE = {
-  business: "연락처와 사업자 정보를 입력해요",
-  school: "연락처와 학교 정보를 입력해요",
-  org: "연락처와 기관 정보를 입력해요",
-};
-const CONTACT_SUB = {
-  business: "사업자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
-  school: "학교 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
-  org: "기관 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
-};
-const CONTACT_HEAD = {
-  business: "🧾 사업자 / 관리자 정보",
-  school: "🏫 학교 / 담당자 정보",
-  org: "🏛️ 기관 / 담당자 정보",
-};
+// 운영 주체별로 갈리는 문구(제목·안내·플레이스홀더)는 constants/ownerType.js 표에 모아뒀다.
 const SUBS = {
   location: "지도를 움직여 핀을 맞추면 주소가 자동으로 입력돼요.",
   photos: "구장 전경, 코트, 시설 사진을 올려주세요. (여러 장 가능)",
@@ -623,35 +577,15 @@ const NextBtn = styled.button`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
-const TypeList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-`;
-const TypeCard = styled.button`
-  width: 100%;
-  text-align: left;
-  padding: 16px;
-  border-radius: 12px;
-  cursor: pointer;
-  background: ${({ theme }) => theme.colors.bg};
-  border: 1.5px solid ${({ theme, $on }) => ($on ? theme.colors.primary : theme.colors.border)};
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  &:active { transform: translateY(1px); }
-`;
-const TypeLabel = styled.div`
-  font-size: 16px;
+// 인트로에서 가입 때 고른 운영 주체를 되짚어 보여주는 태그
+const TypeTag = styled.div`
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 12.5px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  color: ${({ theme }) => theme.colors.textStrong};
-`;
-const TypeDesc = styled.div`
-  font-size: 13px;
-  line-height: 1.45;
-  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Intro = styled.div`

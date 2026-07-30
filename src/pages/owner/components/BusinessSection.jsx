@@ -1,12 +1,16 @@
 /* eslint-disable */
 // src/pages/owner/components/BusinessSection.jsx
-// 사업자 인증 (신뢰 배지) — 구장정보 탭 하단
-// ※ 예약 전용(현장 정산) 전환으로 통신판매업 신고·정산 계좌 카드는 제거됨
+// 주체 확인 (신뢰 배지) + 정산 계좌 — 구장정보 탭 하단
+// ※ 정산 계좌는 앱내 결제(PG) 도입으로 부활. 플랫폼이 집금해 이 계좌로 지급한다(모델 A).
+// ※ 운영 주체가 학교·기관이면 사업자등록증·개업일자·과세유형이 존재하지 않는다.
+//    번호 대신 확인 서류를 받고 어드민이 담당자 연락으로 확인한다.
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import { LuShieldCheck, LuUpload, LuCircleCheck } from "react-icons/lu";
+import { LuShieldCheck, LuUpload, LuCircleCheck, LuLandmark } from "react-icons/lu";
 import { uploadVenueImage } from "../../../services/venuesService";
-import { submitBusinessVerification, isValidBizNo, formatBizNo, verifyBusinessOnline } from "../../../services/ownerVenueService";
+import { submitBusinessVerification, isValidBizNo, formatBizNo, verifyBusinessOnline, saveSettlementAccount, SETTLEMENT_BANKS } from "../../../services/ownerVenueService";
+import { PG_ENABLED } from "../../../constants/payments";
+import { ownerTypeOption } from "../../../constants/ownerType";
 import { useUIActions } from "../../../hooks/useUI";
 import { Card, SecTitle, Caption, Input, PrimaryBtn, StatBadge, C } from "./od";
 
@@ -20,33 +24,68 @@ const Done = styled.div`display:flex;align-items:center;gap:6px;font-size:13px;f
 const Info = styled.div`display:flex;justify-content:space-between;font-size:13px;& > span{color:${C.slate500};} & > b{color:${C.slate800};font-weight:700;}`;
 const Reject = styled.div`background:#FEF2F2;border:1px solid ${C.red200};border-radius:10px;padding:10px 12px;font-size:12.5px;color:${C.red500};`;
 const Hidden = styled.input`display:none;`;
+const Select = styled.select`
+  width:100%;box-sizing:border-box;border:1px solid ${C.slate200};border-radius:12px;
+  padding:12px;font-size:14px;color:${C.slate800};background:#fff;
+`;
+const Warn = styled.div`background:#FFFBEB;border:1px solid ${C.amber200 || "#FDE68A"};border-radius:10px;padding:10px 12px;font-size:12.5px;color:${C.slate800};`;
 
 const BIZ_STATUS = { none: ["미인증", "default"], pending: ["심사중", "pending"], verified: ["인증완료", "done"], rejected: ["반려", "refund"] };
 
-export default function BusinessSection({ venue, refresh }) {
+export default function BusinessSection({ venue, refresh, ownerType }) {
   const { showToast } = useUIActions() || {};
   const toast = (m) => { if (showToast) showToast({ message: m }); };
   const b = venue.business || {};
   const verified = b.status === "verified";
+  const opt = ownerTypeOption(ownerType);
+  const needsBizNo = opt.needsBizNo;
+
+  const st = venue.settlement || {};
 
   const [biz, setBiz] = useState({ bizNo: b.bizNo || "", bizName: b.bizName || "", ownerName: b.ownerName || "", openDate: b.openDate || "", taxType: b.taxType || "simple", licenseUrl: b.licenseUrl || "" });
+  const [acct, setAcct] = useState({ bank: st.bank || "", account: st.account || "", holder: st.holder || "" });
+  const [editAcct, setEditAcct] = useState(false);
   const [busy, setBusy] = useState("");
   const licRef = React.useRef(null);
 
   useEffect(() => {
     setBiz({ bizNo: b.bizNo || "", bizName: b.bizName || "", ownerName: b.ownerName || "", openDate: b.openDate || "", taxType: b.taxType || "simple", licenseUrl: b.licenseUrl || "" });
+    setAcct({ bank: st.bank || "", account: st.account || "", holder: st.holder || "" });
+    setEditAcct(false);
   }, [venue?.id]); // eslint-disable-line
 
+  const submitAcct = async () => {
+    setBusy("acct");
+    try {
+      await saveSettlementAccount(venue.id, acct);
+      await refresh();
+      setEditAcct(false);
+      toast("정산 계좌를 저장했어요.");
+    } catch (e) {
+      toast(e?.message || "저장에 실패했어요.");
+    } finally { setBusy(""); }
+  };
+
+  const hasAcct = !!(st.bank && st.account);
+  // 예금주가 사업자 대표자와 다르면 지급이 반려될 수 있어 미리 경고한다(막지는 않는다 —
+  // 법인 계좌처럼 상호로 된 계좌도 있어서).
+  const holderMismatch = !!(acct.holder && b.ownerName && acct.holder !== b.ownerName && acct.holder !== b.bizName);
+
   const upload = async (file, set, key) => {
-    try { const { imageUrl } = await uploadVenueImage(file); set((p) => ({ ...p, [key]: imageUrl })); } catch (e) {}
+    try { const { imageUrl } = await uploadVenueImage(file, { asOwner: true }); set((p) => ({ ...p, [key]: imageUrl })); } catch (e) {}
   };
 
   const submitBiz = async () => {
     setBusy("biz");
     try {
-      // 1) 체크섬·필수값 검증 후 pending 저장
-      await submitBusinessVerification(venue.id, biz);
-      // 2) 국세청 진위확인 시도 (키 설정 시 자동 승인/반려, 미설정 시 수동 폴백)
+      // 1) 체크섬·필수값 검증 후 pending 저장 (학교·기관은 번호 대신 서류 필수)
+      await submitBusinessVerification(venue.id, { ...biz, ownerType: opt.key });
+      // 2) 국세청 진위확인은 사업자등록번호가 있는 주체만 — 학교·기관은 어드민 수동 확인.
+      if (!needsBizNo) {
+        await refresh();
+        toast(`${opt.verifyTitle} 서류를 제출했어요. 담당자 연락으로 확인 후 승인돼요.`);
+        return;
+      }
       const r = await verifyBusinessOnline({
         venueId: venue.id, bizNo: biz.bizNo, ownerName: biz.ownerName,
         openDate: biz.openDate, bizName: biz.bizName,
@@ -63,10 +102,10 @@ export default function BusinessSection({ venue, refresh }) {
 
   return (
     <>
-      {/* 사업자 인증 */}
+      {/* 주체 확인 — 사업자는 국세청 진위확인, 학교·기관은 서류 + 담당자 확인 */}
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <SecTitle><LuShieldCheck size={16} /> 사업자 인증</SecTitle>
+          <SecTitle><LuShieldCheck size={16} /> {opt.verifyTitle}</SecTitle>
           <StatBadge $tone={bizTone === "default" ? undefined : bizTone}>{bizLabel}</StatBadge>
         </div>
 
@@ -74,36 +113,59 @@ export default function BusinessSection({ venue, refresh }) {
 
         {verified ? (
           <>
-            <Info><span>상호</span><b>{b.bizName || "-"}</b></Info>
-            <Info><span>대표자</span><b>{b.ownerName || "-"}</b></Info>
-            <Info><span>사업자번호</span><b>{b.bizNo}</b></Info>
-            <Info><span>과세유형</span><b>{b.taxType === "general" ? "일반과세자" : "간이과세자"}</b></Info>
-            <Done><LuCircleCheck size={16} /> 국세청 확인 완료</Done>
+            <Info><span>{opt.orgLabel}</span><b>{b.bizName || "-"}</b></Info>
+            <Info><span>{opt.personLabel}</span><b>{b.ownerName || "-"}</b></Info>
+            {needsBizNo ? (
+              <>
+                <Info><span>사업자번호</span><b>{b.bizNo}</b></Info>
+                <Info><span>과세유형</span><b>{b.taxType === "general" ? "일반과세자" : "간이과세자"}</b></Info>
+                <Done><LuCircleCheck size={16} /> 국세청 확인 완료</Done>
+              </>
+            ) : (
+              <>
+                {b.bizNo && <Info><span>고유번호</span><b>{b.bizNo}</b></Info>}
+                <Done><LuCircleCheck size={16} /> 담당자 확인 완료</Done>
+              </>
+            )}
           </>
         ) : b.status === "pending" ? (
-          <Caption>제출하신 사업자 정보를 관리자가 확인 중이에요 (영업일 1일).</Caption>
+          <Caption>
+            {needsBizNo
+              ? "제출하신 사업자 정보를 관리자가 확인 중이에요 (영업일 1일)."
+              : "제출하신 서류를 관리자가 확인 중이에요. 담당자 연락처로 확인 연락을 드려요 (영업일 1~2일)."}
+          </Caption>
         ) : (
           <>
-            <Field><Lbl>사업자등록번호</Lbl>
-              <Input value={biz.bizNo} onChange={(e) => setBiz({ ...biz, bizNo: formatBizNo(e.target.value) })} placeholder="123-45-67890" inputMode="numeric" />
-              {biz.bizNo && (
-                isValidBizNo(biz.bizNo)
-                  ? <Done><LuCircleCheck size={15} /> 번호 형식 확인됨</Done>
-                  : <span style={{ fontSize: 12, color: C.red500, fontWeight: 600 }}>사업자등록번호 10자리를 정확히 입력해주세요.</span>
-              )}
-            </Field>
+            {needsBizNo ? (
+              <Field><Lbl>사업자등록번호</Lbl>
+                <Input value={biz.bizNo} onChange={(e) => setBiz({ ...biz, bizNo: formatBizNo(e.target.value) })} placeholder="123-45-67890" inputMode="numeric" />
+                {biz.bizNo && (
+                  isValidBizNo(biz.bizNo)
+                    ? <Done><LuCircleCheck size={15} /> 번호 형식 확인됨</Done>
+                    : <span style={{ fontSize: 12, color: C.red500, fontWeight: 600 }}>사업자등록번호 10자리를 정확히 입력해주세요.</span>
+                )}
+              </Field>
+            ) : (
+              <Field><Lbl>고유번호 <span style={{ fontWeight: 500, color: C.slate400 }}>(선택)</span></Lbl>
+                <Input value={biz.bizNo} onChange={(e) => setBiz({ ...biz, bizNo: e.target.value.replace(/[^0-9-]/g, "") })} placeholder="고유번호증에 적힌 번호" inputMode="numeric" />
+              </Field>
+            )}
             <Row>
-              <Field><Lbl>상호</Lbl><Input value={biz.bizName} onChange={(e) => setBiz({ ...biz, bizName: e.target.value })} placeholder="○○스포츠" /></Field>
-              <Field><Lbl>대표자명</Lbl><Input value={biz.ownerName} onChange={(e) => setBiz({ ...biz, ownerName: e.target.value })} placeholder="홍길동" /></Field>
+              <Field><Lbl>{opt.orgLabel}</Lbl><Input value={biz.bizName} onChange={(e) => setBiz({ ...biz, bizName: e.target.value })} placeholder={opt.orgPlaceholder} /></Field>
+              <Field><Lbl>{opt.personLabel}</Lbl><Input value={biz.ownerName} onChange={(e) => setBiz({ ...biz, ownerName: e.target.value })} placeholder={opt.personPlaceholder} /></Field>
             </Row>
-            <Field><Lbl>개업일자</Lbl><Input type="date" value={biz.openDate} onChange={(e) => setBiz({ ...biz, openDate: e.target.value })} /></Field>
-            <Field><Lbl>과세유형</Lbl>
-              <Seg>
-                <SegBtn $on={biz.taxType === "simple"} onClick={() => setBiz({ ...biz, taxType: "simple" })}>간이과세자</SegBtn>
-                <SegBtn $on={biz.taxType === "general"} onClick={() => setBiz({ ...biz, taxType: "general" })}>일반과세자</SegBtn>
-              </Seg>
-            </Field>
-            <Field><Lbl>사업자등록증 사본</Lbl>
+            {needsBizNo && (
+              <>
+                <Field><Lbl>개업일자</Lbl><Input type="date" value={biz.openDate} onChange={(e) => setBiz({ ...biz, openDate: e.target.value })} /></Field>
+                <Field><Lbl>과세유형</Lbl>
+                  <Seg>
+                    <SegBtn $on={biz.taxType === "simple"} onClick={() => setBiz({ ...biz, taxType: "simple" })}>간이과세자</SegBtn>
+                    <SegBtn $on={biz.taxType === "general"} onClick={() => setBiz({ ...biz, taxType: "general" })}>일반과세자</SegBtn>
+                  </Seg>
+                </Field>
+              </>
+            )}
+            <Field><Lbl>{opt.docLabel}</Lbl>
               {biz.licenseUrl ? <Done><LuCircleCheck size={16} /> 첨부 완료</Done> : <Upload type="button" onClick={() => licRef.current?.click()}><LuUpload size={15} /> 파일 첨부</Upload>}
               <Hidden ref={licRef} type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], setBiz, "licenseUrl")} />
             </Field>
@@ -111,6 +173,53 @@ export default function BusinessSection({ venue, refresh }) {
           </>
         )}
       </Card>
+
+      {/* 정산 계좌 — 앱내 결제로 받은 대금을 지급받을 계좌 */}
+      {PG_ENABLED && (
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <SecTitle><LuLandmark size={16} /> 정산 계좌</SecTitle>
+            {hasAcct && <StatBadge $tone="done">등록완료</StatBadge>}
+          </div>
+
+          {hasAcct && !editAcct ? (
+            <>
+              <Info><span>은행</span><b>{st.bank}</b></Info>
+              <Info><span>계좌번호</span><b>{st.account}</b></Info>
+              <Info><span>예금주</span><b>{st.holder}</b></Info>
+              <Caption>앱에서 결제된 구장 이용료를 이 계좌로 지급해요. 할래말래는 구장 이용료에서 수수료를 떼지 않아요.</Caption>
+              <PrimaryBtn type="button" onClick={() => setEditAcct(true)}>계좌 변경</PrimaryBtn>
+            </>
+          ) : (
+            <>
+              <Caption>{opt.accountHint}</Caption>
+              <Field><Lbl>은행</Lbl>
+                <Select value={acct.bank} onChange={(e) => setAcct({ ...acct, bank: e.target.value })}>
+                  <option value="">은행 선택</option>
+                  {SETTLEMENT_BANKS.map((x) => <option key={x} value={x}>{x}</option>)}
+                </Select>
+              </Field>
+              <Field><Lbl>계좌번호</Lbl>
+                <Input
+                  value={acct.account}
+                  onChange={(e) => setAcct({ ...acct, account: e.target.value.replace(/[^0-9]/g, "") })}
+                  placeholder="'-' 없이 숫자만"
+                  inputMode="numeric"
+                />
+              </Field>
+              <Field><Lbl>예금주</Lbl>
+                <Input value={acct.holder} onChange={(e) => setAcct({ ...acct, holder: e.target.value })} placeholder="홍길동" />
+              </Field>
+              {holderMismatch && (
+                <Warn>예금주가 {opt.personLabel}({b.ownerName})과 달라요. 명의가 다르면 지급이 보류될 수 있어요.</Warn>
+              )}
+              <PrimaryBtn type="button" disabled={busy === "acct"} onClick={submitAcct}>
+                {busy === "acct" ? "저장 중…" : "계좌 저장"}
+              </PrimaryBtn>
+            </>
+          )}
+        </Card>
+      )}
     </>
   );
 }

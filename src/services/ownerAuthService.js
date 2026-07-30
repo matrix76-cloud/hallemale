@@ -2,7 +2,7 @@
 // src/services/ownerAuthService.js
 // 구장 관리자(구장주) 전용 인증 — 사용자 앱과 분리된 ownerAuth 인스턴스 사용.
 // 사용자 앱 로그인과 세션이 섞이지 않는다.
-import { ownerAuth } from "./firebase";
+import { ownerAuth, ownerDb } from "./firebase";
 import {
   onAuthStateChanged,
   setPersistence,
@@ -120,13 +120,14 @@ export async function ownerSignUpEmail({
     const uid = s(cred?.user?.uid);
     if (!uid) return { success: false, error_code: "no_uid" };
 
+    // ownerDb — 구장주 세션으로 써야 규칙이 본인 문서로 인정한다(email·phoneVerified 는 보호필드)
     await ensureUserDoc({
       uid,
       email: em,
       provider: "password",
       phoneE164: toE164Kr(phone),
       phoneVerified: true,
-    });
+    }, ownerDb);
     await saveOwnerManagerInfo({ uid, name, phone });
 
     return { success: true, uid };
@@ -145,7 +146,7 @@ export async function ownerSignInEmail({ email, password, keepLogin = true }) {
     const cred = await signInWithEmailAndPassword(ownerAuth, em, pw);
     const uid = s(cred?.user?.uid);
     if (!uid) return { success: false, error_code: "no_uid" };
-    await ensureUserDoc({ uid, email: em, provider: "password" });
+    await ensureUserDoc({ uid, email: em, provider: "password" }, ownerDb);
     return { success: true, uid };
   } catch (e) {
     return { success: false, error_code: e?.code, error_message: ownerAuthErrorMessage(e?.code) };
@@ -172,7 +173,7 @@ export async function consumeOwnerRedirectResult() {
     if (!res || !res.user) return { success: true, consumed: false };
     const uid = s(res.user.uid);
     if (!uid) return { success: false, consumed: true, error_code: "no_uid" };
-    await ensureUserDoc({ uid, email: s(res.user.email), provider: "google" });
+    await ensureUserDoc({ uid, email: s(res.user.email), provider: "google" }, ownerDb);
     return { success: true, consumed: true, uid };
   } catch (e) {
     return { success: false, consumed: false, error_code: e?.code, error_message: e?.message };
@@ -200,7 +201,7 @@ async function ownerWebGoogle({ keepLogin }) {
     if (!keepLogin) {
       try { await setPersistence(ownerAuth, browserSessionPersistence); } catch {}
     }
-    await ensureUserDoc({ uid, email: s(cred?.user?.email), provider: "google" });
+    await ensureUserDoc({ uid, email: s(cred?.user?.email), provider: "google" }, ownerDb);
     return { success: true, provider: "google", uid, user: cred.user };
   } catch (e) {
     return { success: false, provider: "google", error_code: e?.code, error_message: e?.message };
@@ -242,7 +243,7 @@ export async function ownerSignInWithSocial({ provider, keepLogin = true }) {
       if (!idToken) return { success: false, provider: "google", error_code: "no_idToken" };
       const cred = await signInWithCredential(ownerAuth, GoogleAuthProvider.credential(idToken));
       const uid = s(cred?.user?.uid);
-      await ensureUserDoc({ uid, email: s(cred?.user?.email), provider: "google" });
+      await ensureUserDoc({ uid, email: s(cred?.user?.email), provider: "google" }, ownerDb);
       return { success: true, provider: "google", uid };
     }
     if (p === "apple") {
@@ -251,7 +252,7 @@ export async function ownerSignInWithSocial({ provider, keepLogin = true }) {
       const op = new OAuthProvider("apple.com");
       const cred = await signInWithCredential(ownerAuth, op.credential({ idToken }));
       const uid = s(cred?.user?.uid);
-      await ensureUserDoc({ uid, email: s(cred?.user?.email), provider: "apple" });
+      await ensureUserDoc({ uid, email: s(cred?.user?.email), provider: "apple" }, ownerDb);
       return { success: true, provider: "apple", uid };
     }
   } catch (e) {

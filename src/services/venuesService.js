@@ -4,7 +4,7 @@
 // Firestore 컬렉션: venues
 // 이미지 업로드는 mediaService.uploadCompressedImageMedia 재사용 (scope=venues)
 
-import { db, storage } from "./firebase";
+import { db, storage, ownerStorage } from "./firebase";
 import {
   addDoc,
   collection,
@@ -58,12 +58,18 @@ function rowFromSnap(d) {
   };
 }
 
-export async function uploadVenueImage(file) {
+/**
+ * 구장 사진·서류 업로드. 구장주(/owner/*)와 어드민이 함께 쓴다.
+ * 구장주는 asOwner:true — Storage 도 세션이 묶인 앱을 따라가므로, 안 넘기면
+ * storage.rules(request.auth != null)에 걸려 업로드가 거부된다.
+ */
+export async function uploadVenueImage(file, { asOwner = false } = {}) {
   const item = await uploadCompressedImageMedia({
     scope: "venues",
     ownerId: "admin",
     file,
     kind: "highlight",
+    ...(asOwner ? { storageRef: ownerStorage } : {}),
   });
   return { imageUrl: item.url, storagePath: item.storagePath };
 }

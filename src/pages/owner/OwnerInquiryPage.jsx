@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { showAlert } from "../../utils/appDialog";
 import { useOwner } from "../../context/OwnerContext";
 import { createInquiry, getMyInquiries } from "../../services/inquiryService";
+import { ownerDb } from "../../services/firebase";
 import { Page, Card, SectionTitle, SectionDesc, Field, Label, Input, Textarea, Select, PrimaryBtn } from "./components/ownerUi";
 import { C } from "./components/od";
 import { OWNER_BUSINESS } from "./components/OwnerFooter";
@@ -119,7 +120,7 @@ export default function OwnerInquiryPage() {
         content,
         category,
         nickname: venue?.name || userDoc?.email || "구장 관리자",
-      });
+      }, ownerDb);
       setTitle("");
       setContent("");
       setCategory("etc");

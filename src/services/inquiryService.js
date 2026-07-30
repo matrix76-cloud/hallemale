@@ -37,7 +37,8 @@ function sortByCreatedAtDesc(list) {
 
 /* ===== create ===== */
 
-export async function createInquiry({ uid, title, content, category, nickname } = {}) {
+/** dbi: 구장주(ownerAuth 세션)는 ownerDb 를 넘긴다 — inquiries 쓰기가 signedIn()을 요구한다. */
+export async function createInquiry({ uid, title, content, category, nickname } = {}, dbi = db) {
   const u = toStr(uid);
   const t = toStr(title);
   const c = toStr(content);
@@ -59,7 +60,7 @@ export async function createInquiry({ uid, title, content, category, nickname } 
     updatedAt: serverTimestamp(),
   };
 
-  const ref = await addDoc(collection(db, "inquiries"), payload);
+  const ref = await addDoc(collection(dbi, "inquiries"), payload);
   return { id: ref.id, ...payload };
 }
 

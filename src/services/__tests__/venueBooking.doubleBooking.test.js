@@ -12,7 +12,7 @@ const OP_MS = 20;
 let mockStore = {}; // { [collection]: { [id]: data } }
 let mockSeq = 0;
 
-jest.mock("../firebase", () => ({ db: { __db: true }, ownerAuth: {} }));
+jest.mock("../firebase", () => ({ db: { __db: true }, ownerDb: { __db: "owner" }, ownerAuth: {} }));
 jest.mock("../fizzService", () => ({ payFizz: jest.fn(async () => ({ ok: true })) }));
 
 jest.mock("firebase/firestore", () => {

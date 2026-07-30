@@ -12,6 +12,7 @@ import {
   markNotificationsRead,
 } from "../../services/notificationService";
 import { NOTI_AUDIENCE } from "../../utils/notificationDefinitions";
+import { ownerDb } from "../../services/firebase";
 import { Page, Card } from "./components/ownerUi";
 import OwnerSpinner from "./components/OwnerSpinner";
 
@@ -51,7 +52,7 @@ export default function OwnerNotificationsPage() {
   useEffect(() => {
     if (!uid || !items.length) return;
     const unreadIds = items.filter((n) => !n.read).map((n) => n.id);
-    if (unreadIds.length) markNotificationsRead({ ids: unreadIds, uid }).catch(() => {});
+    if (unreadIds.length) markNotificationsRead({ ids: unreadIds, uid }, ownerDb).catch(() => {});
     // eslint-disable-next-line
   }, [uid, items.length]);
 

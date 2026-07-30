@@ -159,7 +159,7 @@ export default function OwnerVenuePage() {
     e.target.value = "";
     setUploading(true);
     try {
-      const { imageUrl, storagePath } = await uploadVenueImage(file);
+      const { imageUrl, storagePath } = await uploadVenueImage(file, { asOwner: true });
       setPhotos((prev) => [...prev, { url: imageUrl, storagePath }]);
     } catch (err) {
       showAlert(err?.message || "사진 업로드에 실패했어요.");
@@ -179,7 +179,7 @@ export default function OwnerVenuePage() {
         photos: photos.map((p) => p.url),
         storagePaths: photos.map((p) => p.storagePath),
         description, phone, rules, refundPolicy, defaultOwnerNote,
-      });
+      }, { asOwner: true });
       await refresh();
     } catch (e) {
       // 토스트 대신 조용히

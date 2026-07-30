@@ -13,7 +13,7 @@
 // 인덱스 최소화 원칙: 단일 where + 클라이언트 메모리 필터/정렬.
 // 이미지 업로드는 venuesService.uploadVenueImage 재사용.
 
-import { db, ownerAuth } from "./firebase";
+import { db, ownerDb, ownerAuth } from "./firebase";
 import {
   addDoc,
   collection,
@@ -36,6 +36,19 @@ import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 
 // 리뷰 보드 목업 — venueRow()/reservationRow() 가 스냅샷을 받으므로 최소 인터페이스만 흉내낸다.
 const mockSnap = (id, data) => ({ id, exists: () => true, data: () => data });
+
+/* ── 어느 Firestore 핸들로 쓸 것인가 ──────────────────────────────────
+ * 이 모듈은 구장주앱·사용자앱·어드민이 함께 쓴다. 보안규칙의 request.auth 는
+ * "핸들이 묶인 Firebase 앱의 세션"이라, 구장주가 하는 쓰기는 ownerDb 로 가야만
+ * isVenueOwner()(venues.ownerUid == request.auth.uid) 가 성립한다.
+ * 기본 db 로 보내면 구장주 세션이 규칙에 아예 안 보인다(사용자앱 로그아웃이면 null).
+ *
+ * · 구장주만 부르는 함수 → ownerDb 를 직접 쓴다.
+ * · 양쪽이 부르는 함수   → asOwner 인자로 받는다. 기본값 false(=기존 동작)인 이유는,
+ *   호출부를 빠뜨렸을 때 조용히 익명 핸들로 새는 것보다 지금까지의 동작을 유지하는 게 안전해서다.
+ * 읽기는 venues/venueReservations 모두 공개(allow read: if true)라 어느 핸들이든 무관.
+ */
+const dbAs = (asOwner) => (asOwner ? ownerDb : db);
 
 
 function hhmmToMin(v) {
@@ -375,7 +388,8 @@ export async function registerVenue({
     updatedAt: serverTimestamp(),
   };
 
-  const ref = await addDoc(collection(db, "venues"), payload);
+  // 구장주 전용 — ownerDb 로 써야 ownerUid 가 실제 로그인 세션과 일치한다.
+  const ref = await addDoc(collection(ownerDb, "venues"), payload);
   return { id: ref.id };
 }
 
@@ -415,8 +429,11 @@ export async function getVenue(id) {
   return venueRow(snap);
 }
 
-/** 구장 정보 수정 (구장주) — 핵심 정보 변경 시 재심사로 되돌릴지는 호출부에서 결정 */
-export async function updateMyVenue(id, patch = {}) {
+/**
+ * 구장 정보 수정 — 핵심 정보 변경 시 재심사로 되돌릴지는 호출부에서 결정.
+ * 구장주(/owner/*)와 어드민이 함께 쓴다 → 구장주는 asOwner:true 로 부른다.
+ */
+export async function updateMyVenue(id, patch = {}, { asOwner = false } = {}) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
 
@@ -467,14 +484,14 @@ export async function updateMyVenue(id, patch = {}) {
   if (patch.displayMode !== undefined) update.displayMode = patch.displayMode === "separate" ? "separate" : "grouped";
   if (patch.displayName !== undefined) update.displayName = safeStr(patch.displayName);
 
-  await updateDoc(doc(db, "venues", vid), update);
+  await updateDoc(doc(dbAs(asOwner), "venues", vid), update);
 }
 
-/** 반려된 구장을 수정 후 재신청 — status를 다시 pending으로 */
+/** 반려된 구장을 수정 후 재신청 (구장주 전용) — status를 다시 pending으로 */
 export async function resubmitVenue(id) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
-  await updateDoc(doc(db, "venues", vid), {
+  await updateDoc(doc(ownerDb, "venues", vid), {
     status: "pending",
     rejectReason: "",
     active: false,
@@ -537,7 +554,7 @@ export async function submitBusinessVerification(
     if (!safeStr(licenseUrl)) throw new Error(`${opt.docLabel}을 첨부해주세요.`);
   }
 
-  await updateDoc(doc(db, "venues", vid), {
+  await updateDoc(doc(ownerDb, "venues", vid), {
     business: {
       // 어드민 심사 화면이 어떤 서류를 보고 있는지 알아야 하므로 주체도 같이 남긴다.
       ownerType: opt.key,
@@ -591,7 +608,7 @@ export async function verifyBusinessOnline({ venueId, bizNo, ownerName, openDate
 export async function saveSalesReport(id, { number, certUrl, exempt } = {}) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
-  await updateDoc(doc(db, "venues", vid), {
+  await updateDoc(doc(ownerDb, "venues", vid), {
     salesReport: {
       number: safeStr(number), certUrl: safeStr(certUrl), exempt: exempt === true,
       status: exempt ? "none" : (safeStr(number) ? "submitted" : "none"),
@@ -616,7 +633,7 @@ export async function saveSettlementAccount(id, { bank, account, holder } = {}) 
   if (!b) throw new Error("은행을 선택해주세요.");
   if (acc.length < 10 || acc.length > 16) throw new Error("계좌번호를 정확히 입력해주세요.");
   if (!h) throw new Error("예금주를 입력해주세요.");
-  await updateDoc(doc(db, "venues", vid), {
+  await updateDoc(doc(ownerDb, "venues", vid), {
     settlement: { bank: b, account: acc, holder: h, verified: false },
     updatedAt: serverTimestamp(),
   });
@@ -1057,7 +1074,11 @@ async function notifyPaymentRequested(data) {
   }
 }
 
-/** 예약 상태 변경 (승인/거절/완료/노쇼). opts.ownerNote: 승인 시 예약자에게 남길 안내글 */
+/**
+ * 예약 상태 변경 (승인/거절/완료/노쇼).
+ *  opts.ownerNote: 승인 시 예약자에게 남길 안내글
+ *  opts.asOwner  : 구장주 세션으로 쓴다(규칙의 isVenueOwner 판정에 필요)
+ */
 export async function setReservationStatus(reservationId, status, opts = {}) {
   const rid = safeStr(reservationId);
   if (!rid) throw new Error("reservationId가 비어있습니다.");
@@ -1065,7 +1086,7 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
     ? status
     : "requested";
   const ownerNote = safeStr(opts?.ownerNote);
-  const dref = doc(db, "venueReservations", rid);
+  const dref = doc(dbAs(opts?.asOwner), "venueReservations", rid);
 
   // 현재 상태 조회 (상태머신 가드 + 승인 시 슬롯 재검증 + 매칭 동기화용)
   const preSnap = await getDoc(dref);
@@ -1130,10 +1151,10 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
  * - 예약 전용(현장 정산) 전환: 앱 결제/환불 없음 → 상태만 변경.
  * - 멱등: 이미 종료(rejected/cancelled/noshow)됐으면 재처리하지 않음.
  */
-async function setReservationEndStatus(reservationId, nextStatus) {
+async function setReservationEndStatus(reservationId, nextStatus, asOwner = false) {
   const rid = safeStr(reservationId);
   if (!rid) throw new Error("reservationId가 비어있습니다.");
-  const dref = doc(db, "venueReservations", rid);
+  const dref = doc(dbAs(asOwner), "venueReservations", rid);
   const snap = await getDoc(dref);
   if (!snap.exists()) throw new Error("예약을 찾을 수 없습니다.");
   const data = snap.data() || {};
@@ -1164,14 +1185,17 @@ async function setReservationEndStatus(reservationId, nextStatus) {
   return { ok: true };
 }
 
-/** 예약 반려 (승인대기 예약 거절) — status=rejected */
-export async function rejectReservation(reservationId) {
-  return setReservationEndStatus(reservationId, "rejected");
+/**
+ * 예약 반려 (승인대기 예약 거절) — status=rejected
+ * 구장주(반려)와 사용자앱 매치룸(예약 철회)이 함께 쓴다 → 구장주는 asOwner:true.
+ */
+export async function rejectReservation(reservationId, { asOwner = false } = {}) {
+  return setReservationEndStatus(reservationId, "rejected", asOwner);
 }
 
 /** 확정 예약 취소 (구장주 사정·우천 등) — status=cancelled */
-export async function cancelReservation(reservationId) {
-  return setReservationEndStatus(reservationId, "cancelled");
+export async function cancelReservation(reservationId, { asOwner = false } = {}) {
+  return setReservationEndStatus(reservationId, "cancelled", asOwner);
 }
 
 /* ============================================================
@@ -1258,9 +1282,9 @@ export async function cancelMyReservation(reservationId, uid) {
   return { ok: true };
 }
 
-/** 노쇼 처리 — 환불 없이 status=noshow (예약금 몰수) */
+/** 노쇼 처리 (구장주 전용) — 환불 없이 status=noshow (예약금 몰수) */
 export async function markReservationNoshow(reservationId) {
-  return setReservationStatus(reservationId, "noshow");
+  return setReservationStatus(reservationId, "noshow", { asOwner: true });
 }
 
 /**
@@ -1359,7 +1383,8 @@ export async function createOwnerReservation({
       continue;
     }
     const per = priceOverride != null ? priceOverride : calcSlotPrice(court, startTime, endTime, d);
-    const ref = await addDoc(collection(db, "venueReservations"), {
+    // 구장주 전용 — 정기대관(최대 52주)은 예약 창구(21일) 밖이라 규칙이 isVenueOwner 로만 통과시킨다.
+    const ref = await addDoc(collection(ownerDb, "venueReservations"), {
       venueId, courtId, ownerUid,
       courtName: safeStr(court?.name), venueName: safeStr(venue?.name),
       date: d, startTime: safeStr(startTime), endTime: safeStr(endTime),
@@ -1767,7 +1792,8 @@ export async function addBlock({ venueId, courtId, date, startTime, endTime }) {
     (r) => ["requested", "pending", "confirmed"].includes(r.status) && rangesOverlap(startTime, endTime, r.startTime, r.endTime)
   );
   if (clash) throw new Error("이미 예약이 있는 시간은 막을 수 없어요. 예약을 먼저 처리해 주세요.");
-  const ref = await addDoc(collection(db, "venueBlocks"), {
+  // 구장주 전용 (시간 막기는 /owner/home 에서만 한다)
+  const ref = await addDoc(collection(ownerDb, "venueBlocks"), {
     venueId: safeStr(venueId),
     courtId: safeStr(courtId),
     date: safeStr(date),
@@ -1781,7 +1807,7 @@ export async function addBlock({ venueId, courtId, date, startTime, endTime }) {
 export async function removeBlock(blockId) {
   const bid = safeStr(blockId);
   if (!bid) throw new Error("blockId가 비어있습니다.");
-  await deleteDoc(doc(db, "venueBlocks", bid));
+  await deleteDoc(doc(ownerDb, "venueBlocks", bid));
 }
 
 /* ============================================================

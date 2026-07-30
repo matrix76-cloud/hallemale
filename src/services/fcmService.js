@@ -34,8 +34,10 @@ async function getMessaging() {
 /**
  * FCM 토큰 등록
  * - 알림 권한 요청 → getToken() → users/{uid}.fcmTokens에 arrayUnion
+ * - dbi: 쓸 Firestore 핸들. 구장주(ownerAuth 세션)는 ownerDb 를 넘긴다 —
+ *        기본 db 는 사용자 앱 세션이라, 사용자 앱에 로그인돼 있지 않으면 쓰기가 거부된다.
  */
-export async function registerFcmToken(uid) {
+export async function registerFcmToken(uid, dbi = db) {
   if (!uid) return null;
 
   // RN WebView 안에서는 웹 FCM 등록 스킵 (RN 네이티브 토큰 사용)
@@ -68,7 +70,7 @@ export async function registerFcmToken(uid) {
       return null;
     }
 
-    await updateDoc(doc(db, "users", uid), {
+    await updateDoc(doc(dbi, "users", uid), {
       fcmTokens: arrayUnion(token),
     });
 
