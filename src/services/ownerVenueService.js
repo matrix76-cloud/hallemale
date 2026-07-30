@@ -18,6 +18,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -49,6 +50,103 @@ const mockSnap = (id, data) => ({ id, exists: () => true, data: () => data });
  * 읽기는 venues/venueReservations 모두 공개(allow read: if true)라 어느 핸들이든 무관.
  */
 const dbAs = (asOwner) => (asOwner ? ownerDb : db);
+
+/* ── 슬롯 락 — 이중예약을 막는 유일한 지점 ────────────────────────────
+ * 예전에는 "겹침 조회 → addDoc" 두 단계였다. 조회와 쓰기 사이에 남의 쓰기가 끼면 두 호출이
+ * 서로를 못 보고 둘 다 통과한다(같은 슬롯 두 건). 조회(query)는 트랜잭션에 넣을 수 없으므로,
+ * 코트·날짜마다 락 문서 하나를 두고 그 안의 ranges 맵으로 겹침을 판정한다.
+ * 문서 하나를 읽고 쓰므로 같은 코트·날짜의 동시 요청은 Firestore 트랜잭션이 직렬화해 준다.
+ *
+ * venueSlotLocks/{venueId}__{courtId}__{date}
+ *   { venueId, courtId, date, ranges: { [예약id]: { s:시작분, e:종료분, st:상태 } } }
+ *
+ * 막는 기준이 단계마다 다르다:
+ *   · 생성 시   — requested·pending·confirmed 전부가 막는다(먼저 요청한 사람이 슬롯을 잡는 기존 정책).
+ *   · 승인 시   — pending·confirmed 만 막는다. 겹치는 requested 를 골라 승인하는 게 승인의 목적이라
+ *                 requested 가 승인을 막으면 구장주가 둘 다 처리하지 못한다.
+ */
+const LIVE_STATUSES = ["requested", "pending", "confirmed"];
+const APPROVED_STATUSES = ["pending", "confirmed"];
+
+function slotLockRef(dbi, venueId, courtId, date) {
+  return doc(dbi, "venueSlotLocks", `${safeStr(venueId)}__${safeStr(courtId)}__${safeStr(date)}`);
+}
+
+function lockRanges(snap) {
+  return (snap && snap.exists() ? snap.data()?.ranges : null) || {};
+}
+
+/** ranges 안에서 나(selfId)를 뺀 겹치는 항목 찾기. blocking=막는 상태 목록 */
+function findSlotClash(ranges, startTime, endTime, selfId, blocking) {
+  const s = hhmmToMin(startTime);
+  const e = hhmmToMin(endTime);
+  return Object.entries(ranges || {}).find(([rid, r]) => {
+    if (rid === selfId) return false;
+    if (!blocking.includes(safeStr(r?.st))) return false;
+    return s < (toNum(r?.e) ?? 0) && (toNum(r?.s) ?? 0) < e;
+  });
+}
+
+function slotTakenError() {
+  const e = new Error("이미 예약된 시간이에요. 다른 시간을 선택해주세요.");
+  e.code = "slot_taken";
+  return e;
+}
+
+/**
+ * 슬롯을 선점하면서 예약 문서를 만든다. 겹치면 slot_taken 으로 실패한다.
+ * build(id) 는 예약 문서 본문을 돌려준다(문서 id 를 미리 알아야 락에 같은 키로 적는다).
+ */
+async function createReservationLocked(
+  dbi,
+  { venueId, courtId, date, startTime, endTime, status = "requested" },
+  build
+) {
+  const lockRef = slotLockRef(dbi, venueId, courtId, date);
+  return await runTransaction(dbi, async (tx) => {
+    const snap = await tx.get(lockRef);
+    const ranges = lockRanges(snap);
+    if (findSlotClash(ranges, startTime, endTime, null, LIVE_STATUSES)) throw slotTakenError();
+
+    const resRef = doc(collection(dbi, "venueReservations"));
+    tx.set(resRef, build(resRef.id));
+    tx.set(lockRef, {
+      venueId: safeStr(venueId), courtId: safeStr(courtId), date: safeStr(date),
+      ranges: {
+        ...ranges,
+        [resRef.id]: { s: hhmmToMin(startTime), e: hhmmToMin(endTime), st: safeStr(status) },
+      },
+      updatedAt: serverTimestamp(),
+    });
+    return resRef.id;
+  });
+}
+
+/**
+ * 슬롯 반납 — 예약이 종료(반려·취소·노쇼)되면 그 자리를 비운다.
+ * 안 비우면 그 시간대가 영구히 예약 불가로 남는다.
+ * 필드 단위 삭제라 다른 예약의 항목을 건드리지 않는다(읽기 없이 원자적).
+ */
+async function releaseSlot(dbi, { venueId, courtId, date, reservationId }) {
+  const vid = safeStr(venueId), cid = safeStr(courtId), d = safeStr(date), rid = safeStr(reservationId);
+  if (!vid || !cid || !d || !rid) return;
+  try {
+    await updateDoc(slotLockRef(dbi, vid, cid, d), {
+      [`ranges.${rid}`]: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (e) {
+    // 락 문서가 없으면(레거시 예약) 비울 것도 없다.
+  }
+}
+
+/**
+ * 슬롯 반납(외부용) — 이 모듈 밖에서 예약을 취소하는 경로가 쓴다.
+ * (matchRoomService 의 경기 취소 → 제휴구장 예약 취소)
+ */
+export async function releaseReservationSlot({ venueId, courtId, date, reservationId } = {}) {
+  return releaseSlot(db, { venueId, courtId, date, reservationId });
+}
 
 
 function hhmmToMin(v) {
@@ -1130,47 +1228,71 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
     ? status
     : "requested";
   const ownerNote = safeStr(opts?.ownerNote);
-  const dref = doc(dbAs(opts?.asOwner), "venueReservations", rid);
+  const dbi = dbAs(opts?.asOwner);
+  const dref = doc(dbi, "venueReservations", rid);
 
-  // 현재 상태 조회 (상태머신 가드 + 승인 시 슬롯 재검증 + 매칭 동기화용)
+  // 현재 상태 조회 (상태머신 가드 + 매칭 동기화용). 실제 판정은 아래 트랜잭션이 다시 한다.
   const preSnap = await getDoc(dref);
   if (!preSnap.exists()) throw new Error("예약을 찾을 수 없습니다.");
   const cur = preSnap.data() || {};
-  const curStatus = safeStr(cur.status);
-
-  // ③ 상태머신 가드: 역행/중복 전이 차단 (done→confirmed 되돌림, 재승인 중복푸시 등)
-  if (next === "confirmed" && !["requested", "pending"].includes(curStatus))
-    throw new Error("승인 대기 상태의 예약만 승인할 수 있어요.");
-  if ((next === "done" || next === "noshow") && curStatus !== "confirmed")
-    throw new Error("확정된 예약만 이용완료·노쇼 처리할 수 있어요.");
-
-  // ① 승인 시 슬롯 재검증: 같은 코트·날짜에 이미 확정된 겹침 예약이 있으면 이중예약 차단
-  if (next === "confirmed") {
-    const others = await listReservations({ venueId: safeStr(cur.venueId), date: safeStr(cur.date), courtId: safeStr(cur.courtId) });
-    const clash = others.some(
-      (r) => r.id !== rid && r.status === "confirmed" && rangesOverlap(cur.startTime, cur.endTime, r.startTime, r.endTime)
-    );
-    if (clash) throw new Error("이미 확정된 예약이 있는 시간대예요. 이 요청은 반려해 주세요.");
-  }
 
   // 💳 앱내 결제 ON: 승인은 확정이 아니라 "결제 대기"다. 결제가 끝나야(서버 승인) confirmed.
   //    OFF(현장정산)면 기존대로 승인 즉시 확정.
-  if (PG_ENABLED && next === "confirmed") {
-    await updateDoc(dref, {
-      status: "pending",
-      ownerNote,
-      paymentDeadline: new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString(),
+  const approving = next === "confirmed";
+  const effective = approving && PG_ENABLED ? "pending" : next;
+
+  // 승인은 슬롯 락과 함께 원자적으로 — 예전엔 "겹침 조회 → updateDoc" 이라, 겹치는 두 건을
+  // 동시에 승인하면 서로를 못 보고 둘 다 확정됐다(이중예약).
+  await runTransaction(dbi, async (tx) => {
+    const rSnap = await tx.get(dref);
+    if (!rSnap.exists()) throw new Error("예약을 찾을 수 없습니다.");
+    const d = rSnap.data() || {};
+    const curStatus = safeStr(d.status);
+
+    // ③ 상태머신 가드: 역행/중복 전이 차단 (done→confirmed 되돌림, 재승인 중복푸시 등)
+    if (approving && !["requested", "pending"].includes(curStatus))
+      throw new Error("승인 대기 상태의 예약만 승인할 수 있어요.");
+    if ((next === "done" || next === "noshow") && curStatus !== "confirmed")
+      throw new Error("확정된 예약만 이용완료·노쇼 처리할 수 있어요.");
+
+    const lockRef = slotLockRef(dbi, d.venueId, d.courtId, d.date);
+    const lSnap = await tx.get(lockRef);
+    const ranges = lockRanges(lSnap);
+
+    if (approving) {
+      // 이미 승인·확정된 겹침 건이 있으면 막는다. 겹치는 "요청"은 막지 않는다 —
+      // 경합하는 요청 중 하나를 고르는 게 승인이라, requested 가 막으면 둘 다 처리 못 한다.
+      if (findSlotClash(ranges, d.startTime, d.endTime, rid, APPROVED_STATUSES))
+        throw new Error("이미 확정된 예약이 있는 시간대예요. 이 요청은 반려해 주세요.");
+    }
+
+    tx.update(dref, {
+      status: effective,
+      ...(approving ? { ownerNote } : {}),
+      ...(approving && PG_ENABLED
+        ? { paymentDeadline: new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString() }
+        : {}),
       updatedAt: serverTimestamp(),
     });
+
+    // 락 갱신: 살아있는 상태면 내 자리를 최신 상태로, 끝난 상태면 자리를 비운다.
+    const nextRanges = { ...ranges };
+    if (LIVE_STATUSES.includes(effective)) {
+      nextRanges[rid] = { s: hhmmToMin(d.startTime), e: hhmmToMin(d.endTime), st: effective };
+    } else if (["rejected", "cancelled", "noshow"].includes(effective)) {
+      delete nextRanges[rid];
+    }
+    tx.set(lockRef, {
+      venueId: safeStr(d.venueId), courtId: safeStr(d.courtId), date: safeStr(d.date),
+      ranges: nextRanges,
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  if (approving && PG_ENABLED) {
     await notifyPaymentRequested({ ...cur, id: rid, ownerNote });
     return;
   }
-
-  await updateDoc(dref, {
-    status: next,
-    ...(next === "confirmed" ? { ownerNote } : {}),
-    updatedAt: serverTimestamp(),
-  });
 
   // 승인(confirmed)/노쇼(noshow) 시 후속 통보
   if (next === "confirmed" || next === "noshow") {
@@ -1205,7 +1327,8 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
 async function setReservationEndStatus(reservationId, nextStatus, { by = "owner", clubId = "" } = {}) {
   const rid = safeStr(reservationId);
   if (!rid) throw new Error("reservationId가 비어있습니다.");
-  const dref = doc(dbAs(by === "owner"), "venueReservations", rid);
+  const dbi = dbAs(by === "owner");
+  const dref = doc(dbi, "venueReservations", rid);
   const snap = await getDoc(dref);
   if (!snap.exists()) throw new Error("예약을 찾을 수 없습니다.");
   const data = snap.data() || {};
@@ -1221,6 +1344,10 @@ async function setReservationEndStatus(reservationId, nextStatus, { by = "owner"
     canceledBy: by,
     ...(by === "team" && safeStr(clubId) ? { cancelledByClubId: safeStr(clubId) } : {}),
     updatedAt: serverTimestamp(),
+  });
+  // 슬롯 반납 — 안 비우면 그 시간대가 영구히 예약 불가로 남는다.
+  await releaseSlot(dbi, {
+    venueId: data.venueId, courtId: data.courtId, date: data.date, reservationId: rid,
   });
   // 매칭 예약 반려/취소 → 매칭룸 조율중(accepted) 복귀 + 재제안 유도 알림
   if (safeStr(data.matchId) && (nextStatus === "rejected" || nextStatus === "cancelled")) {
@@ -1306,6 +1433,10 @@ export async function cancelMyReservation(reservationId, uid) {
   }
 
   await updateDoc(dref, { status: "cancelled", canceledBy: "user", updatedAt: serverTimestamp() });
+  // 슬롯 반납 — 취소한 시간은 다시 예약 가능해야 한다.
+  await releaseSlot(db, {
+    venueId: data.venueId, courtId: data.courtId, date: data.date, reservationId: rid,
+  });
 
   // 구장주 알림 (실패해도 취소는 유지)
   const ownerUid = safeStr(data.ownerUid);
@@ -1361,23 +1492,29 @@ export async function createReservation({
 }) {
   if (!safeStr(venueId)) throw new Error("venueId가 필요합니다.");
   if (!safeStr(date)) throw new Error("date가 필요합니다.");
-  const ref = await addDoc(collection(db, "venueReservations"), {
-    venueId: safeStr(venueId),
-    courtId: safeStr(courtId),
-    ownerUid: safeStr(ownerUid),
-    date: safeStr(date),
-    startTime: safeStr(startTime),
-    endTime: safeStr(endTime),
-    userId: safeStr(userId),
-    userName: safeStr(userName),
-    teamName: safeStr(teamName),
-    phone: safeStr(phone),
-    price: toNum(price) ?? 0,
-    status,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return { id: ref.id };
+  // 예약 생성은 예외 없이 슬롯 락을 거친다 — 락을 안 타는 생성 경로가 하나라도 있으면
+  // 그 경로로 들어온 예약이 다른 예약과 겹쳐도 아무도 못 막는다.
+  const id = await createReservationLocked(
+    db,
+    { venueId, courtId, date, startTime, endTime, status },
+    () => ({
+      venueId: safeStr(venueId),
+      courtId: safeStr(courtId),
+      ownerUid: safeStr(ownerUid),
+      date: safeStr(date),
+      startTime: safeStr(startTime),
+      endTime: safeStr(endTime),
+      userId: safeStr(userId),
+      userName: safeStr(userName),
+      teamName: safeStr(teamName),
+      phone: safeStr(phone),
+      price: toNum(price) ?? 0,
+      status,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  );
+  return { id };
 }
 
 /* ============================================================
@@ -1430,6 +1567,7 @@ export async function createOwnerReservation({
 
   for (let k = 0; k < weeks; k++) {
     const d = addDaysStr(date, k * 7);
+    // 블록 겹침만 미리 거른다(쿼리라 트랜잭션 밖). 예약 겹침은 아래 트랜잭션이 판정한다.
     try {
       await assertSlotFree({ venueId, courtId, date: d, startTime, endTime });
     } catch (e) {
@@ -1437,19 +1575,28 @@ export async function createOwnerReservation({
       continue;
     }
     const per = priceOverride != null ? priceOverride : calcSlotPrice(court, startTime, endTime, d);
-    // 구장주 전용 — 정기대관(최대 52주)은 예약 창구(21일) 밖이라 규칙이 isVenueOwner 로만 통과시킨다.
-    const ref = await addDoc(collection(ownerDb, "venueReservations"), {
-      venueId, courtId, ownerUid,
-      courtName: safeStr(court?.name), venueName: safeStr(venue?.name),
-      date: d, startTime: safeStr(startTime), endTime: safeStr(endTime),
-      userId: "", userName: safeStr(customerName), teamName: safeStr(customerName),
-      phone: safeStr(phone), memo: safeStr(memo),
-      price: per, paid: true, paidFizz: 0, paymentMethod: method,
-      source: "owner", status: "confirmed",
-      recurringId,
-      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-    });
-    created.push({ id: ref.id, date: d });
+    try {
+      // 구장주 전용 — 정기대관(최대 52주)은 예약 창구(21일) 밖이라 규칙이 isVenueOwner 로만 통과시킨다.
+      const id = await createReservationLocked(
+        ownerDb,
+        { venueId, courtId, date: d, startTime, endTime, status: "confirmed" },
+        () => ({
+          venueId, courtId, ownerUid,
+          courtName: safeStr(court?.name), venueName: safeStr(venue?.name),
+          date: d, startTime: safeStr(startTime), endTime: safeStr(endTime),
+          userId: "", userName: safeStr(customerName), teamName: safeStr(customerName),
+          phone: safeStr(phone), memo: safeStr(memo),
+          price: per, paid: true, paidFizz: 0, paymentMethod: method,
+          source: "owner", status: "confirmed",
+          recurringId,
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        })
+      );
+      created.push({ id, date: d });
+    } catch (e) {
+      // 그 주만 이미 찬 것 — 나머지 주는 계속 만든다(기존 동작 유지).
+      skipped.push(d);
+    }
   }
 
   return { created, skipped, recurringId };
@@ -1528,14 +1675,12 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
     listReservations({ venueId, date, courtId }),
     listBlocks({ venueId, date, courtId }),
   ]);
+  // 겹침 판정은 아래 트랜잭션이 다시 한다(여기 조회는 이미 찬 슬롯을 미리 걸러 헛트랜잭션을 줄이는 용도).
   const taken = reservations.some(
-    (r) => ["requested", "pending", "confirmed"].includes(r.status) && rangesOverlap(startTime, endTime, r.startTime, r.endTime)
+    (r) => LIVE_STATUSES.includes(r.status) && rangesOverlap(startTime, endTime, r.startTime, r.endTime)
   );
-  if (taken) {
-    const err = new Error("이미 예약된 시간이에요. 다른 시간을 선택해주세요.");
-    err.code = "slot_taken";
-    throw err;
-  }
+  if (taken) throw slotTakenError();
+  // 블록(구장주가 막아둔 시간)은 쿼리라 트랜잭션에 못 넣는다 — 예약 간 경합만큼 촉박하지 않아 사전 확인으로 둔다.
   const blocked = blocks.some((b) => rangesOverlap(startTime, endTime, b.startTime, b.endTime));
   if (blocked) {
     const err = new Error("예약할 수 없는 시간이에요.");
@@ -1545,34 +1690,37 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
 
   const price = calcSlotPrice(court, startTime, endTime, date);
 
-  // 2) 예약 요청 생성 (결제 없음 → 구장주 승인 대기)
+  // 2) 슬롯 선점 + 예약 요청 생성을 한 트랜잭션으로 (결제 없음 → 구장주 승인 대기)
   const ownerUid = safeStr(venue?.ownerUid);
-  const ref = await addDoc(collection(db, "venueReservations"), {
-    venueId,
-    courtId,
-    ownerUid,
-    courtName: safeStr(court?.name),
-    venueName: safeStr(venue?.name),
-    venuePhone: safeStr(venue?.phone || venue?.contactPhone),
-    reservationCode: genReservationCode(date),
-    date: safeStr(date),
-    startTime: safeStr(startTime),
-    endTime: safeStr(endTime),
-    userId: uid,
-    userName: safeStr(user?.userName),
-    teamName: safeStr(user?.teamName),
-    phone: safeStr(user?.phone),
-    userNote: safeStr(userNote).slice(0, 300), // 구장에 전달할 요청사항 (선택)
-    price,
-    paid: false,
-    paymentMethod: PG_ENABLED ? "toss" : "onsite",
-    // 플랫폼 이용료율을 예약 시점에 고정 — 요율을 바꿔도 이미 잡힌 예약의 결제액은 안 흔들린다.
-    feeRate: PLATFORM_FEE_RATE,
-    status: "requested",
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  const reservationId = ref.id;
+  const reservationId = await createReservationLocked(
+    db,
+    { venueId, courtId, date, startTime, endTime, status: "requested" },
+    () => ({
+      venueId,
+      courtId,
+      ownerUid,
+      courtName: safeStr(court?.name),
+      venueName: safeStr(venue?.name),
+      venuePhone: safeStr(venue?.phone || venue?.contactPhone),
+      reservationCode: genReservationCode(date),
+      date: safeStr(date),
+      startTime: safeStr(startTime),
+      endTime: safeStr(endTime),
+      userId: uid,
+      userName: safeStr(user?.userName),
+      teamName: safeStr(user?.teamName),
+      phone: safeStr(user?.phone),
+      userNote: safeStr(userNote).slice(0, 300), // 구장에 전달할 요청사항 (선택)
+      price,
+      paid: false,
+      paymentMethod: PG_ENABLED ? "toss" : "onsite",
+      // 플랫폼 이용료율을 예약 시점에 고정 — 요율을 바꿔도 이미 잡힌 예약의 결제액은 안 흔들린다.
+      feeRate: PLATFORM_FEE_RATE,
+      status: "requested",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  );
 
   // 3) 구장주 푸시 알림 (실패해도 예약 요청은 유지)
   if (ownerUid) {

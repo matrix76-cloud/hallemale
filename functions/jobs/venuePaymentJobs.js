@@ -20,6 +20,28 @@ const { cancelTossPayment, TOSS_SECRET_KEY } = require("../payments/toss");
 const REGION = "asia-northeast3";
 const s = (v) => String(v ?? "").trim();
 
+/**
+ * 슬롯 락 반납 — venueSlotLocks/{venueId}__{courtId}__{date}.ranges 에서 이 예약 자리를 뺀다.
+ *
+ * 클라이언트도 자기가 취소할 때 직접 반납하지만, 서버가 끝내는 취소(미결제 자동취소·어드민 조작)는
+ * 클라를 거치지 않는다. 여기서 한 번 더 잡아야 그 시간대가 영구히 예약 불가로 남지 않는다.
+ * 필드 단위 삭제라 중복 실행돼도 안전하다.
+ */
+async function releaseSlotLock(db, data, reservationId) {
+  const venueId = s(data?.venueId), courtId = s(data?.courtId), date = s(data?.date);
+  const rid = s(reservationId);
+  if (!venueId || !courtId || !date || !rid) return;
+  const FieldValue = getAdmin().firestore.FieldValue;
+  try {
+    await db.collection("venueSlotLocks").doc(`${venueId}__${courtId}__${date}`).update({
+      [`ranges.${rid}`]: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    // 락 문서가 없으면(레거시 예약) 비울 것도 없다.
+  }
+}
+
 // 이용자 귀책 취소 시 환불율.
 // ⚠️ src/constants/cancelPolicy.js 의 CANCEL_POLICY_TIERS 와 같은 값을 유지할 것.
 //    [0]=2일 전까지 100% / [1]=1일 전 50% / [2]=당일 0% / [3]=시작 후 0%
@@ -91,6 +113,12 @@ exports.venuePaidConfirmTrigger = onDocumentUpdated(
 
     // 취소·반려로 끝난 예약 → 결제분 환불. 취소가 어느 경로(구장주·예약자·어드민)로
     // 일어나든 여기 한 곳에서 잡는다. 환불율은 취소 시점·귀책에 따라 refundRateFor 가 정한다.
+    // 종료 상태로 넘어갔으면 슬롯을 비운다 — 경로(구장주·예약자·서버·어드민)와 무관하게 여기서 보장.
+    const TERMINAL = ["cancelled", "rejected", "noshow"];
+    if (!TERMINAL.includes(s(before.status)) && TERMINAL.includes(s(after.status))) {
+      await releaseSlotLock(getDb(), after, event.params.id);
+    }
+
     const ENDED = ["cancelled", "rejected"];
     if (!ENDED.includes(s(before.status)) && ENDED.includes(s(after.status))) {
       const db = getDb();

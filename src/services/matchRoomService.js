@@ -33,7 +33,9 @@ import { listClubMembers, listClubMemberUidsExceptOwner } from "./clubManageServ
 import { fetchLineupRosterProfiles } from "./lineupRosterService";
 import { sendSystemMessage } from "./chatService";
 import { chargeFizz } from "./fizzService";
+import { releaseReservationSlot } from "./ownerVenueService";
 import { predictFromStats } from "../utils/matchAnalysis";
+import { mockOn, hasMock, mockData } from "../dev/mockBus";
 
 // 경기 취소 사유 프리셋 (상대팀에 표시)
 export const MATCH_CANCEL_REASONS = [
@@ -92,6 +94,10 @@ async function refundPartnerReservationIfPaid(matchId, reasonStr, cancelledByClu
     refundBreakdown: breakdown,
     refundedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  });
+  // 슬롯 반납 — 취소된 시간은 다시 예약 가능해야 한다(안 비우면 영구히 막힌다).
+  await releaseReservationSlot({
+    venueId: data.venueId, courtId: data.courtId, date: data.date, reservationId: resvDoc.id,
   });
 
   return { status: refundStatus, amount: total, breakdown };
@@ -280,6 +286,8 @@ async function runBatches(ids, batchSize, worker) {
 async function safeGetClubTeamSummary(clubId) {
   const id = toStr(clubId);
   if (!id) return null;
+
+  if (hasMock("clubTeamSummaries")) return mockData("clubTeamSummaries")[id] || null;
 
   try {
     const ref = doc(db, "clubs", id);
@@ -545,17 +553,23 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
     return { rooms: [], myTeam: null };
   }
 
-  const col = collection(db, "match_requests");
+  // 목업은 raw 문서만 갈아끼운다 — 아래 필터·정렬·매핑은 실제 로직 그대로 탄다.
+  let merged;
+  if (hasMock("matchRequestDocs")) {
+    merged = uniqById(mockData("matchRequestDocs") || []);
+  } else {
+    const col = collection(db, "match_requests");
 
-  const qActor = query(col, where("actorClubId", "==", myClubId), limit(200));
-  const qTarget = query(col, where("targetClubId", "==", myClubId), limit(200));
+    const qActor = query(col, where("actorClubId", "==", myClubId), limit(200));
+    const qTarget = query(col, where("targetClubId", "==", myClubId), limit(200));
 
-  const [snapA, snapB] = await Promise.all([getDocs(qActor), getDocs(qTarget)]);
+    const [snapA, snapB] = await Promise.all([getDocs(qActor), getDocs(qTarget)]);
 
-  const rowsA = (snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
-  const rowsB = (snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
+    const rowsA = (snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
+    const rowsB = (snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
 
-  const merged = uniqById([...(rowsA || []), ...(rowsB || [])]);
+    merged = uniqById([...(rowsA || []), ...(rowsB || [])]);
+  }
 
   const filtered = merged.filter((r) => {
     const st = toStr(r?.status);
@@ -713,16 +727,21 @@ export async function loadTeamMonthlyActivity({ clubId } = {}) {
   const myClubId = toStr(clubId);
   if (!myClubId) return { games: [], totalGames: 0 };
 
-  const col = collection(db, "match_requests");
-  const [snapA, snapB] = await Promise.all([
-    getDocs(query(col, where("actorClubId", "==", myClubId), limit(300))),
-    getDocs(query(col, where("targetClubId", "==", myClubId), limit(300))),
-  ]);
+  let merged;
+  if (hasMock("myMatchDocs")) {
+    merged = uniqById(mockData("myMatchDocs"));
+  } else {
+    const col = collection(db, "match_requests");
+    const [snapA, snapB] = await Promise.all([
+      getDocs(query(col, where("actorClubId", "==", myClubId), limit(300))),
+      getDocs(query(col, where("targetClubId", "==", myClubId), limit(300))),
+    ]);
 
-  const merged = uniqById([
-    ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
-    ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
-  ]);
+    merged = uniqById([
+      ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+      ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+    ]);
+  }
 
   // 완료(finished) 경기만, 무효(void)는 제외 → 전적/활동에 반영되는 경기 기준
   const finished = merged.filter(
@@ -752,16 +771,21 @@ export async function getTeamPredictionAccuracy(clubId) {
   const cid = toStr(clubId);
   if (!cid) return { rate: null, sample: 0 };
 
-  const col = collection(db, "match_requests");
-  const [snapA, snapB] = await Promise.all([
-    getDocs(query(col, where("actorClubId", "==", cid), limit(300))),
-    getDocs(query(col, where("targetClubId", "==", cid), limit(300))),
-  ]);
+  let merged;
+  if (hasMock("myMatchDocs")) {
+    merged = uniqById(mockData("myMatchDocs"));
+  } else {
+    const col = collection(db, "match_requests");
+    const [snapA, snapB] = await Promise.all([
+      getDocs(query(col, where("actorClubId", "==", cid), limit(300))),
+      getDocs(query(col, where("targetClubId", "==", cid), limit(300))),
+    ]);
 
-  const merged = uniqById([
-    ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
-    ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
-  ]);
+    merged = uniqById([
+      ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+      ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+    ]);
+  }
 
   let hits = 0;
   let total = 0;
@@ -789,16 +813,21 @@ export async function getHeadToHeadRecord(myClubId, oppClubId) {
   const empty = { wins: 0, losses: 0, draws: 0, games: 0, recent: [] };
   if (!me || !opp || me === opp) return empty;
 
-  const col = collection(db, "match_requests");
-  const [snapA, snapB] = await Promise.all([
-    getDocs(query(col, where("actorClubId", "==", me), limit(300))),
-    getDocs(query(col, where("targetClubId", "==", me), limit(300))),
-  ]);
+  let merged;
+  if (hasMock("myMatchDocs")) {
+    merged = uniqById(mockData("myMatchDocs"));
+  } else {
+    const col = collection(db, "match_requests");
+    const [snapA, snapB] = await Promise.all([
+      getDocs(query(col, where("actorClubId", "==", me), limit(300))),
+      getDocs(query(col, where("targetClubId", "==", me), limit(300))),
+    ]);
 
-  const merged = uniqById([
-    ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
-    ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
-  ]);
+    merged = uniqById([
+      ...(snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+      ...(snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() })),
+    ]);
+  }
 
   const games = merged.filter((mr) => {
     if (toStr(mr?.status) !== "finished") return false;
@@ -850,6 +879,9 @@ export async function loadPlayerMonthlyActivity({ clubId, uid } = {}) {
     loadTeamMonthlyActivity({ clubId: cid }),
     (async () => {
       try {
+        if (hasMock("clubMemberRefs")) {
+          return Array.from(new Set((mockData("clubMemberRefs")[cid] || []).map((m) => toStr(m.uid))));
+        }
         const ms = await getDocs(collection(db, "clubs", cid, "members"));
         const ids = (ms?.docs || [])
           .map((d) => {
@@ -877,14 +909,19 @@ export async function loadPlayerFinishedMatches({ clubId, uid } = {}) {
   const myUid = toStr(uid);
   if (!myClubId || !myUid) return { rooms: [] };
 
-  const col = collection(db, "match_requests");
-  const qActor = query(col, where("actorClubId", "==", myClubId), limit(200));
-  const qTarget = query(col, where("targetClubId", "==", myClubId), limit(200));
-  const [snapA, snapB] = await Promise.all([getDocs(qActor), getDocs(qTarget)]);
+  let merged;
+  if (hasMock("myMatchDocs")) {
+    merged = uniqById(mockData("myMatchDocs"));
+  } else {
+    const col = collection(db, "match_requests");
+    const qActor = query(col, where("actorClubId", "==", myClubId), limit(200));
+    const qTarget = query(col, where("targetClubId", "==", myClubId), limit(200));
+    const [snapA, snapB] = await Promise.all([getDocs(qActor), getDocs(qTarget)]);
 
-  const rowsA = (snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
-  const rowsB = (snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
-  const merged = uniqById([...(rowsA || []), ...(rowsB || [])]);
+    const rowsA = (snapA?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
+    const rowsB = (snapB?.docs || []).map((d) => ({ id: d.id, ...d.data() }));
+    merged = uniqById([...(rowsA || []), ...(rowsB || [])]);
+  }
 
   const finished = merged.filter((r) => toStr(r?.status) === "finished");
 
@@ -1096,6 +1133,8 @@ export function subscribeMatchRoom(matchRequestId, onChange) {
   const id = toStr(matchRequestId);
   if (!id || typeof onChange !== "function") return () => {};
 
+  if (mockOn) return () => {}; // 목업 화면은 고정 — 실시간 갱신 없음
+
   const ref = doc(db, "match_requests", id);
   return onSnapshot(
     ref,
@@ -1125,6 +1164,13 @@ export function subscribeMatchRoom(matchRequestId, onChange) {
 export async function loadMatchRoomDetail(matchRequestId) {
   const id = toStr(matchRequestId);
   if (!id) return { room: null };
+
+  // 리뷰 보드 목업 — 실제 어댑터를 그대로 태워 형태 불일치를 막는다.
+  if (hasMock("matchRequestDoc")) {
+    const room = adaptMatchRequestToRoom(id, mockData("matchRequestDoc"));
+    room.reviews = mockData("matchReviews") || [];
+    return { room };
+  }
 
   const ref = doc(db, "match_requests", id);
   const snap = await getDoc(ref);
@@ -1276,6 +1322,7 @@ export async function sendLineupReminder({ matchRequestId, fromClubId } = {}) {
 
 // ── 매칭룸 미확인 배지: 상세 열람 시 "본 시각" 기록(배지 해제) ──
 export async function markMatchRoomSeen({ matchRequestId, uid } = {}) {
+  if (mockOn) return; // 목업 화면은 실데이터를 건드리지 않는다
   const id = toStr(matchRequestId);
   const u = toStr(uid || auth.currentUser?.uid);
   if (!id || !u) return;
@@ -2278,6 +2325,10 @@ export async function listMyReviewedMatchIds({ matchIds = [], raterUid } = {}) {
   const uid = toStr(raterUid);
   const ids = (Array.isArray(matchIds) ? matchIds : []).map(toStr).filter(Boolean);
   if (!uid || ids.length === 0) return new Set();
+  if (hasMock("reviewedMatchIds")) {
+    const set = new Set(mockData("reviewedMatchIds"));
+    return new Set(ids.filter((id) => set.has(id)));
+  }
 
   const results = await Promise.all(
     ids.map(async (mid) => {
@@ -2433,6 +2484,13 @@ export async function listFinishedMatchesPage({ pageSize = 20, cursor = null, cl
 
   // ✅ 팀이 없으면(탈퇴 후 재가입/미가입) 전체 경기가 "내 팀 기록"으로 노출되지 않도록 빈 결과 반환
   if (!myClubId) return { rows: [], nextCursor: null };
+
+  if (hasMock("myMatchDocs")) {
+    const rows = mockData("myMatchDocs")
+      .filter((r) => toStr(r?.status) === "finished")
+      .map((r) => mapFinishedDoc({ id: r.id, exists: () => true, data: () => r }));
+    return { rows, nextCursor: null };
+  }
 
   const col = collection(db, "match_requests");
 

@@ -128,6 +128,9 @@ service cloud.firestore {
                         || isAdmin());
     }
     match /venueBlocks/{id}               { allow read: if true; allow write: if signedIn(); }
+    // 슬롯 락 — 코트·날짜별 점유 구간 맵. 이중예약을 막는 트랜잭션이 이 문서를 읽고 쓴다.
+    // 예약 자체가 공개 읽기라 여기도 공개(예약 가능 시간 표시에 쓰일 수 있음), 쓰기는 로그인 필수.
+    match /venueSlotLocks/{id}            { allow read: if true; allow write: if signedIn(); }
     match /gyms/{id}                      { allow read: if true; allow write: if signedIn(); }
 
     // ───── 채팅 / 커뮤니티 ─────
@@ -169,9 +172,15 @@ service cloud.firestore {
 
     // ───── 서버(Cloud Functions / Admin SDK) 전용 : 클라 접근 전면 차단 ─────
     match /phone_verifications/{id}       { allow read, write: if false; }
-    // 토스 결제 주문·원장 — 금액/결제키가 들어 있어 클라 접근 불필요(결과는 예약 문서로 내려간다)
+    // 토스 결제 주문 — 금액/결제키가 들어 있어 클라 접근 불필요(결과는 예약 문서로 내려간다)
     match /paymentOrders/{id}             { allow read, write: if false; }
-    match /payments/{id}                  { allow read, write: if false; }
+    // 결제 원장 — 쓰기는 서버 전용(금액이 여기서 정해지므로 클라가 손대면 정산이 조작된다).
+    // 읽기는 정산 대상인 구장주 본인에게만 연다(매출·정산 화면이 이 컬렉션을 집계한다).
+    // 쿼리는 반드시 ownerUid 로 좁혀야 통과한다: where("ownerUid","==",uid)
+    match /payments/{id} {
+      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
     match /password_reset_logs/{id}       { allow read, write: if false; }
     match /_system/{id}                   { allow read, write: if false; }
 
