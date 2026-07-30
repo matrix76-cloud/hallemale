@@ -28,18 +28,56 @@ service cloud.firestore {
         'isAdmin', 'fizzBalance', 'fizzUpdatedAt'
       ];
     }
+    // 전화번호 인증 증빙 — verifyPhoneOtp(서버)가 인증 성공 시에만 남긴다.
+    // ⚠️ 문서 id 규칙은 functions/otp/phoneOtp.js 의 proofId() 와 반드시 같아야 한다.
+    function phoneVerifiedBy(phoneE164) {
+      return signedIn() && phoneE164 is string && phoneE164 != ''
+        && exists(/databases/$(database)/documents/phone_proofs/$(request.auth.uid + '__' + phoneE164));
+    }
+
+    // 어떤 클라이언트도 못 쓰는 필드 — 본인 문서라도 막는다.
+    // 어드민 판정은 서버가 발급하는 커스텀 클레임(admin)으로만 하고, users.isAdmin 은 표시용 잔재다.
+    // 이걸 안 막으면 자기 문서에 isAdmin:true 한 줄 써서 게이트 면제를 받을 수 있다.
+    // (Admin SDK 는 규칙을 우회하므로 서버가 세우는 건 정상 동작)
+    function usersServerOnly() { return ['isAdmin']; }
+
+    // phoneVerified 를 false→true 로 올리려면 그 번호를 실제로 인증했다는 서버 증빙이 있어야 한다.
+    // (이미 true 인 문서를 그대로 두거나 false 로 내리는 건 자유)
+    // 안 막으면 자기 문서에 phoneVerified:true 한 줄 써서 SMS 인증 게이트를 건너뛴다.
+    function phoneFlagHonest() {
+      return request.resource.data.get('phoneVerified', false) != true
+        || resource.data.get('phoneVerified', false) == true
+        || phoneVerifiedBy(request.resource.data.get('phoneE164', ''));
+    }
+
     match /users/{id} {
       allow read: if true;
       allow create: if signedIn()
+                    && !request.resource.data.keys().hasAny(usersServerOnly())
                     && (request.auth.uid == id
                         || !request.resource.data.keys().hasAny(usersProtected()));
       allow update: if signedIn()
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(usersServerOnly())
+                    && phoneFlagHonest()
                     && (request.auth.uid == id
                         || !request.resource.data.diff(resource.data).affectedKeys().hasAny(usersProtected()));
       allow delete: if signedIn() && request.auth.uid == id;
     }
     match /users_by_phone/{id}           { allow read: if true; allow write: if signedIn(); }
-    match /phones/{id}                    { allow read: if true; allow write: if signedIn(); }
+    // 전화번호 → 계정 매핑. 여기 primaryUid 가 "이 번호의 주인"이고, 번호 인증을 마친 사람이
+    // 그 계정으로 병합된다. 예전엔 로그인만 하면 아무 번호나 쓸 수 있어서, 남의 번호를 미리
+    // 선점해 두면 진짜 주인이 인증하는 순간 그 계정이 선점자에게 병합됐다(계정 탈취).
+    // → 그 번호를 실제로 인증한 사람만 쓸 수 있게 하고, 주인(primaryUid) 교체는 금지한다.
+    match /phones/{phoneE164} {
+      allow read: if true;
+      allow create: if phoneVerifiedBy(phoneE164)
+                    && request.resource.data.primaryUid == request.auth.uid;
+      allow update: if phoneVerifiedBy(phoneE164)
+                    && request.resource.data.primaryUid == resource.data.primaryUid;
+      allow delete: if false;
+    }
+    // 인증 증빙은 서버(Admin SDK)만 만든다. 클라가 만들 수 있으면 위 검사가 통째로 무의미해진다.
+    match /phone_proofs/{id}              { allow read, write: if false; }
     match /clubs/{id}                     { allow read: if true; allow write: if signedIn(); }
     // 팀 로스터(members)·초대(invites)는 공개(팀 프로필/초대 링크). 가입신청(joinRequests)은
     // 지원자 신체정보(키/몸무게·지역)가 playerSnapshot 에 담겨 있어 비로그인 열람을 막는다.

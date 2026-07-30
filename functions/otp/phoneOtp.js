@@ -140,10 +140,32 @@ exports.requestPhoneOtp = onRequest(
   }
 );
 
+/** 010… → +8210… (클라이언트 toE164Kr 과 같은 규칙) */
+function toE164Kr(digits) {
+  const d = String(digits || "").replace(/\D/g, "");
+  if (!d) return "";
+  return d.startsWith("0") ? `+82${d.slice(1)}` : `+82${d}`;
+}
+
+/**
+ * 인증 증빙 문서 id — 규칙에서 exists() 로 찾아야 하므로 결정론적이어야 한다.
+ * ⚠️ firestore.rules 의 phoneProofId() 와 반드시 같은 규칙을 유지할 것.
+ */
+function proofId(uid, phoneE164) {
+  return `${uid}__${phoneE164}`;
+}
+
 /**
  * 인증번호 검증
  * body: { phone, code }
- * res : { ok, verified, phone }
+ * header: Authorization: Bearer <ID 토큰> (선택)
+ * res : { ok, verified, phone, proof? }
+ *
+ * 토큰이 있으면 "이 uid 가 이 번호를 인증했다"는 증빙(phone_proofs)을 서버가 남긴다.
+ * 보안규칙이 이 증빙을 요구하므로, 인증을 거치지 않은 사람은 phones/{번호} 를 선점하거나
+ * users.phoneVerified 를 true 로 올릴 수 없다.
+ * (예전에는 phones 쓰기가 로그인만 하면 통과라, 남의 번호를 미리 선점해 두면 진짜 번호 주인이
+ *  인증을 마치는 순간 계정이 선점자에게 병합됐다)
  */
 exports.verifyPhoneOtp = onRequest({ region: REGION, cors: true }, async (req, res) => {
   try {
@@ -210,7 +232,27 @@ exports.verifyPhoneOtp = onRequest({ region: REGION, cors: true }, async (req, r
       attempts,
     });
 
-    res.json({ ok: true, verified: true, phone: normPhone });
+    // 인증 증빙 — 호출자가 로그인 상태면(사용자앱 전화인증 게이트) 남긴다.
+    // 구장주 가입은 로그인 전에 인증하므로 토큰이 없다 → 증빙 없이도 검증 자체는 성공한다.
+    let proof = false;
+    const m = String(req.headers.authorization || "").match(/^Bearer (.+)$/);
+    if (m) {
+      try {
+        const uid = (await admin.auth().verifyIdToken(m[1])).uid;
+        const e164 = toE164Kr(normPhone);
+        await db.collection("phone_proofs").doc(proofId(uid, e164)).set({
+          uid,
+          phoneE164: e164,
+          verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        proof = true;
+      } catch (e) {
+        // 토큰이 유효하지 않아도 인증 결과 자체는 돌려준다(증빙만 생략).
+        console.warn("[verifyPhoneOtp] proof skipped:", e?.message);
+      }
+    }
+
+    res.json({ ok: true, verified: true, phone: normPhone, proof });
   } catch (e) {
     console.error("[verifyPhoneOtp] error:", e?.message);
     res.status(500).json({ ok: false, error: "서버 오류가 발생했습니다." });

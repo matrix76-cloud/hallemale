@@ -173,7 +173,9 @@ function RequireAuth({ children }) {
 function RequirePhone({ children }) {
   const { userDoc, loading } = useAuth();
   if (loading) return <AppLoadingPage />;
-  if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
+  // 어드민 면제는 서버 클레임(adminClaim)으로만 판정한다. users 문서의 isAdmin 은 본인이
+  // 자기 문서에 써넣을 수 있어(보안규칙상 본인 문서 쓰기 허용) 게이트를 통째로 우회당한다.
+  if (userDoc?.adminClaim === true) return children;
   if (userDoc?.phoneVerified === true) return children;
   return <PhoneVerifyPage />;
 }
@@ -196,7 +198,7 @@ function RequireConsent({ children }) {
 function RequireWelcome({ children }) {
   const { userDoc, loading } = useAuth();
   if (loading) return <AppLoadingPage />;
-  if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
+  if (userDoc?.adminClaim === true) return children; // 어드민 세션 면제(서버 클레임만 인정)
   if (userDoc?.welcomeSeen === true) return children;
   return <SignupCompletePage />;
 }
@@ -206,7 +208,7 @@ function RequireWelcome({ children }) {
 function RequireBasicInfo({ children }) {
   const { userDoc, loading } = useAuth();
   if (loading) return <AppLoadingPage />;
-  if (userDoc?.isAdmin === true) return children; // 어드민 세션 면제
+  if (userDoc?.adminClaim === true) return children; // 어드민 세션 면제(서버 클레임만 인정)
   if (userDoc?.basicInfoDone === true) return children;
   return <SignupBasicInfoPage />;
 }

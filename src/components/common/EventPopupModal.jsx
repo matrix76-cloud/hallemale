@@ -117,7 +117,7 @@ function dismissForToday(id) {
 export default function EventPopupModal() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isLoggedIn, loading: authLoading } = useAuth();
+  const { isLoggedIn, loading: authLoading, userDoc } = useAuth();
 
   const [popup, setPopup] = useState(null);
   const [closed, setClosed] = useState(false);
@@ -135,9 +135,29 @@ export default function EventPopupModal() {
   // ✅ 홈 진입 시에만 노출 (다른 탭/화면에서는 표시 안 함)
   const isHomePath = pathname === "/home" || pathname.startsWith("/home");
 
-  // 로그인 완료 + 홈 화면일 때만 노출 (어드민/인증/스플래시 제외)
+  // ✅ 가입 게이트를 다 통과한 뒤에만 노출.
+  //    약관동의·전화인증·기본정보·가입완료 게이트는 /home 라우트에서 HomePage 대신 렌더되므로
+  //    경로만 보면(isHomePath) 통과해버려, 약관에 동의도 안 한 신규 유저 화면 위에 팝업이 겹쳤다.
+  //    (AppRoutes 의 RequireConsent·RequirePhone·RequireBasicInfo·RequireWelcome 와 같은 조건)
+  // 어드민 면제는 서버 클레임만 인정한다 — users.isAdmin 은 본인이 써넣을 수 있어 신뢰 대상이 아니다.
+  const gatesCleared =
+    userDoc?.adminClaim === true ||
+    (userDoc?.termsConsent === true &&
+      userDoc?.privacyConsent === true &&
+      userDoc?.ageOver14Consent === true &&
+      userDoc?.phoneVerified === true &&
+      userDoc?.basicInfoDone === true &&
+      userDoc?.welcomeSeen === true);
+
+  // 로그인 완료 + 게이트 통과 + 홈 화면일 때만 노출 (어드민/인증/스플래시 제외)
   const blocked =
-    !isHomePath || isAdminPath || isAuthPath || isSplashPath || authLoading || !isLoggedIn;
+    !isHomePath ||
+    isAdminPath ||
+    isAuthPath ||
+    isSplashPath ||
+    authLoading ||
+    !isLoggedIn ||
+    !gatesCleared;
 
   useEffect(() => {
     if (blocked) return;
