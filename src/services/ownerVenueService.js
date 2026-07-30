@@ -1191,14 +1191,21 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
 }
 
 /**
- * 예약을 종료 상태로 변경 (구장주 반려/취소 공용).
- * - 예약 전용(현장 정산) 전환: 앱 결제/환불 없음 → 상태만 변경.
+ * 예약을 종료 상태로 변경 (반려/취소 공용).
  * - 멱등: 이미 종료(rejected/cancelled/noshow)됐으면 재처리하지 않음.
+ *
+ * by: 누가 끝냈나 — 서버 환불 계산(functions/jobs/venuePaymentJobs.refundRateFor)이 이 값으로
+ *     귀책을 가른다. "owner"(구장 사정)는 전액 환불, "team"은 취소 시점별 위약금이 붙고
+ *     clubId 로 귀책 팀을 특정해 상대 팀은 전액 환불된다.
+ *     ⚠️ 예전엔 "owner" 로 하드코딩돼 있어, 매치룸에서 팀장이 스스로 철회해도 구장 귀책으로
+ *        기록됐다(= 위약금 없이 전액 환불).
+ * Firestore 핸들도 by 를 따라간다 — 구장주만 ownerDb 라야 규칙의 isVenueOwner 가 성립하고,
+ * 팀 철회는 사용자 앱 세션(teamA/BLeaderUid)으로 통과한다.
  */
-async function setReservationEndStatus(reservationId, nextStatus, asOwner = false) {
+async function setReservationEndStatus(reservationId, nextStatus, { by = "owner", clubId = "" } = {}) {
   const rid = safeStr(reservationId);
   if (!rid) throw new Error("reservationId가 비어있습니다.");
-  const dref = doc(dbAs(asOwner), "venueReservations", rid);
+  const dref = doc(dbAs(by === "owner"), "venueReservations", rid);
   const snap = await getDoc(dref);
   if (!snap.exists()) throw new Error("예약을 찾을 수 없습니다.");
   const data = snap.data() || {};
@@ -1210,8 +1217,9 @@ async function setReservationEndStatus(reservationId, nextStatus, asOwner = fals
 
   await updateDoc(dref, {
     status: nextStatus,
-    // 귀책 기록 — 서버 환불 계산이 이 값으로 위약금 여부를 가른다(구장 사정이면 전액 환불).
-    canceledBy: "owner",
+    // 귀책 기록 — 서버 환불 계산이 이 값으로 위약금 여부를 가른다.
+    canceledBy: by,
+    ...(by === "team" && safeStr(clubId) ? { cancelledByClubId: safeStr(clubId) } : {}),
     updatedAt: serverTimestamp(),
   });
   // 매칭 예약 반려/취소 → 매칭룸 조율중(accepted) 복귀 + 재제안 유도 알림
@@ -1231,15 +1239,17 @@ async function setReservationEndStatus(reservationId, nextStatus, asOwner = fals
 
 /**
  * 예약 반려 (승인대기 예약 거절) — status=rejected
- * 구장주(반려)와 사용자앱 매치룸(예약 철회)이 함께 쓴다 → 구장주는 asOwner:true.
+ * 구장주(반려)와 사용자앱 매치룸(팀장 스스로 철회)이 함께 쓴다.
+ *   구장주: rejectReservation(id)                        → canceledBy="owner"
+ *   팀 철회: rejectReservation(id, { by:"team", clubId }) → canceledBy="team" + 귀책 팀
  */
-export async function rejectReservation(reservationId, { asOwner = false } = {}) {
-  return setReservationEndStatus(reservationId, "rejected", asOwner);
+export async function rejectReservation(reservationId, opts = {}) {
+  return setReservationEndStatus(reservationId, "rejected", opts);
 }
 
 /** 확정 예약 취소 (구장주 사정·우천 등) — status=cancelled */
-export async function cancelReservation(reservationId, { asOwner = false } = {}) {
-  return setReservationEndStatus(reservationId, "cancelled", asOwner);
+export async function cancelReservation(reservationId, opts = {}) {
+  return setReservationEndStatus(reservationId, "cancelled", opts);
 }
 
 /* ============================================================

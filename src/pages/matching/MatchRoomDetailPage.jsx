@@ -38,7 +38,7 @@ import MatchAcceptedCelebration from "../../components/matchRoom/MatchAcceptedCe
 import MatchFinalCelebration from "../../components/matchRoom/MatchFinalCelebration";
 import CancelReasonSheet from "../../components/matchRoom/CancelReasonSheet";
 import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
-import { PG_ENABLED } from "../../constants/payments";
+import { PG_ENABLED, PLATFORM_FEE_RATE, calcPlatformFee } from "../../constants/payments";
 import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import useVisualViewportHeightVar from "../../hooks/useVisualViewportHeightVar";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
@@ -4105,7 +4105,10 @@ export default function MatchRoomDetailPage() {
     if (!await showConfirm("구장 승인 요청을 취소할까요?\n매칭은 유지되며 다른 구장·일정을 다시 제안할 수 있어요."))
       return;
     try {
-      await rejectReservation(resId); // 예약 철회 → syncMatchOnReservationChange('rejected')가 매칭을 accepted로 복귀
+      // 팀장이 스스로 철회한 것이므로 귀책은 팀이다 — 구장 사정으로 기록하면 서버 환불 계산이
+      // 위약금 없이 전액 환불로 처리한다. 예약 철회 → syncMatchOnReservationChange('rejected')가
+      // 매칭을 accepted로 복귀시킨다.
+      await rejectReservation(resId, { by: "team", clubId: myClubId });
       await refresh();
       await loadPartnerPay();
       showToast && showToast({ message: "구장 요청을 취소했어요. 다시 제안할 수 있어요." });
@@ -5518,6 +5521,10 @@ export default function MatchRoomDetailPage() {
               const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
               const myShare = side === "A" ? pb.shareA : pb.shareB;
               const resv = partnerPay.resv;
+              // 우리 팀이 실제로 낼 금액 = 구장 몫 + 플랫폼 이용료.
+              // 요율은 예약에 고정된 값을 쓴다(구버전 예약은 현재 요율로 폴백).
+              const myFee = PG_ENABLED ? calcPlatformFee(myShare, Number(resv?.feeRate) || PLATFORM_FEE_RATE) : 0;
+              const myPayTotal = Number(myShare || 0) + myFee;
               const myPaid = side === "A" ? !!resv?.paidByA : !!resv?.paidByB;
               const oppPaid = side === "A" ? !!resv?.paidByB : !!resv?.paidByA;
               // 결제 대기(구장주 승인 완료) 상태에서 아직 우리 몫을 안 냈으면 결제로 보낸다.
@@ -5541,15 +5548,26 @@ export default function MatchRoomDetailPage() {
                   <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><b>{Number(pb.shareA || 0).toLocaleString()}원</b></PaidRow>
                   <PaidRow><span>{toStr(pb.opponentTeamName) || "B팀"}</span><b>{Number(pb.shareB || 0).toLocaleString()}원</b></PaidRow>
                   <PaidDivider />
-                  <PaidRow $big>
-                    <span>{PG_ENABLED ? `우리 팀 몫 (1/2)${myPaid ? " · 결제완료" : ""}` : "우리 팀 현장 결제 예정 (1/2)"}</span>
-                    <b>{Number(myShare || 0).toLocaleString()}원</b>
-                  </PaidRow>
+                  {PG_ENABLED ? (
+                    <>
+                      <PaidRow><span>우리 팀 몫 (1/2)</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
+                      <PaidRow><span>플랫폼 이용료</span><b>{myFee.toLocaleString()}원</b></PaidRow>
+                      <PaidRow $big>
+                        <span>결제 금액{myPaid ? " · 결제완료" : ""}</span>
+                        <b>{myPayTotal.toLocaleString()}원</b>
+                      </PaidRow>
+                    </>
+                  ) : (
+                    <PaidRow $big>
+                      <span>우리 팀 현장 결제 예정 (1/2)</span>
+                      <b>{Number(myShare || 0).toLocaleString()}원</b>
+                    </PaidRow>
+                  )}
                   {PG_ENABLED ? (
                     <>
                       {needPay ? (
                         <PayNowBtn type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
-                          {Number(myShare || 0).toLocaleString()}원 결제하기
+                          {myPayTotal.toLocaleString()}원 결제하기
                         </PayNowBtn>
                       ) : null}
                       <PaidNote>
