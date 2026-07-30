@@ -82,7 +82,7 @@ function ownerAuthErrorMessage(code) {
 }
 
 /**
- * 구장주 이메일 회원가입 → users 문서 보장 + role=owner 마킹은 로그인 화면에서 처리
+ * 구장주 이메일 회원가입 → users 문서 보장 (구장주 판별은 venues.ownerUid 기준)
  * - managerName/managerPhone: 계정 담당자(사업자 대표와 다를 수 있음). 예약 문의·구장 승인 연락처
  * - 휴대폰은 가입 폼에서 SMS 인증(phoneOtpService)을 마친 번호만 넘어온다.
  *   본인확인이 SMS로 끝나므로 이메일 인증은 따로 받지 않는다(이메일은 로그인 ID + 비밀번호 재설정용).

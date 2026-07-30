@@ -31,7 +31,8 @@ import {
 import { payFizz } from "./fizzService";
 import { BOOKING_WINDOW_DAYS, isBookableDate } from "../constants/booking";
 import { PG_ENABLED, PAYMENT_WINDOW_MS, PLATFORM_FEE_RATE } from "../constants/payments";
-import { hasMock, mockData } from "../dev/mockBus";
+import { OWNER_TYPES, ownerTypeOption } from "../constants/ownerType";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 
 // 리뷰 보드 목업 — venueRow()/reservationRow() 가 스냅샷을 받으므로 최소 인터페이스만 흉내낸다.
 const mockSnap = (id, data) => ({ id, exists: () => true, data: () => data });
@@ -219,8 +220,11 @@ export function venueRow(d) {
     refundPolicy: safeStr(data.refundPolicy),
     defaultOwnerNote: safeStr(data.defaultOwnerNote), // 예약 승인 시 자동으로 채워지는 기본 안내문
 
+    // 운영 주체 — 없으면(레거시 구장) 사업자로 취급
+    ownerType: OWNER_TYPES.includes(data.ownerType) ? data.ownerType : "business",
     bizName: safeStr(data.bizName),
     bizNo: safeStr(data.bizNo),
+    deptName: safeStr(data.deptName),
     ownerName: safeStr(data.ownerName),
     contactPhone: safeStr(data.contactPhone),
 
@@ -234,8 +238,9 @@ export function venueRow(d) {
     displayMode: data.displayMode === "separate" ? "separate" : "grouped",
     displayName: safeStr(data.displayName) || safeStr(data.name),
 
-    // 사업자 인증 (어드민 수동 승인)
+    // 사업자(학교·기관) 인증 (어드민 수동 승인)
     business: {
+      ownerType: OWNER_TYPES.includes(data.business?.ownerType) ? data.business.ownerType : "",
       bizNo: safeStr(data.business?.bizNo) || safeStr(data.bizNo),
       bizName: safeStr(data.business?.bizName) || safeStr(data.bizName),
       ownerName: safeStr(data.business?.ownerName) || safeStr(data.ownerName),
@@ -505,19 +510,40 @@ export function formatBizNo(v) {
   return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
 }
 
-/** 구장주: 사업자 인증 제출 → status=pending (어드민 승인 대기) */
-export async function submitBusinessVerification(id, { bizNo, bizName, ownerName, openDate, taxType, licenseUrl } = {}) {
+/**
+ * 구장주: 주체 확인 제출 → status=pending (어드민 승인 대기)
+ *
+ * 사업자는 사업자등록번호(체크섬)·개업일자·과세유형을 받아 국세청 진위확인까지 이어진다.
+ * 학교·기관은 사업자등록증이 없으므로(고유번호증) 번호를 필수로 걸지 않고, 대신
+ * 기관명·담당자명·확인 서류를 받아 어드민이 담당자 연락으로 확인한다.
+ */
+export async function submitBusinessVerification(
+  id,
+  { ownerType = "business", bizNo, bizName, ownerName, openDate, taxType, licenseUrl } = {}
+) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
-  if (!safeStr(bizNo)) throw new Error("사업자등록번호를 입력해주세요.");
-  if (!isValidBizNo(bizNo)) throw new Error("올바른 사업자등록번호가 아니에요. 다시 확인해주세요.");
-  if (!safeStr(bizName)) throw new Error("상호를 입력해주세요.");
-  if (!safeStr(ownerName)) throw new Error("대표자명을 입력해주세요.");
-  if (!safeStr(openDate)) throw new Error("개업일자를 입력해주세요.");
+  const opt = ownerTypeOption(ownerType);
+
+  if (!safeStr(bizName)) throw new Error(`${opt.orgLabel}을 입력해주세요.`);
+  if (!safeStr(ownerName)) throw new Error(`${opt.personLabel}을 입력해주세요.`);
+
+  if (opt.needsBizNo) {
+    if (!safeStr(bizNo)) throw new Error("사업자등록번호를 입력해주세요.");
+    if (!isValidBizNo(bizNo)) throw new Error("올바른 사업자등록번호가 아니에요. 다시 확인해주세요.");
+    if (!safeStr(openDate)) throw new Error("개업일자를 입력해주세요.");
+  } else {
+    // 번호는 선택이지만 서류는 받는다 — 담당자 사칭을 서류 없이 통과시키지 않기 위해.
+    if (!safeStr(licenseUrl)) throw new Error(`${opt.docLabel}을 첨부해주세요.`);
+  }
+
   await updateDoc(doc(db, "venues", vid), {
     business: {
+      // 어드민 심사 화면이 어떤 서류를 보고 있는지 알아야 하므로 주체도 같이 남긴다.
+      ownerType: opt.key,
       bizNo: safeStr(bizNo), bizName: safeStr(bizName), ownerName: safeStr(ownerName),
-      openDate: safeStr(openDate), taxType: taxType === "general" ? "general" : "simple",
+      openDate: safeStr(openDate),
+      taxType: opt.needsBizNo && taxType === "general" ? "general" : "simple",
       licenseUrl: safeStr(licenseUrl), status: "pending", rejectReason: "",
     },
     updatedAt: serverTimestamp(),
@@ -667,7 +693,9 @@ export async function rejectVenue(id, reason = "") {
 
 /** 어드민: 전체 구장 목록 (status 포함) */
 export async function listAllVenuesAdmin() {
-  const snap = await getDocs(query(collection(db, "venues")));
+  const snap = hasMock("venueDocs")
+    ? mockQuerySnap(mockData("venueDocs"))
+    : await getDocs(query(collection(db, "venues")));
   const rows = [];
   snap.forEach((d) => rows.push(venueRow(d)));
   rows.sort((a, b) => {
@@ -730,6 +758,12 @@ export async function setVenueStatus(id, status, reason = "") {
 
 /** 어드민: 심사 대기 구장 목록 */
 export async function listPendingVenues() {
+  if (hasMock("venueDocs")) {
+    const m = mockData("venueDocs");
+    return Object.keys(m)
+      .filter((id) => String(m[id].status) === "pending")
+      .map((id) => venueRow(mockSnap(id, m[id])));
+  }
   const snap = await getDocs(
     query(collection(db, "venues"), where("status", "==", "pending"))
   );
@@ -1751,49 +1785,6 @@ export async function removeBlock(blockId) {
 }
 
 /* ============================================================
- * 운영 주체 — 온보딩 첫 단계에서 고르고, 사업자 정보 단계 구성이 갈린다.
- * 학교·기관은 사업자등록증 대신 고유번호증을 쓰고 담당 부서·담당자로 연락한다.
- * ========================================================== */
-
-export const OWNER_TYPE_OPTIONS = [
-  {
-    key: "business",
-    label: "개인 · 사업자",
-    desc: "사업자등록증이 있는 민간 체육관·코트",
-    orgLabel: "상호(사업자명)",
-    orgPlaceholder: "예: ○○스포츠",
-    personLabel: "대표자명",
-    personPlaceholder: "예: 홍길동",
-    needsBizNo: true,
-  },
-  {
-    key: "school",
-    label: "학교",
-    desc: "초·중·고, 대학교 체육관 · 운동장",
-    orgLabel: "학교명",
-    orgPlaceholder: "예: ○○고등학교",
-    personLabel: "담당 선생님",
-    personPlaceholder: "예: 홍길동 선생님",
-    needsBizNo: false,
-  },
-  {
-    key: "org",
-    label: "기관 · 단체",
-    desc: "공공체육관, 시설관리공단, 교회·복지관 등",
-    orgLabel: "기관·단체명",
-    orgPlaceholder: "예: ○○시설관리공단",
-    personLabel: "담당자명",
-    personPlaceholder: "예: 홍길동",
-    needsBizNo: false,
-  },
-];
-
-export const OWNER_TYPES = OWNER_TYPE_OPTIONS.map((o) => o.key);
-
-export const ownerTypeOption = (key) =>
-  OWNER_TYPE_OPTIONS.find((o) => o.key === key) || OWNER_TYPE_OPTIONS[0];
-
-/* ============================================================
  * 시설물(편의시설) 선택지 — 등록 폼/표시 공용
  * ========================================================== */
 
@@ -1832,20 +1823,7 @@ export const SURFACE_OPTIONS = [
   "기타",
 ];
 
-/* ============================================================
- * 구장주 role 마킹 — users/{uid}.role = "owner"
- * (소셜 로그인 인프라 공유, 계정 구분만 role로)
- * ========================================================== */
-export async function markUserAsOwner(uid) {
-  const u = safeStr(uid);
-  if (!u) return;
-  try {
-    await updateDoc(doc(db, "users", u), {
-      role: "owner",
-      isVenueOwner: true,
-      updatedAt: serverTimestamp(),
-    });
-  } catch (e) {
-    console.warn("[ownerVenueService] markUserAsOwner failed:", e?.message || e);
-  }
-}
+// 구장주 role 마킹(users/{uid}.role="owner", isVenueOwner=true)은 제거했다.
+// 두 필드를 읽는 코드가 앱·함수·보안규칙 어디에도 없었고(규칙의 isVenueOwner()는
+// venues.ownerUid 를 보는 다른 함수다), 로그인·가입 화면마다 실패한 쓰기의
+// permission-denied 경고만 콘솔에 남겼다. 구장주 판별은 venues.ownerUid 가 단일 기준.

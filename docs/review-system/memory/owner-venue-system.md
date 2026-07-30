@@ -12,7 +12,7 @@ metadata:
 **목적**: 구장주가 자기 구장을 등록→어드민 심사→승인되면 사용자 앱에 노출→예약받고 코트별 슬롯/가격 관리. 별도 RN WebView 앱이 이 `/owner/*` 라우트를 띄움(서버는 halle-bf789 공유).
 
 ## 결정사항
-- 로그인: 기존 소셜(`signInWithSocial` 카카오/구글) 재활용 + `users/{uid}.role="owner"` 마킹 (`markUserAsOwner`)
+- 로그인: 구장주 전용 `ownerAuth` 세션(이메일/비번, 구글). 구장주 판별은 `venues.ownerUid` 단일 기준 — `users/{uid}.role="owner"` 마킹(`markUserAsOwner`)은 읽는 곳이 없어 2026-07-30 제거
 - 한 구장(venue)에 **예약 대상 코트 여러 개**(courts[]) — 코트마다 운영시간·가격·슬롯단위
 - 심사: venues.status `pending|approved|rejected` (없으면 approved=레거시/어드민 등록 호환). 승인 시 active=true로 사용자 노출
 

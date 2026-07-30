@@ -12,7 +12,6 @@ import {
   ownerSignInEmail,
   ownerSendPasswordReset,
 } from "../../services/ownerAuthService";
-import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
 import { images } from "../../utils/imageAssets";
 import { track } from "../../utils/analytics";
@@ -29,7 +28,6 @@ export default function OwnerLoginPage() {
   // 구장주 인증이 끝나면 즉시 /owner 로 이동한다.
   useEffect(() => {
     if (isLoggedIn && uid) {
-      markUserAsOwner(uid).catch(() => {});
       navigate("/owner", { replace: true });
     }
   }, [isLoggedIn, uid, navigate]);

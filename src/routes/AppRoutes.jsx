@@ -1,10 +1,11 @@
 /* eslint-disable */
 // src/routes/AppRoutes.jsx
 import React, { lazy, Suspense, useEffect, useRef } from "react";
-import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useWebviewBridgeContext } from "../context/WebviewBridgeContext";
 import { useUI } from "../hooks/useUI";
 import { goBackOrHome } from "../utils/navigation";
+import { freezeRoute } from "../dev/mockBus";
 
 // ⚡ 아래 모듈만 메인 번들에 남긴다. 앱 부팅(/ → /login)과 카카오 콜백(/oauth/kakao)의
 //    임계 경로라서, 청크를 한 번 더 받으러 가면 그만큼 로그인이 늦어진다.
@@ -143,12 +144,21 @@ const OwnerWithdrawPage = lazy(() => import("../pages/owner/OwnerWithdrawPage"))
 const OwnerSignupPage = lazy(() => import("../pages/owner/OwnerSignupPage"));
 const OwnerOnboardingPage = lazy(() => import("../pages/owner/OwnerOnboardingPage"));
 const OwnerSalesPage = lazy(() => import("../pages/owner/OwnerSalesPage"));
+const OwnerSettlementPage = lazy(() => import("../pages/owner/OwnerSettlementPage"));
 const OwnerLegalPage = lazy(() => import("../pages/owner/OwnerLegalPage"));
 const OwnerInquiryPage = lazy(() => import("../pages/owner/OwnerInquiryPage"));
 const OwnerNotificationsPage = lazy(() => import("../pages/owner/OwnerNotificationsPage"));
+// 리뷰 전용 — 평소 OwnerLayout 안에서 게이트로만 뜨는 두 화면을 직접 렌더한다.
+const OwnerTypeGate = lazy(() => import("../pages/owner/OwnerTypeGate"));
+const OwnerAgreementGate = lazy(() => import("../pages/owner/OwnerAgreementGate"));
+const OwnerProvider = lazy(() =>
+  import("../context/OwnerContext").then((m) => ({ default: m.OwnerProvider }))
+);
 
 // ✅ 개발용 화면 리뷰 허브 (/review) — 개발자·AI 협업 도구. Firestore(reviewThreads) 공유.
 const AuthReview = lazy(() => import("../dev/AuthReview"));
+// 피그마식 전 화면 보드 (/review/board) — 전 화면 + 상태별 경우의 수를 한 캔버스에 고정 배치
+const ReviewBoard = lazy(() => import("../dev/ReviewBoard"));
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -214,6 +224,12 @@ function RequireOwnerAuth({ children }) {
   if (loading) return <AppLoadingPage />;
   if (!isLoggedIn) return <Navigate to="/owner/login" replace />;
   return children;
+}
+
+// 리뷰 전용: 구장주 동의 게이트. 문구가 운영 주체별로 갈리므로 ?ownerType= 으로 셋 다 본다.
+function ReviewOwnerAgreement() {
+  const [sp] = useSearchParams();
+  return <OwnerAgreementGate ownerType={sp.get("ownerType") || "business"} />;
 }
 
 function RequireAdmin({ children }) {
@@ -385,13 +401,19 @@ function PrefetchTabChunks() {
 }
 
 export default function AppRoutes() {
+  // 리뷰 보드 프레임(?freeze=1)은 진입 시점 화면에 고정한다.
+  // 페이지가 스스로 navigate() 해도 렌더 트리는 안 바뀐다(스플래시→홈 같은 자동 이동 차단).
+  const liveLocation = useLocation();
+  const frozenRef = useRef(liveLocation);
+  const routesLocation = freezeRoute ? frozenRef.current : undefined;
+
   return (
     <>
       <ScrollToTop />
       <BridgeNavSync />
       <PrefetchTabChunks />
       <Suspense fallback={<AppLoadingPage />}>
-      <Routes>
+      <Routes location={routesLocation}>
         <Route path="/" element={<SplashPage />} />
 
         {/* 카카오 웹 로그인 콜백 (인증 불필요) */}
@@ -623,6 +645,7 @@ export default function AppRoutes() {
           {/* 소프트 게이트: 막지 않고 입장 → 각 탭에서 등록/심사 안내 */}
           <Route path="/owner/home" element={<OwnerHomePage />} />
           <Route path="/owner/sales" element={<OwnerSalesPage />} />
+          <Route path="/owner/settlement" element={<OwnerSettlementPage />} />
           <Route path="/owner/venue" element={<OwnerVenuePage />} />
           <Route path="/owner/my" element={<OwnerMyPage />} />
           <Route path="/owner/notifications" element={<OwnerNotificationsPage />} />
@@ -631,6 +654,8 @@ export default function AppRoutes() {
         </Route>
 
         {/* 개발용 화면 리뷰 허브 — 미연결(URL 직접 접근). 로그인 사용자만 기록 저장 가능. */}
+        {/* /review/board 는 :id 보다 먼저 둬야 "board"가 화면 id 로 먹히지 않는다. */}
+        <Route path="/review/board" element={<ReviewBoard />} />
         <Route path="/review/:id?" element={<AuthReview />} />
 
         {/* 리뷰 전용: 평소 게이트로만 뜨는 인증 화면을 직접 렌더(리뷰에서 절차대로 확인) */}
@@ -638,6 +663,17 @@ export default function AppRoutes() {
         <Route path="/review-auth/phone" element={<PhoneVerifyPage />} />
         <Route path="/review-auth/signup-complete" element={<SignupCompletePage />} />
         <Route path="/review-auth/basic-info" element={<SignupBasicInfoPage />} />
+
+        {/* 리뷰 전용: 구장주 워크스페이스에서 게이트로만 뜨는 화면(운영 주체·필수 동의).
+            useOwner() 를 쓰므로 OwnerProvider 로 감싼다. */}
+        <Route
+          path="/review-owner/type"
+          element={<OwnerProvider><OwnerTypeGate /></OwnerProvider>}
+        />
+        <Route
+          path="/review-owner/agreement"
+          element={<OwnerProvider><ReviewOwnerAgreement /></OwnerProvider>}
+        />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

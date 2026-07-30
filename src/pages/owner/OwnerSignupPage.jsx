@@ -7,7 +7,6 @@ import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { ownerSignUpEmail, OWNER_PW_MIN } from "../../services/ownerAuthService";
 import { requestPhoneOtp, verifyPhoneOtp, isKrMobile } from "../../services/phoneOtpService";
-import { markUserAsOwner } from "../../services/ownerVenueService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
 import { track } from "../../utils/analytics";
 
@@ -79,7 +78,6 @@ export default function OwnerSignupPage() {
   // 가입/로그인 완료되면 구장 온보딩으로 이동
   useEffect(() => {
     if (isLoggedIn && uid) {
-      markUserAsOwner(uid).catch(() => {});
       navigate("/owner/onboarding", { replace: true });
     }
   }, [isLoggedIn, uid, navigate]);
