@@ -58,6 +58,10 @@ exports.adminLogin = adminLogin;
 const { verifyBusiness } = require("./business/verifyBusiness");
 exports.verifyBusiness = verifyBusiness;
 
+// ✅ NEIS 학교 검색 (학교 주체 — 실재 확인 + 대표번호 고정)
+const { searchSchool } = require("./business/searchSchool");
+exports.searchSchool = searchSchool;
+
 // ✅ 전화번호 SMS 인증 (Solapi) — 소셜 계정 전화번호 통합용
 const { requestPhoneOtp, verifyPhoneOtp, purgePhoneVerificationsDaily } = require("./otp/phoneOtp");
 exports.requestPhoneOtp = requestPhoneOtp;

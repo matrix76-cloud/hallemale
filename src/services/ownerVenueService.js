@@ -536,7 +536,7 @@ export function formatBizNo(v) {
  */
 export async function submitBusinessVerification(
   id,
-  { ownerType = "business", bizNo, bizName, ownerName, openDate, taxType, licenseUrl } = {}
+  { ownerType = "business", bizNo, bizName, ownerName, openDate, taxType, licenseUrl, school } = {}
 ) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
@@ -562,6 +562,18 @@ export async function submitBusinessVerification(
       openDate: safeStr(openDate),
       taxType: opt.needsBizNo && taxType === "general" ? "general" : "simple",
       licenseUrl: safeStr(licenseUrl), status: "pending", rejectReason: "",
+      // NEIS 에서 고른 학교. tel 은 사용자가 못 고치는 값이라 심사자가 이 번호로 담당자를 확인한다.
+      // (자유 입력으로 두면 사칭자가 자기 번호를 적어 확인 절차가 무력화된다)
+      ...(opt.key === "school" && school?.code
+        ? {
+            school: {
+              code: safeStr(school.code), officeCode: safeStr(school.officeCode),
+              name: safeStr(school.name), kind: safeStr(school.kind),
+              address: safeStr(school.address), tel: safeStr(school.tel),
+              foundKind: safeStr(school.foundKind),
+            },
+          }
+        : {}),
     },
     updatedAt: serverTimestamp(),
   });
@@ -575,6 +587,38 @@ export const SETTLEMENT_BANKS = [
 
 // 국세청 진위확인 Cloud Function 엔드포인트
 const VERIFY_BUSINESS_URL = "https://asia-northeast3-halle-bf789.cloudfunctions.net/verifyBusiness";
+// NEIS 학교 검색 Cloud Function 엔드포인트
+const SEARCH_SCHOOL_URL = "https://asia-northeast3-halle-bf789.cloudfunctions.net/searchSchool";
+
+/**
+ * NEIS 학교 검색. 학교는 사업자등록번호가 없어 국세청 대조를 못 하므로,
+ * "실재하는 학교인가"를 여기서 확인하고 학교명·주소·대표번호를 서버가 준 값으로 고정한다.
+ * 대표번호를 사용자가 적게 두면 사칭자가 자기 번호를 적어 심사 확인이 무력화된다.
+ *
+ * 반환: { configured:false }              → 키 미설정/함수 미배포 → 자유 입력 + 서류 심사 폴백
+ *       { configured:true, schools:[…] }  → 검색 결과(0건 포함)
+ */
+export async function searchSchools(name) {
+  const q = safeStr(name);
+  if (q.length < 2) return { configured: true, schools: [] };
+  try {
+    const headers = { "Content-Type": "application/json" };
+    try {
+      const token = await ownerAuth.currentUser?.getIdToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    } catch (e) {}
+    const res = await fetch(SEARCH_SCHOOL_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: q }),
+    });
+    if (!res.ok) return { configured: true, schools: [], error: "검색에 실패했어요." };
+    return await res.json();
+  } catch (e) {
+    // 함수 미배포/네트워크 오류 → 자유 입력 폴백
+    return { configured: false, error: e?.message || "network" };
+  }
+}
 
 /**
  * 국세청 진위확인 요청. 성공 시 서버가 venues 문서의 business.status를 직접 갱신한다.

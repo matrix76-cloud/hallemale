@@ -8,7 +8,7 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { LuShieldCheck, LuUpload, LuCircleCheck, LuLandmark } from "react-icons/lu";
 import { uploadVenueImage } from "../../../services/venuesService";
-import { submitBusinessVerification, isValidBizNo, formatBizNo, verifyBusinessOnline, saveSettlementAccount, SETTLEMENT_BANKS } from "../../../services/ownerVenueService";
+import { submitBusinessVerification, isValidBizNo, formatBizNo, verifyBusinessOnline, saveSettlementAccount, SETTLEMENT_BANKS, searchSchools } from "../../../services/ownerVenueService";
 import { PG_ENABLED } from "../../../constants/payments";
 import { ownerTypeOption } from "../../../constants/ownerType";
 import { useUIActions } from "../../../hooks/useUI";
@@ -30,6 +30,19 @@ const Select = styled.select`
 `;
 const Warn = styled.div`background:#FFFBEB;border:1px solid ${C.amber200 || "#FDE68A"};border-radius:10px;padding:10px 12px;font-size:12.5px;color:${C.slate800};`;
 
+/* 학교 검색 (NEIS) */
+const SearchRow = styled.div`display:flex;gap:8px;& > *:first-child{flex:1;min-width:0;}`;
+const SmallBtn = styled.button`flex-shrink:0;border:1px solid ${C.violet300};background:#fff;color:${C.violet600};border-radius:12px;padding:0 14px;font-size:13px;font-weight:700;cursor:pointer;&:disabled{opacity:.5;cursor:not-allowed;}`;
+const SchoolList = styled.div`display:flex;flex-direction:column;gap:6px;max-height:210px;overflow-y:auto;`;
+const SchoolItem = styled.button`
+  width:100%;text-align:left;border:1px solid ${C.slate200};background:#fff;border-radius:10px;
+  padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px;
+  &:active{transform:translateY(1px);}
+`;
+const SchoolName = styled.div`font-size:13.5px;font-weight:700;color:${C.slate800};`;
+const SchoolMeta = styled.div`font-size:12px;color:${C.slate500};line-height:1.45;`;
+const PickedBox = styled.div`border:1px solid ${C.violet300};background:${C.violet50};border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;`;
+
 const BIZ_STATUS = { none: ["미인증", "default"], pending: ["심사중", "pending"], verified: ["인증완료", "done"], rejected: ["반려", "refund"] };
 
 export default function BusinessSection({ venue, refresh, ownerType }) {
@@ -48,10 +61,37 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
   const [busy, setBusy] = useState("");
   const licRef = React.useRef(null);
 
+  // ── 학교 검색(NEIS) ──
+  // 학교는 사업자등록번호가 없어 국세청 대조를 못 한다. 대신 실재 학교를 골라 대표번호를
+  // 서버가 준 값으로 고정하고, 심사자가 그 번호로 담당자인지 확인한다.
+  const isSchool = opt.key === "school";
+  const [schoolQ, setSchoolQ] = useState("");
+  const [schoolHits, setSchoolHits] = useState(null); // null=검색 전, []=결과 없음
+  const [picked, setPicked] = useState(b.school || null);
+  const [neisOff, setNeisOff] = useState(false); // 키 미설정/미배포 → 자유 입력 폴백
+
+  const doSearchSchool = async () => {
+    setBusy("school");
+    try {
+      const r = await searchSchools(schoolQ);
+      if (r?.configured === false) { setNeisOff(true); setSchoolHits(null); return; }
+      setSchoolHits(Array.isArray(r?.schools) ? r.schools : []);
+    } finally { setBusy(""); }
+  };
+
+  const pickSchool = (s) => {
+    setPicked(s);
+    setSchoolHits(null);
+    setBiz((p) => ({ ...p, bizName: s.name }));
+  };
+
   useEffect(() => {
     setBiz({ bizNo: b.bizNo || "", bizName: b.bizName || "", ownerName: b.ownerName || "", openDate: b.openDate || "", taxType: b.taxType || "simple", licenseUrl: b.licenseUrl || "" });
     setAcct({ bank: st.bank || "", account: st.account || "", holder: st.holder || "" });
     setEditAcct(false);
+    setPicked(b.school || null);
+    setSchoolQ("");
+    setSchoolHits(null);
   }, [venue?.id]); // eslint-disable-line
 
   const submitAcct = async () => {
@@ -79,7 +119,7 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
     setBusy("biz");
     try {
       // 1) 체크섬·필수값 검증 후 pending 저장 (학교·기관은 번호 대신 서류 필수)
-      await submitBusinessVerification(venue.id, { ...biz, ownerType: opt.key });
+      await submitBusinessVerification(venue.id, { ...biz, ownerType: opt.key, school: picked });
       // 2) 국세청 진위확인은 사업자등록번호가 있는 주체만 — 학교·기관은 어드민 수동 확인.
       if (!needsBizNo) {
         await refresh();
@@ -150,10 +190,52 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
                 <Input value={biz.bizNo} onChange={(e) => setBiz({ ...biz, bizNo: e.target.value.replace(/[^0-9-]/g, "") })} placeholder="고유번호증에 적힌 번호" inputMode="numeric" />
               </Field>
             )}
-            <Row>
-              <Field><Lbl>{opt.orgLabel}</Lbl><Input value={biz.bizName} onChange={(e) => setBiz({ ...biz, bizName: e.target.value })} placeholder={opt.orgPlaceholder} /></Field>
-              <Field><Lbl>{opt.personLabel}</Lbl><Input value={biz.ownerName} onChange={(e) => setBiz({ ...biz, ownerName: e.target.value })} placeholder={opt.personPlaceholder} /></Field>
-            </Row>
+            {isSchool && !neisOff ? (
+              <>
+                <Field><Lbl>{opt.orgLabel}</Lbl>
+                  {picked ? (
+                    <PickedBox>
+                      <SchoolName>{picked.name}</SchoolName>
+                      <SchoolMeta>{[picked.kind, picked.foundKind].filter(Boolean).join(" · ")}</SchoolMeta>
+                      <SchoolMeta>{picked.address}</SchoolMeta>
+                      <SchoolMeta><b>대표번호 {picked.tel || "-"}</b></SchoolMeta>
+                      <SmallBtn type="button" style={{ alignSelf: "flex-start", marginTop: 4, padding: "6px 12px" }}
+                        onClick={() => { setPicked(null); setSchoolQ(""); }}>다시 찾기</SmallBtn>
+                    </PickedBox>
+                  ) : (
+                    <>
+                      <SearchRow>
+                        <Input value={schoolQ} onChange={(e) => setSchoolQ(e.target.value)} placeholder={opt.orgPlaceholder}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); doSearchSchool(); } }} />
+                        <SmallBtn type="button" disabled={busy === "school" || schoolQ.trim().length < 2} onClick={doSearchSchool}>
+                          {busy === "school" ? "찾는 중…" : "찾기"}
+                        </SmallBtn>
+                      </SearchRow>
+                      {schoolHits && schoolHits.length === 0 && (
+                        <Caption>검색 결과가 없어요. 학교명을 다시 확인해 주세요.</Caption>
+                      )}
+                      {schoolHits && schoolHits.length > 0 && (
+                        <SchoolList>
+                          {schoolHits.map((s) => (
+                            <SchoolItem key={s.code} type="button" onClick={() => pickSchool(s)}>
+                              <SchoolName>{s.name}</SchoolName>
+                              <SchoolMeta>{[s.kind, s.foundKind].filter(Boolean).join(" · ")} · {s.address}</SchoolMeta>
+                            </SchoolItem>
+                          ))}
+                        </SchoolList>
+                      )}
+                    </>
+                  )}
+                  <Caption>목록에서 고른 학교의 대표번호로 담당자 확인 연락을 드려요.</Caption>
+                </Field>
+                <Field><Lbl>{opt.personLabel}</Lbl><Input value={biz.ownerName} onChange={(e) => setBiz({ ...biz, ownerName: e.target.value })} placeholder={opt.personPlaceholder} /></Field>
+              </>
+            ) : (
+              <Row>
+                <Field><Lbl>{opt.orgLabel}</Lbl><Input value={biz.bizName} onChange={(e) => setBiz({ ...biz, bizName: e.target.value })} placeholder={opt.orgPlaceholder} /></Field>
+                <Field><Lbl>{opt.personLabel}</Lbl><Input value={biz.ownerName} onChange={(e) => setBiz({ ...biz, ownerName: e.target.value })} placeholder={opt.personPlaceholder} /></Field>
+              </Row>
+            )}
             {needsBizNo && (
               <>
                 <Field><Lbl>개업일자</Lbl><Input type="date" value={biz.openDate} onChange={(e) => setBiz({ ...biz, openDate: e.target.value })} /></Field>

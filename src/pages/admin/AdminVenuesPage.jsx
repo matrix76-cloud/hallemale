@@ -18,6 +18,7 @@ import {
   DAY_LABELS,
 } from "../../services/ownerVenueService";
 import CourtHoursEditor from "../owner/components/CourtHoursEditor";
+import { ownerTypeOption } from "../../constants/ownerType";
 import {
   MdLocalParking, MdShower, MdWc, MdMeetingRoom, MdLocalDrink,
   MdSportsBasketball, MdCheckroom, MdAcUnit, MdEventSeat, MdWifi, MdCheckCircle,
@@ -327,11 +328,12 @@ export default function AdminVenuesPage() {
 
   const handleBizStatus = async (row, status) => {
     let reason = "";
+    const vt = ownerTypeOption(row.business?.ownerType || row.ownerType).verifyTitle;
     if (status === "rejected") {
-      reason = window.prompt(`"${row.name}" 사업자 인증 반려 사유:`, row.business?.rejectReason || "");
+      reason = window.prompt(`"${row.name}" ${vt} 반려 사유:`, row.business?.rejectReason || "");
       if (reason === null) return;
     } else if (status === "verified") {
-      if (!await showConfirm(`"${row.name}" 사업자 인증을 승인할까요? 승인 시 구장주가 정산 계좌를 등록할 수 있어요.`)) return;
+      if (!await showConfirm(`"${row.name}" ${vt}을 승인할까요? 승인 시 구장주가 정산 계좌를 등록할 수 있어요.`)) return;
     }
     setBusy(true);
     try {
@@ -664,18 +666,44 @@ export default function AdminVenuesPage() {
                     <FormField><FLabel>사업자등록번호</FLabel><FInput value={form.bizNo} onChange={(e) => updateForm({ bizNo: e.target.value })} placeholder="예: 123-45-67890" /></FormField>
                   </FRow>
 
-                  {form.ownerUid && form.business && (
+                  {form.ownerUid && form.business && (() => {
+                    // 운영 주체에 따라 심사에서 볼 것이 다르다 — 학교·기관은 사업자등록증도
+                    // 과세유형도 없고(고유번호증) 확인 대상이 "담당자가 맞는가"다.
+                    const bo = ownerTypeOption(form.business.ownerType || form.ownerType);
+                    return (
                     <BizBox>
-                      <FormSecTitle style={{ marginTop: 4 }}>사업자 인증 심사</FormSecTitle>
+                      <FormSecTitle style={{ marginTop: 4 }}>{bo.verifyTitle} 심사</FormSecTitle>
+                      <DRow><b>운영 주체</b><span>{bo.label}</span></DRow>
                       <DRow><b>인증상태</b>
                         <BizStatus $s={form.business.status}>
                           {form.business.status === "verified" ? "인증완료" : form.business.status === "pending" ? "심사중" : form.business.status === "rejected" ? "반려" : "미제출"}
                         </BizStatus>
                       </DRow>
+                      <DRow><b>{bo.orgLabel}</b><span>{form.business.bizName || "-"}</span></DRow>
+                      <DRow><b>{bo.personLabel}</b><span>{form.business.ownerName || "-"}</span></DRow>
                       {form.business.bizNo && <DRow><b>사업자번호</b><span>{form.business.bizNo}</span></DRow>}
-                      {form.business.openDate && <DRow><b>개업일자</b><span>{form.business.openDate}</span></DRow>}
-                      <DRow><b>과세유형</b><span>{form.business.taxType === "general" ? "일반과세자" : "간이과세자"}</span></DRow>
-                      {form.business.licenseUrl && <DRow><b>등록증</b><span><a href={form.business.licenseUrl} target="_blank" rel="noreferrer" style={{ color: "#4f46e5" }}>사본 보기</a></span></DRow>}
+                      {bo.needsBizNo && form.business.openDate && <DRow><b>개업일자</b><span>{form.business.openDate}</span></DRow>}
+                      {bo.needsBizNo && <DRow><b>과세유형</b><span>{form.business.taxType === "general" ? "일반과세자" : "간이과세자"}</span></DRow>}
+                      {bo.needsBizNo && (
+                        <DRow><b>국세청 조회</b><span>{form.business.ntsChecked ? "대조 완료" : "미조회(수동 확인 필요)"}</span></DRow>
+                      )}
+                      {/* NEIS 로 고른 학교 — 대표번호는 구장주가 못 고치는 값이라 이 번호로 확인한다 */}
+                      {form.business.school?.code && (
+                        <>
+                          <DRow><b>학교(NEIS)</b><span>{form.business.school.name} · {form.business.school.kind}</span></DRow>
+                          <DRow><b>표준학교코드</b><span>{form.business.school.code}</span></DRow>
+                          <DRow><b>학교 주소</b><span>{form.business.school.address || "-"}</span></DRow>
+                          <DRow><b>확인 전화</b><span style={{ fontWeight: 700 }}>{form.business.school.tel || "-"}</span></DRow>
+                        </>
+                      )}
+                      {!bo.needsBizNo && (
+                        <DRow><b>확인 방법</b><span style={{ color: "#b45309" }}>
+                          {form.business.school?.tel
+                            ? "위 대표번호로 전화해 담당자가 맞는지 확인 후 승인"
+                            : "서류 + 대표번호로 담당자 확인 필요"}
+                        </span></DRow>
+                      )}
+                      {form.business.licenseUrl && <DRow><b>{bo.docLabel}</b><span><a href={form.business.licenseUrl} target="_blank" rel="noreferrer" style={{ color: "#4f46e5" }}>사본 보기</a></span></DRow>}
                       {form.business.rejectReason && <DRow><b>반려사유</b><span style={{ color: "#b91c1c" }}>{form.business.rejectReason}</span></DRow>}
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         {form.business.status === "pending" && (
@@ -689,7 +717,8 @@ export default function AdminVenuesPage() {
                         )}
                       </div>
                     </BizBox>
-                  )}
+                    );
+                  })()}
                 </>
               )}
             </TabBody>
@@ -709,6 +738,8 @@ export default function AdminVenuesPage() {
         const isOwner = !!detail.ownerUid;
         const imgs = detail.photos?.length ? detail.photos : (detail.imageUrl ? [detail.imageUrl] : []);
         const biz = detail.business || null;
+        // 라벨은 운영 주체를 따른다 — 학교에 "상호·대표자명·과세유형"을 물으면 심사가 어긋난다.
+        const dOpt = ownerTypeOption(biz?.ownerType || detail.ownerType);
         return (
           <Overlay onClick={(e) => { if (e.target === e.currentTarget) setDetail(null); }}>
             <Modal onClick={(e) => e.stopPropagation()}>
@@ -743,11 +774,12 @@ export default function AdminVenuesPage() {
               </Sec>
 
               <Sec>
-                <SecTitle>사업자 / 관리자 정보</SecTitle>
-                <DRow><b>대표자명</b><span>{detail.ownerName || "-"}</span></DRow>
+                <SecTitle>{dOpt.adminInfoTitle}</SecTitle>
+                <DRow><b>운영 주체</b><span>{dOpt.label}</span></DRow>
+                <DRow><b>{dOpt.personLabel}</b><span>{detail.ownerName || biz?.ownerName || "-"}</span></DRow>
                 <DRow><b>관리자 연락처</b><span>{detail.contactPhone || "-"}</span></DRow>
-                <DRow><b>상호</b><span>{detail.bizName || biz?.bizName || "-"}</span></DRow>
-                <DRow><b>사업자번호</b><span>{detail.bizNo || biz?.bizNo || "-"}</span></DRow>
+                <DRow><b>{dOpt.orgLabel}</b><span>{detail.bizName || biz?.bizName || "-"}</span></DRow>
+                {dOpt.needsBizNo && <DRow><b>사업자번호</b><span>{detail.bizNo || biz?.bizNo || "-"}</span></DRow>}
                 {biz && (
                   <>
                     <DRow><b>인증상태</b>
@@ -755,9 +787,16 @@ export default function AdminVenuesPage() {
                         {biz.status === "verified" ? "인증완료" : biz.status === "pending" ? "심사중" : biz.status === "rejected" ? "반려" : "미제출"}
                       </BizStatus></span>
                     </DRow>
-                    {biz.openDate && <DRow><b>개업일자</b><span>{biz.openDate}</span></DRow>}
-                    {biz.taxType && <DRow><b>과세유형</b><span>{biz.taxType === "general" ? "일반과세자" : "간이과세자"}</span></DRow>}
-                    {biz.licenseUrl && <DRow><b>등록증</b><span><a href={biz.licenseUrl} target="_blank" rel="noreferrer" style={{ color: "#4f46e5" }}>사본 보기</a></span></DRow>}
+                    {biz.school?.code && (
+                      <>
+                        <DRow><b>학교(NEIS)</b><span>{biz.school.name} · {biz.school.kind}</span></DRow>
+                        <DRow><b>표준학교코드</b><span>{biz.school.code}</span></DRow>
+                        <DRow><b>확인 전화</b><span style={{ fontWeight: 700 }}>{biz.school.tel || "-"}</span></DRow>
+                      </>
+                    )}
+                    {dOpt.needsBizNo && biz.openDate && <DRow><b>개업일자</b><span>{biz.openDate}</span></DRow>}
+                    {dOpt.needsBizNo && biz.taxType && <DRow><b>과세유형</b><span>{biz.taxType === "general" ? "일반과세자" : "간이과세자"}</span></DRow>}
+                    {biz.licenseUrl && <DRow><b>{dOpt.docLabel}</b><span><a href={biz.licenseUrl} target="_blank" rel="noreferrer" style={{ color: "#4f46e5" }}>사본 보기</a></span></DRow>}
                     {biz.rejectReason && <DRow><b>인증반려</b><span style={{ color: "#b91c1c" }}>{biz.rejectReason}</span></DRow>}
                   </>
                 )}
