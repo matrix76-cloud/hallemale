@@ -84,6 +84,7 @@ export const MENUS = [
     label: "구장 관리",
     sub: [
       { to: `${A}/venues`, label: "구장 목록" },
+      { to: `${A}/reservations`, label: "예약 현황" },
       { to: `${A}/settlements`, label: "결제 정산" },
       { to: `${A}/refunds`, label: "환불 관리" },
     ],

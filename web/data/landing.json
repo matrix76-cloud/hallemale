@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-02T08:19:12.008Z",
+  "generatedAt": "2026-08-02T11:28:18.996Z",
   "counts": {
     "teams": 23,
     "members": 126,
@@ -244,6 +244,28 @@
       "winRate": 33
     },
     {
+      "name": "팀응원갈래",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Ff82jK32bEmbjOJeTM5Z7%2Flogo_1783507959318.jpg?alt=media&token=7dc7ae43-c438-44d9-a1a0-6d16b3ef69a5",
+      "wins": 1,
+      "draws": 0,
+      "losses": 2,
+      "total": 3,
+      "points": 7,
+      "winRate": 33
+    },
+    {
+      "name": "핏자피자",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeHXmDqVYHI3RIdcGjvoJ%2Flogo_1784191507145.jpg?alt=media&token=144da0af-4341-4ad1-b9a9-f563484ef820",
+      "wins": 1,
+      "draws": 0,
+      "losses": 1,
+      "total": 2,
+      "points": 6,
+      "winRate": 50
+    },
+    {
       "name": "청춘사자",
       "region": "경기 수원시 영통구",
       "logoUrl": "",
@@ -266,31 +288,9 @@
       "winRate": 100
     },
     {
-      "name": "핏자피자",
-      "region": "경기 남양주시",
-      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeHXmDqVYHI3RIdcGjvoJ%2Flogo_1784191507145.jpg?alt=media&token=144da0af-4341-4ad1-b9a9-f563484ef820",
-      "wins": 1,
-      "draws": 0,
-      "losses": 0,
-      "total": 1,
-      "points": 5,
-      "winRate": 100
-    },
-    {
       "name": "팀청춘",
       "region": "경기 남양주시",
       "logoUrl": "",
-      "wins": 0,
-      "draws": 0,
-      "losses": 2,
-      "total": 2,
-      "points": 2,
-      "winRate": 0
-    },
-    {
-      "name": "팀응원갈래",
-      "region": "경기 남양주시",
-      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Ff82jK32bEmbjOJeTM5Z7%2Flogo_1783507959318.jpg?alt=media&token=7dc7ae43-c438-44d9-a1a0-6d16b3ef69a5",
       "wins": 0,
       "draws": 0,
       "losses": 2,
@@ -311,14 +311,64 @@
       "winRate": 33
     },
     {
+      "name": "정민재",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 2,
+      "total": 3,
+      "points": 7,
+      "winRate": 33
+    },
+    {
+      "name": "한서준",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 2,
+      "total": 3,
+      "points": 7,
+      "winRate": 33
+    },
+    {
       "name": "한주성2",
       "clubName": "",
       "wins": 1,
       "draws": 0,
-      "losses": 0,
-      "total": 1,
-      "points": 5,
-      "winRate": 100
+      "losses": 1,
+      "total": 2,
+      "points": 6,
+      "winRate": 50
+    },
+    {
+      "name": "AI 도우진",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 1,
+      "total": 2,
+      "points": 6,
+      "winRate": 50
+    },
+    {
+      "name": "AI 치즈현",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 1,
+      "total": 2,
+      "points": 6,
+      "winRate": 50
+    },
+    {
+      "name": "한주성",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 1,
+      "total": 2,
+      "points": 6,
+      "winRate": 50
     },
     {
       "name": "다산왕 포인트",
@@ -341,57 +391,7 @@
       "winRate": 100
     },
     {
-      "name": "AI 도우진",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 0,
-      "total": 1,
-      "points": 5,
-      "winRate": 100
-    },
-    {
-      "name": "AI 치즈현",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 0,
-      "total": 1,
-      "points": 5,
-      "winRate": 100
-    },
-    {
       "name": "김도현",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 0,
-      "total": 1,
-      "points": 5,
-      "winRate": 100
-    },
-    {
-      "name": "이준서",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 0,
-      "total": 1,
-      "points": 5,
-      "winRate": 100
-    },
-    {
-      "name": "박지훈",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 0,
-      "total": 1,
-      "points": 5,
-      "winRate": 100
-    },
-    {
-      "name": "행렬",
       "clubName": "",
       "wins": 1,
       "draws": 0,

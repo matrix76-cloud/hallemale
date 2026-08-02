@@ -214,6 +214,7 @@ export const ADMIN_REVIEW = [
   { id: "admin-chat-detail",     no: "10-23", name: "채팅방 상세",     path: `/admin/chat/list/${S_CHAT_ADMIN}`, spec: [] },
   { id: "admin-banners",         no: "10-24", name: "배너 관리",       path: "/admin/banners",            spec: [] },
   { id: "admin-venues",          no: "10-25", name: "구장 관리(승인)", path: "/admin/venues",             spec: [] },
+  { id: "admin-reservations",    no: "10-30", name: "예약 현황",       path: "/admin/reservations",       spec: [] },
   { id: "admin-settlements",     no: "10-26", name: "정산 관리",       path: "/admin/settlements",        spec: [] },
   { id: "admin-refunds",         no: "10-27", name: "환불 관리",       path: "/admin/refunds",            spec: [] },
   { id: "admin-inquiries",       no: "10-28", name: "문의 관리",       path: "/admin/inquiries",          spec: [] },

@@ -117,6 +117,7 @@ const AdminChatListPage = lazy(() => import("../pages/admin/AdminChatListPage"))
 const AdminChatRoomDetailPage = lazy(() => import("../pages/admin/AdminChatRoomDetailPage"));
 const AdminBannersPage = lazy(() => import("../pages/admin/AdminBannersPage"));
 const AdminVenuesPage = lazy(() => import("../pages/admin/AdminVenuesPage"));
+const AdminReservationsPage = lazy(() => import("../pages/admin/AdminReservationsPage"));
 const AdminSettlementsPage = lazy(() => import("../pages/admin/AdminSettlementsPage"));
 const AdminRefundsPage = lazy(() => import("../pages/admin/AdminRefundsPage"));
 const AdminUpdatesPage = lazy(() => import("../pages/admin/AdminUpdatesPage"));
@@ -489,6 +490,7 @@ export default function AppRoutes() {
           <Route path="/admin/chat/list/:chatId" element={<AdminChatRoomDetailPage />} />
           <Route path="/admin/banners" element={<AdminBannersPage />} />
           <Route path="/admin/venues" element={<AdminVenuesPage />} />
+          <Route path="/admin/reservations" element={<AdminReservationsPage />} />
           <Route path="/admin/settlements" element={<AdminSettlementsPage />} />
           <Route path="/admin/refunds" element={<AdminRefundsPage />} />
           <Route path="/admin/inquiries" element={<AdminInquiriesPage />} />

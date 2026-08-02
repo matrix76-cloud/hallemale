@@ -13,6 +13,7 @@ import {
 } from "../../services/ownerVenueService";
 import { useUIActions } from "../../hooks/useUI";
 import { formatPhoneE164 as formatPhone } from "../../utils/phone";
+import { copyText } from "../../utils/venueLink";
 import { track } from "../../utils/analytics";
 import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, Input, PrimaryBtn, GhostBtn, DangerBtn, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
@@ -88,6 +89,9 @@ const NoPhone=styled.span`font-size:12px;color:${C.slate400};`;
 const SheetTitle=styled.div`font-size:17px;font-weight:800;color:${C.slate800};display:flex;align-items:center;justify-content:space-between;`;
 const X=styled.button`border:none;background:transparent;color:${C.slate400};font-size:24px;cursor:pointer;line-height:1;`;
 const DRow=styled.div`display:flex;justify-content:space-between;gap:10px;font-size:14px;align-items:center;& > span{color:${C.slate500};} & > b{color:${C.slate800};font-weight:700;text-align:right;}`;
+// 예약번호 — 예약자·어드민과 공유하는 조회 키라 등폭으로 보여주고 바로 복사할 수 있게 한다.
+const CodeVal=styled.b`display:inline-flex;align-items:center;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;letter-spacing:-0.2px;`;
+const CopyBtn=styled.button`border:1px solid ${C.slate200};background:#fff;color:${C.slate500};border-radius:7px;padding:2px 7px;font-size:11px;font-weight:700;cursor:pointer;`;
 const Call=styled.a`display:flex;align-items:center;justify-content:center;gap:7px;height:48px;border-radius:12px;background:${C.violet600};color:#fff;font-size:15px;font-weight:800;text-decoration:none;margin-top:4px;`;
 const DoneBtn=styled.button`height:46px;border-radius:12px;border:1px solid ${C.slate200};background:#fff;color:${C.slate800};font-size:14px;font-weight:700;cursor:pointer;`;
 const Field=styled.label`display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:700;color:${C.slate500};`;
@@ -104,6 +108,7 @@ export default function OwnerHomePage(){
   const toast=(m)=>{if(showToast)showToast({message:m});};
   const {confirmState,ask,closeConfirm}=useConfirm();
   const nm=(r)=>r?.teamName||r?.userName||(r?.matchId?`${r?.teamAName||"팀A"} vs ${r?.teamBName||"팀B"}`:"이");
+  const copyCode=async(code)=>{toast((await copyText(code))?"예약번호를 복사했어요.":"예약번호 복사에 실패했어요.");};
   const courts=venue?.courts||[];
   const today=useMemo(()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate());},[]);
   const [courtId,setCourtId]=useState(courts[0]?.id||"");
@@ -349,6 +354,12 @@ export default function OwnerHomePage(){
                 <DRow><span>안내</span><b style={{fontWeight:600,color:C.slate500}}>
                   예약자가 결제하면 확정돼요.{r.paymentDeadline?` (${new Date(r.paymentDeadline).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}까지)`:""}
                 </b></DRow>
+              )}
+              {r.reservationCode&&(
+                <DRow><span>예약번호</span><CodeVal>
+                  {r.reservationCode}
+                  <CopyBtn type="button" onClick={()=>copyCode(r.reservationCode)}>복사</CopyBtn>
+                </CodeVal></DRow>
               )}
               <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
               <DRow><span>코트</span><b>{r.courtName||court?.name||"-"}</b></DRow>
