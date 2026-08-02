@@ -40,7 +40,8 @@ const DEFAULT_REFUND =
   "• 당일 취소·노쇼는 삼가주세요. 반복 시 예약이 제한될 수 있어요.\n• 우천/천재지변 시 협의 후 일정 변경 가능";
 
 function makeCourt(idx) {
-  return { name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60, hours: defaultCourtHours() };
+  // photos 는 편집 중 {url, storagePath} 형태 — 제출할 때 photos/storagePaths 두 배열로 쪼갠다.
+  return { name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60, hours: defaultCourtHours(), photos: [] };
 }
 
 // 단계 정의 — 농구 전용이라 종목 선택 단계 없음.
@@ -61,6 +62,8 @@ export default function OwnerOnboardingPage() {
   const navigate = useNavigate();
   const { uid, venue, userDoc, loading: ownerLoading, refresh, setActiveVenue } = useOwner();
   const fileRef = useRef(null);
+  const courtFileRef = useRef(null);
+  const courtPhotoIdx = useRef(0);
 
   // ?new=1 → 다구장 "구장 추가"(신규 등록). 활성 구장이 있어도 편집이 아니라 새 구장 폼으로.
   const [searchParams] = useSearchParams();
@@ -140,6 +143,7 @@ export default function OwnerOnboardingPage() {
             name: c.name, type: c.type, surface: c.surface || "",
             pricePerHour: String(c.pricePerHour ?? ""), slotMinutes: c.slotMinutes,
             hours: c.hours || defaultCourtHours(),
+            photos: (c.photos || []).map((url, i) => ({ url, storagePath: c.storagePaths?.[i] || "" })),
           }))
         : [makeCourt(0)]
     );
@@ -169,6 +173,26 @@ export default function OwnerOnboardingPage() {
     }
   };
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+
+  // 코트 사진 — 코트마다 따로. 업로드 중 다른 코트를 건드려도 처음 고른 코트에 붙도록 대상을 고정한다.
+  const pickCourtPhoto = (i) => { if (uploading) return; courtPhotoIdx.current = i; courtFileRef.current?.click(); };
+  const handleCourtFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploading(true);
+    try {
+      const { imageUrl, storagePath } = await uploadVenueImage(file, { asOwner: true });
+      const target = courtPhotoIdx.current;
+      setCourts((prev) => prev.map((c, idx) => (idx === target ? { ...c, photos: [...(c.photos || []), { url: imageUrl, storagePath }] } : c)));
+    } catch (err) {
+      showAlert(err?.message || "사진 업로드에 실패했어요.");
+    } finally {
+      setUploading(false);
+    }
+  };
+  const removeCourtPhoto = (ci, pi) =>
+    setCourts((prev) => prev.map((c, idx) => (idx === ci ? { ...c, photos: (c.photos || []).filter((_, k) => k !== pi) } : c)));
 
   const addKeyword = () => {
     const k = keywordInput.trim().replace(/^#/, "");
@@ -297,7 +321,12 @@ export default function OwnerOnboardingPage() {
         deptName: typeOpt.needsBizNo ? "" : form.deptName,
         sportTypes, parking, keywords, displayMode, displayName,
         photos: photos.map((p) => p.url), storagePaths: photos.map((p) => p.storagePath),
-        facilities, courts,
+        facilities,
+        courts: courts.map((c) => ({
+          ...c,
+          photos: (c.photos || []).map((p) => p.url),
+          storagePaths: (c.photos || []).map((p) => p.storagePath),
+        })),
       };
       let vid = editingId;
       if (editingId) {
@@ -493,8 +522,25 @@ export default function OwnerOnboardingPage() {
                   <Label>요일별 운영시간</Label>
                   <CourtHoursEditor hours={c.hours} onChange={(hours) => setCourt(i, { hours })} />
                 </Field>
+                <Field>
+                  <Label>코트 사진 <Opt>(선택)</Opt></Label>
+                  <PhotoGrid>
+                    {(c.photos || []).map((p, pi) => (
+                      <PhotoBox key={pi}>
+                        <PhotoImg src={p.url} alt={`${c.name} 사진 ${pi + 1}`} />
+                        {pi === 0 && <MainTag>대표</MainTag>}
+                        <RemovePhoto type="button" onClick={() => removeCourtPhoto(i, pi)}>×</RemovePhoto>
+                      </PhotoBox>
+                    ))}
+                    <AddPhoto type="button" onClick={() => pickCourtPhoto(i)} disabled={uploading}>
+                      {uploading ? "업로드 중…" : <><span style={{ fontSize: 22 }}>＋</span><span>사진 추가</span></>}
+                    </AddPhoto>
+                  </PhotoGrid>
+                  <FieldHint>이 코트만 찍은 사진이에요. 회원이 코트를 고를 때 보여요.</FieldHint>
+                </Field>
               </CourtCard>
             ))}
+            <HiddenFile ref={courtFileRef} type="file" accept="image/*" onChange={handleCourtFile} />
             <GhostBtn type="button" onClick={addCourt}>＋ 코트 추가</GhostBtn>
 
             {courts.length > 1 && (

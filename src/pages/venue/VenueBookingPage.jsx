@@ -101,8 +101,9 @@ export default function VenueBookingPage() {
   const [payOpen, setPayOpen] = useState(false);
   const [paying, setPaying] = useState(false);
   const [matchInfo, setMatchInfo] = useState(null); // 매칭 두 팀 정보
-  const [photosOpen, setPhotosOpen] = useState(false); // 시설 사진 전체보기 모달
-  useBackInterceptor(photosOpen, () => setPhotosOpen(false)); // 사진 모달: HW 뒤로 시 페이지 이탈 대신 모달 닫기
+  // 사진 전체보기 모달 — 구장 공통 사진과 코트별 사진이 각각 열리므로 대상을 담아둔다. { title, photos }
+  const [viewer, setViewer] = useState(null);
+  useBackInterceptor(!!viewer, () => setViewer(null)); // 사진 모달: HW 뒤로 시 페이지 이탈 대신 모달 닫기
   useBackInterceptor(payOpen, () => setPayOpen(false)); // 예약 확정 시트: HW 뒤로 시 시트 닫기
   const heroRef = useRef(null);
   const [heroIdx, setHeroIdx] = useState(0); // 상단 구장 사진 캐러셀 현재 인덱스
@@ -301,6 +302,7 @@ export default function VenueBookingPage() {
   if (!venue) return <Center>구장 정보를 찾을 수 없어요.</Center>;
 
   const photos = (venue.photos?.length ? venue.photos : venue.imageUrl ? [venue.imageUrl] : []).filter(Boolean);
+  const courtPhotos = (court?.photos || []).filter(Boolean); // 선택한 코트의 사진
   const hasLatLng = venue.lat != null && venue.lng != null;
   const hoursSummary = buildHoursSummary(court);
   const venuePhone = venue.phone || venue.contactPhone || "";
@@ -385,14 +387,52 @@ export default function VenueBookingPage() {
           <CourtEmpty>아직 등록된 코트가 없어요. 구장에 문의해 주세요.</CourtEmpty>
         ) : (
           <>
+            {/* 코트 선택 — 코트마다 생김새가 다르므로 사진을 함께 보여준다(코트 사진이 없으면 구장 대표 사진). */}
             {(venue.courts || []).length > 1 && (
-              <CourtChips>
-                {venue.courts.map((c) => (
-                  <CourtChip key={c.id} type="button" $on={c.id === courtId} onClick={() => setCourtId(c.id)}>
-                    {c.name}
-                  </CourtChip>
-                ))}
-              </CourtChips>
+              <CourtList>
+                {venue.courts.map((c) => {
+                  const cp = (c.photos || []).filter(Boolean);
+                  const thumb = cp[0] || photos[0] || "";
+                  return (
+                    <CourtCard key={c.id} type="button" $on={c.id === courtId} onClick={() => setCourtId(c.id)}>
+                      <CourtThumb>
+                        {thumb ? <CourtThumbImg src={thumb} alt={c.name} /> : <FiImage size={22} />}
+                        {cp.length > 1 ? <ThumbCount>{cp.length}</ThumbCount> : null}
+                      </CourtThumb>
+                      <CourtBody>
+                        <CourtCName>{c.name}</CourtCName>
+                        <CourtCSub>
+                          {c.type === "outdoor" ? "실외" : "실내"}
+                          {c.surface ? ` · ${c.surface}` : ""}
+                          {cp.length ? ` · 사진 ${cp.length}장` : ""}
+                        </CourtCSub>
+                      </CourtBody>
+                      {c.id === courtId ? <CourtBadge>선택됨</CourtBadge> : null}
+                    </CourtCard>
+                  );
+                })}
+              </CourtList>
+            )}
+
+            {courtPhotos.length > 0 && (
+              <CourtPhotos>
+                <SecTitleRow>
+                  <CourtPhotoLabel>{court?.name} 사진 {courtPhotos.length}장</CourtPhotoLabel>
+                  <SeeAll type="button" onClick={() => setViewer({ title: `${court?.name} 사진`, photos: courtPhotos })}>
+                    전체보기
+                  </SeeAll>
+                </SecTitleRow>
+                <CourtPhotoStrip>
+                  {courtPhotos.map((u, i) => (
+                    <CourtPhotoImg
+                      key={i}
+                      src={u}
+                      alt={`${court?.name} 사진 ${i + 1}`}
+                      onClick={() => setViewer({ title: `${court?.name} 사진`, photos: courtPhotos })}
+                    />
+                  ))}
+                </CourtPhotoStrip>
+              </CourtPhotos>
             )}
 
             <DateStrip>
@@ -438,11 +478,11 @@ export default function VenueBookingPage() {
         <Section>
           <SecTitleRow>
             <SecTitle><FiImage size={17} />시설 사진</SecTitle>
-            <SeeAll type="button" onClick={() => setPhotosOpen(true)}>전체보기</SeeAll>
+            <SeeAll type="button" onClick={() => setViewer({ title: "시설 사진", photos })}>전체보기</SeeAll>
           </SecTitleRow>
           <PhotoGrid>
             {photos.map((u, i) => (
-              <PhotoThumb key={i} src={u} alt={`시설 사진 ${i + 1}`} onClick={() => setPhotosOpen(true)} />
+              <PhotoThumb key={i} src={u} alt={`시설 사진 ${i + 1}`} onClick={() => setViewer({ title: "시설 사진", photos })} />
             ))}
           </PhotoGrid>
         </Section>
@@ -574,16 +614,16 @@ export default function VenueBookingPage() {
 
       <div style={{ height: 90 }} />
 
-      {photosOpen && (
-        <Sheet onClick={(e) => { if (e.target === e.currentTarget) setPhotosOpen(false); }}>
+      {viewer && (
+        <Sheet onClick={(e) => { if (e.target === e.currentTarget) setViewer(null); }}>
           <PhotosModal onClick={(e) => e.stopPropagation()}>
             <PhotosHead>
-              <SheetTitle style={{ margin: 0 }}>시설 사진 ({photos.length})</SheetTitle>
-              <CloseX type="button" onClick={() => setPhotosOpen(false)}>×</CloseX>
+              <SheetTitle style={{ margin: 0 }}>{viewer.title} ({viewer.photos.length})</SheetTitle>
+              <CloseX type="button" onClick={() => setViewer(null)}>×</CloseX>
             </PhotosHead>
             <PhotosScroll>
-              {photos.map((u, i) => (
-                <PhotoFull key={i} src={u} alt={`시설 사진 ${i + 1}`} />
+              {viewer.photos.map((u, i) => (
+                <PhotoFull key={i} src={u} alt={`${viewer.title} ${i + 1}`} />
               ))}
             </PhotosScroll>
           </PhotosModal>
@@ -948,13 +988,21 @@ const CourtEmpty = styled.div`
 const CourtCard = styled.button`
   width: 100%; text-align: left; cursor: pointer;
   display: flex; align-items: center; gap: 12px; padding: 10px;
-  border-radius: 14px; border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 14px;
+  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
   background: ${({ theme }) => theme.colors.card};
   &:active { transform: translateY(1px); }
 `;
 const CourtThumb = styled.div`
+  position: relative;
   width: 64px; height: 64px; flex-shrink: 0; border-radius: 12px; overflow: hidden;
   background: #1b1f27; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.45);
+`;
+const ThumbCount = styled.span`
+  position: absolute; right: 4px; bottom: 4px;
+  padding: 1px 6px; border-radius: 999px;
+  background: rgba(0,0,0,0.6); color: #fff;
+  font-size: 10.5px; font-weight: 700;
 `;
 const CourtThumbImg = styled.img`width: 100%; height: 100%; object-fit: cover;`;
 const CourtBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
@@ -967,14 +1015,22 @@ const CourtBadge = styled.span`
   background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff")};
   color: ${({ theme }) => theme.colors.primary};
 `;
-const CourtChips = styled.div`display: flex; gap: 8px; flex-wrap: wrap;`;
-const CourtChip = styled.button`
-  height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer;
-  font-size: 13px; font-weight: 700;
-  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
-  background: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.card)};
-  color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.textNormal)};
-  &:active { transform: translateY(1px); }
+/* 선택한 코트의 사진 — 가로 스크롤 스트립(탭하면 전체보기) */
+const CourtPhotos = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const CourtPhotoLabel = styled.div`
+  font-size: 13px; font-weight: 700; color: ${({ theme }) => theme.colors.textNormal};
+`;
+const CourtPhotoStrip = styled.div`
+  display: flex; gap: 8px; overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+`;
+const CourtPhotoImg = styled.img`
+  flex: 0 0 auto; width: 42%; aspect-ratio: 4 / 3; object-fit: cover;
+  border-radius: 10px; cursor: pointer; scroll-snap-align: start;
+  background: ${({ theme }) => theme.colors.surface};
 `;
 const DateStrip = styled.div`
   display: flex; gap: 8px; overflow-x: auto;

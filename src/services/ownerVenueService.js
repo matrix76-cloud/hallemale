@@ -282,6 +282,10 @@ function normalizeCourt(c, idx = 0) {
     // 요금 3단계: 기본(pricePerHour) > 요일별(priceBands) > 특정날짜(priceOverrides)
     priceBands: normalizeBands(o.priceBands),
     priceOverrides: normalizeOverrides(o.priceOverrides),
+    // 코트별 사진 — 구장 공통 사진(venues.photos)과 별개로, 이 코트가 어떻게 생겼는지 보여준다.
+    // 첫 장이 코트 대표 사진(사용자 상세의 코트 카드 썸네일). storagePaths 는 같은 순서.
+    photos: arr(o.photos).map((p) => safeStr(p)).filter(Boolean),
+    storagePaths: arr(o.storagePaths).map((p) => safeStr(p)).filter(Boolean),
     // 코트별 공지/주의
     notices: arr(o.notices).map(normalizeNotice),
     cautions: arr(o.cautions).map((x) => safeStr(x)).filter(Boolean),
@@ -1645,6 +1649,9 @@ export async function createOwnerReservation({
         { venueId, courtId, date: d, startTime, endTime, status: "confirmed" },
         () => ({
           venueId, courtId, ownerUid,
+          // 앱 예약과 같은 규칙으로 발급 — 예약번호가 없으면 문의 응대·어드민 조회에서 이 건만 못 찾는다.
+          // 정기대관은 주차별로 각각 취소·조회되므로 번호도 주차별(d)로 따로 발급한다.
+          reservationCode: genReservationCode(d),
           courtName: safeStr(court?.name), venueName: safeStr(venue?.name),
           date: d, startTime: safeStr(startTime), endTime: safeStr(endTime),
           userId: "", userName: safeStr(customerName), teamName: safeStr(customerName),

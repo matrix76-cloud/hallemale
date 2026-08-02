@@ -458,6 +458,7 @@ export default function AdminVenuesPage() {
     setFacilities(row.facilities || []);
     setCourts(
       (row.courts || []).map((c, i) => ({
+        ...c, // 어드민 폼에 없는 필드(사진·바닥재질·요금구간·공지 등) 보존 — 저장 시 구장주 설정이 지워지는 것 방지
         name: c.name || `${i + 1}코트`, type: c.type || "indoor",
         pricePerHour: String(c.pricePerHour ?? ""), slotMinutes: c.slotMinutes || 60,
         hours: c.hours || defaultCourtHours(),

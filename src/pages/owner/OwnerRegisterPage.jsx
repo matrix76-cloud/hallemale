@@ -273,6 +273,7 @@ export default function OwnerRegisterPage() {
     setCourts(
       (venue.courts || []).length
         ? venue.courts.map((c, i) => ({
+            ...c, // 이 폼에 없는 필드(코트 사진·바닥재질·요금구간·공지 등) 보존 — 저장 시 소실 방지
             name: c.name, type: c.type, pricePerHour: String(c.pricePerHour ?? ""),
             slotMinutes: c.slotMinutes,
             hours: c.hours || defaultCourtHours(),

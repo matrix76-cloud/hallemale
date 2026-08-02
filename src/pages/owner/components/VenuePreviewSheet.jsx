@@ -144,19 +144,27 @@ export default function VenuePreviewSheet({ venue, onClose }) {
             <Section>
               <SecTitle><LuLayoutGrid size={17} />코트 선택</SecTitle>
               <CourtList>
-                {courts.map((c, i) => (
+                {courts.map((c, i) => {
+                  // 코트 사진이 있으면 그 사진이 코트 썸네일 (없으면 구장 대표 사진)
+                  const cp = (c.photos || []).filter(Boolean);
+                  const thumb = cp[0] || venue.imageUrl || "";
+                  return (
                   <CourtCard key={c.id || i}>
                     <CourtThumb>
-                      {venue.imageUrl ? <CourtThumbImg src={venue.imageUrl} alt={c.name} /> : <LuLayoutGrid size={24} />}
+                      {thumb ? <CourtThumbImg src={thumb} alt={c.name} /> : <LuLayoutGrid size={24} />}
                     </CourtThumb>
                     <CourtBody>
                       <CourtCName>{c.name}</CourtCName>
-                      <CourtCSub>{c.type === "outdoor" ? "실외" : "실내"} 코트{c.surface ? ` · ${c.surface}` : ""}</CourtCSub>
+                      <CourtCSub>
+                        {c.type === "outdoor" ? "실외" : "실내"} 코트{c.surface ? ` · ${c.surface}` : ""}
+                        {cp.length ? ` · 사진 ${cp.length}장` : ""}
+                      </CourtCSub>
                       <CourtCPrice>{(Number(c.pricePerHour) || 0).toLocaleString()}원<small> / 시간</small></CourtCPrice>
                     </CourtBody>
                     <CourtBadge>예약 가능 ›</CourtBadge>
                   </CourtCard>
-                ))}
+                  );
+                })}
               </CourtList>
             </Section>
           )}

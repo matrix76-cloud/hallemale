@@ -80,7 +80,14 @@ function courtForm(c, i) {
     hours: c?.hours || defaultCourtHours(),
     priceBands: c?.priceBands || {}, priceOverrides: c?.priceOverrides || {},
     notices: c?.notices || [], cautions: c?.cautions || [],
+    // 편집 중에는 구장 사진과 같은 형태({url, storagePath})로 다루고, 저장할 때 두 배열로 쪼갠다.
+    photos: (c?.photos || []).map((url, idx) => ({ url, storagePath: c?.storagePaths?.[idx] || "" })),
   };
+}
+// 저장/미리보기용 — 폼의 photos([{url,storagePath}])를 문서 형태(photos/storagePaths)로 되돌린다.
+function courtPayload(c) {
+  const ps = c.photos || [];
+  return { ...c, photos: ps.map((p) => p.url), storagePaths: ps.map((p) => p.storagePath) };
 }
 function makeCourt(i) { return courtForm({ name: `${i + 1}코트` }, i); }
 
@@ -88,6 +95,7 @@ export default function OwnerVenuePage() {
   const navigate = useNavigate();
   const { venue, loading, refresh, signOut } = useOwner();
   const fileRef = useRef(null);
+  const courtFileRef = useRef(null);
   const [courts, setCourts] = useState([]);
   const [sel, setSel] = useState(0);
   const [facilities, setFacilities] = useState([]);
@@ -116,6 +124,7 @@ export default function OwnerVenuePage() {
   const [defaultOwnerNote, setDefaultOwnerNote] = useState("");
   const [autoApprove, setAutoApprove] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [courtUploading, setCourtUploading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
@@ -188,13 +197,36 @@ export default function OwnerVenuePage() {
   };
   const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
 
+  // 코트 사진 — 구장 공통 사진과 별개로 코트마다 올린다.
+  // 업로드 중에 다른 코트로 넘어가도 처음 고른 코트에 붙도록 대상 인덱스를 고정한다.
+  const courtPhotoIdx = useRef(0);
+  const pickCourtPhoto = () => {
+    if (courtUploading || saving) return;
+    courtPhotoIdx.current = sel;
+    courtFileRef.current?.click();
+  };
+  const handleCourtFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setCourtUploading(true);
+    try {
+      const { imageUrl, storagePath } = await uploadVenueImage(file, { asOwner: true });
+      const target = courtPhotoIdx.current;
+      setCourts((cs) => cs.map((c, i) => (i === target ? { ...c, photos: [...(c.photos || []), { url: imageUrl, storagePath }] } : c)));
+    } catch (err) {
+      showAlert(err?.message || "사진 업로드에 실패했어요.");
+    } finally { setCourtUploading(false); }
+  };
+  const removeCourtPhoto = (i) => setCourt({ photos: (court.photos || []).filter((_, idx) => idx !== i) });
+
   const save = async () => {
     if (!name.trim()) { showAlert("구장명을 입력해 주세요."); return; }
     if (courts.some((c) => !c.name.trim())) { showAlert("코트 이름을 입력해 주세요."); return; }
     setSaving(true);
     try {
       await updateMyVenue(venue.id, {
-        name, courts, facilities, displayMode, displayName,
+        name, courts: courts.map(courtPayload), facilities, displayMode, displayName,
         sportTypes, parking, directions, keywords,
         address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
         photos: photos.map((p) => p.url),
@@ -220,7 +252,7 @@ export default function OwnerVenuePage() {
     sportTypes, parking, directions, keywords,
     address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
     displayMode, displayName,
-    courts: courts.map((c) => ({ ...c, pricePerHour: Number(c.pricePerHour) || 0 })),
+    courts: courts.map((c) => ({ ...courtPayload(c), pricePerHour: Number(c.pricePerHour) || 0 })),
   };
 
   return (
@@ -312,6 +344,24 @@ export default function OwnerVenuePage() {
             </Row>
             <Field><Lbl>예약 시간 단위</Lbl><Sel value={court.slotMinutes} onChange={(e) => setCourt({ slotMinutes: Number(e.target.value) })}><option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option></Sel></Field>
             {courts.length > 1 && <GhostBtn type="button" onClick={removeCourt} style={{ color: C.red500, borderColor: C.red200 }}>이 코트 삭제</GhostBtn>}
+          </Card>
+
+          {/* 코트 사진 — 사용자 상세의 코트 카드 썸네일·코트 사진 뷰어에 노출 */}
+          <Card>
+            <SecTitle><LuImage size={16} /> {court.name || "코트"} 사진</SecTitle>
+            <Caption>이 코트만 찍은 사진이에요. 첫 사진이 코트 대표 이미지로 쓰이고, 사용자가 코트를 고를 때 보여요.</Caption>
+            <PhotoStrip>
+              {(court.photos || []).map((p, i) => (
+                <PhotoBox key={i}>
+                  <PhotoImg src={p.url} alt={`${court.name} 사진 ${i + 1}`} />
+                  <RemovePhoto type="button" onClick={() => removeCourtPhoto(i)}>×</RemovePhoto>
+                </PhotoBox>
+              ))}
+              <AddPhoto type="button" onClick={pickCourtPhoto} disabled={courtUploading}>
+                {courtUploading ? "업로드 중…" : <><span style={{ fontSize: 20 }}>＋</span><span>사진 추가</span></>}
+              </AddPhoto>
+            </PhotoStrip>
+            <HiddenFile ref={courtFileRef} type="file" accept="image/*" onChange={handleCourtFile} />
           </Card>
 
           {/* 운영시간 */}
