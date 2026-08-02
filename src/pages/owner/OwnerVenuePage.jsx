@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import {
   LuPlus, LuTrash2, LuPin, LuMegaphone, LuTriangleAlert, LuCoins, LuClock, LuLayoutGrid, LuBuilding2, LuLogOut,
-  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo, LuEye, LuMapPin,
+  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo, LuEye, LuMapPin, LuCheck,
 } from "react-icons/lu";
 import { useNavigate } from "react-router-dom";
 import { useOwner } from "../../context/OwnerContext";
@@ -17,6 +17,7 @@ import VenueMapPicker from "./components/VenueMapPicker";
 import PriceBandsEditor from "./components/PriceBandsEditor";
 import VenuePreviewSheet from "./components/VenuePreviewSheet";
 import { FacilityIcon } from "../venue/facilityIcons";
+import { payoutHint } from "../../constants/payments";
 import {
   Page, Card, ScreenTitle, SecTitle, Caption, Input, Chip, PrimaryBtn, GhostBtn, DangerBtn, C,
 } from "./components/od";
@@ -27,9 +28,27 @@ const VName = styled.div`font-size:18px;font-weight:800;color:${C.slate800};`;
 const VAddr = styled.div`font-size:13px;color:${C.slate500};`;
 const AutoAddr = styled.div`min-height:44px;padding:12px 14px;border-radius:12px;border:1px solid ${C.slate200};background:${C.slate100};color:${C.slate800};font-size:14px;line-height:1.4;display:flex;align-items:center;`;
 const ChipRow = styled.div`display:flex;gap:8px;overflow-x:auto;&::-webkit-scrollbar{display:none;}`;
+
+/* 예약 승인 방식 선택 */
+const ModeRow = styled.div`display:flex;gap:8px;& > *{flex:1;min-width:0;}`;
+const ModeBtn = styled.button`
+  text-align:left;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:12px;
+  border-radius:12px;
+  cursor:pointer;
+  border:1.5px solid ${({ $on }) => ($on ? C.violet600 : C.slate200)};
+  background:${({ $on }) => ($on ? C.violet50 : "#fff")};
+  &:active{transform:translateY(1px);}
+`;
+const ModeName = styled.span`font-size:14px;font-weight:700;color:${C.slate800};`;
+const ModeDesc = styled.span`font-size:11.5px;line-height:1.5;color:${C.slate500};white-space:pre-line;`;
 const Row = styled.div`display:flex;gap:10px;& > *{flex:1;min-width:0;}`;
 const Field = styled.label`display:flex;flex-direction:column;gap:6px;flex:1;`;
 const Lbl = styled.span`font-size:12.5px;font-weight:700;color:${C.slate500};`;
+const PayoutHint = styled.span`font-size:11.5px;color:${C.slate500};`;
 const Sel = styled.select`border:1px solid ${C.slate200};border-radius:12px;padding:11px 10px;font-size:14px;color:${C.slate800};background:#fff;`;
 const Seg = styled.div`display:flex;gap:8px;`;
 const SegBtn = styled.button`flex:1;border:1px solid ${({$on})=>$on?C.violet600:C.slate200};background:${({$on})=>$on?C.violet50:"#fff"};color:${({$on})=>$on?C.violet600:C.slate500};border-radius:12px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;`;
@@ -95,6 +114,7 @@ export default function OwnerVenuePage() {
   const [rules, setRules] = useState("");
   const [refundPolicy, setRefundPolicy] = useState("");
   const [defaultOwnerNote, setDefaultOwnerNote] = useState("");
+  const [autoApprove, setAutoApprove] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -123,6 +143,7 @@ export default function OwnerVenuePage() {
     setRules(venue.rules || "");
     setRefundPolicy(venue.refundPolicy || "");
     setDefaultOwnerNote(venue.defaultOwnerNote || "");
+    setAutoApprove(venue.autoApprove === true);
   }, [venue?.id]); // eslint-disable-line
 
   if (loading) return <OwnerSpinner label="불러오는 중…" />;
@@ -178,7 +199,7 @@ export default function OwnerVenuePage() {
         address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
         photos: photos.map((p) => p.url),
         storagePaths: photos.map((p) => p.storagePath),
-        description, phone, rules, refundPolicy, defaultOwnerNote,
+        description, phone, rules, refundPolicy, defaultOwnerNote, autoApprove,
       }, { asOwner: true });
       await refresh();
     } catch (e) {
@@ -251,6 +272,28 @@ export default function OwnerVenuePage() {
         <Field><Lbl><LuPhone size={13} style={{ verticalAlign: -2, marginRight: 4 }} />구장 연락처</Lbl><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="예: 02-1234-5678" /></Field>
       </Card>
 
+      {/* 예약 승인 방식 — 승인제(기본) / 즉시예약 */}
+      <Card>
+        <SecTitle><LuCheck size={16} /> 예약 승인 방식</SecTitle>
+        <Caption>회원이 예약을 요청했을 때 어떻게 처리할지 정해요. 언제든 바꿀 수 있어요.</Caption>
+        <ModeRow>
+          <ModeBtn type="button" $on={!autoApprove} onClick={() => setAutoApprove(false)}>
+            <ModeName>승인제</ModeName>
+            <ModeDesc>요청이 오면 내가 확인하고 승인해요.{"\n"}시간이 겹치거나 사정이 있으면 반려할 수 있어요.</ModeDesc>
+          </ModeBtn>
+          <ModeBtn type="button" $on={autoApprove} onClick={() => setAutoApprove(true)}>
+            <ModeName>즉시예약</ModeName>
+            <ModeDesc>운영시간에 비어 있으면 바로 잡혀요.{"\n"}승인 절차가 없어 예약이 더 잘 들어와요.</ModeDesc>
+          </ModeBtn>
+        </ModeRow>
+        {autoApprove && (
+          <Caption>
+            즉시예약은 내가 승인하지 않아도 예약이 확정돼요. 운영시간과 막아둔 시간이 정확해야
+            받을 수 없는 예약이 잡히지 않아요.
+          </Caption>
+        )}
+      </Card>
+
       {/* 코트 전환 */}
       <ChipRow>
         {courts.map((c, i) => <Chip key={c.id || i} $on={i === sel} onClick={() => setSel(i)}>{c.name || `${i + 1}코트`}</Chip>)}
@@ -288,7 +331,11 @@ export default function OwnerVenuePage() {
             </Seg>
 
             {priceTab === "base" && (
-              <Field><Lbl>기본 요금 (시간당)</Lbl><Input type="number" value={court.pricePerHour} onChange={(e) => setCourt({ pricePerHour: e.target.value })} placeholder="40000" /></Field>
+              <Field>
+                <Lbl>기본 요금 (시간당) · 손님이 결제할 금액</Lbl>
+                <Input type="number" value={court.pricePerHour} onChange={(e) => setCourt({ pricePerHour: e.target.value })} placeholder="40000" />
+                {payoutHint(court.pricePerHour) ? <PayoutHint>{payoutHint(court.pricePerHour)}</PayoutHint> : null}
+              </Field>
             )}
 
             {priceTab === "weekday" && (

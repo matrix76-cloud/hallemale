@@ -24,7 +24,6 @@ import {
   IoLocationOutline,
   IoMailOutline,
 } from "react-icons/io5";
-import { PG_ENABLED } from "../constants/payments";
 
 const A = "/admin";
 
@@ -85,13 +84,8 @@ export const MENUS = [
     label: "구장 관리",
     sub: [
       { to: `${A}/venues`, label: "구장 목록" },
-      // 결제 정산·환불은 PG(카드결제) 개시 후 활성화 (현재는 현장 정산)
-      ...(PG_ENABLED
-        ? [
-            { to: `${A}/settlements`, label: "결제 정산" },
-            { to: `${A}/refunds`, label: "환불 관리" },
-          ]
-        : []),
+      { to: `${A}/settlements`, label: "결제 정산" },
+      { to: `${A}/refunds`, label: "환불 관리" },
     ],
   },
   {

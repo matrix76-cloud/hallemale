@@ -8,6 +8,7 @@ import styled from "styled-components";
 import { useOwner } from "../../context/OwnerContext";
 import { Page, Card, SectionTitle, SectionDesc, GhostBtn, PrimaryBtn, Badge } from "./components/ownerUi";
 import BusinessSection from "./components/BusinessSection";
+import { ownerTypeOption, resolveOwnerType } from "../../constants/ownerType";
 
 // 스토어 배포 버전과 함께 올린다.
 const APP_VERSION = "1.0.0";
@@ -117,6 +118,7 @@ export default function OwnerMyPage() {
 
   const name = userDoc?.nickname || venue?.ownerName || "사장님";
   const email = userDoc?.email || firebaseUser?.email || "";
+  const ownerType = resolveOwnerType(userDoc, venue);
 
   return (
     <Page>
@@ -142,6 +144,7 @@ export default function OwnerMyPage() {
         <Card>
           <SectionTitle>내 구장</SectionTitle>
           <MenuItem><span>구장명</span><b>{venue.name}</b></MenuItem>
+          <MenuItem><span>운영 주체</span><b>{ownerTypeOption(ownerType).label}</b></MenuItem>
           <MenuItem><span>코트 수</span><b>{venue.courts?.length || 0}개</b></MenuItem>
           <MenuItem>
             <span>심사 상태</span>
@@ -153,7 +156,7 @@ export default function OwnerMyPage() {
         </Card>
       )}
 
-      {venue && <BusinessSection venue={venue} refresh={refresh} />}
+      {venue && <BusinessSection venue={venue} refresh={refresh} ownerType={ownerType} />}
 
       <Card>
         <SectionTitle>고객지원</SectionTitle>

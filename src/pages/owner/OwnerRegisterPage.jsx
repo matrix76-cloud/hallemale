@@ -16,11 +16,13 @@ import {
 } from "../../services/ownerVenueService";
 import {
   Page, Card, SectionTitle, SectionDesc, Field, Label, Input, Textarea,
-  Select, Row, PrimaryBtn, GhostBtn, Chip, ChipWrap,
+  Select, Row, PrimaryBtn, GhostBtn, Chip, ChipWrap, FieldHint,
 } from "./components/ownerUi";
+import { payoutHint } from "../../constants/payments";
 import OwnerSpinner from "./components/OwnerSpinner";
 import CourtHoursEditor from "./components/CourtHoursEditor";
 import { openDaumPostcode } from "./components/addressSearch";
+import { ownerTypeOption, resolveOwnerType } from "../../constants/ownerType";
 
 // 환불 비율은 플랫폼 공통 기준(constants/cancelPolicy.js)이라 여기 적지 않는다.
 // 이 필드는 구장 고유 안내(우천·일정변경·노쇼 당부)만 담는다.
@@ -204,7 +206,7 @@ const SumVal = styled.span`
 
 export default function OwnerRegisterPage() {
   const navigate = useNavigate();
-  const { uid, venue, loading: ownerLoading, refresh } = useOwner();
+  const { uid, venue, userDoc, loading: ownerLoading, refresh } = useOwner();
   const fileRef = useRef(null);
   // ?step=<key> 로 특정 단계부터 열 수 있다 (리뷰 보드가 8단계를 각각 프레임으로 띄운다).
   const [step, setStep] = useState(() => {
@@ -219,6 +221,11 @@ export default function OwnerRegisterPage() {
 
   // 이미 구장이 있으면(대기/승인/반려 무관) 새로 만들지 않고 기존 구장 수정 모드
   const editingId = venue ? venue.id : null;
+
+  // 계정에 저장된 운영 주체(가입 직후 선택). 학교·기관은 사업자등록증이 없어서
+  // 사업자번호를 필수로 들이대면 등록 자체가 막힌다 → 문구·필드가 이 값으로 갈린다.
+  const ownerType = resolveOwnerType(userDoc, venue);
+  const typeOpt = ownerTypeOption(ownerType);
 
   const [form, setForm] = useState({
     name: "",
@@ -361,6 +368,9 @@ export default function OwnerRegisterPage() {
       const payload = {
         ownerUid: uid,
         ...form,
+        ownerType,
+        // 주체에 해당하지 않는 값은 올리지 않는다(주체를 바꾼 뒤 재신청 시 잔여값 방지)
+        bizNo: typeOpt.needsBizNo ? form.bizNo : "",
         photos: photos.map((p) => p.url),
         storagePaths: photos.map((p) => p.storagePath),
         facilities,
@@ -396,7 +406,7 @@ export default function OwnerRegisterPage() {
         ))}
       </Progress>
       <StepCount>{step + 1} / {STEPS.length}</StepCount>
-      <StepTitle>{STEPS[step].title}</StepTitle>
+      <StepTitle>{stepKey === "biz" ? typeOpt.adminInfoTitle : STEPS[step].title}</StepTitle>
       <StepDesc>{STEPS[step].desc}</StepDesc>
 
       {stepKey === "basic" && (
@@ -476,8 +486,9 @@ export default function OwnerRegisterPage() {
               </Row>
               <Row>
                 <Field>
-                  <Label>시간당 가격(원)</Label>
+                  <Label>시간당 가격(원) · 손님이 결제할 금액</Label>
                   <Input type="number" value={c.pricePerHour} onChange={(e) => setCourt(i, { pricePerHour: e.target.value })} placeholder="예: 40000" />
+                  {payoutHint(c.pricePerHour) ? <FieldHint>{payoutHint(c.pricePerHour)}</FieldHint> : null}
                 </Field>
                 <Field>
                   <Label>슬롯 단위(분)</Label>
@@ -527,8 +538,8 @@ export default function OwnerRegisterPage() {
         <Card>
           <Row>
             <Field>
-              <Label>대표자명</Label>
-              <Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder="예: 홍길동" />
+              <Label>{typeOpt.personLabel}</Label>
+              <Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder={typeOpt.personPlaceholder} />
             </Field>
             <Field>
               <Label>관리자 연락처</Label>
@@ -537,13 +548,15 @@ export default function OwnerRegisterPage() {
           </Row>
           <Row>
             <Field>
-              <Label>상호(사업자명)</Label>
-              <Input value={form.bizName} onChange={(e) => set({ bizName: e.target.value })} placeholder="예: ○○스포츠" />
+              <Label>{typeOpt.orgLabel}</Label>
+              <Input value={form.bizName} onChange={(e) => set({ bizName: e.target.value })} placeholder={typeOpt.orgPlaceholder} />
             </Field>
-            <Field>
-              <Label>사업자등록번호</Label>
-              <Input value={form.bizNo} onChange={(e) => set({ bizNo: e.target.value })} placeholder="예: 123-45-67890" />
-            </Field>
+            {typeOpt.needsBizNo && (
+              <Field>
+                <Label>사업자등록번호</Label>
+                <Input value={form.bizNo} onChange={(e) => set({ bizNo: e.target.value })} placeholder="예: 123-45-67890" />
+              </Field>
+            )}
           </Row>
         </Card>
       )}
@@ -568,10 +581,13 @@ export default function OwnerRegisterPage() {
             ))}
           </Card>
           <Card>
-            <SectionTitle>🧾 사업자 정보</SectionTitle>
-            <SumRow><SumKey>대표자명</SumKey><SumVal>{form.ownerName || "미입력"}</SumVal></SumRow>
-            <SumRow><SumKey>상호</SumKey><SumVal>{form.bizName || "미입력"}</SumVal></SumRow>
-            <SumRow><SumKey>사업자번호</SumKey><SumVal>{form.bizNo || "미입력"}</SumVal></SumRow>
+            <SectionTitle>{typeOpt.contactHead}</SectionTitle>
+            <SumRow><SumKey>운영 주체</SumKey><SumVal>{typeOpt.label}</SumVal></SumRow>
+            <SumRow><SumKey>{typeOpt.personLabel}</SumKey><SumVal>{form.ownerName || "미입력"}</SumVal></SumRow>
+            <SumRow><SumKey>{typeOpt.orgLabel}</SumKey><SumVal>{form.bizName || "미입력"}</SumVal></SumRow>
+            {typeOpt.needsBizNo && (
+              <SumRow><SumKey>사업자번호</SumKey><SumVal>{form.bizNo || "미입력"}</SumVal></SumRow>
+            )}
             <SumRow><SumKey>관리자 연락처</SumKey><SumVal>{form.contactPhone || "미입력"}</SumVal></SumRow>
           </Card>
           <SectionDesc>

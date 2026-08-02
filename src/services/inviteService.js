@@ -7,6 +7,7 @@
 // - ✅ 초대 수락 시: 팀장에게 notifications 기록 + push 플래그
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   collection,
   collectionGroup,
@@ -42,6 +43,7 @@ function sortByCreatedAtDesc(list) {
 /* ===== 카운트 ===== */
 
 export async function countPendingInvitesForUser({ uid, limitCount = 200 } = {}) {
+  if (hasMock("invites")) return mockData("invites").filter((i) => i.toUid === uid).length;
   if (!uid) return 0;
 
   const col = collectionGroup(db, "invites");
@@ -62,6 +64,7 @@ export async function countPendingInvitesForUser({ uid, limitCount = 200 } = {})
 
 export async function listMyReceivedInvites({ uid, limitCount = 60 } = {}) {
   if (!uid) return [];
+  if (hasMock("invites")) return mockData("invites").filter((i) => i.toUid === uid);
 
   const col = collectionGroup(db, "invites");
   const q = query(col, where("toUid", "==", uid), limit(limitCount));
@@ -82,6 +85,10 @@ export async function listMyReceivedInvites({ uid, limitCount = 60 } = {}) {
 export async function getClubInviteById({ clubId, inviteId } = {}) {
   if (!clubId) throw new Error("getClubInviteById: clubId is required");
   if (!inviteId) throw new Error("getClubInviteById: inviteId is required");
+
+  if (hasMock("invites")) {
+    return mockData("invites").find((i) => i.clubId === clubId && i.id === inviteId) || null;
+  }
 
   const ref = doc(db, "clubs", clubId, "invites", inviteId);
   const snap = await getDoc(ref);

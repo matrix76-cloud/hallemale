@@ -13,10 +13,12 @@
 
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 
 let inflight = null;
 
 export async function getAllClubDocs() {
+  if (hasMock("clubSnapshots")) return mockData("clubSnapshots");
   if (inflight) return inflight;
 
   inflight = getDocs(collection(db, "clubs"))

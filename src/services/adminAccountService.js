@@ -6,6 +6,7 @@
 // - 비밀번호는 SHA-256 해시로 저장
 
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   deleteDoc,
@@ -64,6 +65,15 @@ export async function ensureSuperAdmin() {
  * 운영자 목록
  */
 export async function listAdminAccounts() {
+  if (hasMock("adminAccounts")) {
+    const snap0 = mockQuerySnap(mockData("adminAccounts"));
+    const rows0 = [];
+    snap0.forEach((d) => {
+      const data = d.data() || {};
+      rows0.push({ id: d.id, name: safeStr(data.name) || d.id, role: safeStr(data.role) || "admin", createdAt: toDate(data.createdAt) });
+    });
+    return rows0;
+  }
   await ensureSuperAdmin();
   const snap = await getDocs(collection(db, "admin_accounts"));
   const rows = [];

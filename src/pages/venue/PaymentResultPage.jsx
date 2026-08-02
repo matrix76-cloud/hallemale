@@ -28,10 +28,13 @@ export default function PaymentResultPage() {
     if (isFail || ranRef.current) return;
     ranRef.current = true;
 
+    // 🧪 결제창을 건너뛴 테스트 승인 — paymentKey 는 서버가 만든다.
+    //    결과 화면부터는 실결제와 완전히 같은 경로를 타야 흐름 확인이 의미가 있다.
+    const testSkip = sp.get("testSkip") === "1";
     const paymentKey = sp.get("paymentKey");
     const orderId = sp.get("orderId");
     const amount = Number(sp.get("amount"));
-    if (!paymentKey || !orderId || !amount) {
+    if ((!paymentKey && !testSkip) || !orderId || !amount) {
       setState("failed");
       setMessage("결제 정보가 올바르지 않아요.");
       return;
@@ -39,7 +42,7 @@ export default function PaymentResultPage() {
 
     (async () => {
       try {
-        const r = await confirmPayment({ paymentKey, orderId, amount });
+        const r = await confirmPayment({ paymentKey, orderId, amount, testSkip });
         setResult(r);
         setState("done");
       } catch (e) {

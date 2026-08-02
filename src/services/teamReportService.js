@@ -4,6 +4,7 @@
 // Firestore 컬렉션: team_reports
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   addDoc,
   collection,
@@ -55,6 +56,7 @@ export async function createTeamReport({
 
 // ✅ 내가 신고한 팀 목록 (내정보 > 내가 신고한 내역)
 export async function listMyTeamReports(reporterUid) {
+  if (hasMock("myTeamReports")) return mockData("myTeamReports");
   const ru = safeStr(reporterUid);
   if (!ru) return [];
   const q = query(collection(db, "team_reports"), where("reporterUid", "==", ru));

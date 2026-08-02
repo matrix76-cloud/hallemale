@@ -96,13 +96,13 @@ export const VENUE_REVIEW = [
   // 예약 화면은 데모 구장으로 본다. 크롤링 구장(한국외대 등)은 courts 가 비어 있어
   // "코트 정보를 찾을 수 없어요" 만 뜬다(실측 확인).
   { id: "venue-book",      no: "4-02", name: "구장 예약",    path: `/venue-book/${DEMO_VENUE}`,        spec: [] },
-  { id: "court-book",      no: "4-03", name: "코트 예약",    path: `/venue-book/${DEMO_VENUE}/court/${DEMO_COURT}`, spec: [] },
   { id: "pay",             no: "4-04", name: "결제(토스 위젯)", path: `/pay/${F_RESERVATION}`,         spec: [] },
-  // /pay/success 는 제외 — 토스 승인 파라미터(paymentKey·orderId·amount)가 있어야 완료 화면이 뜨고,
-  // 없으면 아래 실패 화면과 같은 상태로만 보인다(실결제 없이는 리뷰 불가).
-  { id: "pay-fail",        no: "4-05", name: "결제 결과(실패)", path: "/pay/fail?message=%EA%B2%B0%EC%A0%9C%EB%A5%BC%20%EC%B7%A8%EC%86%8C%ED%96%88%EC%96%B4%EC%9A%94", spec: [] },
-  { id: "my-reservations", no: "4-06", name: "내 구장 예약", path: "/my/reservations",                 spec: [] },
-  { id: "fav-venues",      no: "4-07", name: "찜한 구장",    path: "/my/fav-venues",                   spec: [] },
+  // 성공 화면은 토스 승인 파라미터(paymentKey·orderId·amount)가 다 있어야 뜬다. 없으면 실패 화면과
+  // 같은 모습이라 리뷰가 안 된다 → 목업 주문 id 를 붙여 띄운다(승인 호출은 목업이라 돈이 안 빠진다).
+  { id: "pay-success",     no: "4-05", name: "결제 결과(성공·확정)", path: "/pay/success?orderId=mock_order_20260802_001&paymentKey=mock_pk&amount=84000", spec: [] },
+  { id: "pay-fail",        no: "4-06", name: "결제 결과(실패)", path: "/pay/fail?message=%EA%B2%B0%EC%A0%9C%EB%A5%BC%20%EC%B7%A8%EC%86%8C%ED%96%88%EC%96%B4%EC%9A%94", spec: [] },
+  { id: "my-reservations", no: "4-07", name: "내 구장 예약", path: "/my/reservations",                 spec: [] },
+  { id: "fav-venues",      no: "4-08", name: "찜한 구장",    path: "/my/fav-venues",                   spec: [] },
 ];
 
 // ── 5. 팀 ───────────────────────────────────────────────────

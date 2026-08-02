@@ -14,6 +14,7 @@ import {
   query,
   startAfter,
 } from "firebase/firestore";
+import { hasMock, mockData } from "../dev/mockBus";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -151,6 +152,10 @@ export async function listTeamRankingPage({ pageSize = 30, cursor = null, debugL
  * - 홈 Top과 동일한 후보 풀에서 정렬되도록 페이지네이션 없이 전체를 가져옴
  */
 export async function listAllTeamsForRanking({ debugLog = false } = {}) {
+  if (hasMock("clubSnapshots")) {
+    const rows0 = mockData("clubSnapshots").map((d) => normalizeClubDoc(d.id, d.data()));
+    return { rows: rows0 };
+  }
   const col = collection(db, "clubs");
   const snap = await getDocs(col);
   const rows = (snap.docs || []).map((d) => normalizeClubDoc(d.id, d.data()));
@@ -181,6 +186,7 @@ function getRankPerfKey(t) {
  * - TeamRankingFullPage 와 동일한 전역 정렬 기준(필터 없음)
  */
 export async function getTeamRankMap({ debugLog = false } = {}) {
+  if (hasMock("teamRankMap")) return mockData("teamRankMap");
   const { rows } = await listAllTeamsForRanking({ debugLog });
 
   const sorted = [...rows].sort((a, b) => {

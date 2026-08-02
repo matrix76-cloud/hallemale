@@ -1,6 +1,6 @@
 // src/constants/booking.js
 // 구장 예약 가능 기간 — 오늘 포함 21일(3주).
-// 날짜 스트립(VenueBookingPage/CourtBookingPage) · 예약 생성 가드(ownerVenueService) ·
+// 날짜 스트립(VenueBookingPage) · 예약 생성 가드(ownerVenueService) ·
 // firestore.rules(venueReservations) 가 모두 이 값을 기준으로 한다. 바꿀 땐 rules 의
 // BOOKING_WINDOW_DAYS 주석도 함께 맞출 것.
 // 예외: 구장주 수동·정기대관(createOwnerReservation)은 이 창구를 적용하지 않는다.

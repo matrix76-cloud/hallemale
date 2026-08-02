@@ -204,7 +204,10 @@ test("★ 예약을 취소하면 슬롯이 반납돼 같은 시간을 다시 예
   expect(liveReservations()).toHaveLength(1);
 });
 
-test("★ 구장주가 겹치는 예약요청 두 건을 동시에 승인해도 한 건만 확정된다", async () => {
+// 승인은 확정이 아니라 "결제 대기(pending)"다 — 결제가 끝나야 서버가 confirmed 로 올린다.
+// 여기서 지키려는 불변식: 겹치는 두 건 중 슬롯을 잡는 건 한 건뿐.
+
+test("★ 구장주가 겹치는 예약요청 두 건을 동시에 승인해도 한 건만 통과한다", async () => {
   const { bookVenue, setReservationStatus } = require("../ownerVenueService");
 
   // 위 레이스로 이미 두 건의 requested 가 들어간 상태를 재현
@@ -220,7 +223,116 @@ test("★ 구장주가 겹치는 예약요청 두 건을 동시에 승인해도 
     setReservationStatus("forced", "confirmed"),
   ]);
 
-  const confirmed = Object.values(mockStore.venueReservations).filter((r) => r.status === "confirmed");
+  const approved = Object.values(mockStore.venueReservations).filter((r) => r.status === "pending");
   // 기대(정상 동작): 승인은 한 건만 통과해야 한다.
-  expect(confirmed).toHaveLength(1);
+  expect(approved).toHaveLength(1);
+  // 결제 대기 건은 마감 시각을 받는다 — 이게 없으면 만료 자동취소 잡이 잡아주지 못한다.
+  expect(approved[0].paymentDeadline).toBeTruthy();
+});
+
+// 즉시예약(autoApprove) 구장은 승인 단계를 건너뛰지만, 슬롯 락은 똑같이 지켜야 한다.
+test("★ 즉시예약 구장도 같은 슬롯 두 건이 동시에 들어오면 한 건만 통과한다", async () => {
+  const { bookVenue } = require("../ownerVenueService");
+  const AUTO_VENUE = { ...VENUE, autoApprove: true };
+
+  const [r1, r2] = await Promise.allSettled([
+    bookVenue({ venue: AUTO_VENUE, court: COURT, date: DATE, ...SLOT, user: { uid: "userA", userName: "A" } }),
+    bookVenue({ venue: AUTO_VENUE, court: COURT, date: DATE, ...SLOT, user: { uid: "userB", userName: "B" } }),
+  ]);
+
+  const ok = [r1, r2].filter((r) => r.status === "fulfilled");
+  expect(ok).toHaveLength(1);
+  expect(liveReservations()).toHaveLength(1);
+  // 승인 대기를 거치지 않고 바로 결제 대기로 잡힌다
+  expect(liveReservations()[0].status).toBe("pending");
+});
+
+// 즉시예약(autoApprove)은 구장주 승인을 건너뛰므로 결제 마감을 예약 생성 시점에 찍어야 한다.
+// 안 찍으면 만료 잡이 이 건을 영영 못 잡아 결제 없이 슬롯만 물고 있게 된다.
+test("★ 즉시예약도 결제 대기(pending)로 잡히고 결제 마감이 붙는다", async () => {
+  const { bookVenue } = require("../ownerVenueService");
+  const autoVenue = { ...VENUE, autoApprove: true };
+
+  const a = await bookVenue({ venue: autoVenue, court: COURT, date: DATE, ...SLOT, user: { uid: "userA", userName: "A" } });
+
+  const r = mockStore.venueReservations[a.reservationId];
+  expect(r.status).toBe("pending");
+  expect(r.paymentDeadline).toBeTruthy();
+});
+
+/* ── 매칭 제휴구장 예약 (requestVenueReservationForMatch) ──────────────
+ * 이 경로만 "조회(assertSlotFree) → setDoc" 2단계로 남아 락을 안 거쳤다. 일반 예약을 락으로
+ * 막아도 이쪽으로 같은 슬롯이 한 번 더 들어갈 수 있었다. 예약 id 가 m_{matchId} 로 고정이라
+ * 자동 id 를 쓰는 createReservationLocked 를 그대로 못 써서 빠진 것으로 보인다. */
+const matchDoc = () => ({
+  status: "accepted",
+  partnerBooking: {
+    venueId: "v1", venueName: "테스트구장", ownerUid: "owner1", venuePhone: "02-000-0000",
+    courtId: "c1", courtName: "A코트",
+    date: DATE, startTime: SLOT.startTime, endTime: SLOT.endTime,
+    totalPrice: 80000, shareA: 40000, shareB: 40000,
+    proposerUid: "leaderA", proposerClubId: "clubA", proposerTeamName: "A팀",
+    opponentClubId: "clubB", opponentTeamName: "B팀",
+  },
+});
+
+test("★ 매칭 제휴구장 예약도 같은 슬롯 두 건이 동시에 들어오면 한 건만 통과한다", async () => {
+  const { requestVenueReservationForMatch } = require("../ownerVenueService");
+  mockStore.match_requests = { m1: matchDoc(), m2: matchDoc() };
+
+  const results = await Promise.allSettled([
+    requestVenueReservationForMatch({ matchId: "m1", requestedByClubId: "clubB" }),
+    requestVenueReservationForMatch({ matchId: "m2", requestedByClubId: "clubB" }),
+  ]);
+
+  expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  expect(
+    results.filter((r) => r.status === "rejected" && r.reason?.code === "slot_taken")
+  ).toHaveLength(1);
+  expect(liveReservations()).toHaveLength(1);
+});
+
+// 실제로 부딪히는 조합 — 일반 사용자가 예약하는 그 순간 매칭이 같은 코트를 요청한다.
+// ⚠️ 이 건은 락 없이도 통과한다(매칭 쪽 사전 조회가 이 타이밍에선 상대 쓰기를 본다).
+//    레이스 재현이 아니라 불변식 회귀 가드로 둔다 — 레이스 재현은 바로 위 테스트가 한다.
+test("★ 일반 예약과 매칭 예약이 같은 슬롯을 동시에 다퉈도 한 건만 통과한다", async () => {
+  const { bookVenue, requestVenueReservationForMatch } = require("../ownerVenueService");
+  mockStore.match_requests = { m1: matchDoc() };
+
+  const results = await Promise.allSettled([
+    bookVenue({ venue: VENUE, court: COURT, date: DATE, ...SLOT, user: { uid: "userA", userName: "A" } }),
+    requestVenueReservationForMatch({ matchId: "m1", requestedByClubId: "clubB" }),
+  ]);
+
+  expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  expect(liveReservations()).toHaveLength(1);
+});
+
+// 예약 id 가 m_{matchId} 로 고정이라 같은 매칭이 두 번 요청되면 덮어쓸 위험이 있다.
+// 트랜잭션 안에서 "이미 살아있는지" 다시 보므로 동시에 눌러도 한 건이어야 한다.
+test("★ 같은 매칭에 동시에 두 번 요청해도 예약은 한 건만 생긴다(멱등)", async () => {
+  const { requestVenueReservationForMatch } = require("../ownerVenueService");
+  mockStore.match_requests = { m1: matchDoc() };
+
+  await Promise.allSettled([
+    requestVenueReservationForMatch({ matchId: "m1", requestedByClubId: "clubB" }),
+    requestVenueReservationForMatch({ matchId: "m1", requestedByClubId: "clubB" }),
+  ]);
+
+  expect(liveReservations()).toHaveLength(1);
+  expect(liveReservations()[0].id).toBe("m_m1");
+});
+
+// 락을 도입하면서 생긴 위험 — 매칭 예약이 반려·취소되면 그 자리가 반드시 비어야 한다.
+// 안 비우면 그 코트·시간이 영구히 예약 불가가 된다(원래 버그보다 나쁜 실패).
+test("★ 매칭 예약이 반려되면 슬롯이 반납돼 같은 시간을 다시 예약할 수 있다", async () => {
+  const { requestVenueReservationForMatch, rejectReservation, bookVenue } = require("../ownerVenueService");
+  mockStore.match_requests = { m1: matchDoc() };
+
+  const { reservationId } = await requestVenueReservationForMatch({ matchId: "m1", requestedByClubId: "clubB" });
+  await rejectReservation(reservationId, { by: "team", clubId: "clubB" });
+
+  const second = await bookVenue({ venue: VENUE, court: COURT, date: DATE, ...SLOT, user: { uid: "userA", userName: "A" } });
+  expect(second.reservationId).toBeTruthy();
+  expect(liveReservations()).toHaveLength(1);
 });

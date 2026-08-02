@@ -127,7 +127,6 @@ const MyTeamMatchesPage = lazy(() => import("../pages/matching/MyTeamMatchesPage
 const EventPage = lazy(() => import("../pages/event/EventPage"));
 const VenueListPage = lazy(() => import("../pages/venue/VenueListPage"));
 const VenueBookingPage = lazy(() => import("../pages/venue/VenueBookingPage"));
-const CourtBookingPage = lazy(() => import("../pages/venue/CourtBookingPage"));
 const PaymentPage = lazy(() => import("../pages/venue/PaymentPage"));
 const PaymentResultPage = lazy(() => import("../pages/venue/PaymentResultPage"));
 
@@ -530,7 +529,6 @@ export default function AppRoutes() {
 
           <Route path="/venues" element={<VenueListPage />} />
           <Route path="/venue-book/:id" element={<VenueBookingPage />} />
-          <Route path="/venue-book/:id/court/:courtId" element={<CourtBookingPage />} />
 
           {/* 토스 결제 — /pay/success·/pay/fail 은 결제창이 돌아오는 지점(경로 고정) */}
           <Route path="/pay/success" element={<PaymentResultPage />} />

@@ -38,7 +38,6 @@ import MatchAcceptedCelebration from "../../components/matchRoom/MatchAcceptedCe
 import MatchFinalCelebration from "../../components/matchRoom/MatchFinalCelebration";
 import CancelReasonSheet from "../../components/matchRoom/CancelReasonSheet";
 import MatchLineupConfirmSheet from "../../components/matchRoom/MatchLineupConfirmSheet";
-import { PG_ENABLED, PLATFORM_FEE_RATE, calcPlatformFee } from "../../constants/payments";
 import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import useVisualViewportHeightVar from "../../hooks/useVisualViewportHeightVar";
 import { getOrCreateMatchRoomChat } from "../../services/chatService";
@@ -3094,6 +3093,21 @@ export default function MatchRoomDetailPage() {
   }, [room?.id]);
 
   useEffect(() => { loadPartnerPay(); }, [loadPartnerPay, room?.status]);
+
+  // 구장주 승인이 끝나 "결제 대기"로 내려온 상태인지.
+  // 매칭 status 는 승인 전후가 똑같이 awaiting_venue_approval 이라(확정은 결제 후 서버가 찍는다),
+  // 승인 여부는 예약 문서 status 로만 알 수 있다. 이 화면의 안내 문구·CTA 가 전부 이 값으로 갈린다.
+  const venuePayPending = toStr(partnerPay?.resv?.status) === "pending";
+
+  // 분담결제는 팀당 1건이라 "우리 팀이 냈는지"와 "상대 팀이 냈는지"가 따로 논다.
+  // 안내 문구·채팅 공지가 이 두 값으로 갈린다 — 먼저 낸 팀이 있는지 상대가 알아야
+  // 마감 전에 결제할 수 있다.
+  const myPaySide =
+    myClubId && toStr(partnerPay?.pb?.proposerClubId) === myClubId ? "A" : "B";
+  const myTeamPaid =
+    myPaySide === "A" ? !!partnerPay?.resv?.paidByA : !!partnerPay?.resv?.paidByB;
+  const oppTeamPaid =
+    myPaySide === "A" ? !!partnerPay?.resv?.paidByB : !!partnerPay?.resv?.paidByA;
   // 실시간 구독 콜백에서 항상 최신 loadPartnerPay 를 호출할 수 있도록 ref 동기화
   useEffect(() => { loadPartnerPayRef.current = loadPartnerPay; }, [loadPartnerPay]);
 
@@ -3137,7 +3151,14 @@ export default function MatchRoomDetailPage() {
 
   // 구장 정하기 방식 선택 게이트: "none"(미선택) → 게이트 노출 → "direct"(직접 입력) 선택 시 지도 흐름.
   // ("제휴구장 예약"은 준비중 — 결제/예약 백엔드 미구현)
-  const [venueMode, setVenueMode] = useState("none");
+  // ?venueMode=direct 로 직접입력 단계부터 열 수 있다 (리뷰 보드가 분기별 화면을 프레임으로 띄운다).
+  const [venueMode, setVenueMode] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("venueMode") === "direct" ? "direct" : "none";
+    } catch (e) {
+      return "none";
+    }
+  });
   // 구장 방식 선택 게이트: 직접입력/제휴 중 택1 후 "이 방식으로 정하기" 버튼으로 진행
   const [gateChoice, setGateChoice] = useState("");
 
@@ -3527,8 +3548,12 @@ export default function MatchRoomDetailPage() {
             >
               🚩 상대 팀 신고하기
             </RoomMenuBtn>
+            {/* 조율중 전 구간에서 취소할 수 있어야 한다 — awaiting_venue_approval(구장 승인 대기)이
+                빠져 있으면 구장주가 무응답일 때 경기를 접을 방법이 없다.
+                이때 걸려 있는 예약 요청은 cancelMatchRequest 가 함께 취소한다. */}
             {(toStr(room?.status) === "accepted" ||
-              toStr(room?.status) === "proposed") && (
+              toStr(room?.status) === "proposed" ||
+              toStr(room?.status) === "awaiting_venue_approval") && (
               <RoomMenuBtn
                 type="button"
                 $danger
@@ -3881,7 +3906,7 @@ export default function MatchRoomDetailPage() {
   }
 
   // 진행단계 스텝퍼 (직접 입력 흐름)
-  // 결제 단계 제거 (현장 정산만 있어 앱 결제 없음)
+  // 직접 입력 경로는 앱 결제 단계가 없다 (팀끼리 직접 예약·정산)
   // 단계: 라인업(양 팀 확정) → 구장·일정(제안) → 확정(상대 수락)
   //  - 구장·일정은 제안 시 함께 설정되므로 한 단계로 합침
   const STEP_LABELS = ["라인업", "구장·일정", "확정"];
@@ -3903,7 +3928,14 @@ export default function MatchRoomDetailPage() {
     if (isVoided) return "무효 처리";
     if (status === "finished") return "경기 종료";
     if (status === "cancelled") return "취소된 매칭";
-    if (status === "awaiting_venue_approval") return "구장 승인 대기 중";
+    // 승인이 나면 같은 status 그대로 결제 대기로 넘어간다 — 배지가 계속 "승인 대기"면
+    // 이미 승인된 걸 모르고 결제를 안 하게 된다.
+    if (status === "awaiting_venue_approval")
+      return !venuePayPending
+        ? "구장 승인 대기 중"
+        : myTeamPaid && !oppTeamPaid
+        ? "상대 팀 결제 대기 중"
+        : "결제 대기 중";
     if (status === "confirmed") return "3/3 · 확정 완료";
     const labelNote = {
       라인업: "라인업 확정 중",
@@ -3918,11 +3950,23 @@ export default function MatchRoomDetailPage() {
   })();
 
   const oppName = toStr(oppTeamView?.name) || "상대팀";
+  // 분담결제 진행 상황은 채팅방 공지로도 알린다. 한 팀이 먼저 내면 상대는 앱 알림을
+  // 놓쳤을 수 있는데, 마감(2시간)이 이미 돌고 있어서 채팅에서라도 보여야 한다.
+  const venuePayNotice = !venuePayPending
+    ? "구장주 승인을 기다리는 중이에요 · 승인되면 각자 몫을 결제해야 확정돼요"
+    : myTeamPaid && !oppTeamPaid
+    ? `우리 팀 결제 완료 💳 · ${oppName}의 결제를 기다리는 중이에요`
+    : !myTeamPaid && oppTeamPaid
+    ? `${oppName}가 먼저 결제했어요 💳 · 우리 팀 몫을 결제하면 경기가 확정돼요`
+    : "구장 예약이 승인됐어요 · 양 팀이 각자 몫을 결제하면 경기가 확정돼요";
+
   const chatSystemNotice =
     status === "accepted"
       ? `${oppName}와 매칭이 성사됐어요 · 일정을 조율해 보세요 🏀`
       : status === "proposed"
       ? "구장·일정이 제안됐어요 · 채팅으로 조율하세요"
+      : status === "awaiting_venue_approval"
+      ? venuePayNotice
       : status === "confirmed"
       ? "경기가 확정됐어요 🎉"
       : isVoided
@@ -4039,7 +4083,7 @@ export default function MatchRoomDetailPage() {
     }
   };
 
-  // 제휴구장 제안 수락 → 구장주 승인 대기(예약 요청 생성). 결제 없음(현장 정산).
+  // 제휴구장 제안 수락 → 구장주 승인 대기(예약 요청 생성). 결제는 승인 후 각 팀장이 한다.
   const handleAcceptPartnerProposal = async () => {
     if (!myClubId || !room?.id) return;
     try {
@@ -4481,7 +4525,7 @@ export default function MatchRoomDetailPage() {
                 <PropK>구장비</PropK>
                 <PropV>
                   총 {Number(partnerPay.pb.totalPrice).toLocaleString()}원
-                  <span style={{ color: "#6b7280", fontWeight: 600 }}> · 현장 정산</span>
+                  <span style={{ color: "#6b7280", fontWeight: 600 }}> · 양 팀 각자 앱 결제</span>
                 </PropV>
               </PropRow>
               <PropPayNote style={{ color: "#6b7280" }}>
@@ -4498,7 +4542,13 @@ export default function MatchRoomDetailPage() {
         style={{ cursor: propVenueId ? "pointer" : "default" }}
       >
         <PropMapWrap>
-          <PropBadge>⏳ 구장 승인 대기</PropBadge>
+          <PropBadge>
+            {!venuePayPending
+              ? "⏳ 구장 승인 대기"
+              : myTeamPaid && !oppTeamPaid
+              ? "💳 상대 팀 결제 대기"
+              : "💳 결제 대기"}
+          </PropBadge>
           {propVenueImage ? (
             <PropVenueImg src={propVenueImage} alt={toStr(fieldAddress) || "구장 사진"} />
           ) : (
@@ -4522,13 +4572,11 @@ export default function MatchRoomDetailPage() {
               <PropK>구장비</PropK>
               <PropV>
                 총 {Number(partnerPay.pb.totalPrice).toLocaleString()}원
-                <span style={{ color: "#6b7280", fontWeight: 600 }}> · 현장 정산</span>
+                <span style={{ color: "#6b7280", fontWeight: 600 }}> · 양 팀 각자 앱 결제</span>
               </PropV>
             </PropRow>
           )}
-          <PropPayNote style={{ color: "#2563eb" }}>
-            구장주 승인을 기다리는 중이에요 · 승인되면 경기가 확정돼요
-          </PropPayNote>
+          <PropPayNote style={{ color: "#2563eb" }}>{venuePayNotice}</PropPayNote>
         </PropBody>
       </PropCard>
     ) : status === "confirmed" ? (
@@ -4563,7 +4611,7 @@ export default function MatchRoomDetailPage() {
               <PropK>구장비</PropK>
               <PropV>
                 총 {Number(partnerPay.pb.totalPrice).toLocaleString()}원
-                <span style={{ color: "#6b7280", fontWeight: 600 }}> · 현장 정산</span>
+                <span style={{ color: "#6b7280", fontWeight: 600 }}> · 양 팀 각자 앱 결제</span>
               </PropV>
             </PropRow>
           )}
@@ -4745,9 +4793,32 @@ export default function MatchRoomDetailPage() {
       </ActBar>
     );
   } else if (status === "awaiting_venue_approval") {
-    chatTopBar = (
+    // 구장주가 승인하면 이 자리가 "승인 대기"에서 "결제하러 가기"로 바뀐다.
+    // 결제 카드가 있는 확정 레이아웃은 status==="confirmed" 부터라, 결제 대기 동안에는
+    // 여기 말고 결제로 들어갈 입구가 없다 — 없으면 승인은 났는데 결제할 곳을 못 찾는다.
+    const resv = partnerPay?.resv;
+    const pb = partnerPay?.pb;
+    const myShare = myPaySide === "A" ? pb?.shareA : pb?.shareB;
+    // 총액 표시 모델 — 우리 팀 몫이 곧 결제액이다(이용료는 구장 정산에서 뗀다).
+    const myPayTotal = Number(myShare || 0);
+    const needPay = venuePayPending && !myTeamPaid;
+
+    chatTopBar = needPay ? (
       <ActStack>
-        <ActNote>⏳ 구장주 승인을 기다리는 중이에요 · 승인되면 경기가 확정돼요</ActNote>
+        <ActNote>{venuePayNotice}</ActNote>
+        {isViewerMyTeam && isTeamLeader && (
+          <ActPrimary type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
+            {myPayTotal.toLocaleString()}원 결제하러 가기
+          </ActPrimary>
+        )}
+      </ActStack>
+    ) : myTeamPaid ? (
+      <ActStack>
+        <ActNote>{venuePayNotice}</ActNote>
+      </ActStack>
+    ) : (
+      <ActStack>
+        <ActNote>⏳ 구장주 승인을 기다리는 중이에요 · 승인되면 각자 몫을 결제해야 확정돼요</ActNote>
         {isViewerMyTeam && isTeamLeader && (
           <ActGhost type="button" onClick={handleCancelVenueApproval}>
             구장 요청 취소하고 다시 제안
@@ -5296,7 +5367,7 @@ export default function MatchRoomDetailPage() {
                     ? cancelRefund.status === "refunded"
                       ? `${Number(cancelRefund.amount).toLocaleString()}원 환불 완료`
                       : `${Number(cancelRefund.amount).toLocaleString()}원 환불 예정`
-                    : "현장 정산 · 결제 없음"}
+                    : "결제 없음"}
                 </CancelV>
               </CancelRow>
             </CancelCard>
@@ -5521,14 +5592,12 @@ export default function MatchRoomDetailPage() {
               const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
               const myShare = side === "A" ? pb.shareA : pb.shareB;
               const resv = partnerPay.resv;
-              // 우리 팀이 실제로 낼 금액 = 구장 몫 + 플랫폼 이용료.
-              // 요율은 예약에 고정된 값을 쓴다(구버전 예약은 현재 요율로 폴백).
-              const myFee = PG_ENABLED ? calcPlatformFee(myShare, Number(resv?.feeRate) || PLATFORM_FEE_RATE) : 0;
-              const myPayTotal = Number(myShare || 0) + myFee;
+              // 총액 표시 모델 — 우리 팀 몫이 곧 결제액이다(이용료는 구장 정산에서 뗀다).
+              const myPayTotal = Number(myShare || 0);
               const myPaid = side === "A" ? !!resv?.paidByA : !!resv?.paidByB;
               const oppPaid = side === "A" ? !!resv?.paidByB : !!resv?.paidByA;
               // 결제 대기(구장주 승인 완료) 상태에서 아직 우리 몫을 안 냈으면 결제로 보낸다.
-              const needPay = PG_ENABLED && toStr(resv?.status) === "pending" && !myPaid;
+              const needPay = toStr(resv?.status) === "pending" && !myPaid;
               return (
                 <PaidCard>
                   <PaidHead>
@@ -5548,39 +5617,23 @@ export default function MatchRoomDetailPage() {
                   <PaidRow><span>{toStr(pb.proposerTeamName) || "A팀"}</span><b>{Number(pb.shareA || 0).toLocaleString()}원</b></PaidRow>
                   <PaidRow><span>{toStr(pb.opponentTeamName) || "B팀"}</span><b>{Number(pb.shareB || 0).toLocaleString()}원</b></PaidRow>
                   <PaidDivider />
-                  {PG_ENABLED ? (
-                    <>
-                      <PaidRow><span>우리 팀 몫 (1/2)</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
-                      <PaidRow><span>플랫폼 이용료</span><b>{myFee.toLocaleString()}원</b></PaidRow>
-                      <PaidRow $big>
-                        <span>결제 금액{myPaid ? " · 결제완료" : ""}</span>
-                        <b>{myPayTotal.toLocaleString()}원</b>
-                      </PaidRow>
-                    </>
-                  ) : (
-                    <PaidRow $big>
-                      <span>우리 팀 현장 결제 예정 (1/2)</span>
-                      <b>{Number(myShare || 0).toLocaleString()}원</b>
-                    </PaidRow>
-                  )}
-                  {PG_ENABLED ? (
-                    <>
-                      {needPay ? (
-                        <PayNowBtn type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
-                          {myPayTotal.toLocaleString()}원 결제하기
-                        </PayNowBtn>
-                      ) : null}
-                      <PaidNote>
-                        {myPaid && !oppPaid
-                          ? "우리 팀 몫은 결제됐어요. 상대 팀이 결제하면 경기가 확정돼요. 2시간 안에 결제되지 않으면 자동 취소되고 전액 환불됩니다."
-                          : needPay
-                            ? "양 팀이 각자 몫을 결제하면 경기가 확정돼요."
-                            : "결제가 완료됐어요."}
-                      </PaidNote>
-                    </>
-                  ) : (
-                    <PaidNote>앱에서 결제되지 않아요. 경기 당일 구장에서 현장 정산합니다.</PaidNote>
-                  )}
+                  <PaidRow><span>우리 팀 몫 (1/2)</span><b>{Number(myShare || 0).toLocaleString()}원</b></PaidRow>
+                  <PaidRow $big>
+                    <span>결제 금액{myPaid ? " · 결제완료" : ""}</span>
+                    <b>{myPayTotal.toLocaleString()}원</b>
+                  </PaidRow>
+                  {needPay ? (
+                    <PayNowBtn type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
+                      {myPayTotal.toLocaleString()}원 결제하기
+                    </PayNowBtn>
+                  ) : null}
+                  <PaidNote>
+                    {myPaid && !oppPaid
+                      ? "우리 팀 몫은 결제됐어요. 상대 팀이 결제하면 경기가 확정돼요. 2시간 안에 결제되지 않으면 자동 취소되고 전액 환불됩니다."
+                      : needPay
+                        ? "양 팀이 각자 몫을 결제하면 경기가 확정돼요."
+                        : "결제가 완료됐어요."}
+                  </PaidNote>
                   {toStr(pb.ownerNote) ? (
                     <PaidOwnerNote><b>구장 안내</b>{toStr(pb.ownerNote)}</PaidOwnerNote>
                   ) : null}
@@ -5765,7 +5818,7 @@ export default function MatchRoomDetailPage() {
                     <Oic $primary={gateChoice === "direct"}><FiMapPin size={26} /></Oic>
                     <Ob>
                       <OptT>직접 입력</OptT>
-                      <OptD>현장 정산 · 결제 없음</OptD>
+                      <OptD>앱 결제 없음 · 팀끼리 직접</OptD>
                       <Chips>
                         <Pill $tone="n">팀끼리 직접 합의</Pill>
                       </Chips>
@@ -6146,7 +6199,7 @@ export default function MatchRoomDetailPage() {
 
         {status === "accepted" && venueMode === "direct" && (
           <>
-            <NoticeText>제안하면 상대팀이 확인 후 확정할 수 있어요. (직접 입력 · 현장 정산)</NoticeText>
+            <NoticeText>제안하면 상대팀이 확인 후 확정할 수 있어요. (직접 입력 · 앱 결제 없음)</NoticeText>
 
             {/* (2-3) 구장 예약 직접 확인 체크박스 */}
             <CheckRow>
@@ -6319,7 +6372,7 @@ export default function MatchRoomDetailPage() {
         dateText={confDateLabel}
         courtName={toStr(partnerPay?.pb?.courtName)}
         venueName={toStr(fieldAddress) || toStr(partnerPay?.pb?.venueName)}
-        payText={partnerPay?.pb ? "예약 완료 (현장 정산)" : ""}
+        payText={partnerPay?.pb ? "구장 예약 완료" : ""}
       />
 
       {/* 직접입력 구장 확정도 제휴구장과 동일한 '경기 확정' 축하로 통일 */}
@@ -6335,7 +6388,7 @@ export default function MatchRoomDetailPage() {
         dateText={confDateLabel}
         courtName={toStr(partnerPay?.pb?.courtName)}
         venueName={toStr(fieldAddress) || toStr(partnerPay?.pb?.venueName)}
-        payText={partnerPay?.pb ? "예약 완료 (현장 정산)" : ""}
+        payText={partnerPay?.pb ? "구장 예약 완료" : ""}
       />
 
       <MatchAcceptedCelebration

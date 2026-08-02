@@ -3,6 +3,7 @@
 // 구장주 전용 Auth(ownerAuth) 상태 구독 훅 — 사용자 앱 세션과 분리.
 import { useEffect, useState } from "react";
 import { watchOwnerAuth, consumeOwnerRedirectResult } from "../services/ownerAuthService";
+import { mockMerge } from "../dev/mockBus";
 
 // redirect 결과 소비는 앱당 1회만
 let _consumePromise = null;
@@ -24,10 +25,10 @@ export function useOwnerAuth() {
     return () => { try { unsub && unsub(); } catch {} };
   }, []);
 
-  return {
+  return mockMerge("ownerAuth", {
     firebaseUser: user || null,
     uid: user?.uid || "",
     isLoggedIn: !!user?.uid,
     loading,
-  };
+  });
 }

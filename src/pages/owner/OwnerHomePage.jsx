@@ -82,6 +82,9 @@ const Sheet=styled.div`
 const TeamBlock=styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;`;
 const TeamName=styled.div`font-size:14px;font-weight:800;color:${C.slate800};display:flex;align-items:center;justify-content:space-between;gap:8px;`;
 const MiniCall=styled.a`display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:${C.violet600};text-decoration:none;`;
+// 승인 대기 카드의 연락처 줄 — 승인 전에 예약자에게 확인 전화를 걸 수 있어야 한다.
+const ContactRow=styled.div`display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:2px;`;
+const NoPhone=styled.span`font-size:12px;color:${C.slate400};`;
 const SheetTitle=styled.div`font-size:17px;font-weight:800;color:${C.slate800};display:flex;align-items:center;justify-content:space-between;`;
 const X=styled.button`border:none;background:transparent;color:${C.slate400};font-size:24px;cursor:pointer;line-height:1;`;
 const DRow=styled.div`display:flex;justify-content:space-between;gap:10px;font-size:14px;align-items:center;& > span{color:${C.slate500};} & > b{color:${C.slate800};font-weight:700;text-align:right;}`;
@@ -276,9 +279,11 @@ export default function OwnerHomePage(){
               <Slot key={i} $k={info.k} onClick={()=>onSlot(s,info)}>
                 <SlotT>{s.start}~{s.end}</SlotT>
                 <SlotS $k={info.k}>
+                  {/* 승인 뒤(pending)는 예약자 결제를 기다리는 단계다. requested 와 같은 글자를 쓰면
+                      승인을 눌러도 화면이 안 변해서 승인이 안 된 것처럼 보인다. */}
                   {info.k==="confirmed"?<><LuCheck size={12}/>확정</>
                   :info.k==="done"?<><LuCheck size={12}/>사용</>
-                  :info.k==="pending"?<><LuHourglass size={12}/>승인대기</>
+                  :info.k==="pending"?<><LuHourglass size={12}/>{info.r?.status==="pending"?"결제대기":"승인대기"}</>
                   :info.k==="blocked"?<><LuLock size={12}/>막힘</>
                   :info.k==="past"?"지남"
                   :<>예약가능 · {(()=>{const p=resolveSlotPrice(court,date,s.start);return p?Number(p).toLocaleString()+"원":"무료";})()}</>}
@@ -298,7 +303,20 @@ export default function OwnerHomePage(){
               <ResvName>{isMatch?`${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`:(r.teamName||r.userName||"예약자")}</ResvName>
               <StatBadge $tone="pending"><LuHourglass size={11}/>{isMatch?"매칭 승인대기":"승인대기"}</StatBadge>
             </ResvTop>
-            <ResvMeta>{r.date?.slice(5).replace("-",".")} · {r.courtName||court?.name||"코트"} · {r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원 (현장 정산)`:""}{!isMatch&&r.phone?` · ${formatPhone(r.phone)}`:""}</ResvMeta>
+            <ResvMeta>{r.date?.slice(5).replace("-",".")} · {r.courtName||court?.name||"코트"} · {r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원`:""}</ResvMeta>
+            <ContactRow>
+              {isMatch ? (
+                [{n:r.teamAName||"팀A",p:r.teamALeaderPhone},{n:r.teamBName||"팀B",p:r.teamBLeaderPhone}].map((t,i)=>(
+                  t.p
+                    ? <MiniCall key={i} href={`tel:${t.p}`}><LuPhone size={12}/>{t.n} {formatPhone(t.p)}</MiniCall>
+                    : <NoPhone key={i}>{t.n} 연락처 미등록</NoPhone>
+                ))
+              ) : r.phone ? (
+                <MiniCall href={`tel:${r.phone}`}><LuPhone size={12}/>{r.userName||r.teamName||"예약자"} {formatPhone(r.phone)}</MiniCall>
+              ) : (
+                <NoPhone>연락처 미등록</NoPhone>
+              )}
+            </ContactRow>
             {r.date<nowMin.today ? (
               <Caption>지난 요청 · 처리할 수 없어요</Caption>
             ) : (
@@ -316,7 +334,8 @@ export default function OwnerHomePage(){
       {detailResv && (()=>{
         const r=detailResv;
         const isMatch=!!r.matchId;
-        const label=r.status==="confirmed"?"예약 확정":r.status==="requested"?"승인 대기":r.status==="pending"?"승인 대기":r.status==="done"?"이용 완료":r.status;
+        // pending = 내가 승인했고 예약자가 결제하는 중. requested(내 승인 대기)와 구분해야 한다.
+        const label=r.status==="confirmed"?"예약 확정":r.status==="requested"?"승인 대기":r.status==="pending"?"결제 대기":r.status==="done"?"이용 완료":r.status;
         const tone=r.status==="confirmed"?"confirmed":(r.status==="requested"||r.status==="pending")?"pending":"done";
         return (
           <Overlay onClick={()=>setDetailResv(null)}>
@@ -326,9 +345,14 @@ export default function OwnerHomePage(){
                 <X onClick={()=>setDetailResv(null)}>×</X>
               </SheetTitle>
               <DRow><span>상태</span><StatBadge $tone={tone}>{label}</StatBadge></DRow>
+              {r.status==="pending"&&(
+                <DRow><span>안내</span><b style={{fontWeight:600,color:C.slate500}}>
+                  예약자가 결제하면 확정돼요.{r.paymentDeadline?` (${new Date(r.paymentDeadline).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}까지)`:""}
+                </b></DRow>
+              )}
               <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
               <DRow><span>코트</span><b>{r.courtName||court?.name||"-"}</b></DRow>
-              <DRow><span>이용료</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원 (현장 정산)</b></DRow>
+              <DRow><span>이용료</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원</b></DRow>
               {!isMatch&&r.memo&&<DRow><span>메모</span><b style={{fontWeight:600}}>{r.memo}</b></DRow>}
               {r.userNote&&<DRow><span>요청사항</span><b style={{fontWeight:600}}>{r.userNote}</b></DRow>}
 
@@ -347,7 +371,6 @@ export default function OwnerHomePage(){
                         : <DRow><span>연락처</span><b style={{color:C.slate400}}>미등록</b></DRow>}
                     </TeamBlock>
                   ))}
-                  <DRow><span>정산</span><b>현장에서 두 팀이 직접 정산</b></DRow>
                 </>
               ) : (
                 <>

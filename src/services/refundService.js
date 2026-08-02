@@ -6,6 +6,7 @@
 //            refunded(true)/refundAmount/refundedAt/refundReason 기록.
 
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection, getDocs, getDoc, doc, updateDoc, serverTimestamp,
 } from "firebase/firestore";
@@ -66,7 +67,9 @@ async function backfillVenueNames(rows) {
 
 /** 환불 가능 예약 (결제완료 + 미환불). from/to: "YYYY-MM-DD" */
 export async function listRefundableReservations({ from = "", to = "" } = {}) {
-  const snap = await getDocs(collection(db, "venueReservations"));
+  const snap = hasMock("venueReservationDocs")
+    ? mockQuerySnap(mockData("venueReservationDocs"))
+    : await getDocs(collection(db, "venueReservations"));
   let rows = [];
   snap.forEach((d) => rows.push(row(d)));
   rows = rows.filter((r) => PAID_STATUSES.includes(r.status) && !r.refunded && r.price > 0);
@@ -79,7 +82,9 @@ export async function listRefundableReservations({ from = "", to = "" } = {}) {
 
 /** 환불 완료 내역 */
 export async function listRefundedReservations({ from = "", to = "" } = {}) {
-  const snap = await getDocs(collection(db, "venueReservations"));
+  const snap = hasMock("venueReservationDocs")
+    ? mockQuerySnap(mockData("venueReservationDocs"))
+    : await getDocs(collection(db, "venueReservations"));
   let rows = [];
   snap.forEach((d) => rows.push(row(d)));
   rows = rows.filter((r) => r.refunded);

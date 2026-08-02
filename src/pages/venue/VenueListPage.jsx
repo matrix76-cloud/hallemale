@@ -17,12 +17,18 @@ import { goBackOrHome } from "../../utils/navigation";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { useAuth } from "../../hooks/useAuth";
 import { setFavoriteVenue } from "../../services/favoriteService";
+import { calcDisplayPrice, DISPLAY_PRICE_NOTE } from "../../constants/payments";
 
 const toStr = (v) => String(v || "").trim();
 function minPrice(v) {
   const prices = (v.courts || []).map((c) => Number(c.pricePerHour) || 0).filter((n) => n > 0);
   if (!prices.length) return null;
   return Math.min(...prices);
+}
+// 목록·지도에 찍는 금액은 "실제 결제 총액"이어야 한다(순차공개 가격책정 금지).
+function minDisplayPrice(v) {
+  const p = minPrice(v);
+  return p == null ? null : calcDisplayPrice(p);
 }
 const isValidLatLng = (v) =>
   Number.isFinite(Number(v?.lat)) &&
@@ -277,7 +283,7 @@ export default function VenueListPage() {
       overlaysRef.current = geoVenues.map((v) => {
         const pos = new kakao.maps.LatLng(Number(v.lat), Number(v.lng));
         bounds.extend(pos);
-        const price = minPrice(v);
+        const price = minDisplayPrice(v);
 
         const wrap = document.createElement("div");
         Object.assign(wrap.style, {
@@ -521,7 +527,11 @@ export default function VenueListPage() {
                         <Tag>{v.type === "outdoor" ? "실외" : "실내"}</Tag>
                         <Tag>코트 {v.courts?.length || 0}개</Tag>
                       </CardTags>
-                      <CardPrice>{minPrice(v) != null ? `${minPrice(v).toLocaleString()}원/시간` : "가격 문의"}</CardPrice>
+                      <CardPrice>
+                        {minDisplayPrice(v) != null
+                          ? `${minDisplayPrice(v).toLocaleString()}원/시간${DISPLAY_PRICE_NOTE ? ` · ${DISPLAY_PRICE_NOTE}` : ""}`
+                          : "가격 문의"}
+                      </CardPrice>
                     </CardBottom>
                   </CardInfo>
                 </CardWrap>
@@ -554,7 +564,12 @@ export default function VenueListPage() {
                     </HeartBtn>
                     {v.imageUrl ? <CardPhotoImg src={v.imageUrl} alt={v.name} /> : <CardNoImg><FiMapPin size={20} /><span>구장 사진 / No image</span></CardNoImg>}
                     {ratingNode(v)}
-                    {minPrice(v) != null && <PriceTag>{minPrice(v).toLocaleString()}원~ / 시간</PriceTag>}
+                    {minDisplayPrice(v) != null && (
+                      <PriceTag>
+                        {minDisplayPrice(v).toLocaleString()}원~ / 시간
+                        {DISPLAY_PRICE_NOTE ? ` · ${DISPLAY_PRICE_NOTE}` : ""}
+                      </PriceTag>
+                    )}
                     {(v.photos?.length || 0) > 1 ? <PhotoCountTag>사진 {v.photos.length}</PhotoCountTag> : null}
                   </ListCover>
                   <CardInfo>
@@ -798,6 +813,9 @@ const PhotoCountTag = styled.div`
   font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
 `;
 const ListCard = styled.button`
+  /* 세로 flex 목록의 항목 — overflow:hidden 때문에 자동 최소높이가 0이라,
+     구장이 많으면 스크롤 대신 카드가 전부 짜부라진다(목록이 안 뜨는 것처럼 보임). */
+  flex-shrink: 0;
   width: 100%; text-align: left; cursor: pointer; padding: 0;
   border-radius: 16px; overflow: hidden;
   background: ${({ theme }) => theme.colors.card};

@@ -7,6 +7,7 @@
 // - 페이지는 이 서비스 결과를 렌더링만 하도록 전환
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import { doc, getDoc } from "firebase/firestore";
 import { images } from "../utils/imageAssets";
 
@@ -35,6 +36,7 @@ const POSITION_LABEL_MAP = {
  */
 async function loadUserById(uid) {
   if (!uid) return null;
+  if (hasMock("userDocs")) return mockData("userDocs")[uid] || null;
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;

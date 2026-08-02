@@ -12,6 +12,7 @@ import {
   startAfter,
   orderBy,
 } from "firebase/firestore";
+import { hasMock, mockData } from "../dev/mockBus";
 
 function positionLabel(pos) {
   const p = String(pos || "").trim();
@@ -104,6 +105,10 @@ export async function listPlayerRankingPage({
   cursor = null,
   debugLog = false,
 } = {}) {
+  if (hasMock("playerRankRows")) {
+    return { rows: mockData("playerRankRows"), nextCursor: null };
+  }
+
   const usersCol = collection(db, "users");
 
   const qy = cursor
@@ -176,6 +181,7 @@ export async function listPlayerRankingPage({
  * - 프로필 상세 등에서 단일 선수의 전역 순위 조회용
  */
 export async function getPlayerRankMap({ debugLog = false } = {}) {
+  if (hasMock("playerRankMap")) return mockData("playerRankMap");
   const usersCol = collection(db, "users");
   const snap = await getDocs(usersCol);
 
@@ -229,6 +235,16 @@ export async function listPlayerRankingTopApprox({
   candidateSize = 200,
   debugLog = false,
 } = {}) {
+  // 리뷰 보드 목업 — 랭킹 페이지와 같은 행을 쓰되 점수 계산용 파생값을 붙인다.
+  if (hasMock("playerRankRows")) {
+    const rows0 = mockData("playerRankRows").map((r) => {
+      const points = calcPoints(r);
+      return { ...r, _points: points, _winRate: calcWinRatePercent(r), _total: r.wins + r.losses + r.draws };
+    });
+    rows0.sort((a, b) => b._points - a._points);
+    return rows0.slice(0, top);
+  }
+
   const usersCol = collection(db, "users");
 
   // ✅ wins 기반 후보군 확보(단일 필드 orderBy → 보통 인덱스 추가 없이 동작)

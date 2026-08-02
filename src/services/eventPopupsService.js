@@ -4,6 +4,7 @@
 // Firestore 컬렉션: event_popups
 
 import { db, storage } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   addDoc,
   collection,
@@ -129,7 +130,9 @@ export async function deleteEventPopup({ id, storagePath }) {
 
 // 어드민용 — 모든 팝업
 export async function listAllEventPopups() {
-  const snap = await getDocs(query(collection(db, "event_popups")));
+  const snap = hasMock("eventPopups")
+    ? mockQuerySnap(mockData("eventPopups"))
+    : await getDocs(query(collection(db, "event_popups")));
   const rows = [];
   snap.forEach((d) => rows.push(rowFromSnap(d)));
   rows.sort((a, b) => {
@@ -143,7 +146,9 @@ export async function listAllEventPopups() {
 
 // 사용자 측 — 현재 노출 가능한 팝업 (active + 기간 내)
 export async function listVisibleEventPopups() {
-  const snap = await getDocs(
+  const snap = hasMock("eventPopups")
+    ? mockQuerySnap(mockData("eventPopups"))
+    : await getDocs(
     query(collection(db, "event_popups"), where("active", "==", true))
   );
   const now = Date.now();

@@ -362,7 +362,7 @@ const VerifiedChip = styled.span`
 `;
 const SportChip = styled.span`
   display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 800; background: ${C.violet50}; color: ${C.violet600};
+  font-size: 11.5px; font-weight: 800; background: ${C.slate100}; border: 1px solid ${C.slate200}; color: ${C.slate500};
 `;
 const KeywordRow = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;`;
 const Kw = styled.span`font-size: 12px; font-weight: 600; color: ${C.slate400};`;
@@ -390,8 +390,8 @@ const FacCell = styled.div`display: flex; flex-direction: column; align-items: c
 const FacIconWrap = styled.div`
   width: 46px; height: 46px; border-radius: 14px;
   display: flex; align-items: center; justify-content: center; border: 1px solid ${C.slate200};
-  background: ${({ $on }) => ($on ? "#f3efff" : C.slate100)};
-  color: ${({ $on }) => ($on ? C.violet600 : C.slate400)};
+  background: ${C.slate100};
+  color: ${({ $on }) => ($on ? C.slate800 : C.slate400)};
 `;
 const FacLabel = styled.div`font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.2; color: ${C.slate500};`;
 
@@ -412,7 +412,7 @@ const CourtCSub = styled.div`font-size: 12px; color: ${C.slate400};`;
 const CourtCPrice = styled.div`font-size: 15px; font-weight: 800; color: ${C.violet600}; & small { font-size: 11.5px; font-weight: 600; color: ${C.slate400}; }`;
 const CourtBadge = styled.span`
   flex-shrink: 0; align-self: center; padding: 7px 12px; border-radius: 999px;
-  font-size: 12px; font-weight: 800; white-space: nowrap; background: #efe9ff; color: ${C.violet600};
+  font-size: 12px; font-weight: 800; white-space: nowrap; background: ${C.slate100}; border: 1px solid ${C.slate200}; color: ${C.slate500};
 `;
 
 /* 시설 사진 (2행 가로 스크롤) */
@@ -455,7 +455,7 @@ const LegalNote = styled.p`margin: 8px 2px 0; font-size: 11.5px; line-height: 1.
 /* 코트 공지·주의사항 */
 const Pinned = styled.div`
   display: flex; align-items: flex-start; gap: 9px;
-  background: #f3efff; border: 1px solid ${C.violet600}; border-radius: 12px; padding: 12px 13px;
+  background: ${C.slate100}; border: 1px solid ${C.slate200}; border-radius: 12px; padding: 12px 13px;
   & > svg { color: ${C.violet600}; flex-shrink: 0; margin-top: 1px; }
 `;
 const PinTitle = styled.div`font-size: 13.5px; font-weight: 800; color: ${C.slate800};`;

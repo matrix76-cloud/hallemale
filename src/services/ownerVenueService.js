@@ -13,7 +13,7 @@
 // 인덱스 최소화 원칙: 단일 where + 클라이언트 메모리 필터/정렬.
 // 이미지 업로드는 venuesService.uploadVenueImage 재사용.
 
-import { db, ownerDb, ownerAuth } from "./firebase";
+import { auth, db, ownerDb, ownerAuth } from "./firebase";
 import {
   addDoc,
   collection,
@@ -25,13 +25,12 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
 import { payFizz } from "./fizzService";
 import { BOOKING_WINDOW_DAYS, isBookableDate } from "../constants/booking";
-import { PG_ENABLED, PAYMENT_WINDOW_MS, PLATFORM_FEE_RATE } from "../constants/payments";
+import { PAYMENT_WINDOW_MS, PLATFORM_FEE_RATE } from "../constants/payments";
 import { OWNER_TYPES, ownerTypeOption } from "../constants/ownerType";
 import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 
@@ -50,6 +49,15 @@ const mockSnap = (id, data) => ({ id, exists: () => true, data: () => data });
  * 읽기는 venues/venueReservations 모두 공개(allow read: if true)라 어느 핸들이든 무관.
  */
 const dbAs = (asOwner) => (asOwner ? ownerDb : db);
+
+// 알림 쓰기용 핸들. notifications 규칙은 signedIn() 인데, 구장주는 ownerAuth(별도 Firebase 앱)로만
+// 로그인해 있어서 기본 db 핸들에는 request.auth 가 없다 → 그대로 쓰면 permission denied 로 조용히
+// 실패한다(승인은 되는데 예약자에게 알림이 안 가는 상태). 실제로 로그인된 세션 쪽을 고른다.
+const notifyDb = () => {
+  if (auth?.currentUser) return db;
+  if (ownerAuth?.currentUser) return ownerDb;
+  return db;
+};
 
 /* ── 슬롯 락 — 이중예약을 막는 유일한 지점 ────────────────────────────
  * 예전에는 "겹침 조회 → addDoc" 두 단계였다. 조회와 쓰기 사이에 남의 쓰기가 끼면 두 호출이
@@ -96,19 +104,32 @@ function slotTakenError() {
 /**
  * 슬롯을 선점하면서 예약 문서를 만든다. 겹치면 slot_taken 으로 실패한다.
  * build(id) 는 예약 문서 본문을 돌려준다(문서 id 를 미리 알아야 락에 같은 키로 적는다).
+ *
+ * reservationId 를 주면 그 id 로 만든다(매칭 예약 `m_{matchId}` 처럼 id 가 고정인 경우).
+ * 고정 id 는 반려 후 재요청으로 재사용되므로, 트랜잭션 안에서 "이미 살아있는지"를 다시 보고
+ * 살아있으면 그대로 둔다 — 동시에 두 번 요청해도 예약이 덮어써지지 않는다.
  */
 async function createReservationLocked(
   dbi,
-  { venueId, courtId, date, startTime, endTime, status = "requested" },
+  { venueId, courtId, date, startTime, endTime, status = "requested", reservationId = "" },
   build
 ) {
   const lockRef = slotLockRef(dbi, venueId, courtId, date);
+  const fixedId = safeStr(reservationId);
+  const resRef = fixedId
+    ? doc(dbi, "venueReservations", fixedId)
+    : doc(collection(dbi, "venueReservations"));
   return await runTransaction(dbi, async (tx) => {
+    // 읽기는 쓰기보다 먼저 (Firestore 트랜잭션 규칙)
     const snap = await tx.get(lockRef);
+    if (fixedId) {
+      const cur = await tx.get(resRef);
+      if (cur.exists() && LIVE_STATUSES.includes(safeStr(cur.data()?.status))) return resRef.id;
+    }
     const ranges = lockRanges(snap);
-    if (findSlotClash(ranges, startTime, endTime, null, LIVE_STATUSES)) throw slotTakenError();
+    // 같은 id 의 지난 항목은 겹침 판정에서 뺀다(반려 후 재요청).
+    if (findSlotClash(ranges, startTime, endTime, fixedId || null, LIVE_STATUSES)) throw slotTakenError();
 
-    const resRef = doc(collection(dbi, "venueReservations"));
     tx.set(resRef, build(resRef.id));
     tx.set(lockRef, {
       venueId: safeStr(venueId), courtId: safeStr(courtId), date: safeStr(date),
@@ -316,6 +337,10 @@ export function venueRow(d) {
     storagePath: safeStr(data.storagePath),
     storagePaths: arr(data.storagePaths).map((p) => safeStr(p)).filter(Boolean),
 
+    // 구장별 플랫폼 이용료율. 문서에 없으면 undefined → 예약 생성 시 현재 요율이 쓰인다.
+    // (초기 입점 구장에 0 을 박아 두면 그 구장 예약은 계속 0% 로 계산된다)
+    feeRate: Number.isFinite(Number(data.feeRate)) ? Number(data.feeRate) : undefined,
+
     facilities: arr(data.facilities).map((f) => safeStr(f)).filter(Boolean),
     // 네이버 플레이스식 상세정보
     sportTypes: arr(data.sportTypes).map((s) => safeStr(s)).filter(Boolean), // 종목(농구/풋살 등)
@@ -330,6 +355,11 @@ export function venueRow(d) {
     rules: safeStr(data.rules),
     refundPolicy: safeStr(data.refundPolicy),
     defaultOwnerNote: safeStr(data.defaultOwnerNote), // 예약 승인 시 자동으로 채워지는 기본 안내문
+
+    // 예약 승인 방식 — true 면 구장주 승인 단계를 건너뛰고 요청 즉시 잡힌다(즉시예약).
+    // 기본은 false(승인제): 기존 구장은 전부 승인제로 운영 중이라, 필드가 없다고 갑자기
+    // 자동승인으로 바뀌면 구장주가 모르는 예약이 확정된다.
+    autoApprove: data.autoApprove === true,
 
     // 운영 주체 — 없으면(레거시 구장) 사업자로 취급
     ownerType: OWNER_TYPES.includes(data.ownerType) ? data.ownerType : "business",
@@ -567,6 +597,7 @@ export async function updateMyVenue(id, patch = {}, { asOwner = false } = {}) {
   if (patch.rules !== undefined) update.rules = safeStr(patch.rules);
   if (patch.refundPolicy !== undefined) update.refundPolicy = safeStr(patch.refundPolicy);
   if (patch.defaultOwnerNote !== undefined) update.defaultOwnerNote = safeStr(patch.defaultOwnerNote).slice(0, 300);
+  if (patch.autoApprove !== undefined) update.autoApprove = patch.autoApprove === true;
   if (patch.ownerType !== undefined)
     update.ownerType = OWNER_TYPES.includes(patch.ownerType) ? patch.ownerType : "business";
   if (patch.bizName !== undefined) update.bizName = safeStr(patch.bizName);
@@ -803,7 +834,7 @@ export async function setBusinessStatus(id, status, reason = "") {
   if (ownerUid && (next === "verified" || next === "rejected")) {
     try {
       const ok = next === "verified";
-      await addDoc(collection(db, "notifications"), {
+      await addDoc(collection(notifyDb(), "notifications"), {
         kind: "venue",
         subType: ok ? "business_verified" : "business_rejected",
         type: ok ? "business_verified" : "business_rejected",
@@ -894,7 +925,7 @@ export async function setVenueStatus(id, status, reason = "") {
   if (ownerUid && (next === "approved" || next === "rejected")) {
     try {
       const approved = next === "approved";
-      await addDoc(collection(db, "notifications"), {
+      await addDoc(collection(notifyDb(), "notifications"), {
         kind: "venue",
         subType: approved ? "venue_approved" : "venue_rejected",
         type: approved ? "venue_approved" : "venue_rejected",
@@ -1057,7 +1088,7 @@ async function notifyMatchTeamLeaders(matchId, clubIds, { subType, type, title, 
       const clubSnap = await getDoc(doc(db, "clubs", cid));
       const ownerUid = safeStr(clubSnap.exists() ? clubSnap.data()?.ownerUid : "");
       if (!ownerUid) continue;
-      await addDoc(collection(db, "notifications"), {
+      await addDoc(collection(notifyDb(), "notifications"), {
         kind: "match", subType, type, title, body,
         targetType: "USER", targetIds: [ownerUid],
         linkType: "match", linkTargetId: mid,
@@ -1078,6 +1109,22 @@ async function syncMatchOnReservationChange(data, action) {
   const matchId = safeStr(data?.matchId);
   if (!matchId) return;
   const clubIds = [safeStr(data.teamAClubId), safeStr(data.teamBClubId)];
+
+  if (action === "payment_wait") {
+    // 구장주 승인 완료 = "결제 대기". status 는 조율중(awaiting_venue_approval)에 그대로 둔다 —
+    // 확정은 양 팀 결제가 끝나야 하고, 그건 서버(venuePaidConfirmTrigger)만 찍는다.
+    // 매치룸·목록은 이 partnerBooking 값으로 "승인 대기"와 "결제 대기"를 가른다.
+    await updateDoc(doc(db, "match_requests", matchId), {
+      "partnerBooking.approvalState": "approved",
+      "partnerBooking.payState": "waiting",
+      "partnerBooking.paymentDeadline": safeStr(data.paymentDeadline),
+      "partnerBooking.reservationCode": safeStr(data.reservationCode),
+      "partnerBooking.ownerNote": safeStr(data.ownerNote),
+      "partnerBooking.venuePhone": safeStr(data.venuePhone),
+      updatedAt: serverTimestamp(),
+    });
+    return; // 양 팀장 알림은 notifyPaymentRequested 가 보낸다(중복 방지)
+  }
 
   if (action === "approved") {
     await updateDoc(doc(db, "match_requests", matchId), {
@@ -1145,7 +1192,7 @@ async function notifyBookingUserOnStatusChange(data, action) {
   const where = `${safeStr(data.venueName)}${safeStr(data.courtName) ? ` · ${safeStr(data.courtName)}` : ""}`;
   const note = safeStr(data.ownerNote);
   const M = {
-    confirmed: { subType: "venueReservationConfirmed", title: "예약이 확정됐어요 🎉", body: `${when} · ${where} 예약이 확정됐어요.${PG_ENABLED ? "" : " 이용료는 현장에서 정산해요."}${note ? `\n구장 안내: ${note}` : ""}` },
+    confirmed: { subType: "venueReservationConfirmed", title: "예약이 확정됐어요 🎉", body: `${when} · ${where} 예약이 확정됐어요.${note ? `\n구장 안내: ${note}` : ""}` },
     rejected:  { subType: "venueReservationRejected",  title: "예약이 반려됐어요",     body: `${when} · ${where} 예약 요청이 구장 사정으로 반려됐어요. 다른 시간을 선택해 주세요.` },
     cancelled: { subType: "venueReservationCancelled", title: "예약이 취소됐어요",     body: `${when} · ${where} 예약이 취소됐어요.` },
     noshow:    { subType: "venueReservationNoshow",    title: "노쇼로 처리됐어요",       body: `${when} · ${where} 예약이 노쇼로 처리됐어요.` },
@@ -1153,7 +1200,7 @@ async function notifyBookingUserOnStatusChange(data, action) {
   const m = M[action];
   if (!m) return;
   try {
-    await addDoc(collection(db, "notifications"), {
+    await addDoc(collection(notifyDb(), "notifications"), {
       kind: "venue",
       subType: m.subType,
       type: "venue_reservation",
@@ -1191,7 +1238,7 @@ async function notifyPaymentRequested(data) {
   if (!targetIds.length) return;
 
   try {
-    await addDoc(collection(db, "notifications"), {
+    await addDoc(collection(notifyDb(), "notifications"), {
       kind: "venue",
       subType: "venueReservationPaymentRequested",
       type: "venue_reservation",
@@ -1236,10 +1283,15 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
   if (!preSnap.exists()) throw new Error("예약을 찾을 수 없습니다.");
   const cur = preSnap.data() || {};
 
-  // 💳 앱내 결제 ON: 승인은 확정이 아니라 "결제 대기"다. 결제가 끝나야(서버 승인) confirmed.
-  //    OFF(현장정산)면 기존대로 승인 즉시 확정.
+  // 💳 승인은 확정이 아니라 "결제 대기"다 — 결제가 끝나야(서버 승인) confirmed 로 간다.
+  //    2시간 안에 결제가 없으면 만료 잡(functions/jobs/venuePaymentJobs)이 취소하고 슬롯을 반납한다.
   const approving = next === "confirmed";
-  const effective = approving && PG_ENABLED ? "pending" : next;
+  const toPaymentWait = approving;
+  const effective = approving ? "pending" : next;
+  // 매칭룸에도 같은 값을 미러링해야 해서 트랜잭션 밖에서 한 번만 만든다.
+  const paymentDeadline = toPaymentWait
+    ? new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString()
+    : "";
 
   // 승인은 슬롯 락과 함께 원자적으로 — 예전엔 "겹침 조회 → updateDoc" 이라, 겹치는 두 건을
   // 동시에 승인하면 서로를 못 보고 둘 다 확정됐다(이중예약).
@@ -1269,9 +1321,8 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
     tx.update(dref, {
       status: effective,
       ...(approving ? { ownerNote } : {}),
-      ...(approving && PG_ENABLED
-        ? { paymentDeadline: new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString() }
-        : {}),
+      // 결제 마감은 결제 대기로 내려보낼 때만. 현장정산 확정 건에 남기면 만료 잡이 집어간다.
+      ...(toPaymentWait ? { paymentDeadline } : {}),
       updatedAt: serverTimestamp(),
     });
 
@@ -1289,8 +1340,20 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
     });
   });
 
-  if (approving && PG_ENABLED) {
-    await notifyPaymentRequested({ ...cur, id: rid, ownerNote });
+  // 결제 대기로 내려간 건 — "결제해 주세요" 안내 + 매칭룸에 승인 결과 미러링.
+  // ⚠️ 미러링을 빼먹으면 매칭룸은 계속 "구장주 승인 대기"로 보인다. 매치룸에서 결제 카드가
+  //    뜨는 건 status==="confirmed" 부터라, 결제 진입점이 화면 어디에도 없는 상태가 된다
+  //    (승인은 났는데 결제할 곳을 못 찾는다). 조율중 카운트에서도 빠진다.
+  if (toPaymentWait) {
+    const data = { ...cur, id: rid, ownerNote, paymentDeadline };
+    if (safeStr(data.matchId)) {
+      try {
+        await syncMatchOnReservationChange(data, "payment_wait");
+      } catch (e) {
+        console.warn("[setReservationStatus] payment-wait 매칭 동기화 실패:", e?.message || e);
+      }
+    }
+    await notifyPaymentRequested(data);
     return;
   }
 
@@ -1442,7 +1505,7 @@ export async function cancelMyReservation(reservationId, uid) {
   const ownerUid = safeStr(data.ownerUid);
   if (ownerUid) {
     try {
-      await addDoc(collection(db, "notifications"), {
+      await addDoc(collection(notifyDb(), "notifications"), {
         kind: "venue",
         subType: "venueReservationCanceledByUser",
         type: "venue_reservation",
@@ -1631,6 +1694,28 @@ export async function listBookableVenues() {
  * 사용자 예약 경로 전용 — 구장주 수동·정기대관(createOwnerReservation)은 대상이 아니다.
  * firestore.rules 의 venueReservations 규칙에도 같은 창구가 걸려 있어 UI를 우회해도 막힌다.
  */
+/**
+ * 이 구장에 적용할 플랫폼 이용료율.
+ * venues.feeRate 가 박혀 있으면 그 값(초기 입점 구장 0% 그랜드파더링), 없으면 현재 요율.
+ * 예약 문서에 복사돼 결제·정산이 그 값으로 계산된다.
+ */
+function venueFeeRate(venue) {
+  const r = Number(venue?.feeRate);
+  return Number.isFinite(r) && r >= 0 && r < 1 ? r : PLATFORM_FEE_RATE;
+}
+
+/** venueId 로 구장 문서를 읽어 요율만 뽑는다(구장 객체가 손에 없는 경로용). */
+async function resolveVenueFeeRate(venueId) {
+  const id = safeStr(venueId);
+  if (!id) return PLATFORM_FEE_RATE;
+  try {
+    const snap = await getDoc(doc(db, "venues", id));
+    return venueFeeRate(snap.exists() ? snap.data() : null);
+  } catch (e) {
+    return PLATFORM_FEE_RATE;
+  }
+}
+
 function assertBookableDate(date) {
   if (isBookableDate(date)) return;
   const e = new Error(`예약은 오늘부터 ${BOOKING_WINDOW_DAYS}일(3주) 이내 날짜만 가능해요.`);
@@ -1690,11 +1775,17 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
 
   const price = calcSlotPrice(court, startTime, endTime, date);
 
-  // 2) 슬롯 선점 + 예약 요청 생성을 한 트랜잭션으로 (결제 없음 → 구장주 승인 대기)
+  // 2) 슬롯 선점 + 예약 생성을 한 트랜잭션으로.
+  //    승인제(기본)  → requested. 구장주가 승인해야 잡힌다.
+  //    즉시예약      → 승인 단계를 건너뛰고 바로 결제 대기(pending).
+  //      (setReservationStatus 의 승인 처리와 같은 규칙 — 한쪽만 바꾸면 흐름이 어긋난다)
   const ownerUid = safeStr(venue?.ownerUid);
+  const auto = venue?.autoApprove === true;
+  const initialStatus = auto ? "pending" : "requested";
+  const ownerNote = auto ? safeStr(venue?.defaultOwnerNote) : "";
   const reservationId = await createReservationLocked(
     db,
-    { venueId, courtId, date, startTime, endTime, status: "requested" },
+    { venueId, courtId, date, startTime, endTime, status: initialStatus },
     () => ({
       venueId,
       courtId,
@@ -1713,24 +1804,45 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
       userNote: safeStr(userNote).slice(0, 300), // 구장에 전달할 요청사항 (선택)
       price,
       paid: false,
-      paymentMethod: PG_ENABLED ? "toss" : "onsite",
+      paymentMethod: "toss",
       // 플랫폼 이용료율을 예약 시점에 고정 — 요율을 바꿔도 이미 잡힌 예약의 결제액은 안 흔들린다.
-      feeRate: PLATFORM_FEE_RATE,
-      status: "requested",
+      // 구장 문서에 요율이 박혀 있으면(초기 입점 0% 그랜드파더링) 그 값이 우선한다.
+      feeRate: venueFeeRate(venue),
+      status: initialStatus,
+      ...(ownerNote ? { ownerNote } : {}),
+      // 즉시예약은 승인 경유가 없으므로 결제 마감을 여기서 찍는다.
+      ...(auto
+        ? { paymentDeadline: new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString() }
+        : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
   );
 
-  // 3) 구장주 푸시 알림 (실패해도 예약 요청은 유지)
+  // 3) 즉시예약이면 승인 단계가 없으므로 예약자 통보를 여기서 한다.
+  //    (승인제는 구장주가 승인할 때 setReservationStatus 가 보낸다)
+  if (auto) {
+    const forNotify = {
+      id: reservationId, venueId, venueName: safeStr(venue?.name), courtName: safeStr(court?.name),
+      date: safeStr(date), startTime: safeStr(startTime), endTime: safeStr(endTime),
+      userId: uid, ownerNote,
+    };
+    try {
+      await notifyPaymentRequested(forNotify);
+    } catch (e) {
+      console.warn("[bookVenue] auto-approve notify failed:", e?.message || e);
+    }
+  }
+
+  // 4) 구장주 푸시 알림 (실패해도 예약은 유지)
   if (ownerUid) {
     try {
-      await addDoc(collection(db, "notifications"), {
+      await addDoc(collection(notifyDb(), "notifications"), {
         kind: "venue",
         subType: "venueReservationCreated",
         type: "venue_reservation",
-        title: "새 예약 요청이 들어왔어요",
-        body: `${date} ${startTime}~${endTime} · ${safeStr(court?.name)} (${safeStr(user?.userName) || "예약자"}) · 승인 대기`,
+        title: auto ? "새 예약이 잡혔어요" : "새 예약 요청이 들어왔어요",
+        body: `${date} ${startTime}~${endTime} · ${safeStr(court?.name)} (${safeStr(user?.userName) || "예약자"}) · ${auto ? "결제 대기" : "승인 대기"}`,
         targetType: "USER",
         targetIds: [ownerUid],
         linkType: "venue",
@@ -1837,21 +1949,33 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
 
   if (!preActive) {
     assertBookableDate(pb.date);
+    // 사전 확인 — 이미 찬 슬롯을 미리 걸러 헛트랜잭션을 줄이고, 트랜잭션에 넣을 수 없는
+    // 블록(구장주가 막아둔 시간)을 여기서 본다. 겹침 판정 자체는 아래 트랜잭션이 다시 한다.
     await assertSlotFree({ venueId: pb.venueId, courtId: pb.courtId, date: pb.date, startTime: pb.startTime, endTime: pb.endTime });
-    const [leaderA, leaderB] = await Promise.all([
+    const [leaderA, leaderB, feeRate] = await Promise.all([
       loadClubLeaderContact(pb.proposerClubId),
       loadClubLeaderContact(pb.opponentClubId),
+      resolveVenueFeeRate(pb.venueId),
     ]);
-    await setDoc(resRef, {
+    // 슬롯 락 트랜잭션으로 생성 — 조회 후 setDoc 2단계였을 때는 두 매칭이 같은 코트·시간을
+    // 동시에 요청하면 서로를 못 보고 둘 다 통과했다(이중예약). 락 문서를 거치면 직렬화된다.
+    await createReservationLocked(
+      db,
+      {
+        venueId: pb.venueId, courtId: pb.courtId, date: pb.date,
+        startTime: pb.startTime, endTime: pb.endTime,
+        status: "requested", reservationId: resRef.id,
+      },
+      () => ({
       venueId: safeStr(pb.venueId), venueName: safeStr(pb.venueName), ownerUid: safeStr(pb.ownerUid),
       venuePhone: safeStr(pb.venuePhone),
       reservationCode: genReservationCode(pb.date),
       courtId: safeStr(pb.courtId), courtName: safeStr(pb.courtName),
       date: safeStr(pb.date), startTime: safeStr(pb.startTime), endTime: safeStr(pb.endTime),
       userId: safeStr(pb.proposerUid), userName: safeStr(pb.proposerTeamName), teamName: safeStr(pb.proposerTeamName),
-      price: toNum(pb.totalPrice) ?? 0, paid: false, paymentMethod: PG_ENABLED ? "toss" : "onsite", source: "match",
+      price: toNum(pb.totalPrice) ?? 0, paid: false, paymentMethod: "toss", source: "match",
       // 플랫폼 이용료율을 예약 시점에 고정 (bookVenue 와 동일 이유)
-      feeRate: PLATFORM_FEE_RATE,
+      feeRate,
       status: "requested",
       matchId: id, splitTotal: toNum(pb.totalPrice) ?? 0,
       shareA: toNum(pb.shareA) ?? 0, shareB: toNum(pb.shareB) ?? 0,
@@ -1861,7 +1985,8 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
       teamALeaderUid: leaderA.uid, teamALeaderName: leaderA.name, teamALeaderPhone: leaderA.phone,
       teamBLeaderUid: leaderB.uid, teamBLeaderName: leaderB.name, teamBLeaderPhone: leaderB.phone,
       createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-    });
+      })
+    );
   }
 
   await updateDoc(doc(db, "match_requests", id), {
@@ -1876,7 +2001,7 @@ export async function requestVenueReservationForMatch({ matchId, requestedByClub
 
   if (pb.ownerUid) {
     try {
-      await addDoc(collection(db, "notifications"), {
+      await addDoc(collection(notifyDb(), "notifications"), {
         kind: "venue", subType: "venueReservationRequested", type: "venue_reservation",
         title: "새 구장 예약 요청이 들어왔어요",
         body: `${safeStr(pb.date)} ${safeStr(pb.startTime)}~${safeStr(pb.endTime)} · ${safeStr(pb.courtName)} (${safeStr(pb.proposerTeamName)} vs ${safeStr(pb.opponentTeamName)}) — 승인해 주세요`,
@@ -1950,6 +2075,9 @@ export async function getMatchReservationStatus(matchId) {
     paidByA: r.paidByA, paidByB: r.paidByB,
     teamAName: r.teamAName, teamBName: r.teamBName,
     shareA: r.shareA, shareB: r.shareB, total: r.splitTotal,
+    // 예약 시점에 고정된 이용료율. 빠뜨리면 매치룸이 현재 요율로 폴백해서,
+    // 요율을 바꾼 뒤 기존 예약의 표시 금액이 실제 결제액과 어긋난다.
+    feeRate: r.feeRate,
     deadline: r._deadline || "",
   };
 }

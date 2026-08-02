@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
 import { DOMAINS } from "./reviewData";
+import { baseScenarioFor, scenarioForScreen, variantsForScreen } from "./boardData";
 import { subscribeThread, postEntry, deleteEntry } from "./reviewThreadService";
 
 // 개발용 리뷰 허브 (/review/:id) — 11개 도메인 통합.
@@ -10,12 +11,19 @@ import { subscribeThread, postEntry, deleteEntry } from "./reviewThreadService";
 // 핀에 요소정보 저장 + 화면공유로 핀 박은 스샷 자동 첨부(핀 번호가 이미지에 박힘).
 const ALL = DOMAINS.flatMap((d) => d.screens.map((s) => ({ ...s, domain: d.key })));
 
-// path 의 :param 을 프리뷰용 샘플 값으로 치환 (레이아웃 확인 용도 — 실데이터 아님)
-// raw=true(인증·가입 화면)는 ?reviewRaw=1 을 붙여 로그아웃 상태로 실제 인증 화면을 띄운다.
-const previewPath = (screen) => {
-  const p = (screen?.path || "").replace(/:[A-Za-z0-9_]+/g, "sample");
-  if (!p) return p;
-  return screen?.raw ? p + (p.includes("?") ? "&" : "?") + "reviewRaw=1" : p;
+// 프레임 URL 조립 — 화면 보드(/review/board)와 같은 규칙.
+//  · mock=<시나리오>  → 로그인 없이 뜨고 데이터가 항상 같다 (variant 를 고르면 그 경우의 수로)
+//  · freeze=1        → 페이지가 스스로 navigate() 해도 그 화면에 머문다(스플래시→홈 자동이동 차단)
+//    "조작" 을 켜면 freeze 를 빼고 다시 로드해 실제로 눌러볼 수 있다.
+const previewPath = (screen, variant, freeze) => {
+  const base = variant ? variant.path : (screen?.path || "").replace(/:[A-Za-z0-9_]+/g, "sample");
+  if (!base) return base;
+  const scenario = variant ? variant.scenario : scenarioForScreen(screen?.domain, screen?.id);
+  const q = [];
+  if (scenario) q.push("mock=" + scenario);
+  if (freeze) q.push("freeze=1");
+  if (!q.length) return base;
+  return base + (base.includes("?") ? "&" : "?") + q.join("&");
 };
 
 const CORAL = "#fc5b41";
@@ -86,6 +94,8 @@ export default function AuthReview() {
   const [phoneScale, setPhoneScale] = useState(1); // 창이 844보다 짧을 때만 1 미만
   const [viewPins, setViewPins] = useState(null); // 기록 클릭 시 화면에 표시할 핀
   const [specExpanded, setSpecExpanded] = useState(false); // 기획 펼치기(기본 접힘)
+  const [variantKey, setVariantKey] = useState(""); // 선택한 경우의 수 ("" = 기본 화면)
+  const [live, setLive] = useState(false);          // 조작 허용(기본 꺼짐 = 화면 고정)
   const [sending, setSending] = useState(false);
   const iframeRef = useRef(null);
   const videoRef = useRef(null);
@@ -94,7 +104,12 @@ export default function AuthReview() {
   const [busy, setBusy] = useState("");
 
   useEffect(() => subscribeThread((all) => setThread(all)), []);
-  useEffect(() => { setDraftPins([]); setViewPins(null); setPinMode(false); }, [cur.id]);
+  useEffect(() => { setDraftPins([]); setViewPins(null); setPinMode(false); setVariantKey(""); setLive(false); }, [cur.id]);
+
+  // 이 화면에 등록된 경우의 수 + 현재 선택
+  const variants = variantsForScreen(cur.domain, cur.id);
+  const variant = variants.find((v) => v.key === variantKey) || null;
+  const frameSrcNow = previewPath(cur, variant, !live);
 
   // ── 화면공유 (핀 박은 스샷 캡처용 — 카카오맵 등 지도까지 포함) ──
   const stopShare = useCallback(() => {
@@ -314,6 +329,13 @@ export default function AuthReview() {
             );
           })}
           <div style={{ flex: 1 }} />
+          <button
+            onClick={() => nav("/review/board")}
+            title="전 화면 + 상태별 경우의 수를 한 캔버스에 고정 배치"
+            style={{ fontSize: 13, fontWeight: 800, padding: "6px 14px", borderRadius: 8, cursor: "pointer", border: "none", background: "#fc5b41", color: "#fff" }}
+          >
+            화면 보드
+          </button>
           <span style={{ fontSize: 12, color: C.gray }}>화면 리뷰 · 좌=화면 / 우상=기획 / 우하=기록(개발자·AI)</span>
         </div>
 
@@ -349,6 +371,47 @@ export default function AuthReview() {
       {/* 본문: 좌 화면 / 우 (기획 + 노트) */}
       <div style={{ flex: 1, display: "flex", minHeight: 0, padding: 18, gap: 18 }}>
         <div style={{ flex: "none", width: isPC ? 780 : PHONE_W + 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          {/* 경우의 수 — 이 화면에 등록된 상태 변형을 골라 본다 (목업이라 언제 봐도 같은 화면) */}
+          {cur.path && variants.length > 0 && (
+            <div style={{ width: isPC ? 760 : PHONE_W, flex: "none", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11, color: C.gray2, fontWeight: 700 }}>경우의 수</span>
+              <button onClick={() => setVariantKey("")} style={VCHIP(!variantKey)}>기본</button>
+              {variants.map((v) => (
+                <button key={v.key} onClick={() => setVariantKey(v.key)} style={VCHIP(variantKey === v.key)} title={v.scenario}>
+                  {v.name.replace(/^[^·]+ · /, "")}
+                </button>
+              ))}
+            </div>
+          )}
+          {cur.path && (
+            <div style={{ width: isPC ? 760 : PHONE_W, flex: "none", display: "flex", alignItems: "center", gap: 6 }}>
+              {/* 지금 상태를 그대로 읽히게 쓴다.
+                  예전 라벨("화면 고정")은 "누르면 고정된다"로 읽혀서, 이미 고정된 상태인데
+                  눌러버리면 오히려 고정이 풀리고 스플래시가 웰컴으로 넘어갔다. */}
+              <button
+                onClick={() => setLive((v) => !v)}
+                title={
+                  live
+                    ? "지금 조작 가능 — 화면이 스스로 다음 화면으로 넘어갈 수 있습니다. 누르면 다시 고정."
+                    : "지금 고정됨 — 화면이 안 넘어갑니다. 눌러서 직접 만져보기."
+                }
+                style={{
+                  fontSize: 12, fontWeight: 800, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
+                  border: `1px solid ${live ? "#fc5b41" : "#18181b"}`,
+                  background: live ? "#fc5b41" : "#18181b",
+                  color: "#fff",
+                }}
+              >
+                {live ? "✋ 조작 중" : "🔒 고정됨"}
+              </button>
+              <span style={{ fontSize: 11, color: C.gray2, fontWeight: 600, whiteSpace: "nowrap" }}>
+                {live ? "→ 눌러서 고정" : "→ 눌러서 조작"}
+              </span>
+              <span style={{ fontSize: 11, color: C.gray2, fontFamily: "ui-monospace, monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {frameSrcNow}
+              </span>
+            </div>
+          )}
           {cur.path && !isPC && (
             <div style={{ width: PHONE_W, flex: "none", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <button onClick={() => { setPinMode((v) => !v); setViewPins(null); }} style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 8, cursor: "pointer", border: `1px solid ${pinMode ? "#c2410c" : C.line}`, background: pinMode ? "#c2410c" : "#fff", color: pinMode ? "#fff" : C.gray }}>
@@ -382,14 +445,14 @@ export default function AuthReview() {
             // 관리자 PC 화면: 1266px 논리폭을 0.6 스케일로 축소해 전체 레이아웃 프리뷰
             <div style={{ width: 760, height: "100%", maxHeight: 822, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.10)", background: "#fff" }}>
               <div style={{ width: 1266, height: 1370, transform: "scale(0.6)", transformOrigin: "top left" }}>
-                <iframe ref={iframeRef} key={cur.id} title={cur.name} src={previewPath(cur)} style={{ width: 1266, height: 1370, border: "none" }} />
+                <iframe ref={iframeRef} key={cur.id} title={cur.name} src={frameSrcNow} style={{ width: 1266, height: 1370, border: "none" }} />
               </div>
             </div>
           ) : cur.path ? (
             <div ref={stageRef} style={{ flex: 1, minHeight: 0, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {/* boxSizing:content-box — 전역 border-box면 테두리 2px이 먹혀 내부가 388×842가 된다 */}
             <div style={{ position: "relative", boxSizing: "content-box", width: PHONE_W, height: PHONE_H, flex: "none", transform: `scale(${phoneScale})`, transformOrigin: "center center", borderRadius: 20, overflow: "hidden", border: `1px solid ${C.line}`, boxShadow: "0 8px 30px rgba(0,0,0,0.10)", background: "#fff" }}>
-              <iframe ref={iframeRef} key={cur.id} title={cur.name} src={previewPath(cur)} style={{ width: "100%", height: "100%", border: "none", pointerEvents: pinMode ? "none" : "auto" }} />
+              <iframe ref={iframeRef} key={cur.id} title={cur.name} src={frameSrcNow} style={{ width: "100%", height: "100%", border: "none", pointerEvents: pinMode || !live ? "none" : "auto" }} />
               {(pinMode || viewPins) && (
                 <div onClick={pinMode ? addPin : undefined} style={{ position: "absolute", inset: 0, cursor: pinMode ? "crosshair" : "default", background: pinMode ? "rgba(252,91,65,0.04)" : "transparent" }}>
                   {(pinMode ? draftPins : viewPins || []).map((p, i) => (
@@ -506,6 +569,11 @@ export default function AuthReview() {
 
 const C = { ink: "#18181b", ink2: "#3f3f46", gray: "#71717a", gray2: "#a1a1aa", line: "#e4e4e7", line2: "#d4d4d8", bg: "#f4f5f7", card: "#ffffff" };
 // 미답변 N 뱃지 — 개발자 질문에 AI 답글 안 달린 화면/도메인 표시(코랄 원 + 흰 숫자)
+// 경우의 수 칩
+const VCHIP = (on) => ({
+  fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 12, cursor: "pointer",
+  border: `1px solid ${on ? "#fc5b41" : C.line}`, background: on ? "#fc5b41" : "#fff", color: on ? "#fff" : C.gray,
+});
 const NBADGE = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 16, height: 16, marginLeft: 5, padding: "0 4px", borderRadius: 8, background: "#fc5b41", color: "#fff", fontSize: 10, fontWeight: 800, lineHeight: 1, verticalAlign: "middle" };
 // 작성자별 카드 색 (AI=파랑 / 개발자=검정)
 const BY_STYLE = {

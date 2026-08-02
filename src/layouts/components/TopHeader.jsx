@@ -157,9 +157,9 @@ export default function TopHeader({
     navigate("/notifications");
   };
 
-  const handleChatClick = () => {
-    navigate("/chats");
-  };
+  // 채팅(/chats) 진입 핸들러는 제거했다 — 헤더에 채팅 아이콘을 붙이지 않는다.
+  // 사용자끼리 DM 하는 기능은 열지 않기로 했고(커뮤니티에도 진입점 없음),
+  // 매치룸 채팅은 매치룸 안 MatchRoomChat 으로만 쓴다.
 
   if (showBack || (rightActions && rightActions.length > 0)) {
     const displayTitle = headerConfig?.title || title;

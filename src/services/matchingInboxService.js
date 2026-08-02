@@ -15,6 +15,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { hasMock, mockData } from "../dev/mockBus";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -167,6 +168,13 @@ export async function listMatchInboxForClub({ clubId, limitCount = 300 } = {}) {
   if (!myClubId) {
     console.warn("[matchInbox] listMatchInboxForClub: clubId is empty");
     return [];
+  }
+
+  // 리뷰 보드 목업 — raw 문서만 갈아끼우고 정규화는 실제 로직 그대로.
+  if (hasMock("matchInboxDocs")) {
+    return (mockData("matchInboxDocs") || [])
+      .map((d) => normalizeInboxRow(toStr(d.id), d, myClubId))
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   }
 
   console.groupCollapsed("[matchInbox] listMatchInboxForClub (SSOT=match_requests)");

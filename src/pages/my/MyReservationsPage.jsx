@@ -16,7 +16,6 @@ import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
 import { copyText, fullAddress, openDirections, openMapView } from "../../utils/venueLink";
 import { cancelDeadlineText, usableFromText } from "../../constants/cancelPolicy";
-import { PG_ENABLED } from "../../constants/payments";
 import {
   FiMapPin, FiCalendar, FiClock, FiHash, FiPhone, FiInfo,
   FiCopy, FiMap, FiNavigation, FiFileText,
@@ -58,7 +57,7 @@ function canCancel(r) {
 
 /** 결제 대기(구장주 승인 완료) 상태 — 이때만 결제 버튼을 띄운다. */
 function needsPayment(r) {
-  return PG_ENABLED && toStr(r.status) === "pending" && isFuture(r);
+  return toStr(r.status) === "pending" && isFuture(r);
 }
 
 export default function MyReservationsPage() {
@@ -208,9 +207,7 @@ export default function MyReservationsPage() {
   return (
     <Wrap>
       <Notice>
-        {PG_ENABLED
-          ? "예약은 구장 승인 후 결제하면 확정돼요. 승인 후 2시간 안에 결제해 주세요."
-          : "예약은 구장 승인 후 확정돼요. 이용료는 현장에서 정산합니다."}
+        예약은 구장 승인 후 결제하면 확정돼요. 승인 후 2시간 안에 결제해 주세요.
       </Notice>
       <List>
         {sorted.map((r) => {
@@ -282,7 +279,6 @@ export default function MyReservationsPage() {
               <BottomRow>
                 <Price>
                   {(Number(r.price) || 0).toLocaleString()}원
-                  {PG_ENABLED ? null : <small>· 현장 정산</small>}
                 </Price>
                 {canCancel(r) ? (
                   <CancelBtn type="button" disabled={busyId === r.id} onClick={() => handleCancel(r)}>

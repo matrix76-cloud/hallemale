@@ -5,6 +5,7 @@
 // 메시지: chatRooms/{id}/messages
 
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   deleteDoc,
@@ -41,10 +42,14 @@ function safeString(v) {
 export async function listAdminChatRooms() {
   const col = collection(db, "chatRooms");
   let snap;
-  try {
-    snap = await getDocs(query(col, orderBy("createdAt", "desc")));
-  } catch (e) {
-    snap = await getDocs(col);
+  if (hasMock("adminChatRooms")) {
+    snap = mockQuerySnap(mockData("adminChatRooms"));
+  } else {
+    try {
+      snap = await getDocs(query(col, orderBy("createdAt", "desc")));
+    } catch (e) {
+      snap = await getDocs(col);
+    }
   }
 
   const raws = [];
@@ -112,11 +117,16 @@ export async function loadAdminChatRoomDetail(chatId) {
   const id = safeString(chatId);
   if (!id) return { room: null, messages: [] };
 
-  const ref = doc(db, "chatRooms", id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return { room: null, messages: [] };
-
-  const data = snap.data() || {};
+  let data;
+  if (hasMock("adminChatRooms")) {
+    data = mockData("adminChatRooms")[id];
+    if (!data) return { room: null, messages: [] };
+  } else {
+    const ref = doc(db, "chatRooms", id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return { room: null, messages: [] };
+    data = snap.data() || {};
+  }
   const ps = Array.isArray(data.participantUids) ? data.participantUids : [];
 
   const metaByUid = {};
@@ -137,7 +147,7 @@ export async function loadAdminChatRoomDetail(chatId) {
   });
 
   const room = {
-    id: snap.id,
+    id,
     type: safeString(data.type) || "dm",
     dmKey: safeString(data.dmKey),
     participants,
@@ -154,7 +164,13 @@ export async function loadAdminChatRoomDetail(chatId) {
     lockedReason: safeString(data.lockedReason),
   };
 
-  const ms = await getDocs(
+  const ms = hasMock("adminChatMessages")
+    ? mockQuerySnap(
+        Object.keys(mockData("adminChatMessages"))
+          .filter((k) => mockData("adminChatMessages")[k].chatId === id)
+          .map((k) => ({ id: k, ...mockData("adminChatMessages")[k] }))
+      )
+    : await getDocs(
     query(collection(db, "chatRooms", id, "messages"), orderBy("createdAt", "asc"))
   );
 

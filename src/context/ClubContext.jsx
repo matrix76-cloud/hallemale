@@ -8,6 +8,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
+import { mockMerge } from "../dev/mockBus";
 import { db } from "../services/firebase";
 import {
   collection,
@@ -237,7 +238,7 @@ export function ClubProvider({ children }) {
     [club, members, loading, isTeamLeader, activeTeamId, refreshClubManual, refreshMembers]
   );
 
-  return <ClubContext.Provider value={value}>{children}</ClubContext.Provider>;
+  return <ClubContext.Provider value={mockMerge("club", value)}>{children}</ClubContext.Provider>;
 }
 
 export function useClubContext() {

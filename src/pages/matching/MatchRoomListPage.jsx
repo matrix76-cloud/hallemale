@@ -97,20 +97,23 @@ const formatMatchedTime = (v) => {
 // 확정 전 '조율중'으로 묶이는 상태들 (awaiting_venue_approval = 구장주 승인 대기)
 const ADJUSTING_STATUSES = ["accepted", "proposed", "awaiting_venue_approval"];
 
-// 조율 진행 단계 (라인업 확정 → 구장·일정 제안 → [제휴구장은 구장주 승인] → 확정)
+// 조율 진행 단계 (라인업 확정 → 구장·일정 제안 → [제휴구장은 구장주 승인 → 결제] → 확정)
 const buildAdjustSteps = (room) => {
   const lineupDone = !!room?.myLineupConfirmed && !!room?.oppLineupConfirmed;
   // 구장·일정은 제안 시 함께 설정됨(proposeMatchSchedule) → proposed/confirmed면 완료
   const proposeDone = !!toStr(room?.fieldAddress) && !!room?.scheduledAt;
   const confirmDone = toStr(room?.status) === "confirmed";
   const pb = room?.partnerBooking || null;
-  // ✅ 제휴구장 예약이면 '예약승인' 단계 추가 (앱 결제 없음, 구장주 승인으로 확정)
+  // ✅ 제휴구장 예약이면 '예약승인 → 결제' 단계 추가. 승인만으로는 확정되지 않고
+  //    양 팀이 각자 몫을 결제해야 확정된다 — 단계에 결제가 없으면 어디서 결제하는지 안 보인다.
   if (pb) {
     const approveDone = pb.approvalState === "approved" || pb.finalized === true || confirmDone;
+    const payDone = pb.payState === "paid" || confirmDone;
     return [
       { label: "라인업", done: lineupDone },
       { label: "구장·일정", done: proposeDone },
       { label: "예약승인", done: approveDone },
+      { label: "결제", done: payDone },
       { label: "확정", done: confirmDone },
     ];
   }
@@ -121,7 +124,7 @@ const buildAdjustSteps = (room) => {
   ];
 };
 
-const getVsStatus = (room) => {
+const getVsStatus = (room, myClubId = "") => {
   const { status, scheduledAt, myScore, oppScore } = room || {};
   const resultState = toStr(room?.resultState);
   const pb = room?.partnerBooking || null;
@@ -140,8 +143,16 @@ const getVsStatus = (room) => {
   }
 
   // 상대 수락 후 구장주 승인 대기 (제휴구장 예약 경로)
+  // 승인이 나면 같은 status 그대로 "결제 대기"로 넘어간다 — 확정은 양 팀 결제 후 서버가 찍는다.
+  // 분담결제라 "누가 아직 안 냈는지"까지 보여줘야 무엇을 해야 할지 알 수 있다.
   if (status === "awaiting_venue_approval") {
-    return { text: "구장 승인 대기", tone: "accepted" };
+    if (pb?.approvalState !== "approved") return { text: "구장 승인 대기", tone: "accepted" };
+    const mySide = myClubId && toStr(pb.proposerClubId) === toStr(myClubId) ? "A" : "B";
+    const myPaid = mySide === "A" ? pb.paidByA === true : pb.paidByB === true;
+    const oppPaid = mySide === "A" ? pb.paidByB === true : pb.paidByA === true;
+    if (myPaid && !oppPaid) return { text: "상대 팀 결제 대기중", tone: "proposed" };
+    if (!myPaid && oppPaid) return { text: "우리 팀 결제 대기중", tone: "proposed" };
+    return { text: "결제 대기중", tone: "proposed" };
   }
 
   if (status === "confirmed") {
@@ -1422,7 +1433,7 @@ export default function MatchRoomListPage() {
 
   const renderRoomCard = (room) => {
     const { myTeam, oppTeam } = room || {};
-    const status = getVsStatus(room);
+    const status = getVsStatus(room, myClubId);
     const { text } = status;
     // 지난 경기(경기 종료 or finished) = 상태칩 숨김
     const isPast = isEnded(room) || toStr(room?.status) === "finished";
@@ -1636,7 +1647,7 @@ export default function MatchRoomListPage() {
     const hasRefund = !!refund && Number(refund.amount) > 0;
     const refundDone = hasRefund && toStr(refund.status) === "refunded";
     const refundLabel = !hasRefund
-      ? "현장 정산 · 결제 없음"
+      ? "결제 없음"
       : refundDone
       ? `${Number(refund.amount).toLocaleString()}원 환불 완료`
       : `${Number(refund.amount).toLocaleString()}원 환불 예정`;

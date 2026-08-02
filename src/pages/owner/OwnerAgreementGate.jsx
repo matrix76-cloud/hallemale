@@ -1,8 +1,9 @@
 /* eslint-disable */
 // src/pages/owner/OwnerAgreementGate.jsx
-// 구장 관리자 최초 진입 시 1회 노출되는 동의 게이트.
-// 필수: 만 19세 이상 사업자 / 구장 관리자 이용약관 / 개인정보처리방침. 선택: 마케팅 수신.
-// 구장 관리자는 사업자만 가입하므로 사용자 앱의 "만 14세 이상"이 아닌 성인 확인을 받는다.
+// 구장 관리자 최초 진입 시 1회 노출되는 동의 게이트. (운영 주체 게이트 다음)
+// 필수: 성인 확인 / 구장 관리자 이용약관 / 개인정보처리방침. 선택: 마케팅 수신.
+// 구장 관리자는 성인만 가입하므로 사용자 앱의 "만 14세 이상"이 아닌 성인 확인을 받는다.
+// 성인 확인 문구는 운영 주체에 따라 갈린다 — 학교·기관 담당자는 "사업자 본인"이 아니다.
 // 동의 내역은 users 문서(owner* 필드)에 기록된다.
 import React, { useState } from "react";
 import styled from "styled-components";
@@ -10,11 +11,13 @@ import { useNavigate } from "react-router-dom";
 import { showAlert } from "../../utils/appDialog";
 import { useOwner } from "../../context/OwnerContext";
 import { saveOwnerConsents } from "../../services/userService";
+import { ownerTypeOption } from "../../constants/ownerType";
 import { C } from "./components/od";
 
-export default function OwnerAgreementGate() {
+export default function OwnerAgreementGate({ ownerType }) {
   const navigate = useNavigate();
   const { uid, refresh, signOut } = useOwner();
+  const typeOpt = ownerTypeOption(ownerType);
 
   const [adult, setAdult] = useState(false);
   const [terms, setTerms] = useState(false);
@@ -62,7 +65,7 @@ export default function OwnerAgreementGate() {
         <Hero>
           <Logo>🏟️</Logo>
           <Title>서비스 이용 동의</Title>
-          <Sub>구장 관리자 서비스 이용을 위해 아래 약관에 동의해 주세요.</Sub>
+          <Sub>{typeOpt.consentSub}</Sub>
         </Hero>
 
         <AllRow $on={allChecked} onClick={toggleAll} role="button" tabIndex={0}>
@@ -75,7 +78,7 @@ export default function OwnerAgreementGate() {
         <Item>
           <CheckArea onClick={() => setAdult((v) => !v)} role="button" tabIndex={0}>
             <Check $on={adult}>{adult ? "✓" : ""}</Check>
-            <ItemText><ReqTag>[필수]</ReqTag> 만 19세 이상 사업자 본인입니다.</ItemText>
+            <ItemText><ReqTag>[필수]</ReqTag> {typeOpt.adultConsentText}</ItemText>
           </CheckArea>
         </Item>
 
@@ -218,10 +221,10 @@ const Check = styled.span`
 
 const ItemText = styled.span`
   font-size: 14px;
+  line-height: 1.4;
   color: ${C.slate800};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* 학교·기관 성인확인 문구는 한 줄보다 길다 — 잘라내지 말고 줄바꿈한다. */
+  word-break: keep-all;
 `;
 
 const ReqTag = styled.span`font-weight: 700; color: ${C.violet600};`;

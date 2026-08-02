@@ -4,6 +4,7 @@
 // Firestore: users/{uid} 문서에 blocked / blockedAt / blockedReason / blockedBy 필드 사용
 
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   doc,
@@ -58,7 +59,7 @@ export async function unblockUser({ uid }) {
 
 export async function listBlockedUsers() {
   const q = query(collection(db, "users"), where("blocked", "==", true));
-  const snap = await getDocs(q);
+  const snap = hasMock("blockedUsers") ? mockQuerySnap(mockData("blockedUsers")) : await getDocs(q);
 
   const rows = [];
   snap.forEach((d) => {

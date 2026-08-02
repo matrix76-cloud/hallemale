@@ -5,6 +5,7 @@
 // ✅ SSOT: users.activeTeamId ("" = 무소속 / clubId = 소속 팀)
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   doc,
   getDoc,
@@ -69,6 +70,7 @@ async function resolveClubMetaSafe(clubId) {
 
 export async function getClubById(clubId) {
   if (!clubId) return null;
+  if (hasMock("clubDocs")) return mockData("clubDocs")[clubId] || null;
   const ref = doc(db, "clubs", clubId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
@@ -766,6 +768,11 @@ export async function kickClubMember({ clubId, targetUid, actorUid } = {}) {
 export async function listClubMembers({ clubId, limitCount = 100 }) {
   const cid = String(clubId || "").trim();
   if (!cid) return [];
+  if (hasMock("clubMemberRefs")) {
+    const refs = mockData("clubMemberRefs")[cid] || [];
+    const users = mockData("userDocs") || {};
+    return refs.map((r) => users[r.uid]).filter(Boolean);
+  }
 
   const q = query(
     collection(db, "users"),

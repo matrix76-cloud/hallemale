@@ -427,7 +427,7 @@ export default function AdminBannersPage() {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
-  const [placement, setPlacement] = useState("home"); // "home" | "community"
+  const [placement, setPlacement] = useState("home"); // "home" | "community" | "matching"
 
   const isEditing = !!form.id;
 
@@ -560,6 +560,13 @@ export default function AdminBannersPage() {
   };
 
   const isCommunity = placement === "community";
+  const isMatching = placement === "matching";
+  const placementTitle = isMatching ? "매칭 광고" : isCommunity ? "커뮤니티 배너" : "홈 배너";
+  const placementDesc = isMatching
+    ? "빠른 매칭 상대 탐색(로딩) 화면의 광고 배너를 등록·수정·삭제합니다. 등록된 활성 배너가 없으면 기본 이미지가 노출됩니다."
+    : isCommunity
+    ? "커뮤니티 상단 슬라이드 배너를 등록·수정·삭제합니다. 비활성 배너는 사용자에게 노출되지 않습니다."
+    : "홈 상단 슬라이드 배너를 등록·수정·삭제합니다. 비활성 배너는 사용자에게 노출되지 않습니다.";
 
   return (
     <Page>
@@ -578,16 +585,19 @@ export default function AdminBannersPage() {
         >
           커뮤니티 배너
         </Tab>
+        <Tab
+          type="button"
+          $active={placement === "matching"}
+          onClick={() => handleSwitchPlacement("matching")}
+        >
+          매칭 광고
+        </Tab>
       </Tabs>
 
       <HeaderRow>
         <div>
-          <Title>{isCommunity ? "커뮤니티 배너" : "홈 배너"}</Title>
-          <Sub style={{ marginTop: 4 }}>
-            {isCommunity
-              ? "커뮤니티 상단 슬라이드 배너를 등록·수정·삭제합니다. 비활성 배너는 사용자에게 노출되지 않습니다."
-              : "홈 상단 슬라이드 배너를 등록·수정·삭제합니다. 비활성 배너는 사용자에게 노출되지 않습니다."}
-          </Sub>
+          <Title>{placementTitle}</Title>
+          <Sub style={{ marginTop: 4 }}>{placementDesc}</Sub>
         </div>
         <PrimaryHeaderBtn type="button" onClick={handleOpenCreate}>
           + 새 배너 등록
@@ -639,7 +649,15 @@ function BannersSection({
   return (
     <>
       <SpecBox>
-        {placement === "community" ? (
+        {placement === "matching" ? (
+          <>
+            📐 권장 이미지 규격: <strong>1200 × 600 px (가로:세로 = 2:1)</strong>{" "}
+            / PNG·JPG / 5MB 이하<br />
+            빠른 매칭 <strong>상대 탐색 로딩 화면(약 3초)</strong> 중앙에 노출됩니다. 여러 장을
+            등록하면 <strong>표시 순서가 가장 앞인 활성 배너 1장</strong>만 노출되며, 배너에는{" "}
+            <strong>이미지만</strong> 보이고 클릭 시 등록한 이동 URL로 연결됩니다.
+          </>
+        ) : placement === "community" ? (
           <>
             📐 권장 이미지 규격: <strong>1200 × 260 px (가로:세로 ≈ 4.6:1)</strong>{" "}
             / PNG·JPG / 5MB 이하<br />

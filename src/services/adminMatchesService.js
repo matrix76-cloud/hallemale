@@ -3,6 +3,7 @@
 // 어드민 - 매칭 관리 (match_requests 라이프사이클 전체)
 // pending / accepted / rejected / cancelled / finished
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   getDocs,
@@ -164,7 +165,7 @@ export async function fetchAdminMatchRequests({
     q1 = query(col, orderBy("createdAt", "desc"), limit(limitCount));
   }
 
-  const snap = await getDocs(q1);
+  const snap = hasMock("myMatchDocs") ? mockQuerySnap(mockData("myMatchDocs")) : await getDocs(q1);
   const docs = snap?.docs || [];
   const rows = docs.map(mapDoc);
 

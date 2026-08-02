@@ -7,6 +7,7 @@
 
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import { getAllClubDocs } from "./clubsSnapshot";
 import { getTeamProfile } from "./teamService";
 import { images } from "../utils/imageAssets";
@@ -176,6 +177,7 @@ async function countClubMembers(clubId) {
  * @returns {Promise<Map<string, number>>} clubId → 멤버 수
  */
 export async function getClubMemberCounts(clubIds = []) {
+  if (hasMock("clubMemberCounts")) return mockData("clubMemberCounts");
   const ids = Array.from(
     new Set(
       (Array.isArray(clubIds) ? clubIds : [])

@@ -7,6 +7,7 @@
 // - createClub: 팀 생성 + owner members + users.activeTeamId 세팅
 
 import { images } from "../utils/imageAssets";
+import { hasMock, mockData } from "../dev/mockBus";
 
 import { db, storage } from "./firebase";
 import {
@@ -140,6 +141,7 @@ function buildRecruitingMock() {
 
 async function loadClubDoc(clubId) {
   if (!clubId) return null;
+  if (hasMock("clubDocs")) return mockData("clubDocs")[clubId] || null;
   const snap = await getDoc(doc(db, "clubs", clubId));
   if (!snap.exists()) return null;
   return { id: snap.id, clubId: snap.id, ...snap.data() };
@@ -147,6 +149,7 @@ async function loadClubDoc(clubId) {
 
 async function loadClubMemberRefs(clubId) {
   if (!clubId) return [];
+  if (hasMock("clubMemberRefs")) return mockData("clubMemberRefs")[clubId] || [];
   const snap = await getDocs(collection(db, "clubs", clubId, "members"));
   const rows = [];
   snap.forEach((d) => {
@@ -157,6 +160,7 @@ async function loadClubMemberRefs(clubId) {
 
 async function loadUserDoc(uid) {
   if (!uid) return null;
+  if (hasMock("userDocs")) return mockData("userDocs")[uid] || null;
   const snap = await getDoc(doc(db, "users", uid));
   if (!snap.exists()) return null;
   return { id: snap.id, uid: snap.id, ...snap.data() };

@@ -8,6 +8,7 @@ import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 import { db } from "../../services/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { hasMock, mockData } from "../../dev/mockBus";
 import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
 
@@ -81,6 +82,13 @@ export default function EventPage() {
       setLoading(true);
       try {
         if (!id) throw new Error("id가 없습니다.");
+        if (hasMock("eventPopups")) {
+          const m = mockData("eventPopups")[id] || null;
+          if (!alive) return;
+          if (!m) setErr("이벤트를 찾을 수 없습니다.");
+          setData(m);
+          return;
+        }
         const snap = await getDoc(doc(db, "event_popups", id));
         if (!alive) return;
         if (!snap.exists()) {

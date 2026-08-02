@@ -11,6 +11,8 @@ import OwnerVenueSwitcher from "../pages/owner/components/OwnerVenueSwitcher";
 import OwnerSpinner from "../pages/owner/components/OwnerSpinner";
 import OwnerNotifBell from "../pages/owner/components/OwnerNotifBell";
 import OwnerAgreementGate from "../pages/owner/OwnerAgreementGate";
+import OwnerTypeGate from "../pages/owner/OwnerTypeGate";
+import { OWNER_TYPES, resolveOwnerType } from "../constants/ownerType";
 import { C } from "../pages/owner/components/od";
 import { useUI } from "../hooks/useUI";
 import { images } from "../utils/imageAssets";
@@ -132,6 +134,14 @@ function hasOwnerConsent(userDoc) {
   );
 }
 
+// 운영 주체(개인·사업자/학교/기관) 선택 완료 여부.
+// 이미 구장을 올린 기존 구장주는 다시 묻지 않는다 — 구장 문서에 남은 값으로 폴백하면
+// 충분하고, 승인까지 끝난 구장주를 새 게이트로 다시 막을 이유가 없다.
+function needsOwnerType(userDoc, venues) {
+  if (OWNER_TYPES.includes(userDoc?.ownerType)) return false;
+  return !venues?.length;
+}
+
 // 구장 미등록(venue 없음) 오너는 워크스페이스로 못 들어가고 온보딩에 머문다.
 // (예외: 온보딩/등록/내정보/탈퇴/문의 — 가입 직후 앱 진입 방지 + 로그아웃/탈퇴/고객지원 경로는 열어둠)
 // ⚡ memo: OwnerShell이 토스트 때문에 리렌더돼도 현재 페이지(Outlet)는 다시 그리지 않는다.
@@ -158,7 +168,7 @@ function OwnerShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useUI() || {};
-  const { loading, userDoc, venue } = useOwner();
+  const { loading, userDoc, venue, venues } = useOwner();
   const p = (location.pathname || "").toLowerCase();
 
   // 승인대기(requested) 건수 → 바텀탭 배지. 홈이 아닌 탭에서도 신규 예약 요청을 인지하게.
@@ -177,8 +187,12 @@ function OwnerShell() {
   const showBack = !hasTab && !p.endsWith("/owner") && !p.endsWith("/owner/");
   const isHome = p.startsWith("/owner/home"); // 홈만 브랜드(로고+텍스트), 나머지는 페이지명
 
-  // 필수 동의 전에는 워크스페이스 전체를 막고 동의 게이트를 띄운다.
-  if (!loading && !hasOwnerConsent(userDoc)) return <OwnerAgreementGate />;
+  // 가입 직후 순서: 운영 주체 확인 → 필수 동의 → 구장 온보딩.
+  // 주체를 먼저 받아야 동의 문구·온보딩 질문을 그 주체에 맞게 그릴 수 있다.
+  if (!loading && needsOwnerType(userDoc, venues)) return <OwnerTypeGate />;
+  if (!loading && !hasOwnerConsent(userDoc)) {
+    return <OwnerAgreementGate ownerType={resolveOwnerType(userDoc, venue)} />;
+  }
 
   return (
     <>

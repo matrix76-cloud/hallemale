@@ -222,11 +222,17 @@ export default function MainLayout({ hideHeader = false }) {
 
     if (p === "/impact") return "할래말래 기부금 캠페인";
 
+    if (p.startsWith("/pay/")) return "결제";
+
     return "할래말래";
   };
 
   // 빠른 매칭 로딩(광고) 화면: 헤더/탭바 없이 전체 몰입
   const isMatchSearching = p === "/matching/searching";
+
+  // 결제 화면(/pay/:reservationId). 결제창에서 돌아오는 /pay/success·/pay/fail 은
+  // 되돌아갈 곳이 없는 종료 지점이라 제외한다(뒤로가기가 결제 화면으로 되돌아가면 안 된다).
+  const isPaymentPage = p.startsWith("/pay/") && p !== "/pay/success" && p !== "/pay/fail";
 
   const showBack =
     p === "/matching" ||
@@ -260,6 +266,8 @@ export default function MainLayout({ hideHeader = false }) {
     p === "/operation" ||
     p === "/impact" ||
     p.startsWith("/settings/") ||
+    // 결제 화면은 하단 고정 결제 버튼이 있다 → 탭바가 뜨면 버튼을 덮어 결제를 못 한다
+    isPaymentPage ||
     // ✅ 새 페이지 back
     p === "/matches/finished";
 

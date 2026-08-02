@@ -116,6 +116,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/venues/$(venueId))
         && get(/databases/$(database)/documents/venues/$(venueId)).data.ownerUid == request.auth.uid;
     }
+    // 즉시예약 구장인가 — 이 구장만 예약자가 "승인 완료" 상태로 바로 만들 수 있다.
+    function venueAutoApprove(venueId) {
+      return venueId is string && venueId != ''
+        && exists(/databases/$(database)/documents/venues/$(venueId))
+        && get(/databases/$(database)/documents/venues/$(venueId)).data.autoApprove == true;
+    }
 
     match /venues/{id}                    { allow read: if true; allow write: if signedIn(); }
     // 구장 리뷰: 본인 명의(uid) 리뷰만 작성/수정 — 타인 사칭·대리작성 차단. (리뷰 문서에 작성자 uid 필수)
@@ -125,11 +131,18 @@ service cloud.firestore {
     }
     // 결제 흐름(토스) 필드 — 클라이언트는 절대 못 바꾼다. 서버(Admin SDK)만 기록.
     //  (안 잠그면 팀장/예약자가 paid=true 로 찍어 무료 예약을 만들 수 있다)
-    function paymentFieldsUntouched() {
+    // 결제 "결과" — 서버(Cloud Functions)만 기록한다. 클라가 쓰면 결제 없이 확정시킬 수 있다.
+    function paymentResultUntouched() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'paid', 'paidByA', 'paidByB', 'paymentMethod', 'paymentDeadline',
+        'paid', 'paidByA', 'paidByB', 'paymentMethod',
         'paymentKey', 'paymentKeyA', 'paymentKeyB', 'teamAPayerUid', 'teamBPayerUid'
       ]);
+    }
+    // 결제 마감 시각은 결제 결과가 아니라 "승인 시점"에 찍는 값이다(setReservationStatus).
+    // 예전엔 위 서버 전용 목록에 같이 들어 있어서, 구장주가 승인만 눌러도 규칙이 거부했다
+    // ("Missing or insufficient permissions") — 승인 자체가 불가능했다.
+    function paymentDeadlineUntouched() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['paymentDeadline']);
     }
     // 금액 필드 — 구장주/어드민만 조정 가능(요금 정정). 예약자·팀장은 못 건드린다.
     function priceFieldsUntouched() {
@@ -141,6 +154,13 @@ service cloud.firestore {
       allow read: if true;
       allow create: if signedIn()
                     && (inBookingWindow(request.resource.data.date)
+                        || isVenueOwner(request.resource.data.venueId)
+                        || isAdmin())
+                    // 무결제 승인 신뢰모델 보호: 예약자는 "승인 대기(requested)"로만 만들 수 있다.
+                    // 승인 완료 상태로 바로 만드는 건 즉시예약 구장(autoApprove)이거나 구장주·어드민일 때뿐.
+                    // 이게 없으면 아무나 confirmed 로 예약을 꽂아 승인 절차를 건너뛴다.
+                    && (request.resource.data.status == 'requested'
+                        || venueAutoApprove(request.resource.data.venueId)
                         || isVenueOwner(request.resource.data.venueId)
                         || isAdmin());
       // 변경 권한: 구장주(승인/거절/완료/노쇼) · 예약자 본인(취소) · 매칭 양 팀장(제휴구장 승인철회) · 어드민.
@@ -157,8 +177,9 @@ service cloud.firestore {
                         || inBookingWindow(request.resource.data.date)
                         || isVenueOwner(resource.data.venueId)
                         || isAdmin())
-                    // 결제 결과는 서버만 기록 / 금액 정정은 구장주·어드민만
-                    && paymentFieldsUntouched()
+                    // 결제 결과는 서버만 기록 / 결제 마감·금액 정정은 구장주·어드민만
+                    && paymentResultUntouched()
+                    && (paymentDeadlineUntouched() || isVenueOwner(resource.data.venueId) || isAdmin())
                     && (priceFieldsUntouched() || isVenueOwner(resource.data.venueId) || isAdmin());
       allow delete: if signedIn()
                     && (isVenueOwner(resource.data.venueId)
@@ -212,12 +233,18 @@ service cloud.firestore {
     match /phone_verifications/{id}       { allow read, write: if false; }
     // 토스 결제 주문 — 금액/결제키가 들어 있어 클라 접근 불필요(결과는 예약 문서로 내려간다)
     match /paymentOrders/{id}             { allow read, write: if false; }
-    // 결제 원장 — 쓰기는 서버 전용(금액이 여기서 정해지므로 클라가 손대면 정산이 조작된다).
-    // 읽기는 정산 대상인 구장주 본인에게만 연다(매출·정산 화면이 이 컬렉션을 집계한다).
-    // 쿼리는 반드시 ownerUid 로 좁혀야 통과한다: where("ownerUid","==",uid)
+    // 결제 원장 — 금액은 서버 전용(클라가 손대면 정산이 조작된다).
+    // 읽기: 정산 대상인 구장주 본인 + 어드민(정산 화면이 전 구장을 집계한다).
+    //   구장주 쿼리는 반드시 ownerUid 로 좁혀야 통과한다: where("ownerUid","==",uid)
+    // 쓰기: 어드민이 "지급 완료" 체크만 할 수 있다. 금액·결제키·취소 관련 필드는 절대 못 건드린다
+    //   — 이 두 필드 외에 하나라도 바뀌면 거부된다. 지급대행이 붙으면 payoutId 는 서버가 채운다.
     match /payments/{id} {
-      allow read: if signedIn() && resource.data.ownerUid == request.auth.uid;
-      allow write: if false;
+      allow read: if signedIn()
+                  && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create, delete: if false;
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys().hasOnly(['settled', 'settledAt']);
     }
     match /password_reset_logs/{id}       { allow read, write: if false; }
     match /_system/{id}                   { allow read, write: if false; }

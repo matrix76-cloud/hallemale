@@ -5,6 +5,7 @@
 // 이미지 업로드는 mediaService.uploadCompressedImageMedia 재사용
 
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   addDoc,
   collection,
@@ -26,6 +27,12 @@ function safeStr(v) {
   return String(v || "").trim();
 }
 
+// 노출 위치 — home(홈 상단) / community(커뮤니티 상단) / matching(상대 탐색 로딩 광고)
+const PLACEMENTS = ["home", "community", "matching"];
+function normPlacement(v) {
+  return PLACEMENTS.includes(v) ? v : "home"; // 레거시(없음)=home
+}
+
 function toDate(v) {
   if (!v) return null;
   if (v?.toDate && typeof v.toDate === "function") return v.toDate();
@@ -42,7 +49,7 @@ function rowFromSnap(d) {
     imageUrl: safeStr(data.imageUrl),
     storagePath: safeStr(data.storagePath),
     linkUrl: safeStr(data.linkUrl),
-    placement: data.placement === "community" ? "community" : "home", // 레거시(없음)=home
+    placement: normPlacement(data.placement),
     side: data.side === "right" ? "right" : "left",
     textAlign: data.textAlign === "right" ? "right" : "left",
     order: typeof data.order === "number" ? data.order : 0,
@@ -84,7 +91,7 @@ export async function createBanner({
     imageUrl: safeStr(imageUrl),
     storagePath: safeStr(storagePath),
     linkUrl: safeStr(linkUrl),
-    placement: placement === "community" ? "community" : "home",
+    placement: normPlacement(placement),
     side: side === "right" ? "right" : "left",
     textAlign: textAlign === "right" ? "right" : "left",
     order: Number(order) || 0,
@@ -106,8 +113,7 @@ export async function updateBanner(id, patch) {
   if (patch.imageUrl !== undefined) update.imageUrl = safeStr(patch.imageUrl);
   if (patch.storagePath !== undefined) update.storagePath = safeStr(patch.storagePath);
   if (patch.linkUrl !== undefined) update.linkUrl = safeStr(patch.linkUrl);
-  if (patch.placement !== undefined)
-    update.placement = patch.placement === "community" ? "community" : "home";
+  if (patch.placement !== undefined) update.placement = normPlacement(patch.placement);
   if (patch.side !== undefined) update.side = patch.side === "right" ? "right" : "left";
   if (patch.textAlign !== undefined) update.textAlign = patch.textAlign === "right" ? "right" : "left";
   if (patch.order !== undefined) update.order = Number(patch.order) || 0;
@@ -133,6 +139,7 @@ export async function deleteBanner({ id, storagePath }) {
 
 // 배너 노출 +1 (광고주용 트래픽 집계)
 export async function incrementBannerImpression(id) {
+  if (hasMock("banners")) return; // 목업 화면은 노출수를 올리지 않는다
   const bid = safeStr(id);
   if (!bid) return;
   try {
@@ -155,7 +162,7 @@ export async function incrementBannerClick(id) {
 
 // 어드민용 — 모든 배너 (placement 지정 시 해당 위치만)
 export async function listAllBanners(placement) {
-  const snap = await getDocs(query(collection(db, "banners")));
+  const snap = hasMock("banners") ? mockQuerySnap(mockData("banners")) : await getDocs(query(collection(db, "banners")));
   const rows = [];
   snap.forEach((d) => rows.push(rowFromSnap(d)));
   const filtered = placement ? rows.filter((r) => r.placement === placement) : rows;

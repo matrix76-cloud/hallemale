@@ -1,7 +1,6 @@
 /* eslint-disable */
 // src/pages/venue/VenueBookingPage.jsx
-// 구장 상세 — 코트/날짜/슬롯 인라인 선택 → 스티키 예약바(현장 정산·구장 승인제).
-//   (구 코트별 상세 예약페이지 CourtBookingPage는 딥링크용으로만 라우트 유지, 이 화면에선 링크 안 함)
+// 구장 상세 — 코트/날짜/슬롯 인라인 선택 → 스티키 예약바(구장 승인제 · 승인 후 앱내 결제).
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
@@ -24,8 +23,8 @@ import {
   FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
 import { BOOKING_WINDOW_DAYS } from "../../constants/booking";
-import { CANCEL_POLICY_TIERS, CANCEL_POLICY_NOTE, CANCEL_POLICY_NOTE_ONSITE } from "../../constants/cancelPolicy";
-import { PG_ENABLED } from "../../constants/payments";
+import { CANCEL_POLICY_TIERS, CANCEL_POLICY_NOTE } from "../../constants/cancelPolicy";
+import { calcDisplayPrice } from "../../constants/payments";
 import { openDirections, openMapView, copyText, fullAddress } from "../../utils/venueLink";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
@@ -197,7 +196,7 @@ export default function VenueBookingPage() {
     return "open";
   };
 
-  // 연속된 빈 슬롯을 눌러 범위 선택 (CourtBookingPage와 동일)
+  // 연속된 빈 슬롯을 눌러 범위 선택
   const onSlotClick = (s) => {
     if (viewOnly) return;
     if (slotState(s) !== "open") return;
@@ -216,6 +215,9 @@ export default function VenueBookingPage() {
   };
 
   const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date) : 0;
+  // 총액 표시 모델 — 구장 등록가가 곧 결제액이다. 플랫폼 이용료는 여기에 더하는 게 아니라
+  // 구장 정산에서 떼므로, 소비자 화면에는 항목으로 노출하지 않는다.
+  const payTotal = price;
 
   // 예약 시트에서 구장에 전달할 요청사항 (선택)
   const [userNote, setUserNote] = useState("");
@@ -350,8 +352,8 @@ export default function VenueBookingPage() {
       <Notice>
         <FiInfo size={15} />
         <span>
-          예약 전 <b>운영 시간·이용 안내</b>를 확인해주세요. 예약 요청 후 구장주가
-          승인하면 확정되며, 이용료는 현장에서 정산해요.
+          예약 전 <b>운영 시간·이용 안내</b>를 확인해주세요. 예약을 요청하면 구장주가
+          승인하고, 안내에 따라 앱에서 결제하면 예약이 확정돼요.
         </span>
       </Notice>
 
@@ -420,7 +422,8 @@ export default function VenueBookingPage() {
                     <Slot key={i} $st={st} $on={on} disabled={st !== "open"} onClick={() => onSlotClick(s)}>
                       <b>{s.start}~{s.end}</b>
                       <span className={st === "open" ? "price" : ""}>
-                        {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감" : `${calcSlotPrice(court, s.start, s.end, date).toLocaleString()}원`}
+                        {/* 슬롯 금액도 목록과 같은 기준(결제 총액)으로 보여준다 — 고르는 동안 금액이 커지면 순차공개 가격책정이 된다. */}
+                        {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감" : `${calcDisplayPrice(calcSlotPrice(court, s.start, s.end, date)).toLocaleString()}원`}
                       </span>
                     </Slot>
                   );
@@ -510,7 +513,7 @@ export default function VenueBookingPage() {
             </PolicyRow>
           ))}
         </PolicyTable>
-        <PolicyNote>{PG_ENABLED ? CANCEL_POLICY_NOTE : CANCEL_POLICY_NOTE_ONSITE}</PolicyNote>
+        <PolicyNote>{CANCEL_POLICY_NOTE}</PolicyNote>
         {venue.refundPolicy ? (
           <DirBox><b>이 구장 이용 안내</b><InfoPre>{venue.refundPolicy}</InfoPre></DirBox>
         ) : null}
@@ -592,10 +595,10 @@ export default function VenueBookingPage() {
           <div>
             <BbDate>{date} {selected.start}~{selected.end}</BbDate>
             <BbPrice>
-              {price.toLocaleString()}원
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>
-                {matchId ? " · 두 팀 반반" : " · 현장 정산"}
-              </span>
+              {(matchId ? price : payTotal).toLocaleString()}원
+              {matchId ? (
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}> · 두 팀 반반</span>
+              ) : null}
             </BbPrice>
           </div>
           {matchId ? (
@@ -614,8 +617,8 @@ export default function VenueBookingPage() {
             <PayRow><span>{venue.name} · {court.name}</span></PayRow>
             <PayRow><span>{date} {selected.start}~{selected.end}</span></PayRow>
             <Divider />
-            <PayRow $big><span>이용료</span><b>{price.toLocaleString()} 원</b></PayRow>
-            <PayRow><span>결제 방식</span><b>현장 정산</b></PayRow>
+            <PayRow $big><span>결제 금액</span><b>{payTotal.toLocaleString()} 원</b></PayRow>
+            <PayRow><span>결제 방식</span><b>앱에서 결제</b></PayRow>
 
             <NoteLabel htmlFor="venue-user-note">요청사항 <span>(선택)</span></NoteLabel>
             <NoteInput
@@ -627,7 +630,9 @@ export default function VenueBookingPage() {
             />
 
             <ChargeBox>
-              <small>결제 없이 예약을 요청해요. 구장주가 승인하면 예약이 확정되고, 이용료는 현장에서 정산해요.</small>
+              <small>
+                지금은 결제되지 않아요. 구장주가 승인하면 결제 안내를 보내드리고, 결제가 끝나야 예약이 확정돼요.
+              </small>
             </ChargeBox>
             <ChargeBox>
               <small>
@@ -751,9 +756,8 @@ const FacIconWrap = styled.div`
   width: 46px; height: 46px; border-radius: 14px;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ $on, theme }) =>
-    $on ? (theme.mode === "dark" ? "rgba(124,92,201,0.18)" : "#f3efff") : theme.colors.surface};
-  color: ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.textWeak)};
+  background: ${({ theme }) => theme.colors.surface};
+  color: ${({ $on, theme }) => ($on ? theme.colors.textNormal : theme.colors.textWeak)};
 `;
 const FacLabel = styled.div`
   font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.2;
@@ -787,12 +791,13 @@ const VerifiedChip = styled.span`
   border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(16,185,129,0.4)" : "#a7f3d0")};
   color: #059669;
 `;
-/* 종목 칩 (강조) */
+/* 종목 칩 */
 const SportChip = styled.span`
   display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px;
   font-size: 11.5px; font-weight: 800;
-  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff")};
-  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 /* 대표키워드 */
 const KeywordRow = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;`;

@@ -1,12 +1,16 @@
 /* eslint-disable */
 // src/pages/owner/OwnerSalesPage.jsx
-// 예약통계 — 확정·완료 예약 기준. 예약 전용(현장 정산) 전환으로 '매출' 대신 예약 건수 중심.
-// 금액은 '예상 이용료(참고·현장 정산)'로만 표기 — 앱이 대금을 수금하지 않음.
+// 매출·정산 허브 — 운영 지표(예약 건수·가동률·요일별)와 정산 진입점.
+//
+// 금액 표기는 실제 수금액 기준. 정산 상세는 /owner/settlement (결제 원장 기준).
+// 이 화면의 금액은 예약 정가 합계라 환불이 반영되지 않는다 — 정확한 정산액은 정산 화면을 봐야 한다.
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import { LuChartColumn, LuTrendingUp, LuReceipt, LuChevronLeft, LuChevronRight, LuActivity, LuBan } from "react-icons/lu";
+import { useNavigate } from "react-router-dom";
+import { LuChartColumn, LuTrendingUp, LuReceipt, LuChevronLeft, LuChevronRight, LuActivity, LuBan, LuWallet, LuChevronRight as LuArrowRight } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
 import { listReservations, dowToKey } from "../../services/ownerVenueService";
+import { listOwnerPayments, summarize } from "../../services/ownerSettlementService";
 import { Page, Card, ScreenTitle, SecTitle, Caption, Money, Chip, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerSpinner from "./components/OwnerSpinner";
@@ -59,10 +63,19 @@ const X = styled.button`border:none;background:transparent;color:${C.slate400};f
 const DRow = styled.div`display:flex;justify-content:space-between;gap:10px;font-size:14px;align-items:center;& > span{color:${C.slate500};} & > b{color:${C.slate800};font-weight:700;text-align:right;}`;
 const TeamBlock = styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;`;
 const TeamName = styled.div`font-size:14px;font-weight:800;color:${C.slate800};`;
+const PayoutCard = styled.button`
+  width:100%;box-sizing:border-box;text-align:left;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:#fff;border:1px solid ${C.slate200};border-radius:14px;padding:16px;
+  &:active{background:#fafafa;}
+  & > div{display:flex;flex-direction:column;gap:6px;min-width:0;}
+`;
 
 export default function OwnerSalesPage() {
-  const { venue, loading: ownerLoading, refresh } = useOwner();
+  const navigate = useNavigate();
+  const { uid, venue, loading: ownerLoading, refresh } = useOwner();
   const courts = venue?.courts || [];
+  const [payout, setPayout] = useState(null); // 정산 요약 (앱내 결제 ON 일 때만)
   const [courtId, setCourtId] = useState("all");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +98,14 @@ export default function OwnerSalesPage() {
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, [venue?.id]);
+
+  // 정산 요약 — 실패해도 통계 화면은 그대로 보여준다(정산은 부가 정보).
+  useEffect(() => {
+    if (!uid || !venue?.id) return;
+    listOwnerPayments(uid, { venueId: venue.id })
+      .then((ps) => setPayout(summarize(ps)))
+      .catch(() => setPayout(null));
+  }, [uid, venue?.id]);
 
   const filtered = useMemo(
     () => (courtId === "all" ? rows : rows.filter((r) => r.courtId === courtId)),
@@ -135,7 +156,17 @@ export default function OwnerSalesPage() {
 
   return (
     <Page>
-      <ScreenTitle>예약통계</ScreenTitle>
+      <ScreenTitle>매출·정산</ScreenTitle>
+
+      {/* 정산 진입점 — 실제 받을 돈은 결제 원장 기준이라 이 화면의 정가 합계와 다를 수 있다. */}
+      <PayoutCard type="button" onClick={() => navigate("/owner/settlement")}>
+        <div>
+          <SecTitle><LuWallet size={16} /> 받을 정산금</SecTitle>
+          <Money $lg>{(payout?.payable ?? 0).toLocaleString()}원</Money>
+          <Caption>이용이 끝난 예약의 결제분 · 자세히 보기</Caption>
+        </div>
+        <LuArrowRight size={20} color={C.slate400} />
+      </PayoutCard>
 
       {courts.length > 1 && (
         <ChipRow>
@@ -155,7 +186,10 @@ export default function OwnerSalesPage() {
       <Card>
         <SecTitle><LuTrendingUp size={16} /> {ym.y}년 {ym.m}월 예약</SecTitle>
         <Money $lg>{count}건</Money>
-        <Caption>확정·완료 예약 · 예상 이용료 {total.toLocaleString()}원 (참고·현장 정산)</Caption>
+        <Caption>
+          확정·완료 예약 · 이용료 합계 {total.toLocaleString()}원
+          {" (정가 기준 · 환불 미반영)"}
+        </Caption>
       </Card>
 
       <Card>
@@ -214,7 +248,7 @@ export default function OwnerSalesPage() {
         )}
         {history.length > 0 && (
           <TotalRow>
-            <span>{ym.m}월 예상 이용료</span>
+            <span>{ym.m}월 이용료 합계</span>
             <b>{total.toLocaleString()}원</b>
           </TotalRow>
         )}
@@ -230,7 +264,7 @@ export default function OwnerSalesPage() {
               <DRow><span>상태</span><b>{r.status === "done" ? "이용 완료" : "예약 확정"}</b></DRow>
               <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
               <DRow><span>코트</span><b>{r.courtName || "-"}</b></DRow>
-              <DRow><span>이용료</span><b>{(r.price || r.splitTotal || 0).toLocaleString()}원 (현장 정산)</b></DRow>
+              <DRow><span>이용료</span><b>{(r.price || r.splitTotal || 0).toLocaleString()}원</b></DRow>
               {isMatch ? (
                 <>
                   <DRow style={{ marginTop: 2 }}><span style={{ fontWeight: 700, color: C.slate800 }}>매칭 · 두 팀</span></DRow>

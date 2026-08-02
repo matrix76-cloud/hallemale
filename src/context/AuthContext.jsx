@@ -8,6 +8,7 @@ import { db } from "../services/firebase";
 import { doc, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { parseAppMessage, isInWebView, postToApp } from "../bridge/webviewBridge";
 import { identify } from "../utils/analytics";
+import { mockMerge } from "../dev/mockBus";
 
 const AuthContext = createContext(null);
 
@@ -312,7 +313,8 @@ export function AuthProvider({ children }) {
     };
   }, [firebaseUser, userDoc, loading]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  // 개발용 리뷰 보드(?mock=…)일 때만 로그인 세션을 흉내낸다. 배포본에서는 그대로 통과.
+  return <AuthContext.Provider value={mockMerge("auth", value)}>{children}</AuthContext.Provider>;
 }
 
 export function useAuthContext() {

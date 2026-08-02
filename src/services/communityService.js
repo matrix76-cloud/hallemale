@@ -4,6 +4,7 @@
 // - pages에서는 이 서비스만 호출 (DB 직접 접근 금지)
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   collection,
   doc,
@@ -81,6 +82,11 @@ export async function loadCommunityList({
   cursor = null,
 } = {}) {
   const take = Math.max(1, Math.min(50, Number(limitCount) || 30));
+
+  // 리뷰 보드 목업 — 조립까지 끝난 뷰모델을 그대로 돌려준다(작성자 메타·차단목록 조회 생략).
+  if (hasMock("communityPosts")) {
+    return { posts: mockData("communityPosts"), cursor: null, hasMore: false };
+  }
 
   const baseCol = collection(db, "community_posts");
 
@@ -161,6 +167,12 @@ export async function loadCommunityList({
 
 export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
   if (!postId) return { post: null, comments: [] };
+
+  if (hasMock("communityPostDetail")) {
+    const d = mockData("communityPostDetail");
+    // 목록에서 어떤 글을 눌러도 상세가 뜨도록, id 만 요청값으로 맞춘다.
+    return { post: { ...d.post, id: String(postId) }, comments: d.comments };
+  }
 
   const ref = doc(db, "community_posts", String(postId));
 
@@ -683,6 +695,10 @@ export async function toggleCommunityCommentLike({ postId, commentId, uid } = {}
  * - createdAt desc 정렬 (인덱스 필요할 수 있음)
  */
 export async function listMyCommunityPosts({ uid, limitCount = 50 } = {}) {
+  // 호출측이 { posts } 로 구조분해하므로 형태를 맞춘다.
+  if (hasMock("communityPosts")) {
+    return { posts: mockData("communityPosts").filter((p) => p.authorId === uid) };
+  }
   const u = String(uid || "").trim();
   if (!u) return { posts: [] };
 

@@ -53,17 +53,20 @@ const MATCH_CANCEL_REASON_LABELS = MATCH_CANCEL_REASONS.reduce((m, r) => { m[r.k
 //    PG/실결제 연동 후 true 로 바꾸면 실제 환불(chargeFizz)이 실행됨.
 const REFUND_CREDIT_ENABLED = false;
 
-// 제휴구장 결제 예약이 있으면 취소 + 환불(구조) 처리. 직접입력 등 결제 없으면 null 반환.
-async function refundPartnerReservationIfPaid(matchId, reasonStr, cancelledByClubId = "") {
+// 제휴구장 예약이 살아있으면 취소 + (결제분이 있으면) 환불(구조) 처리.
+// 직접입력 등 예약 자체가 없으면 null 반환.
+// ⚠️ requested(구장주 승인 대기)까지 포함해야 한다 — 여기서 빠뜨리면 경기를 취소해도 예약 요청이
+//    그대로 남아 구장주 승인 큐에 계속 뜨고, assertSlotFree 가 그 시간을 계속 막는다.
+async function releasePartnerReservationOnCancel(matchId, reasonStr, cancelledByClubId = "") {
   const snap = await getDocs(
     query(collection(db, "venueReservations"), where("matchId", "==", toStr(matchId)))
   );
   let resvDoc = null;
   snap.forEach((d) => {
     const st = toStr(d.data()?.status);
-    if (st === "confirmed" || st === "pending") resvDoc = d;
+    if (st === "confirmed" || st === "pending" || st === "requested") resvDoc = d;
   });
-  if (!resvDoc) return null; // 결제 없음(직접입력 등)
+  if (!resvDoc) return null; // 살아있는 예약 없음(직접입력 등)
 
   const data = resvDoc.data() || {};
   const num = (v) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
@@ -482,65 +485,63 @@ export async function confirmMatchLineup({
 
   await updateDoc(ref, patch);
 
-  // ✅ 라인업에 포함된 우리 팀원들에게 알림 (확정한 팀장 본인은 제외)
-  try {
-    const includedUids = uniqStr([...starters, ...subs]).filter((u) => u && u !== seenUid);
-    if (includedUids.length) {
-      const sizeLabel = ["3v3", "4v4", "5v5"].includes(sizeKey)
-        ? sizeKey.replace("v", " vs ")
-        : "";
-      await addDoc(collection(db, "notifications"), {
-        kind: "match",
-        subType: "matchLineupIncluded",
-        type: "match_lineup_included",
-        title: "라인업에 포함됐어요",
-        body: `${teamName || "우리 팀"} ${sizeLabel || "경기"} 라인업에 포함됐어요. 다가오는 경기를 확인하세요!`,
-        targetType: "USER",
-        targetIds: includedUids,
-        linkType: "match",
-        linkTargetId: id,
-        meta: { matchId: id, deepLink: `/match-roomdetail/${id}` },
-        push: { enabled: true, status: "queued", sentAt: null, failReason: null },
-        prefsCategory: "match",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        readBy: {},
-      });
-    }
-  } catch (e) {
-    console.warn("[confirmMatchLineup] lineup included notify failed:", e?.message || e);
-  }
+  // 확정 자체는 위 updateDoc 하나로 끝난다. 아래 알림·시스템 메시지는 확정 성패와 무관한
+  // 부수효과라 await 하지 않고 뒤에서 병렬로 보낸다 — 버튼이 이것까지 다 기다려서 느렸다.
+  const includedUids = uniqStr([...starters, ...subs]).filter((u) => u && u !== seenUid);
+  const sizeLabel = ["3v3", "4v4", "5v5"].includes(sizeKey) ? sizeKey.replace("v", " vs ") : "";
+  // 상대 clubId는 위에서 이미 읽은 문서로 계산한다(같은 문서를 다시 읽던 왕복 제거).
+  const oppForLineup = isActorTeam ? targetClubId : actorClubId;
 
-  // ✅ 라인업 확정을 양 팀 채팅에 시스템 메시지로 남김 (상대팀/내가 모두 볼 수 있게)
-  // 채팅 id 규칙: match_{matchRequestId} (getOrCreateMatchRoomChat 참고)
-  try {
-    await sendSystemMessage({
+  Promise.allSettled([
+    // ✅ 라인업에 포함된 우리 팀원들에게 알림 (확정한 팀장 본인은 제외)
+    includedUids.length
+      ? addDoc(collection(db, "notifications"), {
+          kind: "match",
+          subType: "matchLineupIncluded",
+          type: "match_lineup_included",
+          title: "라인업에 포함됐어요",
+          body: `${teamName || "우리 팀"} ${sizeLabel || "경기"} 라인업에 포함됐어요. 다가오는 경기를 확인하세요!`,
+          targetType: "USER",
+          targetIds: includedUids,
+          linkType: "match",
+          linkTargetId: id,
+          meta: { matchId: id, deepLink: `/match-roomdetail/${id}` },
+          push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+          prefsCategory: "match",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          readBy: {},
+        })
+      : null,
+
+    // ✅ 라인업 확정을 양 팀 채팅에 시스템 메시지로 남김 (상대팀/내가 모두 볼 수 있게)
+    // 채팅 id 규칙: match_{matchRequestId} (getOrCreateMatchRoomChat 참고)
+    sendSystemMessage({
       chatId: `match_${id}`,
       text: teamName ? `${teamName} 팀이 라인업을 확정했어요 ✅` : "라인업이 확정됐어요 ✅",
       meta: { type: "lineup_confirmed", clubId: cid },
-    });
-  } catch (e) {
-    console.warn("[confirmMatchLineup] system message failed:", e?.message || e);
-  }
+    }),
 
-  // ✅ 라인업 확정 알림 → 상대 팀장
-  try {
-    const oppForLineup = await getOpponentClubId(id, cid);
-    if (oppForLineup) {
-      await notifyMatchRoomEvent({
-        matchId: id,
-        recipientClubId: oppForLineup,
-        subType: "matchLineupConfirmed",
-        type: "match_lineup_confirmed",
-        title: "상대팀 라인업 확정",
-        body: teamName
-          ? `${teamName} 팀이 라인업을 확정했어요.`
-          : "상대팀이 라인업을 확정했어요.",
-      });
-    }
-  } catch (e) {
-    console.warn("[confirmMatchLineup] notify failed:", e?.message || e);
-  }
+    // ✅ 라인업 확정 알림 → 상대 팀장
+    oppForLineup
+      ? notifyMatchRoomEvent({
+          matchId: id,
+          recipientClubId: oppForLineup,
+          subType: "matchLineupConfirmed",
+          type: "match_lineup_confirmed",
+          title: "상대팀 라인업 확정",
+          body: teamName
+            ? `${teamName} 팀이 라인업을 확정했어요.`
+            : "상대팀이 라인업을 확정했어요.",
+        })
+      : null,
+  ]).then((rs) =>
+    rs.forEach((r) => {
+      if (r.status === "rejected") {
+        console.warn("[confirmMatchLineup] 부수효과 실패:", r.reason?.message || r.reason);
+      }
+    })
+  );
 
   return { ok: true };
 }
@@ -671,6 +672,11 @@ export async function loadMatchRoomListPageData(myTeamId = null) {
       partnerBooking: mr?.partnerBooking
         ? {
             accepted: mr.partnerBooking.accepted === true,
+            // 구장주 승인 여부 — 목록이 "구장 승인 대기"와 "결제 대기중"을 가르는 값.
+            // 빠뜨리면 승인이 나도 목록은 계속 승인 대기로 보인다.
+            approvalState: toStr(mr.partnerBooking.approvalState),
+            // 분담결제에서 A/B 어느 쪽이 우리 팀인지 판정하는 기준.
+            proposerClubId: toStr(mr.partnerBooking.proposerClubId),
             payState: toStr(mr.partnerBooking.payState),
             finalized: mr.partnerBooking.finalized === true,
             paidByA: mr.partnerBooking.paidByA === true,
@@ -1538,10 +1544,10 @@ export async function cancelMatchRequest({
   const reasonStr =
     [label, toStr(reasonText)].filter(Boolean).join(" · ") || "사유 미입력";
 
-  // 제휴구장 결제 예약이면 환불(구조) 처리 — 직접입력은 null
+  // 제휴구장 예약이면 예약 취소 + 환불(구조) 처리 — 직접입력은 null
   let refund = null;
   try {
-    refund = await refundPartnerReservationIfPaid(id, reasonStr, by);
+    refund = await releasePartnerReservationOnCancel(id, reasonStr, by);
   } catch (e) {
     console.warn("[cancelMatchRequest] refund failed:", e?.message || e);
   }

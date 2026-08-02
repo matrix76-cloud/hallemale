@@ -10,9 +10,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "../services/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { hasMock, mockData } from "../dev/mockBus";
 import { computeAttentionCounts } from "../utils/matchAttention";
 
 const toStr = (v) => String(v || "").trim();
+
+// 확정 전 '조율중'으로 묶이는 상태들.
+// ⚠️ MatchRoomListPage 의 ADJUSTING_STATUSES 와 같은 값을 유지할 것 —
+//    목록엔 보이는데 카운트는 0으로 뜨는 어긋남이 여기서 생긴다.
+//    (awaiting_venue_approval = 구장주 승인 대기 + 승인 후 결제 대기)
+const ADJUSTING_STATUSES = ["accepted", "proposed", "awaiting_venue_approval"];
 
 function mergeDocsById(a, b) {
   const map = {};
@@ -45,7 +52,7 @@ function countByStatus(rows) {
 
   for (const r of rows || []) {
     const st = toStr(r?.status);
-    if (st === "accepted" || st === "proposed") ongoing += 1;
+    if (ADJUSTING_STATUSES.includes(st)) ongoing += 1;
     else if (st === "confirmed") {
       if (isEnded(r)) past += 1; // 종료된 확정 경기 → 지난 경기
       else confirmed += 1;
@@ -79,10 +86,20 @@ export default function useMatchRoomCounts({ clubId, uid } = {}) {
 
     setLoading(true);
 
+    // 리뷰 보드 목업 — 실시간 구독 없이 목업 문서로 한 번 계산한다.
+    if (hasMock("myMatchDocs")) {
+      const merged = mockData("myMatchDocs");
+      setCounts(countByStatus(merged));
+      setAttention(computeAttentionCounts(merged, { myUid, myClubId }));
+      setLoading(false);
+      return;
+    }
+
     const col = collection(db, "match_requests");
 
-    // ✅ 홈에서 필요한 상태만 구독 (cancelled 제외)
-    const statusIn = ["accepted", "proposed", "confirmed", "finished", "cancelled"];
+    // ✅ 홈에서 필요한 상태만 구독
+    // awaiting_venue_approval 이 빠져 있으면 그 경기는 문서 자체가 안 내려와 조율중이 0으로 뜬다.
+    const statusIn = [...ADJUSTING_STATUSES, "confirmed", "finished", "cancelled"];
 
     const qActor = query(col, where("actorClubId", "==", myClubId), where("status", "in", statusIn));
     const qTarget = query(col, where("targetClubId", "==", myClubId), where("status", "in", statusIn));

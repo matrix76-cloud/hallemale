@@ -2,6 +2,7 @@
 // src/services/adminDashboardService.js
 // 어드민 대시보드 KPI / 집계
 import { db } from "./firebase";
+import { mockOn, hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   getCountFromServer,
@@ -29,6 +30,8 @@ function startOfTodayKst() {
 }
 
 async function safeCount(qq) {
+  // 목업 화면은 "오늘" 카운트를 실 컬렉션에서 세지 않는다 (고정된 화면이어야 하므로 0).
+  if (mockOn) return 0;
   try {
     const s = await getCountFromServer(qq);
     return s.data().count || 0;
@@ -117,7 +120,13 @@ export async function fetchAdminDashboardMatches() {
 
   const col = collection(db, "match_requests");
 
-  const [acceptedSnap, finishedSnap] = await Promise.all([
+  const mockDocs = hasMock("myMatchDocs") ? mockData("myMatchDocs") : null;
+  const [acceptedSnap, finishedSnap] = mockDocs
+    ? [
+        mockQuerySnap(mockDocs.filter((r) => String(r.status) === "accepted")),
+        mockQuerySnap(mockDocs.filter((r) => String(r.status) === "finished")),
+      ]
+    : await Promise.all([
     getDocs(query(col, where("status", "==", "accepted"), limit(200))).catch(
       () => null
     ),
@@ -208,6 +217,18 @@ function reasonLabel(s) {
 }
 
 async function loadReports(colName, kindLabel) {
+  if (mockOn) {
+    const src =
+      colName === "user_reports" ? (hasMock("myReports") ? mockData("myReports") : [])
+      : colName === "team_reports" ? (hasMock("myTeamReports") ? mockData("myTeamReports") : [])
+      : [];
+    return src.map((r) => {
+      const dt = r.createdAt instanceof Date ? r.createdAt : toJsDate(r.createdAt);
+      const ts = dt ? dt.getTime() : 0;
+      const reason = reasonLabel(r.reason);
+      return { left: `신고 접수: ${kindLabel}${reason ? ` · ${reason}` : ""}`, right: dt ? relTime(ts) : "-", ts };
+    });
+  }
   try {
     const snap = await getDocs(
       query(collection(db, colName), orderBy("createdAt", "desc"), limit(20))
@@ -269,6 +290,7 @@ export async function fetchAdminDashboardActivity(tab = "reports") {
 
 /* ============== weekly summary ============== */
 async function fetchSinceDate(colName, sinceDate, field = "createdAt") {
+  if (mockOn) return [];
   try {
     const ts = Timestamp.fromDate(sinceDate);
     const snap = await getDocs(
@@ -365,7 +387,7 @@ function normalizeSido(s) {
  */
 export async function fetchAdminRegionCounts() {
   const col = collection(db, "clubs");
-  const snap = await getDocs(col);
+  const snap = hasMock("clubDocs") ? mockQuerySnap(mockData("clubDocs")) : await getDocs(col);
   const docs = snap?.docs || [];
 
   const counts = new Map();
@@ -416,7 +438,9 @@ export async function fetchAdminDashboardKpi() {
     safeCount(query(clubsCol, where("createdAt", ">=", todayStart))),
     safeCount(query(mrCol, where("createdAt", ">=", todayStart))),
     safeCount(query(chatRoomsCol, where("createdAt", ">=", todayStart))),
-    getDocs(query(mrCol, where("status", "==", "finished"))).catch(() => null),
+    hasMock("myMatchDocs")
+      ? mockQuerySnap(mockData("myMatchDocs").filter((r) => String(r.status) === "finished"))
+      : getDocs(query(mrCol, where("status", "==", "finished"))).catch(() => null),
   ]);
 
   let totalMatches = 0;

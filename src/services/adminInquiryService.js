@@ -5,6 +5,7 @@
 // - answerInquiry: 답변 저장(status=answered) + 사용자에게 알림(notifications) 생성
 
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   doc,
@@ -34,7 +35,7 @@ function sortByCreatedAtDesc(list) {
 /* ===== read (전체 문의) ===== */
 
 export async function listInquiriesAdmin({ limitCount = 300 } = {}) {
-  const snap = await getDocs(collection(db, "inquiries"));
+  const snap = hasMock("inquiries") ? mockQuerySnap(mockData("inquiries")) : await getDocs(collection(db, "inquiries"));
   const list = [];
   snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
   return sortByCreatedAtDesc(list).slice(0, limitCount);

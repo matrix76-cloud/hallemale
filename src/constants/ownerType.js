@@ -17,9 +17,10 @@ export const OWNER_TYPE_OPTIONS = [
     personLabel: "대표자명",
     personPlaceholder: "예: 홍길동",
     needsBizNo: true,
-    contactTitle: "연락처와 사업자 정보를 입력해요",
-    contactSub: "사업자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+    contactTitle: "연락처와 대표자님을 알려주세요",
+    contactSub: "담당자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
     contactHead: "🧾 사업자 / 관리자 정보",
+    verifySub: "국세청에 등록된 사업자 정보와 바로 대조해 인증해요.",
 
     // 온보딩 기타
     venueNamePlaceholder: "예: 용산 더베이스 농구장",
@@ -45,9 +46,10 @@ export const OWNER_TYPE_OPTIONS = [
     personLabel: "담당 선생님",
     personPlaceholder: "예: 홍길동 선생님",
     needsBizNo: false,
-    contactTitle: "연락처와 학교 정보를 입력해요",
-    contactSub: "학교 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+    contactTitle: "연락처와 담당 선생님을 알려주세요",
+    contactSub: "담당자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
     contactHead: "🏫 학교 / 담당자 정보",
+    verifySub: "실재하는 학교인지 확인하고, 학교 대표번호로 담당자 확인 연락을 드려요.",
 
     venueNamePlaceholder: "예: ○○고등학교 체육관",
     introSub: "사진·위치·코트·대여료를 차근차근 입력해 주세요.",
@@ -70,9 +72,10 @@ export const OWNER_TYPE_OPTIONS = [
     personLabel: "담당자명",
     personPlaceholder: "예: 홍길동",
     needsBizNo: false,
-    contactTitle: "연락처와 기관 정보를 입력해요",
-    contactSub: "기관 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+    contactTitle: "연락처와 담당자를 알려주세요",
+    contactSub: "담당자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
     contactHead: "🏛️ 기관 / 담당자 정보",
+    verifySub: "제출하신 서류와 담당자 확인 연락으로 심사해요.",
 
     venueNamePlaceholder: "예: ○○시민체육관",
     introSub: "사진·위치·코트·대여료를 차근차근 입력해 주세요.",

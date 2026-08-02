@@ -12,3 +12,10 @@ dist
 
 # 일회성 마이그레이션 스크립트가 남기는 Firestore 백업 (이메일·전화번호 포함)
 /scripts/.backup-*.json
+
+# 데모 계정 시드 결과 (비밀번호 포함 — 절대 커밋 금지)
+/scripts/.demo-*.json
+
+# 작업 중 생성되는 임시 스크립트·스크린샷
+/tmp-*.mjs
+/shot__*.png

@@ -2,6 +2,7 @@
 /* eslint-disable */
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   collection,
   doc,
@@ -202,6 +203,7 @@ function normalizeClubDoc(id, data) {
 
 async function getMembersCount(db, clubId) {
   if (!clubId) return 0;
+  if (hasMock("clubMemberRefs")) return (mockData("clubMemberRefs")[clubId] || []).length;
 
   await ensureCountApi();
 
@@ -220,6 +222,7 @@ async function getMembersCount(db, clubId) {
 
 async function safeGetUserDoc(db, uid) {
   if (!uid) return null;
+  if (hasMock("userDocs")) return mockData("userDocs")[uid] || null;
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
@@ -228,6 +231,7 @@ async function safeGetUserDoc(db, uid) {
 
 async function safeGetClubDoc(db, clubId) {
   if (!clubId) return null;
+  if (hasMock("clubDocs")) return mockData("clubDocs")[clubId] || null;
   const ref = doc(db, "clubs", clubId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;

@@ -9,12 +9,14 @@ import { getVenue } from "../../services/ownerVenueService";
 import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
 import { FiMapPin } from "react-icons/fi";
+import { calcDisplayPrice, DISPLAY_PRICE_NOTE } from "../../constants/payments";
 
+// 표시 금액은 실제 결제 총액(구장 이용료 + 플랫폼 이용료) — 순차공개 가격책정 금지.
 function minPrice(v) {
   const prices = (v?.courts || [])
     .map((c) => Number(c.pricePerHour) || 0)
     .filter((n) => n > 0);
-  return prices.length ? Math.min(...prices) : null;
+  return prices.length ? calcDisplayPrice(Math.min(...prices)) : null;
 }
 
 export default function MyFavVenuesPage() {
@@ -86,7 +88,12 @@ export default function MyFavVenuesPage() {
                   <Addr>
                     <FiMapPin size={12} /> {v.address || ""}
                   </Addr>
-                  {p != null ? <Price>{p.toLocaleString()}원~ / 시간</Price> : null}
+                  {p != null ? (
+                    <Price>
+                      {p.toLocaleString()}원~ / 시간
+                      {DISPLAY_PRICE_NOTE ? ` · ${DISPLAY_PRICE_NOTE}` : ""}
+                    </Price>
+                  ) : null}
                 </Info>
               </Card>
             );

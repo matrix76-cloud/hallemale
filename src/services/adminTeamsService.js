@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/services/adminTeamsService.js
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   getDocs,
@@ -112,9 +113,11 @@ async function ensureCountApi() {
 }
 
 /* ✅ members count = clubs/{clubId}/members count */
+// 목업이면 clubs/{id}/members 대신 목업 멤버 목록 길이를 쓴다.
 export async function getMembersCount(clubId) {
   const id = String(clubId || "").trim();
   if (!id) return 0;
+  if (hasMock("clubMemberRefs")) return (mockData("clubMemberRefs")[id] || []).length;
 
   await ensureCountApi();
 
@@ -137,6 +140,14 @@ async function fetchUserNamesByUids(uids = []) {
   if (!uniq.length) return {};
 
   const map = {};
+  if (hasMock("userDocs")) {
+    const users = mockData("userDocs");
+    uniq.forEach((uid) => {
+      const v = users[uid];
+      if (v) map[uid] = String(v.nickname || v.name || "").trim();
+    });
+    return map;
+  }
   const usersCol = collection(db, "users");
 
   const chunkSize = 10;
@@ -170,7 +181,7 @@ export async function listRecentClubs({ limitCount = 200 } = {}) {
     limit(Math.min(Math.max(limitCount, 1), 300))
   );
 
-  const snap = await getDocs(q1);
+  const snap = hasMock("clubDocs") ? mockQuerySnap(mockData("clubDocs")) : await getDocs(q1);
   const list = [];
   snap.forEach((d) => {
     const v = d.data() || {};
@@ -186,6 +197,7 @@ export async function listRecentClubs({ limitCount = 200 } = {}) {
 export async function getPendingJoinRequestsCountForClub({ clubId, maxScan = 500 } = {}) {
   const id = String(clubId || "").trim();
   if (!id) return 0;
+  if (hasMock("joinRequests")) return (mockData("joinRequests")[id] || []).length;
 
   const col = collection(db, "clubs", id, "joinRequests");
   const q1 = query(col, where("status", "==", "pending"), limit(Math.min(Math.max(maxScan, 1), 1000)));

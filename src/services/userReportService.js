@@ -4,6 +4,7 @@
 // Firestore 컬렉션: user_reports
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   addDoc,
   collection,
@@ -60,6 +61,7 @@ export async function createUserReport({
 export async function listMyUserReports(reporterUid) {
   const ru = safeStr(reporterUid);
   if (!ru) return [];
+  if (hasMock("myReports")) return mockData("myReports");
   const q = query(collection(db, "user_reports"), where("reporterUid", "==", ru));
   const snap = await getDocs(q);
   const rows = [];

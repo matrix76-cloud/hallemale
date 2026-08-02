@@ -5,6 +5,7 @@
 // Firestore: community_posts/{id} 에 hidden, hiddenAt, hiddenBy, pinned, pinnedAt 필드 사용
 
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   deleteDoc,
@@ -55,7 +56,9 @@ function safeStats(postData) {
  */
 export async function listAdminCommunityPosts() {
   const col = collection(db, "community_posts");
-  const snap = await getDocs(query(col, orderBy("createdAt", "desc")));
+  const snap = hasMock("adminCommunityRaw")
+    ? mockQuerySnap(mockData("adminCommunityRaw"))
+    : await getDocs(query(col, orderBy("createdAt", "desc")));
 
   const raws = [];
   snap.forEach((d) => raws.push({ id: d.id, ...d.data() }));
@@ -118,17 +121,22 @@ export async function loadAdminCommunityPostDetail(postId) {
   const pid = safeString(postId);
   if (!pid) return { post: null, comments: [] };
 
-  const ref = doc(db, "community_posts", pid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return { post: null, comments: [] };
-
-  const data = snap.data() || {};
+  let data;
+  if (hasMock("adminCommunityRaw")) {
+    data = mockData("adminCommunityRaw")[pid];
+    if (!data) return { post: null, comments: [] };
+  } else {
+    const ref = doc(db, "community_posts", pid);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return { post: null, comments: [] };
+    data = snap.data() || {};
+  }
   const authorUid = safeString(data.authorUid || data.authorId);
   const meta = authorUid ? await getUserPublicMeta(authorUid) : { name: "", avatar: "" };
   const stats = safeStats(data);
 
   const post = {
-    id: snap.id,
+    id: pid,
     authorUid,
     authorName: safeString(meta.name) || "(이름없음)",
     authorAvatar: safeString(meta.avatar),
@@ -149,7 +157,9 @@ export async function loadAdminCommunityPostDetail(postId) {
   };
 
   const cCol = collection(db, "community_posts", pid, "comments");
-  const cs = await getDocs(query(cCol, orderBy("createdAt", "asc")));
+  const cs = hasMock("adminCommunityComments")
+    ? mockQuerySnap((mockData("adminCommunityComments") || []).filter((c) => c.postId === pid))
+    : await getDocs(query(cCol, orderBy("createdAt", "asc")));
 
   const cRaws = [];
   cs.forEach((d) => cRaws.push({ id: d.id, ...d.data() }));

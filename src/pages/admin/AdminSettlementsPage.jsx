@@ -1,16 +1,16 @@
 /* eslint-disable */
 // src/pages/admin/AdminSettlementsPage.jsx
-// 결제 정산 관리 — 구장별 매출/수수료/정산액 집계 + 정산 처리.
+// 결제 정산 관리 — 구장별 지급액 집계 + 지급 완료 처리.
+// 집계 기준은 결제 원장(payments)의 netVenueAmount 다 — 예약 정가로 더하면 환불분이 빠지지 않아
+// 구장주에게 과지급된다(구장주 앱의 정산 화면과도 금액이 어긋난다).
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
 import {
-  listPaidReservations, groupByVenue, calcSettlement,
-  markReservationSettled, markManySettled, PLATFORM_FEE_RATE,
+  listPayments, groupByVenue, calcSettlement,
+  markPaymentSettled, markManySettled,
 } from "../../services/settlementService";
-import { PG_ENABLED } from "../../constants/payments";
-import PgDisabledNotice from "../../components/admin/PgDisabledNotice";
 
 const PAGE_SIZE = 8;
 const won = (n) => `${(Number(n) || 0).toLocaleString()}원`;
@@ -39,11 +39,6 @@ const PERIODS = [
 ];
 
 export default function AdminSettlementsPage() {
-  if (!PG_ENABLED) return <PgDisabledNotice kind="정산" />;
-  return <AdminSettlementsInner />;
-}
-
-function AdminSettlementsInner() {
   const [period, setPeriod] = useState("this");
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
@@ -56,7 +51,7 @@ function AdminSettlementsInner() {
     setLoading(true);
     try {
       const { from, to } = periodRange(period);
-      const data = await listPaidReservations({ from, to });
+      const data = await listPayments({ from, to });
       setRows(data);
     } catch (e) {
       console.error("[AdminSettlements] load failed", e);
@@ -72,11 +67,12 @@ function AdminSettlementsInner() {
   const pagedGroups = groups.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const summary = useMemo(() => {
-    const gross = rows.reduce((s, r) => s + r.price, 0);
-    const { fee, net } = calcSettlement(gross);
-    const settledGross = rows.filter((r) => r.settled).reduce((s, r) => s + r.price, 0);
-    const settledNet = calcSettlement(settledGross).net;
-    return { gross, fee, net, settledNet, pendingNet: net - settledNet };
+    // gross = 구장주에게 줄 돈(환불 반영), platformFee = 회사 몫. 둘은 별개 주머니라 빼지 않는다.
+    const gross = rows.reduce((s, r) => s + r.netVenueAmount, 0);
+    const platformFee = rows.reduce((s, r) => s + r.platformFee, 0);
+    const refunded = rows.reduce((s, r) => s + r.refundedVenueAmount, 0);
+    const settledNet = rows.filter((r) => r.settled).reduce((s, r) => s + r.netVenueAmount, 0);
+    return { gross, platformFee, refunded, settledNet, pendingNet: gross - settledNet };
   }, [rows]);
 
   // detail 모달을 최신 groups 로 동기화
@@ -86,18 +82,21 @@ function AdminSettlementsInner() {
   }, [groups, detail]);
 
   const settleVenue = async (g) => {
-    const pendingIds = g.items.filter((r) => !r.settled).map((r) => r.id);
-    if (!pendingIds.length) return showAlert("정산할 건이 없습니다.");
-    if (!await showConfirm(`"${g.venueName}" 미정산 ${pendingIds.length}건을 정산 완료 처리할까요?\n정산액: ${won(calcSettlement(g.items.filter((r) => !r.settled).reduce((s, r) => s + r.price, 0)).net)}`)) return;
+    const pending = g.items.filter((r) => !r.settled);
+    if (!pending.length) return showAlert("지급할 건이 없습니다.");
+    const amount = pending.reduce((s, r) => s + r.netVenueAmount, 0);
+    if (!await showConfirm(`"${g.venueName}" 미지급 ${pending.length}건을 지급 완료 처리할까요?\n지급액: ${won(amount)}\n\n실제 이체는 별도로 해야 합니다 — 이 버튼은 장부 표시만 바꿉니다.`)) return;
     setBusy(true);
-    try { await markManySettled(pendingIds, true); await load(); }
-    catch (e) { showAlert(e?.message || "정산 처리 실패"); }
+    try { await markManySettled(pending.map((r) => r.id), true); await load(); }
+    catch (e) { showAlert(e?.message || "지급 처리 실패"); }
     finally { setBusy(false); }
   };
 
   const toggleOne = async (r) => {
+    // 지급대행이 채운 건(payoutId)은 장부가 서버 소관이라 손으로 되돌리지 않는다.
+    if (r.payoutId) return showAlert("지급대행으로 이미 송금된 건이라 변경할 수 없습니다.");
     setBusy(true);
-    try { await markReservationSettled(r.id, !r.settled); await load(); }
+    try { await markPaymentSettled(r.id, !r.settled); await load(); }
     catch (e) { showAlert(e?.message || "처리 실패"); }
     finally { setBusy(false); }
   };
@@ -107,7 +106,7 @@ function AdminSettlementsInner() {
       <HeaderRow>
         <div>
           <Title>결제 정산 관리</Title>
-          <Sub>구장별 결제 매출과 정산액을 관리합니다. 플랫폼 수수료 {Math.round(PLATFORM_FEE_RATE * 100)}% · 정산액 = 매출 − 수수료</Sub>
+          <Sub>결제 원장 기준 · 지급액은 환불분을 뺀 금액(netVenueAmount)입니다. 플랫폼 이용료는 손님 결제액에서 떼며, 구장 지급액은 그만큼 줄어 있습니다.</Sub>
         </div>
         <FilterRow>
           {PERIODS.map((p) => (
@@ -117,26 +116,26 @@ function AdminSettlementsInner() {
       </HeaderRow>
 
       <Cards>
-        <StatCard><CardLabel>총 매출</CardLabel><CardVal>{won(summary.gross)}</CardVal></StatCard>
-        <StatCard><CardLabel>플랫폼 수수료</CardLabel><CardVal $muted>{won(summary.fee)}</CardVal></StatCard>
-        <StatCard><CardLabel>정산 예정액</CardLabel><CardVal $accent>{won(summary.pendingNet)}</CardVal></StatCard>
-        <StatCard><CardLabel>정산 완료액</CardLabel><CardVal $done>{won(summary.settledNet)}</CardVal></StatCard>
+        <StatCard><CardLabel>구장 지급 대상</CardLabel><CardVal>{won(summary.gross)}</CardVal></StatCard>
+        <StatCard><CardLabel>플랫폼 이용료(회사 몫)</CardLabel><CardVal $muted>{won(summary.platformFee)}</CardVal></StatCard>
+        <StatCard><CardLabel>미지급액</CardLabel><CardVal $accent>{won(summary.pendingNet)}</CardVal></StatCard>
+        <StatCard><CardLabel>지급 완료액</CardLabel><CardVal $done>{won(summary.settledNet)}</CardVal></StatCard>
       </Cards>
 
       <Card>
         {loading ? (
           <AdminLoading />
         ) : groups.length === 0 ? (
-          <EmptyText>해당 기간에 결제된 예약이 없습니다.</EmptyText>
+          <EmptyText>해당 기간에 결제 건이 없습니다.</EmptyText>
         ) : (
           <Table>
             <HeadRow>
               <Hide>No.</Hide>
               <span>구장명</span>
               <span>건수</span>
-              <Hide>매출</Hide>
-              <Hide>수수료</Hide>
-              <span>정산액</span>
+              <Hide>환불분</Hide>
+              <Hide>이용료</Hide>
+              <span>지급액</span>
               <span>상태</span>
               <span>관리</span>
             </HeadRow>
@@ -145,17 +144,17 @@ function AdminSettlementsInner() {
                 <Hide><Idx>{page * PAGE_SIZE + i + 1}</Idx></Hide>
                 <Nm>{g.venueName}</Nm>
                 <span>{g.count}건</span>
-                <Hide>{won(g.gross)}</Hide>
-                <Hide style={{ color: "#9ca3af" }}>-{won(g.fee)}</Hide>
+                <Hide style={{ color: "#9ca3af" }}>{g.refunded > 0 ? `-${won(g.refunded)}` : "-"}</Hide>
+                <Hide style={{ color: "#9ca3af" }}>{won(g.platformFee)}</Hide>
                 <Strong>{won(g.net)}</Strong>
                 <span>
                   {g.fullySettled
-                    ? <Badge $done>정산완료</Badge>
+                    ? <Badge $done>지급완료</Badge>
                     : <Badge>대기 {g.pendingCount}</Badge>}
                 </span>
                 <Actions>
                   <SBtn onClick={() => setDetail(g)}>상세</SBtn>
-                  {!g.fullySettled && <SBtn $primary onClick={() => settleVenue(g)} disabled={busy}>정산처리</SBtn>}
+                  {!g.fullySettled && <SBtn $primary onClick={() => settleVenue(g)} disabled={busy}>지급처리</SBtn>}
                 </Actions>
               </Rowi>
             ))}
@@ -183,35 +182,36 @@ function AdminSettlementsInner() {
 
             <SumRow>
               <SumItem><b>{detailGroup.count}건</b><span>결제</span></SumItem>
-              <SumItem><b>{won(detailGroup.gross)}</b><span>매출</span></SumItem>
-              <SumItem><b style={{ color: "#9ca3af" }}>-{won(detailGroup.fee)}</b><span>수수료</span></SumItem>
-              <SumItem><b style={{ color: "#4f46e5" }}>{won(detailGroup.net)}</b><span>정산액</span></SumItem>
+              <SumItem><b style={{ color: "#9ca3af" }}>{detailGroup.refunded > 0 ? `-${won(detailGroup.refunded)}` : "-"}</b><span>환불분</span></SumItem>
+              <SumItem><b style={{ color: "#9ca3af" }}>{won(detailGroup.platformFee)}</b><span>이용료</span></SumItem>
+              <SumItem><b style={{ color: "#4f46e5" }}>{won(detailGroup.net)}</b><span>지급액</span></SumItem>
             </SumRow>
 
             {!detailGroup.fullySettled && (
               <PrimaryWide onClick={() => settleVenue(detailGroup)} disabled={busy}>
-                미정산 {detailGroup.pendingCount}건 일괄 정산완료
+                미지급 {detailGroup.pendingCount}건 일괄 지급완료
               </PrimaryWide>
             )}
 
             <ResList>
               <ResHead>
-                <span>날짜 / 시간</span>
-                <Hide>이용자</Hide>
-                <span>금액</span>
-                <span>정산</span>
+                <span>이용일</span>
+                <Hide>결제수단</Hide>
+                <span>지급액</span>
+                <span>지급</span>
               </ResHead>
               {detailGroup.items.map((r) => (
                 <ResRow key={r.id}>
                   <div>
-                    <ResDate>{r.date}</ResDate>
-                    <ResTime>{r.courtName}{r.startTime ? ` · ${r.startTime}~${r.endTime}` : ""}</ResTime>
+                    <ResDate>{r.date || "-"}</ResDate>
+                    {/* 분담결제는 한 예약에 결제가 2건(A/B) 붙는다 — 어느 쪽인지 보여야 구분된다 */}
+                    <ResTime>{r.side && r.side !== "SINGLE" ? `분담 ${r.side}` : "단독"}{r.refundedVenueAmount > 0 ? ` · 환불 -${won(r.refundedVenueAmount)}` : ""}</ResTime>
                   </div>
-                  <Hide>{r.teamName || r.userName || "-"}</Hide>
-                  <ResPrice>{won(r.price)}</ResPrice>
+                  <Hide>{r.method || "-"}</Hide>
+                  <ResPrice>{won(r.netVenueAmount)}</ResPrice>
                   <span>
                     <Mini $on={r.settled} onClick={() => toggleOne(r)} disabled={busy}>
-                      {r.settled ? "완료" : "대기"}
+                      {r.payoutId ? "송금됨" : r.settled ? "완료" : "대기"}
                     </Mini>
                   </span>
                 </ResRow>

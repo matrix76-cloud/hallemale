@@ -5,6 +5,7 @@
 // - Apple App Store Guideline 1.2 대응
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   doc,
   getDoc,
@@ -27,6 +28,7 @@ function docRef(myUid) {
 export async function getMyBlockList(myUid) {
   const uid = String(myUid || "").trim();
   if (!uid) return { blockedUids: [], hiddenPostIds: [] };
+  if (hasMock("blockList")) return mockData("blockList");
   try {
     const snap = await getDoc(docRef(uid));
     if (!snap.exists()) return { blockedUids: [], hiddenPostIds: [] };

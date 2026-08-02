@@ -10,6 +10,7 @@
 //   4) ✅ notifications 기록 (팀원에게 "수락됨" 알림) + push 플래그
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   collection,
   doc,
@@ -42,6 +43,7 @@ function sortByCreatedAtDesc(list) {
 
 export async function listPendingJoinRequestsForClub({ clubId, limitCount = 60 } = {}) {
   if (!clubId) return [];
+  if (hasMock("joinRequests")) return mockData("joinRequests")[clubId] || [];
 
   const col = collection(db, "clubs", clubId, "joinRequests");
 
@@ -66,6 +68,10 @@ export async function countPendingJoinRequestsForClub({ clubId, limitCount = 200
 export async function getJoinRequestById({ clubId, requestId } = {}) {
   if (!clubId) throw new Error("getJoinRequestById: clubId is required");
   if (!requestId) throw new Error("getJoinRequestById: requestId is required");
+
+  if (hasMock("joinRequests")) {
+    return (mockData("joinRequests")[clubId] || []).find((r) => r.id === requestId) || null;
+  }
 
   const ref = doc(db, "clubs", clubId, "joinRequests", requestId);
   const snap = await getDoc(ref);

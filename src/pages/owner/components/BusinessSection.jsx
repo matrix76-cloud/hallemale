@@ -9,10 +9,10 @@ import styled from "styled-components";
 import { LuShieldCheck, LuUpload, LuCircleCheck, LuLandmark } from "react-icons/lu";
 import { uploadVenueImage } from "../../../services/venuesService";
 import { submitBusinessVerification, isValidBizNo, formatBizNo, verifyBusinessOnline, saveSettlementAccount, SETTLEMENT_BANKS, searchSchools } from "../../../services/ownerVenueService";
-import { PG_ENABLED } from "../../../constants/payments";
 import { ownerTypeOption } from "../../../constants/ownerType";
 import { useUIActions } from "../../../hooks/useUI";
 import { Card, SecTitle, Caption, Input, PrimaryBtn, StatBadge, C } from "./od";
+import { PLATFORM_FEE_LABEL } from "../../../constants/payments";
 
 const Field = styled.label`display:flex;flex-direction:column;gap:6px;`;
 const Lbl = styled.span`font-size:12.5px;font-weight:700;color:${C.slate500};`;
@@ -257,51 +257,49 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
       </Card>
 
       {/* 정산 계좌 — 앱내 결제로 받은 대금을 지급받을 계좌 */}
-      {PG_ENABLED && (
-        <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <SecTitle><LuLandmark size={16} /> 정산 계좌</SecTitle>
-            {hasAcct && <StatBadge $tone="done">등록완료</StatBadge>}
-          </div>
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <SecTitle><LuLandmark size={16} /> 정산 계좌</SecTitle>
+          {hasAcct && <StatBadge $tone="done">등록완료</StatBadge>}
+        </div>
 
-          {hasAcct && !editAcct ? (
-            <>
-              <Info><span>은행</span><b>{st.bank}</b></Info>
-              <Info><span>계좌번호</span><b>{st.account}</b></Info>
-              <Info><span>예금주</span><b>{st.holder}</b></Info>
-              <Caption>앱에서 결제된 구장 이용료를 이 계좌로 지급해요. 할래말래는 구장 이용료에서 수수료를 떼지 않아요.</Caption>
-              <PrimaryBtn type="button" onClick={() => setEditAcct(true)}>계좌 변경</PrimaryBtn>
-            </>
-          ) : (
-            <>
-              <Caption>{opt.accountHint}</Caption>
-              <Field><Lbl>은행</Lbl>
-                <Select value={acct.bank} onChange={(e) => setAcct({ ...acct, bank: e.target.value })}>
-                  <option value="">은행 선택</option>
-                  {SETTLEMENT_BANKS.map((x) => <option key={x} value={x}>{x}</option>)}
-                </Select>
-              </Field>
-              <Field><Lbl>계좌번호</Lbl>
-                <Input
-                  value={acct.account}
-                  onChange={(e) => setAcct({ ...acct, account: e.target.value.replace(/[^0-9]/g, "") })}
-                  placeholder="'-' 없이 숫자만"
-                  inputMode="numeric"
-                />
-              </Field>
-              <Field><Lbl>예금주</Lbl>
-                <Input value={acct.holder} onChange={(e) => setAcct({ ...acct, holder: e.target.value })} placeholder="홍길동" />
-              </Field>
-              {holderMismatch && (
-                <Warn>예금주가 {opt.personLabel}({b.ownerName})과 달라요. 명의가 다르면 지급이 보류될 수 있어요.</Warn>
-              )}
-              <PrimaryBtn type="button" disabled={busy === "acct"} onClick={submitAcct}>
-                {busy === "acct" ? "저장 중…" : "계좌 저장"}
-              </PrimaryBtn>
-            </>
-          )}
-        </Card>
-      )}
+        {hasAcct && !editAcct ? (
+          <>
+            <Info><span>은행</span><b>{st.bank}</b></Info>
+            <Info><span>계좌번호</span><b>{st.account}</b></Info>
+            <Info><span>예금주</span><b>{st.holder}</b></Info>
+            <Caption>앱에서 결제된 금액에서 플랫폼 이용료 {PLATFORM_FEE_LABEL}를 뺀 금액을 이 계좌로 지급해요. 입점비·월정액은 없어요.</Caption>
+            <PrimaryBtn type="button" onClick={() => setEditAcct(true)}>계좌 변경</PrimaryBtn>
+          </>
+        ) : (
+          <>
+            <Caption>{opt.accountHint}</Caption>
+            <Field><Lbl>은행</Lbl>
+              <Select value={acct.bank} onChange={(e) => setAcct({ ...acct, bank: e.target.value })}>
+                <option value="">은행 선택</option>
+                {SETTLEMENT_BANKS.map((x) => <option key={x} value={x}>{x}</option>)}
+              </Select>
+            </Field>
+            <Field><Lbl>계좌번호</Lbl>
+              <Input
+                value={acct.account}
+                onChange={(e) => setAcct({ ...acct, account: e.target.value.replace(/[^0-9]/g, "") })}
+                placeholder="'-' 없이 숫자만"
+                inputMode="numeric"
+              />
+            </Field>
+            <Field><Lbl>예금주</Lbl>
+              <Input value={acct.holder} onChange={(e) => setAcct({ ...acct, holder: e.target.value })} placeholder="홍길동" />
+            </Field>
+            {holderMismatch && (
+              <Warn>예금주가 {opt.personLabel}({b.ownerName})과 달라요. 명의가 다르면 지급이 보류될 수 있어요.</Warn>
+            )}
+            <PrimaryBtn type="button" disabled={busy === "acct"} onClick={submitAcct}>
+              {busy === "acct" ? "저장 중…" : "계좌 저장"}
+            </PrimaryBtn>
+          </>
+        )}
+      </Card>
     </>
   );
 }

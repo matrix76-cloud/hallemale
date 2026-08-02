@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/layouts/components/OwnerBottomTabBar.jsx
-// 구장 관리자 바텀탭 (4탭) — 예약관리 / 예약통계 / 구장정보 / 내정보
+// 구장 관리자 바텀탭 (4탭) — 예약관리 / 매출·정산 / 구장정보 / 내정보
+// ※ 앱내 결제 전에는 수금 자체가 없어 2번 탭이 "예약통계"로만 동작한다.
 import React from "react";
 import styled from "styled-components";
 import { LuCalendar, LuChartColumn, LuSettings, LuUser } from "react-icons/lu";
@@ -60,7 +61,14 @@ const IconWrap = styled.span`
 
 const TABS = [
   { key: "home", Icon: LuCalendar, label: "예약관리", path: "/owner/home" },
-  { key: "sales", Icon: LuChartColumn, label: "예약통계", path: "/owner/sales" },
+  {
+    key: "sales",
+    Icon: LuChartColumn,
+    label: "매출·정산",
+    path: "/owner/sales",
+    // 정산 상세는 별도 라우트라 startsWith 로 안 잡힌다 → 탭 하이라이트를 유지하려고 같이 본다.
+    alsoActive: ["/owner/settlement"],
+  },
   { key: "venue", Icon: LuSettings, label: "구장정보", path: "/owner/venue" },
   { key: "my", Icon: LuUser, label: "내정보", path: "/owner/my" },
 ];
@@ -69,7 +77,9 @@ export default function OwnerBottomTabBar({ currentPath = "", onNavigate, pendin
   return (
     <Wrap>
       {TABS.map((tab) => {
-        const active = currentPath.startsWith(tab.path);
+        const active =
+          currentPath.startsWith(tab.path) ||
+          (tab.alsoActive || []).some((p) => currentPath.startsWith(p));
         const Icon = tab.Icon;
         const showBadge = tab.key === "home" && pendingCount > 0;
         return (

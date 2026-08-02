@@ -257,8 +257,10 @@ export default function MatchLineupConfirmSheet({
         subIds,
         roster,
       });
-      onConfirmed && (await onConfirmed());
+      // 확정이 끝나면 바로 닫는다. 상세 재조회(onConfirmed)는 뒤에서 돌게 두고 기다리지 않는다
+      // — 매칭룸은 실시간 구독으로도 갱신되므로 시트가 재조회를 기다릴 이유가 없다.
       onClose && onClose();
+      if (onConfirmed) Promise.resolve(onConfirmed()).catch(() => {});
     } catch (e) {
       showAlert(e?.message || "라인업 확정에 실패했습니다.");
     } finally {

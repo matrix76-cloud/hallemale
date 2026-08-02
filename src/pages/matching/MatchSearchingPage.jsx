@@ -7,6 +7,12 @@ import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
 import { track } from "../../utils/analytics";
+import { images } from "../../utils/imageAssets";
+import {
+  listActiveBanners,
+  incrementBannerImpression,
+  incrementBannerClick,
+} from "../../services/bannersService";
 
 const SEARCH_MS = 3000;
 
@@ -102,10 +108,19 @@ const AdCard = styled.div`
   position: relative;
   width: 100%;
   max-width: 360px;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 2 / 1;
   border-radius: 18px;
+  overflow: hidden;
   background: ${({ theme }) => theme.colors.card};
   box-shadow: ${({ theme }) => theme.shadows.card};
+  cursor: ${({ $clickable }) => ($clickable ? "pointer" : "default")};
+`;
+
+const AdImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 `;
 
 const AdBadge = styled.span`
@@ -173,8 +188,41 @@ export default function MatchSearchingPage() {
   const region = navState.region || "내 주변";
 
   const [pct, setPct] = useState(6);
+  const [ad, setAd] = useState(null); // 어드민 등록 광고(placement=matching) 1장 · 없으면 기본 이미지
   const navStateRef = useRef(navState);
   navStateRef.current = navState;
+  const timerRef = useRef(null);
+
+  // 어드민(관리자 > 배너 > 매칭 광고)에서 등록한 활성 배너 중 순서가 가장 앞인 1장
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const rows = await listActiveBanners("matching");
+        if (!alive || !Array.isArray(rows) || rows.length === 0) return;
+        setAd(rows[0]);
+        incrementBannerImpression(rows[0].id);
+      } catch (e) {
+        console.warn("[MatchSearchingPage] ad fetch failed:", e?.message || e);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleAdClick = () => {
+    if (!ad) return;
+    incrementBannerClick(ad.id);
+    const url = String(ad.linkUrl || "").trim();
+    if (!url) return;
+    if (/^https?:\/\//i.test(url)) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    clearTimeout(timerRef.current); // 앱 내부 이동이면 자동 이동 타이머를 멈춘다
+    navigate(url.startsWith("/") ? url : `/${url}`);
+  };
 
   useEffect(() => {
     track("match_search", { region }); // 빠른매칭 탐색 시작 — 매칭 퍼널
@@ -190,6 +238,7 @@ export default function MatchSearchingPage() {
     const timer = setTimeout(() => {
       navigate("/matching/opponent", { state: navStateRef.current, replace: true });
     }, SEARCH_MS);
+    timerRef.current = timer;
 
     return () => {
       cancelAnimationFrame(raf);
@@ -221,7 +270,8 @@ export default function MatchSearchingPage() {
       </Top>
 
       <AdWrap>
-        <AdCard>
+        <AdCard $clickable={!!ad?.linkUrl} onClick={handleAdClick}>
+          <AdImg src={ad?.imageUrl || images.homeBanner2} alt={ad?.title || "광고"} />
           <AdBadge>AD · 광고</AdBadge>
         </AdCard>
       </AdWrap>

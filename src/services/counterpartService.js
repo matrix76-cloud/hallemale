@@ -3,6 +3,7 @@
 // 상대 이름/아바타 + 소속팀(가능하면 clubs/{clubId}까지 조회) 메타 공용 서비스 (캐시 포함)
 
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import { doc, getDoc } from "firebase/firestore";
 import { images } from "../utils/imageAssets";
 
@@ -101,6 +102,20 @@ export async function getUserPublicMeta(uid) {
   }
 
   if (_userCache.has(key)) return _userCache.get(key);
+
+  // 리뷰 보드 목업 — 목업 users 문서에서 표시용 메타만 뽑아 쓴다.
+  if (hasMock("userDocs")) {
+    const u = mockData("userDocs")[key];
+    const clubs = mockData("clubDocs") || {};
+    const cid = String(u?.activeTeamId || u?.clubId || "");
+    return {
+      name: String(u?.nickname || u?.name || "상대"),
+      avatar: String(u?.avatarUrl || "") || images.defaultAvatar || images.logo,
+      teamName: clubs[cid] ? clubs[cid].name : "",
+      teamLogo: "",
+      clubId: cid,
+    };
+  }
 
   try {
     const ref = doc(db, "users", key);

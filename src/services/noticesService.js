@@ -9,6 +9,7 @@
 //   - createdAt / updatedAt: Timestamp
 //   - createdBy: string (admin uid 또는 이름)
 import { db } from "./firebase";
+import { hasMock, mockData } from "../dev/mockBus";
 import {
   addDoc,
   collection,
@@ -46,6 +47,7 @@ function mapDoc(d) {
 
 /* ============== Admin: 전체 목록 ============== */
 export async function listNoticesAdmin({ limitCount = 200 } = {}) {
+  if (hasMock("notices")) return mockData("notices");
   const col = collection(db, COL);
   const q = query(col, orderBy("createdAt", "desc"), limit(limitCount));
   const snap = await getDocs(q);
@@ -62,6 +64,7 @@ export async function listNoticesAdmin({ limitCount = 200 } = {}) {
 
 /* ============== Public: 발행된 공지만 ============== */
 export async function listPublishedNotices({ limitCount = 100 } = {}) {
+  if (hasMock("notices")) return mockData("notices");
   const col = collection(db, COL);
   const q = query(col, orderBy("createdAt", "desc"), limit(limitCount));
   const snap = await getDocs(q);
@@ -79,6 +82,10 @@ export async function listPublishedNotices({ limitCount = 100 } = {}) {
 // 관리자가 공지를 추가/수정/삭제하면 사용자 화면에 즉시 반영된다.
 // 반환값은 구독 해제 함수(unsubscribe).
 export function subscribePublishedNotices(onChange, { limitCount = 100 } = {}) {
+  if (hasMock("notices")) {
+    onChange && onChange(mockData("notices"));
+    return () => {};
+  }
   const col = collection(db, COL);
   const q = query(col, orderBy("createdAt", "desc"), limit(limitCount));
   return onSnapshot(
@@ -100,6 +107,7 @@ export function subscribePublishedNotices(onChange, { limitCount = 100 } = {}) {
 }
 
 export async function getNotice(id) {
+  if (hasMock("notices")) return mockData("notices").find((n) => n.id === String(id)) || null;
   const ref = doc(db, COL, String(id));
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;

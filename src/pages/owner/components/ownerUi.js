@@ -52,6 +52,12 @@ export const Label = styled.span`
   color: ${({ theme }) => theme.colors.textNormal};
 `;
 
+/** 입력값에서 파생된 안내 (예: 요금 입력 → 정산 예정액) */
+export const FieldHint = styled.span`
+  font-size: 11.5px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
 export const Input = styled.input`
   height: 44px;
   padding: 0 14px;

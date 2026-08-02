@@ -4,6 +4,7 @@
 // Firestore: clubs/{clubId} 문서에 blocked / blockedAt / blockedReason / blockedBy 필드 사용
 
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   doc,
@@ -58,7 +59,7 @@ export async function unblockTeam({ clubId }) {
 
 export async function listBlockedTeams() {
   const q = query(collection(db, "clubs"), where("blocked", "==", true));
-  const snap = await getDocs(q);
+  const snap = hasMock("blockedTeams") ? mockQuerySnap(mockData("blockedTeams")) : await getDocs(q);
 
   const rows = [];
   snap.forEach((d) => {

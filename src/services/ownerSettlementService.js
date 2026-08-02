@@ -52,6 +52,9 @@ function row(d) {
     refundedVenueAmount: n(x.refundedVenueAmount),
     approvedAt: s(x.approvedAt),
     payoutId: s(x.payoutId),
+    // 지급 완료 판단 — 지급대행이 채우는 payoutId 와, 그 전 수동 이체를 어드민이 체크한 settled.
+    // 둘 다 인정해야 어드민 정산 화면과 이 화면의 "받은 돈"이 어긋나지 않는다.
+    settled: x.settled === true || !!s(x.payoutId),
   };
 }
 
@@ -86,7 +89,7 @@ export async function listOwnerPayments(ownerUid, { venueId = "" } = {}) {
  * 결제 내역 → 정산 요약.
  *   upcoming : 이용일이 아직 안 지남 → 정산 대상 아님(경기 끝나야 지급)
  *   payable  : 이용 완료 + 미지급 → 이번에 받을 돈
- *   paid     : 이미 지급됨
+ *   paid     : 이미 지급됨 (지급대행 payoutId 또는 어드민 수동 지급 체크 settled)
  * 취소·환불분은 netVenueAmount 가 0(또는 감액)이라 자동으로 빠진다.
  */
 export function summarize(rows = [], today = todayKst()) {
@@ -96,7 +99,7 @@ export function summarize(rows = [], today = todayKst()) {
     if (r.netVenueAmount <= 0) continue; // 전액 환불 — 정산에서 제외
     out.gross += r.netVenueAmount;
     out.count += 1;
-    if (r.payoutId) out.paid += r.netVenueAmount;
+    if (r.settled) out.paid += r.netVenueAmount;
     else if (r.date && r.date >= today) out.upcoming += r.netVenueAmount;
     else out.payable += r.netVenueAmount;
   }

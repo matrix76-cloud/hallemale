@@ -2,6 +2,7 @@
 // src/services/adminGamesService.js
 // 어드민 - 예정된 경기 / 지난 경기 목록 (match_requests 기반)
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   getDocs,
@@ -184,7 +185,9 @@ export async function fetchAdminUpcomingGames({
 } = {}) {
   const col = collection(db, "match_requests");
   const q1 = query(col, where("status", "==", "accepted"), limit(limitCount));
-  const snap = await getDocs(q1);
+  const snap = hasMock("myMatchDocs")
+    ? mockQuerySnap(mockData("myMatchDocs").filter((r) => ["accepted", "proposed", "awaiting_venue_approval", "confirmed"].includes(String(r.status))))
+    : await getDocs(q1);
   const docs = snap?.docs || [];
 
   const rows = docs.map(mapDoc);
@@ -224,7 +227,9 @@ export async function fetchAdminPastGames({
     orderBy("updatedAt", "desc"),
     limit(limitCount)
   );
-  const snap = await getDocs(q1);
+  const snap = hasMock("myMatchDocs")
+    ? mockQuerySnap(mockData("myMatchDocs").filter((r) => String(r.status) === "finished"))
+    : await getDocs(q1);
   const docs = snap?.docs || [];
 
   const rows = docs.map(mapDoc);

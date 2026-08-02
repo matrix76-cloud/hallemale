@@ -26,6 +26,7 @@ import {
 } from "firebase/storage";
 
 import { compressImageFile } from "../utils/imageCompress";
+import { mockOn, hasMock, mockData } from "../dev/mockBus";
 
 function sortPair(a, b) {
   const A = String(a || "").trim();
@@ -98,6 +99,8 @@ export async function getOrCreateMatchRoomChat({
   if (!myUid) throw new Error("getOrCreateMatchRoomChat: myUid is required");
 
   const chatId = `match_${roomId}`;
+  if (mockOn) return chatId; // 목업 화면은 실제 채팅방을 만들지 않는다
+
   const roomRef = doc(db, "chatRooms", chatId);
 
   await runTransaction(db, async (tx) => {
@@ -134,6 +137,9 @@ export async function getOrCreateMatchRoomChat({
 export async function getChatRoom({ chatId } = {}) {
   if (!chatId) throw new Error("getChatRoom: chatId is required");
 
+  if (hasMock("chatRoom")) return mockData("chatRoom");
+  if (hasMock("chatRooms")) return mockData("chatRooms").find((r) => r.id === chatId) || null;
+
   const refDoc = doc(db, "chatRooms", chatId);
   const snap = await getDoc(refDoc);
   if (!snap.exists()) return null;
@@ -148,6 +154,12 @@ export async function isMatchChatClosed({ chatId } = {}) {
   if (!cid.startsWith("match_")) return { closed: false, reason: "" };
   const matchId = cid.slice("match_".length);
   if (!matchId) return { closed: false, reason: "" };
+  if (hasMock("matchRequestDoc")) {
+    const st = String(mockData("matchRequestDoc")?.status || "");
+    if (st === "finished") return { closed: true, reason: "이미 종료된 경기예요. 더 이상 메시지를 보낼 수 없어요." };
+    if (st === "cancelled") return { closed: true, reason: "취소된 경기예요. 더 이상 메시지를 보낼 수 없어요." };
+    return { closed: false, reason: "" };
+  }
   try {
     const s = await getDoc(doc(db, "match_requests", matchId));
     if (!s.exists()) return { closed: false, reason: "" };
@@ -179,6 +191,7 @@ export async function isMatchChatClosed({ chatId } = {}) {
 }
 
 export async function enterChat({ chatId, myUid } = {}) {
+  if (mockOn) return; // 목업 화면은 읽음시각을 기록하지 않는다
   if (!chatId) throw new Error("enterChat: chatId is required");
   if (!myUid) throw new Error("enterChat: myUid is required");
 
@@ -208,6 +221,9 @@ export async function enterChat({ chatId, myUid } = {}) {
 
 
 export async function listMyChatRooms({ myUid, limitCount = 50 } = {}) {
+  if (hasMock("chatRooms")) {
+    return mockData("chatRooms").filter((r) => (r.participantUids || []).includes(myUid));
+  }
   if (!myUid) throw new Error("listMyChatRooms: myUid is required");
 
   const q = query(
@@ -251,6 +267,11 @@ export function listenChatRoom({ chatId, onChange } = {}) {
   if (typeof onChange !== "function")
     throw new Error("listenChatRoom: onChange is required");
 
+  if (hasMock("chatRoom")) {
+    onChange(mockData("chatRoom"));
+    return () => {};
+  }
+
   const refDoc = doc(db, "chatRooms", chatId);
   return onSnapshot(
     refDoc,
@@ -268,6 +289,10 @@ export function listenChatMessages({
   if (typeof onChange !== "function")
     throw new Error("listenChatMessages: onChange is required");
 
+  if (hasMock("chatMessages")) {
+    onChange(mockData("chatMessages") || []);
+    return () => {};
+  }
 
   const q = query(
     collection(db, "chatRooms", chatId, "messages"),

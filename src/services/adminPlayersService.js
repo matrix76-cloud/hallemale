@@ -1,6 +1,7 @@
 /* eslint-disable */
 // src/services/adminPlayersService.js
 import { db } from "./firebase";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 import {
   collection,
   getDocs,
@@ -216,7 +217,7 @@ export async function fetchPlayersAdminView({
   const baseQ = query(usersCol, ...constraints);
   const q1 = cursor ? query(baseQ, startAfter(cursor)) : baseQ;
 
-  const snap = await getDocs(q1);
+  const snap = hasMock("userDocs") ? mockQuerySnap(mockData("userDocs")) : await getDocs(q1);
 
   const baseRows = [];
   snap.forEach((docSnap) => baseRows.push(mapUserRow(docSnap)));

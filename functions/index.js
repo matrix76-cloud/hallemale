@@ -82,8 +82,7 @@ const { venuePaidConfirmTrigger, venuePaymentExpireTick } = require("./jobs/venu
 exports.venuePaidConfirmTrigger = venuePaidConfirmTrigger;
 exports.venuePaymentExpireTick = venuePaymentExpireTick;
 
-// ⏸ 제휴구장 결제/환불 알림톡 (①②) — 코드 완료(pre-write), 배포 보류.
-//    활성 조건: PG 실연동 + REFUND_CREDIT_ENABLED=true + 템플릿 ①② 승인(template_id 입력) + 약관 제3조 갱신.
-//    준비되면 아래 2줄 주석 해제.
-// const { venueAlimtalkOnStatusChange } = require("./jobs/venueAlimtalk");
-// exports.venueAlimtalkOnStatusChange = venueAlimtalkOnStatusChange;
+// ✅ 제휴구장 결제/환불 알림톡 (①②) — 별도 트리거가 아니라 위 venuePaymentJobs 안에서
+//    확정·환불을 실행한 직후 직접 발송한다(jobs/venueAlimtalk.js 는 발송 모듈). 별도 export 없음.
+//    템플릿 승인 전에는 template_id 가 비어 있어 발송만 조용히 스킵되고, 예약·환불 흐름은 그대로 돈다
+//    → alimtalk.js TEMPLATES.matchConfirmed / matchCanceled 에 승인받은 id 를 넣으면 바로 나간다.

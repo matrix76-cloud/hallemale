@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/pages/venue/CourtNotices.jsx
 // 구장주가 코트별로 등록한 공지(notices)·주의사항(cautions)을 사용자에게 노출.
-// VenueBookingPage(구장 개요) / CourtBookingPage(코트 상세) 공용.
+// VenueBookingPage(구장 개요) 전용 — 코트별 이용 안내.
 //  - pinned 공지: 상단 강조 배너 (구장주 화면 "핀하면 상단 고정" 의도)
 //  - 일반 공지: 공지사항 섹션
 //  - cautions: 주의사항 섹션
@@ -60,8 +60,8 @@ export default function CourtNotices({ court }) {
 /* ---------- styles (사용자앱 테마 사용) ---------- */
 const Pinned = styled.div`
   display: flex; align-items: flex-start; gap: 9px;
-  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.16)" : "#f3efff")};
-  border: 1px solid ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: 12px; padding: 12px 13px;
   & > svg { color: ${({ theme }) => theme.colors.primary}; flex-shrink: 0; margin-top: 1px; }
 `;
