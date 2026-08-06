@@ -15,15 +15,12 @@ import {
   updateMyVenue,
   resubmitVenue,
   defaultCourtHours,
-  FACILITY_OPTIONS,
   SURFACE_OPTIONS,
   isValidBizNo,
   formatBizNo,
   searchSchools,
   submitBusinessVerification,
   verifyBusinessOnline,
-  saveSettlementAccount,
-  SETTLEMENT_BANKS,
 } from "../../services/ownerVenueService";
 import { ownerTypeOption, resolveOwnerType } from "../../constants/ownerType";
 import {
@@ -52,15 +49,19 @@ function makeCourt(idx) {
 //      사업자 → 상호·사업자등록번호·개업일자·과세유형 + 등록증 → 국세청 진위확인(자동)
 //      학교   → NEIS 검색으로 실재 학교 확정(대표번호 서버 고정) + 확인 서류 → 담당자 확인(수동)
 //      기관   → 기관명·고유번호(선택) + 위임 서류 → 담당자 확인(수동)
-//  · payout = 정산 계좌 — 플랫폼이 집금해 이 계좌로 지급하므로 계좌가 없으면
-//      결제는 되는데 구장주에게 돈을 보낼 방법이 없다(지급대행에 넘길 값이 없음).
-const STEPS = ["intro", "name", "location", "photos", "facilities", "courts", "notice", "keywords", "contact", "verify", "payout", "review"];
+//  · 정산 계좌는 여기서 받지 않는다 — 심사 통과 여부도 모르는 사람에게 계좌·예금주를
+//      요구하는 게 이 폼에서 저항이 가장 큰 구간이었다. 승인 후 내정보(BusinessSection)에서
+//      받는다. 지급 직전에만 있으면 되는 값이라 등록 시점에 필수일 이유가 없다.
+//  · 편의시설·주차·이용안내·키워드는 여기서 묻지 않는다 — 승인 심사에 필요 없는 값인데
+//      필수 구간 한가운데 있어서, 여기서 이탈하면 심사 자체가 시작되지 않았다.
+//      승인 후 구장정보(OwnerVenuePage)에서 언제든 채울 수 있다.
+const STEPS = ["intro", "name", "location", "photos", "courts", "contact", "verify", "review"];
 const LEAD_STEPS = 1; // intro — 진행바에서 제외
 const CONTENT_TOTAL = STEPS.length - LEAD_STEPS;
 
 export default function OwnerOnboardingPage() {
   const navigate = useNavigate();
-  const { uid, venue, userDoc, loading: ownerLoading, refresh, setActiveVenue } = useOwner();
+  const { uid, venue, venues, userDoc, loading: ownerLoading, refresh, setActiveVenue } = useOwner();
   const fileRef = useRef(null);
   const courtFileRef = useRef(null);
   const courtPhotoIdx = useRef(0);
@@ -85,7 +86,6 @@ export default function OwnerOnboardingPage() {
   const [facilities, setFacilities] = useState([]);
   const [parking, setParking] = useState({ available: false, fee: "free", info: "" });
   const [keywords, setKeywords] = useState([]);
-  const [keywordInput, setKeywordInput] = useState("");
   const [displayMode, setDisplayMode] = useState("grouped");
   const [displayName, setDisplayName] = useState("");
   const [courts, setCourts] = useState([makeCourt(0)]);
@@ -105,8 +105,14 @@ export default function OwnerOnboardingPage() {
   const [neisOff, setNeisOff] = useState(false); // 키 미설정/미배포 → 자유 입력 폴백
   const [searching, setSearching] = useState(false);
 
-  // ── 정산 계좌(payout 단계) ── 지급대행에 넘길 값. 없으면 지급 자체가 불가능하다.
-  const [acct, setAcct] = useState({ bank: "", account: "", holder: "" });
+  // ── 신규 등록 임시저장 ──────────────────────────────────────────
+  // 구장 문서는 마지막 제출 때 생긴다. 그전까지 입력값은 이 화면 state 에만 있어서,
+  // 새로고침·전화 한 통에 사진까지 전부 날아갔다(업로드된 파일은 Storage 에 고아로 남았다).
+  // 재신청(editingId)은 서버에 원본이 있으니 신규 등록만 저장한다.
+  const draftKey = !editingId && uid ? `hm_owner_onboarding_draft:${uid}` : "";
+  const draftLoaded = useRef(false);
+
+  // ── 정산 계좌 ── 승인 후 내정보에서 받는다(온보딩에서는 묻지 않는다).
 
   // 재신청(반려 등): 기존 값 프리필
   useEffect(() => {
@@ -134,8 +140,6 @@ export default function OwnerOnboardingPage() {
     const vb = venue.business || {};
     setBiz({ openDate: vb.openDate || "", taxType: vb.taxType === "general" ? "general" : "simple", licenseUrl: vb.licenseUrl || "" });
     setPickedSchool(vb.school || null);
-    const vs = venue.settlement || {};
-    setAcct({ bank: vs.bank || "", account: vs.account || "", holder: vs.holder || "" });
     setCourts(
       (venue.courts || []).length
         ? venue.courts.map((c) => ({
@@ -149,10 +153,72 @@ export default function OwnerOnboardingPage() {
     );
   }, [editingId]); // eslint-disable-line
 
+  // 2호점 등록(?new=1): 사업자 정보를 처음부터 다시 받지 않는다.
+  // 주체 증빙은 구장 문서마다 따로 붙지만 사업자·학교 자체는 그대로라, 이미 인증받은
+  // 구장의 값을 그대로 채워준다. (구장명·주소·코트처럼 구장마다 다른 값은 당연히 비운다)
+  useEffect(() => {
+    if (editingId || !isNewVenue) return;
+    const src = (venues || []).find((v) => v.business?.status === "verified") || (venues || [])[0];
+    if (!src?.business) return;
+    const b = src.business;
+    setForm((p) => ({
+      ...p,
+      bizName: p.bizName || b.bizName || src.bizName || "",
+      bizNo: p.bizNo || b.bizNo || src.bizNo || "",
+      ownerName: p.ownerName || b.ownerName || src.ownerName || "",
+      contactPhone: p.contactPhone || src.contactPhone || "",
+      deptName: p.deptName || src.deptName || "",
+    }));
+    setBiz((p) => (p.openDate || p.licenseUrl ? p : {
+      openDate: b.openDate || "",
+      taxType: b.taxType === "general" ? "general" : "simple",
+      licenseUrl: b.licenseUrl || "",
+    }));
+    setPickedSchool((p) => p || b.school || null);
+  }, [isNewVenue, editingId, venues]); // eslint-disable-line
+
+  // 임시저장 불러오기 — 화면에 처음 들어올 때 한 번만. (사진은 이미 업로드된 URL 이라 그대로 산다)
+  useEffect(() => {
+    if (!draftKey || draftLoaded.current) return;
+    draftLoaded.current = true;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.form) setForm((p) => ({ ...p, ...d.form }));
+      if (Array.isArray(d.sportTypes) && d.sportTypes.length) setSportTypes(d.sportTypes);
+      if (Array.isArray(d.photos)) setPhotos(d.photos);
+      if (Array.isArray(d.facilities)) setFacilities(d.facilities);
+      if (d.parking) setParking(d.parking);
+      if (Array.isArray(d.keywords)) setKeywords(d.keywords);
+      if (d.displayMode) setDisplayMode(d.displayMode);
+      if (typeof d.displayName === "string") setDisplayName(d.displayName);
+      if (Array.isArray(d.courts) && d.courts.length) setCourts(d.courts);
+      if (d.biz) setBiz(d.biz);
+      if (d.pickedSchool) setPickedSchool(d.pickedSchool);
+      // 단계도 복원한다 — 8단계까지 갔다가 1단계부터 다시 훑게 하면 저장한 의미가 없다.
+      // ?step= 으로 직접 들어온 경우는 그 단계를 존중한다.
+      if (typeof d.step === "number" && !searchParams.get("step")) {
+        setStep(Math.min(STEPS.length - 1, Math.max(0, d.step)));
+      }
+    } catch { /* 깨진 임시저장은 조용히 버린다 */ }
+  }, [draftKey]); // eslint-disable-line
+
+  // 임시저장 쓰기 — 입력이 바뀔 때마다. localStorage 라 용량 제한이 있어 사진은 URL 만 담긴다.
+  useEffect(() => {
+    if (!draftKey || !draftLoaded.current) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({
+        form, sportTypes, photos, facilities, parking, keywords,
+        displayMode, displayName, courts, biz, pickedSchool, step,
+      }));
+    } catch { /* 용량 초과 등은 무시 — 저장 실패가 입력을 막으면 안 된다 */ }
+  }, [draftKey, form, sportTypes, photos, facilities, parking, keywords, displayMode, displayName, courts, biz, pickedSchool, step]);
+
+  const clearDraft = () => { try { if (draftKey) localStorage.removeItem(draftKey); } catch {} };
+
   const set = (patch) => setForm((p) => ({ ...p, ...patch }));
 
-  const toggle = (setter, val) =>
-    setter((prev) => (prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]));
 
   const setCourt = (i, patch) => setCourts((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   const addCourt = () => setCourts((prev) => [...prev, makeCourt(prev.length)]);
@@ -193,15 +259,6 @@ export default function OwnerOnboardingPage() {
   };
   const removeCourtPhoto = (ci, pi) =>
     setCourts((prev) => prev.map((c, idx) => (idx === ci ? { ...c, photos: (c.photos || []).filter((_, k) => k !== pi) } : c)));
-
-  const addKeyword = () => {
-    const k = keywordInput.trim().replace(/^#/, "");
-    if (!k) return;
-    if (keywords.length >= 5) return showAlert("대표키워드는 최대 5개예요.");
-    if (keywords.includes(k)) { setKeywordInput(""); return; }
-    setKeywords((prev) => [...prev, k]);
-    setKeywordInput("");
-  };
 
   // 온보딩 진입 1회 기록 (공급 퍼널: 가입→온보딩 진입)
   useEffect(() => { track("owner_onboarding_view"); }, []);
@@ -257,20 +314,12 @@ export default function OwnerOnboardingPage() {
     if (id === "photos") return photos.length > 0;
     if (id === "courts") return courts.length > 0 && courts.every((c) => c.name.trim() && hasAnyOpenDay(c.hours));
     // 심사는 담당자 연락으로 이뤄지므로 이름·연락처가 없으면 승인 자체가 불가능하다.
-    if (id === "contact") return !!form.ownerName.trim() && !!form.contactPhone.trim();
+    // 구장 연락처도 필수 — 예약자에게 공개할 번호가 없으면 담당자 개인 휴대폰이 대신
+    // 노출되던 문제가 있었다(지금은 폴백을 끊었으므로 여기서 반드시 받아야 한다).
+    if (id === "contact") return !!form.phone.trim() && !!form.ownerName.trim() && !!form.contactPhone.trim();
     if (id === "verify") return !verifyError();
-    if (id === "payout") return !payoutError();
     return true;
   })();
-
-  // 정산 계좌 미비 사유 — 서버(saveSettlementAccount)와 같은 기준.
-  function payoutError() {
-    if (!acct.bank) return "은행을 선택해주세요.";
-    const digits = acct.account.replace(/[^0-9]/g, "");
-    if (digits.length < 10 || digits.length > 16) return "계좌번호를 정확히 입력해주세요.";
-    if (!acct.holder.trim()) return "예금주를 입력해주세요.";
-    return "";
-  }
 
   // 주체별 증빙 미비 사유 — 서버(submitBusinessVerification)와 같은 기준으로 미리 막는다.
   function verifyError() {
@@ -293,9 +342,8 @@ export default function OwnerOnboardingPage() {
       if (id === "location") return showAlert("지도에서 구장 위치에 핀을 맞춰주세요.");
       if (id === "photos") return showAlert("구장 사진을 최소 1장 등록해주세요.\n사진이 있으면 승인도 빠르고 예약도 잘 들어와요.");
       if (id === "courts") return showAlert("코트 이름과 운영시간(최소 1개 요일)을 확인해주세요.");
-      if (id === "contact") return showAlert(`${typeOpt.personLabel}과 담당자 연락처를 입력해주세요.\n승인 심사 때 이 연락처로 확인 연락을 드려요.`);
+      if (id === "contact") return showAlert(`구장 연락처와 ${typeOpt.personLabel}, 담당자 연락처를 입력해주세요.\n구장 연락처는 예약자에게 안내되고, 담당자 연락처로는 심사 확인 연락을 드려요.`);
       if (id === "verify") return showAlert(verifyError());
-      if (id === "payout") return showAlert(payoutError());
       return;
     }
     track("owner_onboarding_step", { step: id }); // 어느 단계에서 이탈하는지 정량화
@@ -307,10 +355,9 @@ export default function OwnerOnboardingPage() {
     if (!form.name.trim()) { setStep(STEPS.indexOf("name")); return showAlert("구장명을 입력해주세요."); }
     if (!form.address.trim()) { setStep(STEPS.indexOf("location")); return showAlert("주소를 입력해주세요."); }
     if (photos.length === 0) { setStep(STEPS.indexOf("photos")); return showAlert("구장 사진을 최소 1장 등록해주세요."); }
+    if (!form.phone.trim()) { setStep(STEPS.indexOf("contact")); return showAlert("구장 연락처를 입력해주세요. 예약자에게 안내되는 번호예요."); }
     const vErr = verifyError();
     if (vErr) { setStep(STEPS.indexOf("verify")); return showAlert(vErr); }
-    const pErr = payoutError();
-    if (pErr) { setStep(STEPS.indexOf("payout")); return showAlert(pErr); }
     setBusy(true);
     try {
       const payload = {
@@ -348,8 +395,6 @@ export default function OwnerOnboardingPage() {
           openDate: biz.openDate, taxType: biz.taxType, licenseUrl: biz.licenseUrl,
           school: pickedSchool,
         });
-        // 정산 계좌 — 앱내 결제는 플랫폼이 집금해 이 계좌로 지급한다(지급대행에 넘길 값).
-        await saveSettlementAccount(vid, acct);
         // 사업자등록번호가 있는 주체만 국세청 대조 → 통과하면 승인까지 자동.
         // 학교·기관은 어드민이 담당자 연락으로 확인한다.
         if (typeOpt.needsBizNo) {
@@ -365,6 +410,7 @@ export default function OwnerOnboardingPage() {
       }
 
       track("owner_venue_register", { editing: !!editingId, courts: courts.length, photos: photos.length, ownerType }); // ★ 핵심 공급 생성
+      clearDraft(); // 제출됐으니 임시저장은 버린다 — 남겨두면 다음 "구장 추가"에 옛 값이 딸려온다
       await refresh();
       navigate("/owner/home", { replace: true });
     } catch (e) {
@@ -387,8 +433,8 @@ export default function OwnerOnboardingPage() {
           <IntroSub>
             몇 단계만 거치면 예약을 받을 수 있어요.{"\n"}
             {typeOpt.introSub}{"\n\n"}
-            이용요금은 앱에서 결제되지 않아요.{"\n"}
-            회원이 예약을 요청하면 승인하시고, 요금은 현장에서 직접 정산해요.
+            회원이 예약을 요청하면 승인하시고, 이용요금은 앱에서 결제돼요.{"\n"}
+            결제 대금은 플랫폼 이용료 {PLATFORM_FEE_LABEL}를 뺀 금액으로 정산 계좌에 지급돼요.
           </IntroSub>
         </Intro>
         <Footer>
@@ -455,28 +501,6 @@ export default function OwnerOnboardingPage() {
             </PhotoGrid>
             <HiddenFile ref={fileRef} type="file" accept="image/*" onChange={handleFile} />
             <StepHint>첫 번째 사진이 대표 사진으로 사용돼요.</StepHint>
-          </>
-        )}
-
-        {id === "facilities" && (
-          <>
-            <ChipWrap>
-              {FACILITY_OPTIONS.map((f) => (
-                <Chip key={f} type="button" $on={facilities.includes(f)} onClick={() => toggle(setFacilities, f)}>{f}</Chip>
-              ))}
-            </ChipWrap>
-            <SubHead>🅿️ 주차</SubHead>
-            <ChipWrap>
-              <Chip type="button" $on={!parking.available} onClick={() => setParking((p) => ({ ...p, available: false }))}>주차 불가</Chip>
-              <Chip type="button" $on={parking.available && parking.fee === "free"} onClick={() => setParking({ available: true, fee: "free", info: parking.info })}>무료 주차</Chip>
-              <Chip type="button" $on={parking.available && parking.fee === "paid"} onClick={() => setParking({ available: true, fee: "paid", info: parking.info })}>유료 주차</Chip>
-            </ChipWrap>
-            {parking.available && (
-              <Field>
-                <Label>주차 안내 <Opt>(선택)</Opt></Label>
-                <Input value={parking.info} onChange={(e) => setParking((p) => ({ ...p, info: e.target.value }))} placeholder="예: 건물 내 10대, 2시간 무료 / 이후 시간당 2,000원" />
-              </Field>
-            )}
           </>
         )}
 
@@ -563,35 +587,12 @@ export default function OwnerOnboardingPage() {
           </>
         )}
 
-        {id === "notice" && (
-          <>
-            <Field><Label>구장 소개 <Opt>(선택)</Opt></Label><Textarea value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="구장 특징, 규모, 바닥·시설 안내 등" /></Field>
-            <Field><Label>이용 규칙 <Opt>(선택)</Opt></Label><Textarea value={form.rules} onChange={(e) => set({ rules: e.target.value })} placeholder="예: 실내화 필수, 음식물 반입 금지 등" /></Field>
-            <Field><Label>취소·노쇼 안내</Label><Textarea value={form.refundPolicy} onChange={(e) => set({ refundPolicy: e.target.value })} /></Field>
-          </>
-        )}
-
-        {id === "keywords" && (
-          <>
-            <KeywordRow>
-              <Input value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
-                placeholder="예: 이태원 농구장" maxLength={20} />
-              <AddKw type="button" onClick={addKeyword}>추가</AddKw>
-            </KeywordRow>
-            <ChipWrap>
-              {keywords.map((k) => (
-                <Chip key={k} type="button" $on onClick={() => setKeywords((prev) => prev.filter((x) => x !== k))}>#{k} ×</Chip>
-              ))}
-            </ChipWrap>
-            <StepHint>지역명 + 종목을 넣으면 검색에 잘 노출돼요. (최대 5개)</StepHint>
-          </>
-        )}
-
         {id === "contact" && (
           <>
-            <Field><Label>구장 연락처</Label><Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" /></Field>
-            <SubHead>{typeOpt.contactHead} <Opt>(심사용 · 비공개)</Opt></SubHead>
+            <Field><Label>구장 연락처</Label><Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" />
+              <StepHint>예약자에게 안내되는 번호예요. 개인 휴대폰 대신 구장 대표번호를 적어주세요.</StepHint>
+            </Field>
+            <SubHead>{typeOpt.contactHead} <Opt>(연락처는 심사용 · 비공개)</Opt></SubHead>
             <Row>
               <Field><Label>{typeOpt.personLabel}</Label><Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder={typeOpt.personPlaceholder} /></Field>
               <Field><Label>담당자 연락처</Label><Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" /></Field>
@@ -599,7 +600,7 @@ export default function OwnerOnboardingPage() {
             {!typeOpt.needsBizNo && (
               <Field><Label>담당 부서 <Opt>(선택)</Opt></Label><Input value={form.deptName} onChange={(e) => set({ deptName: e.target.value })} placeholder={isSchool ? "예: 체육부" : "예: 시설운영팀"} /></Field>
             )}
-            <StepHint>승인 심사 때 이 연락처로 확인 연락을 드려요.</StepHint>
+            <StepHint>{typeOpt.contactSub}</StepHint>
           </>
         )}
 
@@ -707,41 +708,13 @@ export default function OwnerOnboardingPage() {
           </>
         )}
 
-        {id === "payout" && (
-          <>
-            <Field><Label>은행</Label>
-              <Select value={acct.bank} onChange={(e) => setAcct({ ...acct, bank: e.target.value })}>
-                <option value="">은행 선택</option>
-                {SETTLEMENT_BANKS.map((x) => <option key={x} value={x}>{x}</option>)}
-              </Select>
-            </Field>
-            <Field><Label>계좌번호</Label>
-              <Input value={acct.account} onChange={(e) => setAcct({ ...acct, account: e.target.value.replace(/[^0-9]/g, "") })}
-                placeholder="'-' 없이 숫자만" inputMode="numeric" />
-            </Field>
-            <Field><Label>예금주</Label>
-              <Input value={acct.holder} onChange={(e) => setAcct({ ...acct, holder: e.target.value })} placeholder={typeOpt.personPlaceholder} />
-            </Field>
-            {/* 명의가 다르면 지급이 보류될 수 있어 미리 알린다(법인·기관 계좌도 있어서 막지는 않는다) */}
-            {!!acct.holder.trim() && !!form.ownerName.trim()
-              && acct.holder.trim() !== form.ownerName.trim() && acct.holder.trim() !== form.bizName.trim() && (
-              <StepHint>예금주가 {typeOpt.personLabel}({form.ownerName})·{typeOpt.orgLabel}과 달라요. 명의가 다르면 지급이 보류될 수 있어요.</StepHint>
-            )}
-            <StepHint>{typeOpt.accountHint}</StepHint>
-            <StepHint>입점비·월정액은 없어요. 예약이 성사됐을 때만 결제액의 {PLATFORM_FEE_LABEL}를 이용료로 받아요.</StepHint>
-          </>
-        )}
-
         {id === "review" && (
           <ReviewList>
             <ReviewRow><b>운영 주체</b><span>{typeOpt.label}</span></ReviewRow>
             <ReviewRow><b>구장명</b><span>{form.name || "-"}</span></ReviewRow>
             <ReviewRow><b>주소</b><span>{form.address || "-"}{form.addressDetail ? ` ${form.addressDetail}` : ""}</span></ReviewRow>
             <ReviewRow><b>사진</b><span>{photos.length}장</span></ReviewRow>
-            <ReviewRow><b>편의시설</b><span>{facilities.length ? facilities.join(", ") : "-"}</span></ReviewRow>
-            <ReviewRow><b>주차</b><span>{parking.available ? (parking.fee === "paid" ? "유료" : "무료") : "불가"}</span></ReviewRow>
             <ReviewRow><b>코트</b><span>{courts.length}면</span></ReviewRow>
-            <ReviewRow><b>대표키워드</b><span>{keywords.length ? keywords.map((k) => `#${k}`).join(" ") : "-"}</span></ReviewRow>
             <ReviewRow><b>{typeOpt.personLabel}</b><span>{form.ownerName || "-"} · {form.contactPhone || "-"}</span></ReviewRow>
             <ReviewRow><b>{typeOpt.orgLabel}</b><span>{form.bizName || "-"}</span></ReviewRow>
             {typeOpt.needsBizNo ? (
@@ -753,13 +726,14 @@ export default function OwnerOnboardingPage() {
               <ReviewRow><b>학교 대표번호</b><span>{pickedSchool.tel || "-"}</span></ReviewRow>
             ) : null}
             <ReviewRow><b>{typeOpt.docLabel}</b><span>{biz.licenseUrl ? "첨부됨" : "없음"}</span></ReviewRow>
-            <ReviewRow><b>정산 계좌</b><span>{acct.bank ? `${acct.bank} ${acct.account} (${acct.holder})` : "-"}</span></ReviewRow>
+            <ReviewRow><b>정산 계좌</b><span>승인 후 등록</span></ReviewRow>
+            <ReviewRow><b>편의시설·소개·키워드</b><span>승인 후 구장정보에서</span></ReviewRow>
             <StepHint style={{ marginTop: 4 }}>
               {typeOpt.needsBizNo
                 ? "제출하면 국세청 진위확인을 거쳐 관리자가 승인해요(보통 영업일 1~2일)."
                 : "제출하면 서류 확인과 담당자 확인 연락을 거쳐 관리자가 승인해요(보통 영업일 1~2일)."}
             </StepHint>
-            <StepHint>이용요금은 앱에서 결제되지 않고, 회원이 현장에서 직접 정산해요.</StepHint>
+            <StepHint>승인이 나면 내정보에서 정산 계좌를 등록해주세요. 계좌가 있어야 결제 대금을 지급해 드릴 수 있어요.</StepHint>
           </ReviewList>
         )}
       </Scroll>
@@ -782,21 +756,14 @@ const TITLES = {
   name: "구장 이름을 알려주세요",
   location: "구장이 어디에 있나요?",
   photos: "구장 사진을 올려주세요",
-  facilities: "어떤 편의시설이 있나요?",
   courts: "예약받을 코트를 등록해요",
-  notice: "이용 안내를 적어주세요",
-  keywords: "검색에 뜰 키워드를 골라주세요",
-  payout: "정산금을 받을 계좌를 알려주세요",
   review: "입력한 내용을 확인해요",
 };
 // 운영 주체별로 갈리는 문구(제목·안내·플레이스홀더)는 constants/ownerType.js 표에 모아뒀다.
 const SUBS = {
   location: "지도를 움직여 핀을 맞추면 주소가 자동으로 입력돼요.",
   photos: "구장 전경, 코트, 시설 사진을 올려주세요. (여러 장 가능)",
-  facilities: "이용자가 구장을 고를 때 참고해요.",
   courts: "코트마다 종류·바닥·가격·운영시간을 따로 설정해요.",
-  notice: "이용자에게 보여지는 안내예요.",
-  keywords: "이용자가 검색할 만한 단어를 넣어주세요.",
 };
 
 const Shell = styled.div`
