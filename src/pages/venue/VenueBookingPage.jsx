@@ -305,7 +305,8 @@ export default function VenueBookingPage() {
   const courtPhotos = (court?.photos || []).filter(Boolean); // 선택한 코트의 사진
   const hasLatLng = venue.lat != null && venue.lng != null;
   const hoursSummary = buildHoursSummary(court);
-  const venuePhone = venue.phone || venue.contactPhone || "";
+  // contactPhone(담당자 개인 휴대폰)은 "비공개"로 받은 값이라 폴백으로도 쓰지 않는다.
+  const venuePhone = venue.phone || "";
   const place = {
     name: venue.name,
     address: fullAddress(venue.address, venue.addressDetail),

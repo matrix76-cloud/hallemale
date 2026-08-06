@@ -214,7 +214,8 @@ export default function MyReservationsPage() {
           const meta = STATUS_META[r.status] || STATUS_META.requested;
           const v = venueById[toStr(r.venueId)];
           const addr = fullAddress(v?.address, v?.addressDetail);
-          const phone = toStr(r.venuePhone || v?.phone || v?.contactPhone);
+          // contactPhone(담당자 개인 휴대폰)은 비공개 값이라 폴백에 넣지 않는다.
+          const phone = toStr(r.venuePhone || v?.phone);
           const place = { name: r.venueName || v?.name, address: addr, lat: v?.lat, lng: v?.lng };
           // 확정 + 아직 안 지난 예약에만 "언제부터 이용" / 액션 버튼을 붙인다.
           const live = r.status === "confirmed" && isFuture(r);

@@ -111,7 +111,7 @@ export default function VenuePreviewSheet({ venue, onClose }) {
             <LuInfo size={15} />
             <span>
               예약 전 <b>운영 시간·이용 안내</b>를 확인해주세요. 예약 요청 후 구장주가
-              승인하면 확정되며, 이용료는 현장에서 정산해요.
+              승인하고 결제를 마치면 확정돼요.
             </span>
           </NoticeBox>
 

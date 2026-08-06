@@ -18,7 +18,9 @@ export const OWNER_TYPE_OPTIONS = [
     personPlaceholder: "예: 홍길동",
     needsBizNo: true,
     contactTitle: "연락처와 대표자님을 알려주세요",
-    contactSub: "담당자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+    // ⚠️ 전자상거래법상 판매자 정보라 상호·대표자명·사업장 주소·구장 연락처는 구장 상세에 표시된다.
+    //    "전부 비공개"라고 안내하면 사실과 다르다 — 공개/비공개를 갈라 적는다.
+    contactSub: "상호·대표자명·구장 연락처는 판매자 정보로 구장 상세에 표시돼요. 담당자 연락처는 심사 확인용이라 공개되지 않아요.",
     contactHead: "🧾 사업자 / 관리자 정보",
     verifySub: "국세청에 등록된 사업자 정보와 바로 대조해 인증해요.",
 
@@ -47,7 +49,7 @@ export const OWNER_TYPE_OPTIONS = [
     personPlaceholder: "예: 홍길동 선생님",
     needsBizNo: false,
     contactTitle: "연락처와 담당 선생님을 알려주세요",
-    contactSub: "담당자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+    contactSub: "학교명·구장 연락처는 구장 상세에 표시돼요. 담당 선생님 연락처는 심사 확인용이라 공개되지 않아요.",
     contactHead: "🏫 학교 / 담당자 정보",
     verifySub: "실재하는 학교인지 확인하고, 학교 대표번호로 담당자 확인 연락을 드려요.",
 
@@ -73,7 +75,7 @@ export const OWNER_TYPE_OPTIONS = [
     personPlaceholder: "예: 홍길동",
     needsBizNo: false,
     contactTitle: "연락처와 담당자를 알려주세요",
-    contactSub: "담당자 정보는 심사 확인용이며 사용자에게 공개되지 않아요.",
+    contactSub: "기관명·구장 연락처는 구장 상세에 표시돼요. 담당자 연락처는 심사 확인용이라 공개되지 않아요.",
     contactHead: "🏛️ 기관 / 담당자 정보",
     verifySub: "제출하신 서류와 담당자 확인 연락으로 심사해요.",
 
