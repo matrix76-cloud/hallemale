@@ -11,8 +11,8 @@
 //     · /invites          — <Navigate to="/my/team-invites"> 뿐인 리다이렉트 스텁 (5-05 와 동일 화면)
 //     · /settings/blocked — /settings/block-report 와 같은 컴포넌트
 //     · /onboarding/club  — 앱 어디서도 진입하지 않는 스텁(styled 없는 h2+버튼). 죽은 화면
-//     · /admin/matches/issues · /admin/notify/push · /admin/updates
-//                         — 셋 다 <AdminPlaceholder "준비중"/> 껍데기라 리뷰할 내용이 없다
+//   (예전에 뺐던 /admin/matches/issues · /admin/notify/push · /admin/updates 는
+//    셋 다 실제 화면으로 구현돼 목록에 넣었다. /admin/notify/history 도 함께.)
 //   (/pay/success 는 보드의 "구장 예약 흐름" 변형 프레임으로 본다 — boardData.js)
 //
 // ✅ 세션 — 로그인하지 않아도 전 화면이 뜬다 (개발 모드 한정).
@@ -202,10 +202,13 @@ export const ADMIN_REVIEW = [
   { id: "admin-teams-reports",   no: "10-09", name: "팀 신고",         path: "/admin/teams/reports",      spec: [] },
   { id: "admin-teams-blocks",    no: "10-10", name: "팀 차단",         path: "/admin/teams/blocks",       spec: [] },
   { id: "admin-matches-list",    no: "10-11", name: "매칭 목록",       path: "/admin/matches/list",       spec: [] },
+  { id: "admin-matches-issues",  no: "10-12", name: "분쟁/신고",       path: "/admin/matches/issues",     spec: [] },
   { id: "admin-community-posts", no: "10-13", name: "커뮤니티 글",     path: "/admin/community/posts",    spec: [] },
   { id: "admin-community-detail",no: "10-14", name: "커뮤니티 글 상세", path: `/admin/community/posts/${S_POST}`, spec: [] },
   { id: "admin-community-reports",no: "10-15", name: "커뮤니티 신고",  path: "/admin/community/reports",  spec: [] },
   { id: "admin-notify-notices",  no: "10-16", name: "공지 관리",       path: "/admin/notify/notices",     spec: [] },
+  { id: "admin-notify-push",     no: "10-17", name: "푸시 발송",       path: "/admin/notify/push",        spec: [] },
+  { id: "admin-notify-history",  no: "10-31", name: "발송 로그",       path: "/admin/notify/history",     spec: [] },
   { id: "admin-settings-admins", no: "10-18", name: "관리자 계정",     path: "/admin/settings/admins",    spec: [] },
   { id: "admin-settings-policy", no: "10-19", name: "정책 설정",       path: "/admin/settings/policy",    spec: [] },
   { id: "admin-games-upcoming",  no: "10-20", name: "예정 경기",       path: "/admin/games/upcoming",     spec: [] },
@@ -219,6 +222,7 @@ export const ADMIN_REVIEW = [
   { id: "admin-refunds",         no: "10-27", name: "환불 관리",       path: "/admin/refunds",            spec: [] },
   { id: "admin-inquiries",       no: "10-28", name: "문의 관리",       path: "/admin/inquiries",          spec: [] },
   { id: "admin-popups",          no: "10-29", name: "이벤트 팝업",     path: "/admin/popups",             spec: [] },
+  { id: "admin-updates",         no: "10-32", name: "앱 업데이트",     path: "/admin/updates",            spec: [] },
 ];
 
 // ── 11. 랜딩(웹 홍보 페이지) ─────────────────────────────────
