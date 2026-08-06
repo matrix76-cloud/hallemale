@@ -174,17 +174,17 @@ export const OWNER_REVIEW = [
   { id: "owner-type-gate",    no: "9-05", name: "운영 주체 선택",  path: "/review-owner/type",      spec: [] },
   { id: "owner-agreement",    no: "9-06", name: "구장주 필수 동의", path: "/review-owner/agreement", spec: [] },
   // /owner 제외 — OwnerEntry 는 <Navigate to="/owner/home"> 뿐인 리다이렉트 스텁이라 화면이 없다(9-10 과 같은 화면).
+  // 구장 등록(/owner/register)은 온보딩 이전 세대라 삭제했다 — 인증·정산 단계가 빠져 있었다.
   { id: "owner-onboarding",   no: "9-07", name: "구장 온보딩",     path: "/owner/onboarding",    spec: [] },
-  { id: "owner-register",     no: "9-08", name: "구장 등록",       path: "/owner/register",      spec: [] },
-  { id: "owner-pending",      no: "9-09", name: "심사 현황",       path: "/owner/pending",       spec: [] },
-  { id: "owner-home",         no: "9-10", name: "구장주 홈(예약관리)", path: "/owner/home",      spec: [] },
-  { id: "owner-sales",        no: "9-11", name: "매출",           path: "/owner/sales",         spec: [] },
-  { id: "owner-settlement",   no: "9-12", name: "정산",           path: "/owner/settlement",    spec: [] },
-  { id: "owner-venue",        no: "9-13", name: "구장 정보",       path: "/owner/venue",         spec: [] },
-  { id: "owner-my",           no: "9-14", name: "구장주 내정보",   path: "/owner/my",            spec: [] },
-  { id: "owner-notifications",no: "9-15", name: "구장주 알림",     path: "/owner/notifications", spec: [] },
-  { id: "owner-inquiry",      no: "9-16", name: "구장주 문의",     path: "/owner/inquiry",       spec: [] },
-  { id: "owner-withdraw",     no: "9-17", name: "구장주 탈퇴",     path: "/owner/withdraw",      spec: [] },
+  { id: "owner-pending",      no: "9-08", name: "심사 현황",       path: "/owner/pending",       spec: [] },
+  { id: "owner-home",         no: "9-09", name: "구장주 홈(예약관리)", path: "/owner/home",      spec: [] },
+  { id: "owner-sales",        no: "9-10", name: "매출",           path: "/owner/sales",         spec: [] },
+  { id: "owner-settlement",   no: "9-11", name: "정산",           path: "/owner/settlement",    spec: [] },
+  { id: "owner-venue",        no: "9-12", name: "구장 정보",       path: "/owner/venue",         spec: [] },
+  { id: "owner-my",           no: "9-13", name: "구장주 내정보",   path: "/owner/my",            spec: [] },
+  { id: "owner-notifications",no: "9-14", name: "구장주 알림",     path: "/owner/notifications", spec: [] },
+  { id: "owner-inquiry",      no: "9-15", name: "구장주 문의",     path: "/owner/inquiry",       spec: [] },
+  { id: "owner-withdraw",     no: "9-16", name: "구장주 탈퇴",     path: "/owner/withdraw",      spec: [] },
 ];
 
 // ── 10. 관리자 페이지 (PC 풀와이드) ──────────────────────────
@@ -221,6 +221,35 @@ export const ADMIN_REVIEW = [
   { id: "admin-popups",          no: "10-29", name: "이벤트 팝업",     path: "/admin/popups",             spec: [] },
 ];
 
+// ── 11. 랜딩(웹 홍보 페이지) ─────────────────────────────────
+// React 앱이 아니라 web/ 의 정적 HTML이다.
+//   · 고칠 원본은 항상 web/ 다. npm start·build 가 scripts/copy-landing*.mjs 로
+//     public|build/landing 에 복사하므로, 리뷰 프레임은 그 복사본(/landing/*.html)을 띄운다.
+//     → web/ 을 고친 뒤엔 `npm run copy-landing` 을 돌려야 프레임에 반영된다(HMR 대상이 아님).
+//   · 한 장짜리 긴 페이지라 섹션 앵커(#teams 등)로 나눠 프레임을 만든다 — 기록이 섹션 단위로 붙는다.
+//   · pc:true = 1266px PC 폭으로 띄운다(랜딩은 PC 기준으로 짜인 페이지).
+//     760px 아래에서 레이아웃이 갈리는 섹션은 boardData 의 "경우의 수"에 모바일 프레임을 얹었다.
+const LP = "/landing/index.html";
+export const LANDING_REVIEW = [
+  { id: "landing-hero",     no: "11-01", name: "히어로",          path: `${LP}#main`,     pc: true, spec: [] },
+  { id: "landing-teams",    no: "11-02", name: "참여 팀(팀월)",    path: `${LP}#teams`,    pc: true, spec: [] },
+  { id: "landing-pain",     no: "11-03", name: "문제 제기",        path: `${LP}#pain`,     pc: true, spec: [] },
+  { id: "landing-features", no: "11-04", name: "기능 소개",        path: `${LP}#features`, pc: true, spec: [] },
+  { id: "landing-venue",    no: "11-05", name: "구장 예약",        path: `${LP}#venue`,    pc: true, spec: [] },
+  { id: "landing-ranking",  no: "11-06", name: "명예의 전당",      path: `${LP}#ranking`,  pc: true, spec: [] },
+  { id: "landing-reviews",  no: "11-07", name: "후기",            path: `${LP}#reviews`,  pc: true, spec: [] },
+  { id: "landing-sports",   no: "11-08", name: "종목 확장",        path: `${LP}#sports`,   pc: true, spec: [] },
+  { id: "landing-contact",  no: "11-09", name: "제휴 문의",        path: `${LP}#contact`,  pc: true, spec: [] },
+  { id: "landing-footer",   no: "11-10", name: "다운로드 CTA·푸터", path: `${LP}#cta`,      pc: true, spec: [] },
+  // 랜딩 푸터에서 링크되는 정적 정책 문서 — 앱 안의 8-xx(React 화면)와는 별개 파일이라 따로 본다.
+  { id: "landing-terms",     no: "11-11", name: "이용약관(웹)",        path: "/landing/terms.html",            pc: true, spec: [] },
+  { id: "landing-privacy",   no: "11-12", name: "개인정보처리방침(웹)", path: "/landing/privacy.html",          pc: true, spec: [] },
+  { id: "landing-operation", no: "11-13", name: "운영정책(웹)",        path: "/landing/operation.html",        pc: true, spec: [] },
+  { id: "landing-refund",    no: "11-14", name: "환불정책(웹)",        path: "/landing/refund.html",           pc: true, spec: [] },
+  { id: "landing-delete",    no: "11-15", name: "계정 삭제 안내(웹)",   path: "/landing/account-deletion.html", pc: true, spec: [] },
+  { id: "landing-404",       no: "11-16", name: "404",               path: "/landing/404.html",              pc: true, spec: [] },
+];
+
 // 카테고리 순서 = 실제 사용자 여정.
 //   가입 → 홈에서 둘러보기 → 팀 만들기 → 매칭 → 구장 예약·결제 → 소통 → 내 정보 → 약관
 //   그 뒤에 공급자(구장앱) · 운영(관리자).
@@ -236,4 +265,5 @@ export const DOMAINS = [
   { key: "legal",     group: "사용자앱", label: "8. 약관·정책",         screens: LEGAL_REVIEW },
   { key: "owner",     group: "구장앱",   label: "9. 구장앱(구장주)",    screens: OWNER_REVIEW },
   { key: "admin",     group: "관리자",   label: "10. 관리자",           screens: ADMIN_REVIEW },
+  { key: "landing",   group: "웹",      label: "11. 랜딩(웹)",         screens: LANDING_REVIEW },
 ];

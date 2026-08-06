@@ -119,7 +119,6 @@ function getTitle(p) {
   if (p.startsWith("/owner/inquiry")) return "1:1 문의";
   if (p.startsWith("/owner/notifications")) return "알림";
   if (p.startsWith("/owner/my")) return "내정보";
-  if (p.startsWith("/owner/register")) return "구장 등록";
   if (p.startsWith("/owner/onboarding")) return "구장 등록";
   if (p.startsWith("/owner/pending")) return "심사 현황";
   return "";
@@ -143,14 +142,14 @@ function needsOwnerType(userDoc, venues) {
 }
 
 // 구장 미등록(venue 없음) 오너는 워크스페이스로 못 들어가고 온보딩에 머문다.
-// (예외: 온보딩/등록/내정보/탈퇴/문의 — 가입 직후 앱 진입 방지 + 로그아웃/탈퇴/고객지원 경로는 열어둠)
+// (예외: 온보딩/내정보/탈퇴/문의 — 가입 직후 앱 진입 방지 + 로그아웃/탈퇴/고객지원 경로는 열어둠)
 // ⚡ memo: OwnerShell이 토스트 때문에 리렌더돼도 현재 페이지(Outlet)는 다시 그리지 않는다.
 //    자체 구독(useOwner/useLocation)이 바뀌면 정상적으로 갱신된다.
 const OwnerGate = React.memo(function OwnerGate() {
   const { loading, venue } = useOwner();
   const { pathname } = useLocation();
   const p = (pathname || "").toLowerCase();
-  const exempt = /\/owner\/(onboarding|register|withdraw|my|inquiry|notifications)(\/|$)/.test(p);
+  const exempt = /\/owner\/(onboarding|withdraw|my|inquiry|notifications)(\/|$)/.test(p);
   if (loading) return <OwnerSpinner label="불러오는 중…" />;
   if (!venue && !exempt) return <Navigate to="/owner/onboarding" replace />;
   return <Outlet />;

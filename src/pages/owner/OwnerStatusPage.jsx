@@ -58,7 +58,7 @@ export default function OwnerStatusPage() {
   const { loading, venue, refresh } = useOwner();
 
   if (loading) return <OwnerSpinner label="심사 현황을 불러오는 중…" />;
-  if (!venue) return <Navigate to="/owner/register" replace />;
+  if (!venue) return <Navigate to="/owner/onboarding" replace />;
   if (venue.status === "approved") return <Navigate to="/owner/home" replace />;
 
   const isRejected = venue.status === "rejected";
@@ -106,8 +106,9 @@ export default function OwnerStatusPage() {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+        {/* 온보딩은 venue 가 있으면 그 값으로 프리필돼 "수정하고 다시 신청"이 된다 */}
         {isRejected && (
-          <PrimaryBtn type="button" onClick={() => navigate("/owner/register")}>
+          <PrimaryBtn type="button" onClick={() => navigate("/owner/onboarding")}>
             정보 수정하고 다시 신청
           </PrimaryBtn>
         )}

@@ -20,11 +20,13 @@ const DOMAIN_BASE = {
   legal: "",
   owner: "base-owner",
   admin: "base-admin",
+  landing: "", // 랜딩은 정적 HTML — 로그인·목업이 필요 없다
 };
 
 // ── 경우의 수 프레임 (1차: 매칭) ────────────────────────────
 // 같은 화면을 시나리오만 바꿔 여러 장 띄운다. 매치룸 id 는 목업이라 아무 값이나 무방.
 const M_ROOM = "/match-roomdetail/mock_room";
+const LP = "/landing/index.html"; // 랜딩 원본은 web/index.html — 복사본을 띄운다(reviewData 주석 참고)
 
 // forScreen = reviewData 의 화면 id — /review/:id 상세에서 "이 화면의 변형"으로 묶어 보여준다.
 const EXTRA_FRAMES = {
@@ -157,21 +159,6 @@ const EXTRA_FRAMES = {
     { key: "sc-onb-org-11",   forScreen: "owner-onboarding", name: "온보딩⑪정산계좌(기관)",path: "/owner/onboarding?step=payout&pg=1", scenario: "owner-noven-org" },
     { key: "sc-onb-org-12",   forScreen: "owner-onboarding", name: "온보딩⑫최종확인(기관)",path: "/owner/onboarding?step=review",  scenario: "owner-noven-org" },
 
-    // 등록 폼은 한 화면에 다 넣지 않고 8단계로 나눴다 → 단계별로 한 장씩 본다.
-    // (반려 후 "다시 신청" 경로에서 쓰는 폼. 신규 등록은 위 온보딩으로 간다)
-    { key: "sc-reg-1", forScreen: "owner-register", name: "등록①기본정보",   path: "/owner/register?step=basic",    scenario: "owner-noven" },
-    { key: "sc-reg-2", forScreen: "owner-register", name: "등록②사진",       path: "/owner/register?step=photo",    scenario: "owner-noven" },
-    { key: "sc-reg-3", forScreen: "owner-register", name: "등록③편의시설",   path: "/owner/register?step=facility", scenario: "owner-noven" },
-    { key: "sc-reg-4", forScreen: "owner-register", name: "등록④코트·요금",  path: "/owner/register?step=court",    scenario: "owner-noven" },
-    { key: "sc-reg-5", forScreen: "owner-register", name: "등록⑤운영시간",   path: "/owner/register?step=hours",    scenario: "owner-noven" },
-    { key: "sc-reg-6", forScreen: "owner-register", name: "등록⑥이용안내",   path: "/owner/register?step=notice",   scenario: "owner-noven" },
-    { key: "sc-reg-7", forScreen: "owner-register", name: "등록⑦사업자정보", path: "/owner/register?step=biz",      scenario: "owner-noven" },
-    { key: "sc-reg-8", forScreen: "owner-register", name: "등록⑧최종확인",   path: "/owner/register?step=confirm",  scenario: "owner-noven" },
-    { key: "sc-reg-school-7",  forScreen: "owner-register", name: "등록⑦학교정보(학교)",   path: "/owner/register?step=biz",     scenario: "owner-noven-school" },
-    { key: "sc-reg-school-8",  forScreen: "owner-register", name: "등록⑧최종확인(학교)",   path: "/owner/register?step=confirm", scenario: "owner-noven-school" },
-    { key: "sc-reg-org-7",     forScreen: "owner-register", name: "등록⑦기관정보(기관)",   path: "/owner/register?step=biz",     scenario: "owner-noven-org" },
-    { key: "sc-reg-org-8",     forScreen: "owner-register", name: "등록⑧최종확인(기관)",   path: "/owner/register?step=confirm", scenario: "owner-noven-org" },
-
     { key: "sc-own-busy",  forScreen: "owner-home",  name: "예약관리 · 승인대기 3건", path: "/owner/home",  scenario: "owner-busy" },
     { key: "sc-own-quiet", forScreen: "owner-home",  name: "예약관리 · 예약 없음",    path: "/owner/home",  scenario: "owner-quiet" },
     { key: "sc-own-s-0",   forScreen: "owner-sales", name: "예약통계 · 예약 없음",    path: "/owner/sales", scenario: "owner-quiet" },
@@ -191,31 +178,53 @@ const EXTRA_FRAMES = {
     { key: "sc-v9-resv-none", forScreen: "my-reservations", name: "내 예약 · 비어있음",  path: "/my/reservations",                         scenario: "resv-empty" },
     { key: "sc-v10-none",     forScreen: "venues",          name: "구장 목록 · 비어있음", path: "/venues",                                 scenario: "venues-empty" },
   ],
+
+  // 랜딩 — 760px 아래에서 레이아웃이 갈린다(내비 메뉴 숨김 · 팀월 2열 · PC푸터↔앱푸터 교체).
+  // 기본 프레임이 PC(pc:true)이므로 여기엔 폰 폭 버전만 얹는다.
+  // ⚠️ 이름에 " · " 를 넣지 말 것 — 상세 리뷰의 라벨 정리가 앞부분을 잘라낸다.
+  landing: [
+    { key: "sc-lp-m-hero",     forScreen: "landing-hero",     name: "모바일 히어로",      path: `${LP}#main`,     pc: false },
+    { key: "sc-lp-m-teams",    forScreen: "landing-teams",    name: "모바일 참여 팀",     path: `${LP}#teams`,    pc: false },
+    { key: "sc-lp-m-features", forScreen: "landing-features", name: "모바일 기능 소개",   path: `${LP}#features`, pc: false },
+    { key: "sc-lp-m-venue",    forScreen: "landing-venue",    name: "모바일 구장 예약",   path: `${LP}#venue`,    pc: false },
+    { key: "sc-lp-m-ranking",  forScreen: "landing-ranking",  name: "모바일 명예의 전당", path: `${LP}#ranking`,  pc: false },
+    { key: "sc-lp-m-contact",  forScreen: "landing-contact",  name: "모바일 제휴 문의",   path: `${LP}#contact`,  pc: false },
+    { key: "sc-lp-m-footer",   forScreen: "landing-footer",   name: "모바일 CTA/푸터",    path: `${LP}#cta`,      pc: false },
+  ],
 };
 
 // 프레임 URL 조립
 //  · mock=<시나리오>  → 로그인 없이 뜨고, 데이터가 항상 같다
 //  · freeze=1        → 페이지가 스스로 navigate() 해도 그 화면에 머문다(스플래시→홈 자동이동 차단)
 //    "조작" 켠 프레임은 freeze 를 빼서 실제로 눌러볼 수 있게 한다.
+//  · 해시(#섹션)는 언제나 맨 뒤에 남긴다 — 랜딩처럼 앵커로 섹션을 잡는 프레임에서
+//    "…#main?freeze=1" 이 되면 앵커 이름이 깨져 그 섹션으로 스크롤되지 않는다.
+export function withQuery(path, params) {
+  const p = String(path || "");
+  if (!p || !params.length) return p;
+  const i = p.indexOf("#");
+  const base = i < 0 ? p : p.slice(0, i);
+  const hash = i < 0 ? "" : p.slice(i);
+  return base + (base.includes("?") ? "&" : "?") + params.join("&") + hash;
+}
+
 export function frameSrc(frame, { freeze = true } = {}) {
   const p = String(frame.path || "");
   if (!p) return "";
   const q = [];
   if (frame.scenario) q.push("mock=" + frame.scenario);
   if (freeze) q.push("freeze=1");
-  if (!q.length) return p;
-  return p + (p.includes("?") ? "&" : "?") + q.join("&");
+  return withQuery(p, q);
 }
 
 // 보드가 그릴 섹션 목록
 // 도메인 기본 세션으로는 볼 수 없는 화면 — 그 화면만 다른 시나리오로 띄운다.
 //  · 심사 현황은 venue.status 가 approved 면 /owner/home 으로 넘어가 빈 화면이 된다.
-//  · 등록 폼은 base-owner(승인된 구장 보유)로 열면 "기존 구장 수정" 모드로 프리필돼
+//  · 온보딩은 base-owner(승인된 구장 보유)로 열면 "기존 구장 수정" 모드로 프리필돼
 //    신규 등록 화면이 안 보인다 → 구장 미등록 세션으로 띄운다.
 const SCREEN_SCENARIO = {
   "owner-pending": "owner-pending",
   "owner-onboarding": "owner-noven",
-  "owner-register": "owner-noven",
 };
 
 export const BOARD_SECTIONS = DOMAINS.map((d) => {
@@ -226,6 +235,7 @@ export const BOARD_SECTIONS = DOMAINS.map((d) => {
     no: s.no,
     name: s.name,
     path: s.path,
+    pc: s.pc, // 프레임 폭을 화면별로 지정(랜딩). undefined 면 섹션 기본(wide)을 따른다.
     scenario: SCREEN_SCENARIO[s.id] || base,
   }));
   const extras = (EXTRA_FRAMES[d.key] || []).map((f) => ({ ...f, no: "변형" }));
