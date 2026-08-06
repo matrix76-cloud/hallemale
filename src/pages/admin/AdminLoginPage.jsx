@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { lightTheme } from "../../theme/theme";
 import { adminSignIn } from "../../services/adminAuthService";
 import { useAuth } from "../../hooks/useAuth";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Wrap = styled.div`
   min-height: 100dvh;
@@ -156,7 +157,7 @@ export default function AdminLoginPage() {
   //  users 문서의 isAdmin 으로 판정하면, 위조된 계정이 여기서 대시보드로 튕기고
   //  RequireAdmin 이 다시 로그인으로 되돌려 무한 리다이렉트가 된다.
   useEffect(() => {
-    if (userDoc?.adminClaim === true) nav("/admin/dashboard", { replace: true });
+    if (userDoc?.adminClaim === true) nav(`${ADMIN_BASE}/dashboard`, { replace: true });
   }, [userDoc, nav]);
 
   const onSubmit = async (e) => {
@@ -177,7 +178,7 @@ export default function AdminLoginPage() {
     try {
       await adminSignIn({ id: cleanId, password: cleanPw });
       // 세션 반영은 AuthContext 가 처리 → 대시보드로 이동
-      nav("/admin/dashboard", { replace: true });
+      nav(`${ADMIN_BASE}/dashboard`, { replace: true });
     } catch (e) {
       console.error("[AdminLoginPage] login failed", e);
       setErr(e?.message || "로그인 처리 중 오류가 발생했습니다.");

@@ -6,6 +6,7 @@
 //  · reviewData.DOMAINS(등록된 전 화면)를 기본 프레임으로 깔고, 그 위에 "경우의 수" 프레임을 얹는다.
 
 import { DOMAINS } from "./reviewData";
+import { ADMIN_BASE } from "../config/adminPath";
 
 // 도메인별 기본 세션 — 이 세션이 있어야 라우트 게이트를 통과해 화면이 뜬다.
 //  auth(1-xx)는 로그아웃 상태 그 자체가 화면이라 목업을 붙이지 않는다.
@@ -111,14 +112,14 @@ const EXTRA_FRAMES = {
 
   // 관리자 — 빈 상태 / 처리 대기 많은 상태
   admin: [
-    { key: "sc-adm-u-0",    forScreen: "admin-users-list",   name: "회원 목록 · 없음",     path: "/admin/users/list",   scenario: "admin-empty" },
-    { key: "sc-adm-t-0",    forScreen: "admin-teams-list",   name: "팀 목록 · 없음",       path: "/admin/teams/list",   scenario: "admin-empty" },
-    { key: "sc-adm-m-0",    forScreen: "admin-matches-list", name: "매칭 목록 · 없음",     path: "/admin/matches/list", scenario: "admin-empty" },
-    { key: "sc-adm-c-0",    forScreen: "admin-community-posts", name: "게시글 · 없음",     path: "/admin/community/posts", scenario: "admin-empty" },
-    { key: "sc-adm-i-0",    forScreen: "admin-inquiries",    name: "문의 · 없음",          path: "/admin/inquiries",    scenario: "admin-empty" },
-    { key: "sc-adm-dash-0", forScreen: "admin-dashboard",    name: "대시보드 · 데이터 없음", path: "/admin/dashboard",   scenario: "admin-empty" },
-    { key: "sc-adm-i-busy", forScreen: "admin-inquiries",    name: "문의 · 답변대기 4건",   path: "/admin/inquiries",    scenario: "admin-pending" },
-    { key: "sc-adm-v-busy", forScreen: "admin-venues",       name: "구장 · 심사 신청 1건",  path: "/admin/venues",       scenario: "admin-pending" },
+    { key: "sc-adm-u-0",    forScreen: "admin-users-list",   name: "회원 목록 · 없음",     path: `${ADMIN_BASE}/users/list`,   scenario: "admin-empty" },
+    { key: "sc-adm-t-0",    forScreen: "admin-teams-list",   name: "팀 목록 · 없음",       path: `${ADMIN_BASE}/teams/list`,   scenario: "admin-empty" },
+    { key: "sc-adm-m-0",    forScreen: "admin-matches-list", name: "매칭 목록 · 없음",     path: `${ADMIN_BASE}/matches/list`, scenario: "admin-empty" },
+    { key: "sc-adm-c-0",    forScreen: "admin-community-posts", name: "게시글 · 없음",     path: `${ADMIN_BASE}/community/posts`, scenario: "admin-empty" },
+    { key: "sc-adm-i-0",    forScreen: "admin-inquiries",    name: "문의 · 없음",          path: `${ADMIN_BASE}/inquiries`,    scenario: "admin-empty" },
+    { key: "sc-adm-dash-0", forScreen: "admin-dashboard",    name: "대시보드 · 데이터 없음", path: `${ADMIN_BASE}/dashboard`,   scenario: "admin-empty" },
+    { key: "sc-adm-i-busy", forScreen: "admin-inquiries",    name: "문의 · 답변대기 4건",   path: `${ADMIN_BASE}/inquiries`,    scenario: "admin-pending" },
+    { key: "sc-adm-v-busy", forScreen: "admin-venues",       name: "구장 · 심사 신청 1건",  path: `${ADMIN_BASE}/venues`,       scenario: "admin-pending" },
   ],
 
   // 구장주 — 심사 단계(승인 전 상태는 기본 세션으로 볼 수 없다) + 구장 등록 8단계 위저드

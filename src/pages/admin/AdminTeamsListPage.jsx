@@ -10,6 +10,7 @@ import AdminPager from "../../components/admin/AdminPager";
 import { fetchTeamsAdminView } from "../../services/adminTeamsService";
 import { blockTeam } from "../../services/adminTeamBlockService";
 import TeamProfilePage from "../team/TeamProfilePage";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -610,7 +611,7 @@ export default function AdminTeamsListPage() {
       setBlockOpen(false);
       setBlockTarget(null);
       setBlockReason("");
-      navigate("/admin/teams/blocks");
+      navigate(`${ADMIN_BASE}/teams/blocks`);
     } catch (e) {
       console.error("[AdminTeamsListPage] block failed", e);
       showAlert(e?.message || "차단 처리에 실패했습니다.");

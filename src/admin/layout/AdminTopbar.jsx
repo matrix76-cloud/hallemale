@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { IoTimeOutline, IoLogOutOutline } from "react-icons/io5";
 import { adminSignOut } from "../../services/adminAuthService";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const ADMIN_SESSION_USER_KEY = "HALLE_ADMIN_USER";
 
@@ -93,7 +94,7 @@ export default function AdminTopbar() {
 
   const handleLogout = async () => {
     await adminSignOut();
-    nav("/admin/login", { replace: true });
+    nav(`${ADMIN_BASE}/login`, { replace: true });
   };
 
   const displayName = user?.name || user?.id || "관리자";

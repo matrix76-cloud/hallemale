@@ -14,6 +14,7 @@ import {
   setCommunityPostPinned,
   deleteCommunityPostByAdmin,
 } from "../../services/adminCommunityService";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -450,7 +451,7 @@ export default function AdminCommunityPostsPage() {
                   <Cell>
                     <TitleCell
                       type="button"
-                      onClick={() => navigate(`/admin/community/posts/${r.id}`)}
+                      onClick={() => navigate(`${ADMIN_BASE}/community/posts/${r.id}`)}
                       title={r.title}
                     >
                       {r.pinned && <Pill $tone="pin">공지</Pill>}

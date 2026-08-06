@@ -12,6 +12,7 @@ import {
   updateTeamReportStatus,
 } from "../../services/teamReportService";
 import { blockTeam } from "../../services/adminTeamBlockService";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -390,7 +391,7 @@ export default function AdminTeamsReportsPage() {
       setBlockOpen(false);
       setBlockTarget(null);
       setBlockReason("");
-      navigate("/admin/teams/blocks");
+      navigate(`${ADMIN_BASE}/teams/blocks`);
     } catch (e) {
       console.error("[AdminTeamsReportsPage] block failed", e);
       showAlert(e?.message || "차단 처리에 실패했습니다.");

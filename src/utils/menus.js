@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/utils/menus.js
 // ✅ 할래말래 Admin 메뉴 SSOT (단일 사이드바용 평탄화 구조)
-// - 모든 경로는 /admin prefix
+// - 모든 경로는 ADMIN_BASE prefix (src/config/adminPath.js)
 // - section: 섹션 구분자 (사이드바 헤더)
 // - to: 단일 메뉴 (서브 없음)
 // - sub: 그룹 메뉴 (아코디언으로 펼침)
@@ -25,7 +25,9 @@ import {
   IoMailOutline,
 } from "react-icons/io5";
 
-const A = "/admin";
+import { ADMIN_BASE } from "../config/adminPath";
+
+const A = ADMIN_BASE;
 
 /** @type {Array<{section?: string, to?: string, sub?: Array<{to: string, label: string}>, icon?: any, label?: string, end?: boolean, key?: string}>} */
 export const MENUS = [

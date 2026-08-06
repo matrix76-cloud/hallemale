@@ -10,6 +10,7 @@ import styled from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
 import { listVisibleEventPopups } from "../../services/eventPopupsService";
 import { useAuth } from "../../hooks/useAuth";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Overlay = styled.div`
   position: fixed;
@@ -123,7 +124,7 @@ export default function EventPopupModal() {
   const [closed, setClosed] = useState(false);
 
   const pathname = String(location.pathname || "");
-  const isAdminPath = pathname.startsWith("/admin");
+  const isAdminPath = pathname.startsWith(ADMIN_BASE);
   // 스플래시(/) · 인증 화면에서는 표시 안 함 → 로그인 후 홈 등 실제 화면에서만
   const isSplashPath = pathname === "/" || pathname === "/index.html";
   const isAuthPath =

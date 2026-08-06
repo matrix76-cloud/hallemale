@@ -13,6 +13,7 @@ import {
   deleteCommunityPostByAdmin,
   deleteCommunityCommentByAdmin,
 } from "../../services/adminCommunityService";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -379,7 +380,7 @@ export default function AdminCommunityPostDetailPage() {
     setBusy(true);
     try {
       await deleteCommunityPostByAdmin({ postId: post.id });
-      navigate("/admin/community/posts", { replace: true });
+      navigate(`${ADMIN_BASE}/community/posts`, { replace: true });
     } catch (e) {
       console.error(e);
       showAlert(e?.message || "삭제에 실패했습니다.");
@@ -426,7 +427,7 @@ export default function AdminCommunityPostDetailPage() {
   return (
     <Page>
       <TopRow>
-        <BackBtn type="button" onClick={() => navigate("/admin/community/posts")}>← 목록으로</BackBtn>
+        <BackBtn type="button" onClick={() => navigate(`${ADMIN_BASE}/community/posts`)}>← 목록으로</BackBtn>
         <ActionRow>
           <Btn type="button" $variant={post.pinned ? "primary" : undefined} onClick={togglePin} disabled={busy}>
             {post.pinned ? "공지 해제" : "공지로 고정"}

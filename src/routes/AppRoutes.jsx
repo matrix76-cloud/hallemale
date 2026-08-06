@@ -6,6 +6,7 @@ import { useWebviewBridgeContext } from "../context/WebviewBridgeContext";
 import { useUI } from "../hooks/useUI";
 import { goBackOrHome } from "../utils/navigation";
 import { freezeRoute } from "../dev/mockBus";
+import { ADMIN_BASE } from "../config/adminPath";
 
 // ⚡ 아래 모듈만 메인 번들에 남긴다. 앱 부팅(/ → /login)과 카카오 콜백(/oauth/kakao)의
 //    임계 경로라서, 청크를 한 번 더 받으러 가면 그만큼 로그인이 늦어진다.
@@ -155,13 +156,25 @@ const OwnerProvider = lazy(() =>
   import("../context/OwnerContext").then((m) => ({ default: m.OwnerProvider }))
 );
 
-// ✅ 개발용 화면 리뷰 허브 (/review) — 개발자·AI 협업 도구. Firestore(reviewThreads) 공유.
-const AuthReview = lazy(() => import("../dev/AuthReview"));
-// 피그마식 전 화면 보드 (/review/board) — 전 화면 + 상태별 경우의 수를 한 캔버스에 고정 배치
-const ReviewBoard = lazy(() => import("../dev/ReviewBoard"));
-// 리뷰 도구는 내 로컬에서만 연다 — 배포본에는 라우트를 아예 만들지 않는다.
-const IS_LOCAL = typeof window !== "undefined"
+// 리뷰 도구는 내 로컬에서만 연다.
+// - IS_DEV_BUILD: 프로덕션 빌드에서는 상수가 false 로 접혀 아래 import() 가 통째로 사라진다.
+//   라우트만 막으면 청크 파일은 그대로 배포돼 URL 로 내려받아 읽을 수 있다(화면 목록·시나리오가
+//   전부 들어있다) — 코드 자체를 배포본에서 뺀다.
+// - IS_LOCAL: 로컬에서 프로덕션 빌드를 돌려볼 때를 대비한 런타임 확인.
+const IS_DEV_BUILD = process.env.NODE_ENV === "development";
+const IS_LOCAL = IS_DEV_BUILD
+  && typeof window !== "undefined"
   && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+
+// ✅ 개발용 화면 리뷰 허브 (/review) — 개발자·AI 협업 도구. Firestore(reviewThreads) 공유.
+// 피그마식 전 화면 보드 (/review/board) — 전 화면 + 상태별 경우의 수를 한 캔버스에 고정 배치
+//
+// 조건은 반드시 process.env.NODE_ENV 를 이 자리에 그대로 써야 한다. IS_DEV_BUILD 같은 변수로
+// 빼면 webpack 이 상수로 접지 못해 dev/ 청크가 배포본에 그대로 실린다(확인함).
+const AuthReview =
+  process.env.NODE_ENV === "development" ? lazy(() => import("../dev/AuthReview")) : null;
+const ReviewBoard =
+  process.env.NODE_ENV === "development" ? lazy(() => import("../dev/ReviewBoard")) : null;
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -245,7 +258,7 @@ function RequireAdmin({ children }) {
   //    userDoc.isAdmin 은 users 문서 필드라 본인이 써넣어 위조 가능 → 클레임에서만
   //    세워지는 adminClaim 으로 판정한다(AuthContext).
   const isAdmin = userDoc?.adminClaim === true;
-  if (!isAdmin) return <Navigate to="/admin/login" replace />;
+  if (!isAdmin) return <Navigate to={`${ADMIN_BASE}/login`} replace />;
 
   return children;
 }
@@ -381,7 +394,7 @@ function PrefetchTabChunks() {
 
   useEffect(() => {
     const p = pathname.toLowerCase();
-    if (p.startsWith("/admin") || p.startsWith("/owner")) return;
+    if (p.startsWith(ADMIN_BASE) || p.startsWith("/owner")) return;
     if (p.startsWith("/oauth/")) return;
 
     const idle =
@@ -441,65 +454,69 @@ export default function AppRoutes() {
           <Route path="/refund" element={<RefundPage />} />
         </Route>
 
-        <Route path="/admin/login" element={<AdminLoginPage />} />
+        {/* 어드민 베이스는 ADMIN_BASE 한 곳에서만 정한다(src/config/adminPath.js).
+            자식은 상대경로라 베이스를 바꿔도 여기 목록은 손댈 게 없고,
+            예전 /admin/* 은 어디에도 안 걸려 그대로 404 로 떨어진다. */}
+        <Route path={`${ADMIN_BASE}/login`} element={<AdminLoginPage />} />
 
         <Route
+          path={ADMIN_BASE}
           element={
             <RequireAdmin>
               <AdminShell />
             </RequireAdmin>
           }
         >
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+          <Route index element={<Navigate to={`${ADMIN_BASE}/dashboard`} replace />} />
+          <Route path="dashboard" element={<AdminDashboardPage />} />
 
-          <Route path="/admin/users" element={<Navigate to="/admin/users/list" replace />} />
-          <Route path="/admin/teams" element={<Navigate to="/admin/teams/list" replace />} />
-          <Route path="/admin/matches" element={<Navigate to="/admin/matches/list" replace />} />
-          <Route path="/admin/community" element={<Navigate to="/admin/community/posts" replace />} />
-          <Route path="/admin/notify" element={<Navigate to="/admin/notify/notices" replace />} />
-          <Route path="/admin/settings" element={<Navigate to="/admin/settings/admins" replace />} />
+          <Route path="users" element={<Navigate to={`${ADMIN_BASE}/users/list`} replace />} />
+          <Route path="teams" element={<Navigate to={`${ADMIN_BASE}/teams/list`} replace />} />
+          <Route path="matches" element={<Navigate to={`${ADMIN_BASE}/matches/list`} replace />} />
+          <Route path="community" element={<Navigate to={`${ADMIN_BASE}/community/posts`} replace />} />
+          <Route path="notify" element={<Navigate to={`${ADMIN_BASE}/notify/notices`} replace />} />
+          <Route path="settings" element={<Navigate to={`${ADMIN_BASE}/settings/admins`} replace />} />
 
-          <Route path="/admin/users/list" element={<AdminPlayersListPage />} />
-          <Route path="/admin/users/ranking" element={<AdminPlayersRankingPage />} />
-          <Route path="/admin/users/reports" element={<AdminUsersReportsPage />} />
-          <Route path="/admin/users/blocks" element={<AdminUsersBlocksPage />} />
+          <Route path="users/list" element={<AdminPlayersListPage />} />
+          <Route path="users/ranking" element={<AdminPlayersRankingPage />} />
+          <Route path="users/reports" element={<AdminUsersReportsPage />} />
+          <Route path="users/blocks" element={<AdminUsersBlocksPage />} />
 
-          <Route path="/admin/teams/list" element={<AdminTeamsListPage />} />
-          <Route path="/admin/teams/ranking" element={<AdminTeamsRankingPage />} />
-          <Route path="/admin/teams/reports" element={<AdminTeamsReportsPage />} />
-          <Route path="/admin/teams/blocks" element={<AdminTeamsBlocksPage />} />
+          <Route path="teams/list" element={<AdminTeamsListPage />} />
+          <Route path="teams/ranking" element={<AdminTeamsRankingPage />} />
+          <Route path="teams/reports" element={<AdminTeamsReportsPage />} />
+          <Route path="teams/blocks" element={<AdminTeamsBlocksPage />} />
 
-          <Route path="/admin/matches/list" element={<AdminMatchesListPage />} />
-          <Route path="/admin/matches/issues" element={<AdminMatchesIssuesPage />} />
+          <Route path="matches/list" element={<AdminMatchesListPage />} />
+          <Route path="matches/issues" element={<AdminMatchesIssuesPage />} />
 
-          <Route path="/admin/community/posts" element={<AdminCommunityPostsPage />} />
-          <Route path="/admin/community/posts/:postId" element={<AdminCommunityPostDetailPage />} />
-          <Route path="/admin/community/reports" element={<AdminCommunityReportsPage />} />
+          <Route path="community/posts" element={<AdminCommunityPostsPage />} />
+          <Route path="community/posts/:postId" element={<AdminCommunityPostDetailPage />} />
+          <Route path="community/reports" element={<AdminCommunityReportsPage />} />
 
-          <Route path="/admin/notify/notices" element={<AdminNotifyNoticesPage />} />
-          <Route path="/admin/notify/push" element={<AdminNotifyPushPage />} />
-          <Route path="/admin/notify/history" element={<AdminNotifyHistoryPage />} />
+          <Route path="notify/notices" element={<AdminNotifyNoticesPage />} />
+          <Route path="notify/push" element={<AdminNotifyPushPage />} />
+          <Route path="notify/history" element={<AdminNotifyHistoryPage />} />
 
-          <Route path="/admin/settings/admins" element={<AdminSettingsAdminsPage />} />
-          <Route path="/admin/settings/policy" element={<AdminSettingsPolicyPage />} />
+          <Route path="settings/admins" element={<AdminSettingsAdminsPage />} />
+          <Route path="settings/policy" element={<AdminSettingsPolicyPage />} />
 
-          <Route path="/admin/games" element={<Navigate to="/admin/games/upcoming" replace />} />
-          <Route path="/admin/games/upcoming" element={<AdminGamesUpcomingPage />} />
-          <Route path="/admin/games/past" element={<AdminGamesPastPage />} />
+          <Route path="games" element={<Navigate to={`${ADMIN_BASE}/games/upcoming`} replace />} />
+          <Route path="games/upcoming" element={<AdminGamesUpcomingPage />} />
+          <Route path="games/past" element={<AdminGamesPastPage />} />
 
           {/* 신규: 채팅 / 배너 / 앱 업데이트 */}
-          <Route path="/admin/chat" element={<Navigate to="/admin/chat/list" replace />} />
-          <Route path="/admin/chat/list" element={<AdminChatListPage />} />
-          <Route path="/admin/chat/list/:chatId" element={<AdminChatRoomDetailPage />} />
-          <Route path="/admin/banners" element={<AdminBannersPage />} />
-          <Route path="/admin/venues" element={<AdminVenuesPage />} />
-          <Route path="/admin/reservations" element={<AdminReservationsPage />} />
-          <Route path="/admin/settlements" element={<AdminSettlementsPage />} />
-          <Route path="/admin/refunds" element={<AdminRefundsPage />} />
-          <Route path="/admin/inquiries" element={<AdminInquiriesPage />} />
-          <Route path="/admin/popups" element={<AdminEventPopupsPage />} />
-          <Route path="/admin/updates" element={<AdminUpdatesPage />} />
+          <Route path="chat" element={<Navigate to={`${ADMIN_BASE}/chat/list`} replace />} />
+          <Route path="chat/list" element={<AdminChatListPage />} />
+          <Route path="chat/list/:chatId" element={<AdminChatRoomDetailPage />} />
+          <Route path="banners" element={<AdminBannersPage />} />
+          <Route path="venues" element={<AdminVenuesPage />} />
+          <Route path="reservations" element={<AdminReservationsPage />} />
+          <Route path="settlements" element={<AdminSettlementsPage />} />
+          <Route path="refunds" element={<AdminRefundsPage />} />
+          <Route path="inquiries" element={<AdminInquiriesPage />} />
+          <Route path="popups" element={<AdminEventPopupsPage />} />
+          <Route path="updates" element={<AdminUpdatesPage />} />
         </Route>
 
         <Route

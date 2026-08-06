@@ -12,6 +12,7 @@ import {
   deleteChatMessageByAdmin,
   deleteChatRoomByAdmin,
 } from "../../services/adminChatService";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -345,7 +346,7 @@ export default function AdminChatRoomDetailPage() {
     setBusy(true);
     try {
       await deleteChatRoomByAdmin({ chatId: room.id });
-      navigate("/admin/chat/list", { replace: true });
+      navigate(`${ADMIN_BASE}/chat/list`, { replace: true });
     } catch (e) {
       console.error(e);
       showAlert(e?.message || "삭제에 실패했습니다.");
@@ -380,7 +381,7 @@ export default function AdminChatRoomDetailPage() {
     return (
       <Page>
         <TopRow>
-          <BackBtn type="button" onClick={() => navigate("/admin/chat/list")}>← 목록으로</BackBtn>
+          <BackBtn type="button" onClick={() => navigate(`${ADMIN_BASE}/chat/list`)}>← 목록으로</BackBtn>
         </TopRow>
         <Card>
           <ErrorText>{err || "채팅방을 찾을 수 없습니다."}</ErrorText>
@@ -392,7 +393,7 @@ export default function AdminChatRoomDetailPage() {
   return (
     <Page>
       <TopRow>
-        <BackBtn type="button" onClick={() => navigate("/admin/chat/list")}>← 목록으로</BackBtn>
+        <BackBtn type="button" onClick={() => navigate(`${ADMIN_BASE}/chat/list`)}>← 목록으로</BackBtn>
         <ActionRow>
           <Btn type="button" $variant="warn" onClick={toggleLock} disabled={busy}>
             {room.locked ? "잠금 해제" : "방 잠금"}

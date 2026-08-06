@@ -13,6 +13,7 @@ import {
   setChatRoomLocked,
   deleteChatRoomByAdmin,
 } from "../../services/adminChatService";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -417,7 +418,7 @@ export default function AdminChatListPage() {
                     <Cell>
                       <ParticipantsRow
                         type="button"
-                        onClick={() => navigate(`/admin/chat/list/${r.id}`)}
+                        onClick={() => navigate(`${ADMIN_BASE}/chat/list/${r.id}`)}
                         title={names}
                       >
                         <NameLine>{names || "(참여자 없음)"}</NameLine>
@@ -447,7 +448,7 @@ export default function AdminChatListPage() {
                       <ActionRow>
                         <SmallBtn
                           type="button"
-                          onClick={() => navigate(`/admin/chat/list/${r.id}`)}
+                          onClick={() => navigate(`${ADMIN_BASE}/chat/list/${r.id}`)}
                         >
                           보기
                         </SmallBtn>

@@ -12,6 +12,7 @@ import {
   updateReportStatus,
 } from "../../services/userReportService";
 import { blockUser } from "../../services/adminUserBlockService";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -390,7 +391,7 @@ export default function AdminUsersReportsPage() {
       setBlockOpen(false);
       setBlockTarget(null);
       setBlockReason("");
-      navigate("/admin/users/blocks");
+      navigate(`${ADMIN_BASE}/users/blocks`);
     } catch (e) {
       console.error("[AdminUsersReportsPage] block failed", e);
       showAlert(e?.message || "차단 처리에 실패했습니다.");

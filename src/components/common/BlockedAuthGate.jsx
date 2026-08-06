@@ -8,12 +8,13 @@ import React from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import BlockedOverlay from "./BlockedOverlay";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 export default function BlockedAuthGate() {
   const { firebaseUser, userDoc } = useAuth();
   const location = useLocation();
 
-  const isAdminPath = String(location.pathname || "").startsWith("/admin");
+  const isAdminPath = String(location.pathname || "").startsWith(ADMIN_BASE);
   if (isAdminPath) return null;
 
   if (!firebaseUser?.uid) return null;

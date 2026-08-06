@@ -11,6 +11,7 @@ import { fetchPlayersAdminView } from "../../services/adminPlayersService";
 import { blockUser } from "../../services/adminUserBlockService";
 import { formatPhoneE164 } from "../../utils/phone";
 import PlayerProfilePage from "../player/PlayerProfilePage";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -579,7 +580,7 @@ export default function AdminPlayersListPage() {
       setBlockOpen(false);
       setBlockTarget(null);
       setBlockReason("");
-      navigate("/admin/users/blocks");
+      navigate(`${ADMIN_BASE}/users/blocks`);
     } catch (e) {
       console.error("[AdminPlayersListPage] block failed", e);
       showAlert(e?.message || "차단 처리에 실패했습니다.");

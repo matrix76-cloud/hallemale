@@ -15,6 +15,7 @@ import {
   setCommunityPostHidden,
   deleteCommunityPostByAdmin,
 } from "../../services/adminCommunityService";
+import { ADMIN_BASE } from "../../config/adminPath";
 
 const Page = styled.div`
   display: flex;
@@ -410,7 +411,7 @@ export default function AdminCommunityReportsPage() {
                   <Cell>
                     <TitleBtn
                       type="button"
-                      onClick={() => r.postId && navigate(`/admin/community/posts/${r.postId}`)}
+                      onClick={() => r.postId && navigate(`${ADMIN_BASE}/community/posts/${r.postId}`)}
                       title={r.postTitle}
                     >
                       <div className="name">{r.postTitle || "(제목없음)"}</div>
