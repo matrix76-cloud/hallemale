@@ -11,6 +11,7 @@ import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 import { showAlert } from "../../utils/appDialog";
 import { track } from "../../utils/analytics";
 import { FiChevronRight } from "react-icons/fi";
+import { WizardTopProgress } from "../../components/wizard/SignupWizard";
 
 // 오늘 날짜(YYYY-MM-DD) — 미래 생년월일 입력 방지용 max
 function todayYmd() {
@@ -75,6 +76,8 @@ export default function SignupBasicInfoPage() {
 
   return (
     <Wrap>
+      {/* 가입 흐름 3/3 — 동의 → 전화인증 → 기본정보 */}
+      <WizardTopProgress step={3} total={3} />
       <Inner>
         <Head>
           <Title>기본 정보 입력</Title>

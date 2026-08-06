@@ -11,6 +11,7 @@ import { saveUserConsents } from "../../services/userService";
 import { images } from "../../utils/imageAssets";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { track } from "../../utils/analytics";
+import { WizardTopProgress } from "../wizard/SignupWizard";
 
 export default function AgreementGate() {
   const navigate = useNavigate();
@@ -60,6 +61,8 @@ export default function AgreementGate() {
 
   return (
     <Wrap>
+      {/* 가입 흐름 1/3 — 동의 → 전화인증 → 기본정보. 세 화면이 같은 진행바를 쓴다. */}
+      <WizardTopProgress step={1} total={3} />
       <Inner>
         <Hero>
           <Logo

@@ -14,6 +14,7 @@ import { db } from "../../services/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { track } from "../../utils/analytics";
+import { WizardTopProgress } from "../../components/wizard/SignupWizard";
 
 const CODE_LEN = 6;
 const DEFAULT_SEC = 180; // 3분
@@ -192,6 +193,8 @@ export default function PhoneVerifyPage() {
 
   return (
     <Overlay>
+      {/* 가입 흐름 2/3 — 이 화면은 테마를 안 쓰고 라이트 고정이라 색을 직접 넘긴다 */}
+      <WizardTopProgress step={2} total={3} brand={BRAND} track={LINE} zIndex={9001} />
       {step === "phone" ? (
         <>
           <Body>
