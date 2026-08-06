@@ -843,7 +843,16 @@ export async function setSettlementVerified(id, verified) {
 export async function findOwnerByEmail(email) {
   const em = safeStr(email).toLowerCase();
   if (!em) throw new Error("이메일을 입력해주세요.");
-  const qs = await getDocs(query(collection(db, "users"), where("email", "==", em)));
+  let qs;
+  if (hasMock("userDocs")) {
+    const all = mockData("userDocs") || {};
+    const hit = Object.fromEntries(
+      Object.entries(all).filter(([, u]) => safeStr(u?.email).toLowerCase() === em),
+    );
+    qs = mockQuerySnap(hit);
+  } else {
+    qs = await getDocs(query(collection(db, "users"), where("email", "==", em)));
+  }
   if (qs.empty) return null;
   const d = qs.docs[0];
   const u = d.data() || {};
@@ -859,6 +868,11 @@ export async function findOwnerByEmail(email) {
 export async function getOwnerBrief(uid) {
   const id = safeStr(uid);
   if (!id) return null;
+  if (hasMock("userDocs")) {
+    const u0 = (mockData("userDocs") || {})[id];
+    if (!u0) return null;
+    return { uid: id, email: safeStr(u0.email), name: safeStr(u0.ownerManagerName) || safeStr(u0.name) };
+  }
   const s = await getDoc(doc(db, "users", id));
   if (!s.exists()) return null;
   const u = s.data() || {};

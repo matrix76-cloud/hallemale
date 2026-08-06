@@ -319,6 +319,16 @@ const userDocOf = (p, clubId) => ({
 
 const MOCK_USER_DOCS = {
   [MY_UID]: MOCK_USER_DOC,
+  // 구장주 계정 — 어드민 "소유 계정" 박스가 현재 소유자를 이 문서로 표시하고,
+  // 이메일로 이관 대상을 찾을 때도 여기서 찾는다.
+  mock_uid_owner: {
+    id: "mock_uid_owner", uid: "mock_uid_owner",
+    email: "owner@hallaemallae.com", ownerManagerName: "박구장", ownerManagerPhone: "01012345678",
+  },
+  mock_uid_owner2: {
+    id: "mock_uid_owner2", uid: "mock_uid_owner2",
+    email: "owner2@hallaemallae.com", ownerManagerName: "이관장", ownerManagerPhone: "01098765432",
+  },
   [OPP_LEADER_UID]: {
     id: OPP_LEADER_UID,
     uid: OPP_LEADER_UID,
@@ -459,11 +469,28 @@ const VENUE_RAW = {
     { id: "court_a", name: "A코트", type: "indoor", surface: "우레탄", pricePerHour: 40000, slotMinutes: 60, hours: courtHours() },
     { id: "court_b", name: "B코트", type: "indoor", surface: "마루", pricePerHour: 35000, slotMinutes: 60, hours: courtHours() },
   ],
+  // 어드민 심사 화면에서 볼 값 — 사업자 인증은 끝났지만 계좌는 아직 대조 전(verified:false)이라
+  // "계좌 확인 처리" 버튼이 뜬다. 확인완료 쪽은 VENUE2_RAW 에서 본다.
+  // 번호·계좌는 형식만 맞춘 가짜값 — 실존 사업자 정보를 넣지 말 것.
+  business: {
+    bizName: "더베이스스포츠", ownerName: "박구장", bizNo: "123-45-67890",
+    openDate: "2021-03-02", taxType: "general", licenseUrl: "",
+    status: "verified", ntsChecked: true, rejectReason: "",
+  },
+  settlement: {
+    bank: "국민", account: "12345601234567", holder: "박구장",
+    taxEmail: "tax@example.com", verified: false,
+  },
+  salesReport: { number: "2026-서울용산-01234", certUrl: "", exempt: false, status: "submitted" },
 };
 
 const VENUE2_RAW = {
   ...VENUE_RAW,
   ownerUid: "mock_uid_owner2",
+  // 계좌 대조까지 끝난 구장 — "확인 해제" 버튼과 확인완료 표시를 본다.
+  business: { ...VENUE_RAW.business, bizName: "슛포인트", bizNo: "222-33-44444", taxType: "simple" },
+  settlement: { bank: "카카오뱅크", account: "3333012345678", holder: "이관장", taxEmail: "tax2@example.com", verified: true },
+  salesReport: { number: "", certUrl: "", exempt: true, status: "none" },
   name: "마포 슛포인트 체육관",
   displayName: "마포 슛포인트 체육관",
   address: "서울 마포구 월드컵로 200",

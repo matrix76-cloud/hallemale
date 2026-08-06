@@ -123,7 +123,6 @@ const EXTRA_FRAMES = {
 
   // 구장주 — 심사 단계(승인 전 상태는 기본 세션으로 볼 수 없다) + 구장 등록 8단계 위저드
   owner: [
-    { key: "sc-owner-noven",    forScreen: "owner-onboarding", name: "구장 미등록(온보딩)", path: "/owner/onboarding", scenario: "owner-noven" },
     { key: "sc-owner-pending",  forScreen: "owner-pending",    name: "심사 대기",          path: "/owner/pending",    scenario: "owner-pending" },
     { key: "sc-owner-rejected", forScreen: "owner-pending",    name: "심사 반려",          path: "/owner/pending",    scenario: "owner-rejected" },
 
@@ -149,13 +148,9 @@ const EXTRA_FRAMES = {
     // 위 기본 프레임이 개인·사업자 버전이므로 여기엔 학교·기관만 얹는다.
     // ⚠️ 이름에 " · " 를 넣지 말 것 — 상세 리뷰가 앞부분을 잘라내(AuthReview 의 라벨 정리)
     //    "학교 · 온보딩⑨연락처" 가 "온보딩⑨연락처" 로 보여 주체 구분이 사라진다.
-    { key: "sc-onb-school-1", forScreen: "owner-onboarding", name: "온보딩①시작(학교)",    path: "/owner/onboarding?step=intro",   scenario: "owner-noven-school" },
-    { key: "sc-onb-school-2", forScreen: "owner-onboarding", name: "온보딩②구장명(학교)",  path: "/owner/onboarding?step=name",    scenario: "owner-noven-school" },
     { key: "sc-onb-school-6", forScreen: "owner-onboarding", name: "온보딩⑥연락처(학교)",  path: "/owner/onboarding?step=contact", scenario: "owner-noven-school" },
     { key: "sc-onb-school-7", forScreen: "owner-onboarding", name: "온보딩⑦학교확인(학교)",path: "/owner/onboarding?step=verify",  scenario: "owner-noven-school" },
     { key: "sc-onb-school-8", forScreen: "owner-onboarding", name: "온보딩⑧최종확인(학교)",path: "/owner/onboarding?step=review",  scenario: "owner-noven-school" },
-    { key: "sc-onb-org-1",    forScreen: "owner-onboarding", name: "온보딩①시작(기관)",    path: "/owner/onboarding?step=intro",   scenario: "owner-noven-org" },
-    { key: "sc-onb-org-2",    forScreen: "owner-onboarding", name: "온보딩②구장명(기관)",  path: "/owner/onboarding?step=name",    scenario: "owner-noven-org" },
     { key: "sc-onb-org-6",    forScreen: "owner-onboarding", name: "온보딩⑥연락처(기관)",  path: "/owner/onboarding?step=contact", scenario: "owner-noven-org" },
     { key: "sc-onb-org-7",    forScreen: "owner-onboarding", name: "온보딩⑦기관확인(기관)",path: "/owner/onboarding?step=verify",  scenario: "owner-noven-org" },
     { key: "sc-onb-org-8",    forScreen: "owner-onboarding", name: "온보딩⑧최종확인(기관)",path: "/owner/onboarding?step=review",  scenario: "owner-noven-org" },
