@@ -194,6 +194,74 @@ export async function fetchAdminMatchRequests({
   return { rows: display, filtered };
 }
 
+/**
+ * 어드민 - 매칭 분쟁/신고 목록.
+ *
+ * 새 컬렉션을 만들지 않는다. 분쟁은 이미 두 곳에 기록되고 있다:
+ *   · 결과 이의제기 — disputeMatchResult 가 match_requests 에 disputeCount·disputedAt 을 남긴다.
+ *     (결과를 초기화하고 재입력을 열어주므로, 이의가 반복되는 경기 = 합의가 안 되는 경기다)
+ *   · 노쇼 — 구장주가 예약을 noshow 로 처리하면 venueReservations.status 에 남는다.
+ *     매칭 예약(matchId 보유)만 매칭 분쟁으로 본다.
+ *
+ * 인덱스를 늘리지 않으려고 서버 where 대신 최근 문서를 받아 메모리에서 거른다
+ * (이 서비스의 다른 조회와 같은 방식).
+ */
+export async function fetchMatchIssues({ limitCount = 300 } = {}) {
+  // ── 결과 이의제기 ──
+  const mSnap = hasMock("myMatchDocs")
+    ? mockQuerySnap(mockData("myMatchDocs"))
+    : await getDocs(query(collection(db, "match_requests"), orderBy("createdAt", "desc"), limit(limitCount)));
+
+  const disputes = [];
+  (mSnap?.docs || []).forEach((d) => {
+    const raw = d.data() || {};
+    const count = Number(raw?.disputeCount || 0);
+    if (count <= 0) return;
+    const m = mapDoc(d);
+    disputes.push({
+      kind: "dispute",
+      id: m.id,
+      count,
+      at: toDate(raw?.disputedAt) || m.updatedAt,
+      status: m.status,
+      teams: `${m.actor.name} vs ${m.target.name}`,
+      place: m.place,
+      scheduledAt: m.scheduledAt,
+      // 이의 후 결과가 다시 채워졌으면 합의된 것, 비어 있으면 아직 재입력 대기다
+      resolved: !!toStr(raw?.resultState),
+      score: m.actorScore != null && m.targetScore != null ? `${m.actorScore} : ${m.targetScore}` : "-",
+    });
+  });
+
+  // ── 노쇼(매칭 예약) ──
+  const rSnap = hasMock("venueReservationDocs")
+    ? mockQuerySnap(mockData("venueReservationDocs"))
+    : await getDocs(query(collection(db, "venueReservations"), orderBy("createdAt", "desc"), limit(limitCount)));
+
+  const noshows = [];
+  (rSnap?.docs || []).forEach((d) => {
+    const raw = d.data() || {};
+    if (toStr(raw?.status) !== "noshow") return;
+    if (!toStr(raw?.matchId)) return; // 일반 예약 노쇼는 구장 쪽 소관
+    noshows.push({
+      kind: "noshow",
+      id: d.id,
+      matchId: toStr(raw.matchId),
+      at: toDate(raw?.updatedAt) || toDate(raw?.createdAt),
+      teams: toStr(raw?.teamName) || toStr(raw?.userName) || "-",
+      place: toStr(raw?.venueName),
+      when: `${toStr(raw?.date)} ${toStr(raw?.startTime)}~${toStr(raw?.endTime)}`.trim(),
+      reservationCode: toStr(raw?.reservationCode),
+      price: Number(raw?.price || 0),
+    });
+  });
+
+  const byAt = (a, b) => (b.at?.getTime?.() || 0) - (a.at?.getTime?.() || 0);
+  disputes.sort(byAt);
+  noshows.sort(byAt);
+  return { disputes, noshows };
+}
+
 export const STATUS_LABEL = {
   pending: "신청 대기",
   accepted: "수락됨",
