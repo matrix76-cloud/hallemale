@@ -2,6 +2,7 @@
 // src/pages/owner/OwnerHomePage.jsx
 // 예약관리 — 주간 캘린더 + 시간대별 슬롯 + 요약 + 승인/반려 + 시간막기 (명세서 3)
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { LuChevronLeft, LuChevronRight, LuLock, LuHourglass, LuCheck, LuPhone } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
@@ -103,6 +104,7 @@ const ChooseBtn=styled.button`flex:1;display:flex;flex-direction:column;align-it
 const RecurBadge=styled.span`display:inline-flex;align-items:center;gap:3px;border:1px solid ${C.violet300};color:${C.violet600};border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;`;
 
 export default function OwnerHomePage(){
+  const navigate=useNavigate();
   const {venue,loading:ownerLoading,refresh:ownerRefresh}=useOwner();
   const {showToast}=useUIActions()||{};
   const toast=(m)=>{if(showToast)showToast({message:m});};
@@ -242,6 +244,16 @@ export default function OwnerHomePage(){
   return (
     <Page>
       <ScreenTitle>예약관리</ScreenTitle>
+
+      {/* 정산 계좌는 승인 후에 받는다(온보딩에서 뺐다) → 승인 직후 여기서 한 번 붙잡는다.
+          계좌가 없으면 예약은 받아도 돈을 보낼 방법이 없다. */}
+      {!venue.settlement?.account && (
+        <Card>
+          <SecTitle>정산 계좌를 등록해주세요</SecTitle>
+          <Caption>승인이 끝났어요. 계좌를 등록해야 예약 대금을 지급받을 수 있어요. 내정보 탭에서 1분이면 끝나요.</Caption>
+          <PrimaryBtn type="button" onClick={()=>navigate("/owner/my")}>지금 등록하기</PrimaryBtn>
+        </Card>
+      )}
 
       <ChipRow>
         {courts.map(c=>{const cnt=pendingAll.filter(r=>r.courtId===c.id).length;return(

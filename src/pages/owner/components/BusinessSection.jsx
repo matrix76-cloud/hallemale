@@ -1,14 +1,14 @@
 /* eslint-disable */
 // src/pages/owner/components/BusinessSection.jsx
-// 주체 확인 (신뢰 배지) + 정산 계좌 — 구장정보 탭 하단
+// 주체 확인 (신뢰 배지) + 정산 계좌 + 통신판매업 신고 — 내정보(OwnerMyPage) 탭 하단
 // ※ 정산 계좌는 앱내 결제(PG) 도입으로 부활. 플랫폼이 집금해 이 계좌로 지급한다(모델 A).
 // ※ 운영 주체가 학교·기관이면 사업자등록증·개업일자·과세유형이 존재하지 않는다.
 //    번호 대신 확인 서류를 받고 어드민이 담당자 연락으로 확인한다.
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import { LuShieldCheck, LuUpload, LuCircleCheck, LuLandmark } from "react-icons/lu";
+import { LuShieldCheck, LuUpload, LuCircleCheck, LuLandmark, LuReceipt } from "react-icons/lu";
 import { uploadVenueImage } from "../../../services/venuesService";
-import { submitBusinessVerification, isValidBizNo, formatBizNo, verifyBusinessOnline, saveSettlementAccount, SETTLEMENT_BANKS, searchSchools } from "../../../services/ownerVenueService";
+import { submitBusinessVerification, isValidBizNo, formatBizNo, verifyBusinessOnline, saveSettlementAccount, saveSalesReport, SETTLEMENT_BANKS, searchSchools } from "../../../services/ownerVenueService";
 import { ownerTypeOption } from "../../../constants/ownerType";
 import { useUIActions } from "../../../hooks/useUI";
 import { Card, SecTitle, Caption, Input, PrimaryBtn, StatBadge, C } from "./od";
@@ -54,12 +54,16 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
   const needsBizNo = opt.needsBizNo;
 
   const st = venue.settlement || {};
+  const sr = venue.salesReport || {};
 
   const [biz, setBiz] = useState({ bizNo: b.bizNo || "", bizName: b.bizName || "", ownerName: b.ownerName || "", openDate: b.openDate || "", taxType: b.taxType || "simple", licenseUrl: b.licenseUrl || "" });
-  const [acct, setAcct] = useState({ bank: st.bank || "", account: st.account || "", holder: st.holder || "" });
+  const [acct, setAcct] = useState({ bank: st.bank || "", account: st.account || "", holder: st.holder || "", taxEmail: st.taxEmail || "" });
+  const [sales, setSales] = useState({ number: sr.number || "", certUrl: sr.certUrl || "", exempt: sr.exempt === true });
   const [editAcct, setEditAcct] = useState(false);
+  const [editSales, setEditSales] = useState(false);
   const [busy, setBusy] = useState("");
   const licRef = React.useRef(null);
+  const certRef = React.useRef(null);
 
   // ── 학교 검색(NEIS) ──
   // 학교는 사업자등록번호가 없어 국세청 대조를 못 한다. 대신 실재 학교를 골라 대표번호를
@@ -87,8 +91,10 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
 
   useEffect(() => {
     setBiz({ bizNo: b.bizNo || "", bizName: b.bizName || "", ownerName: b.ownerName || "", openDate: b.openDate || "", taxType: b.taxType || "simple", licenseUrl: b.licenseUrl || "" });
-    setAcct({ bank: st.bank || "", account: st.account || "", holder: st.holder || "" });
+    setAcct({ bank: st.bank || "", account: st.account || "", holder: st.holder || "", taxEmail: st.taxEmail || "" });
+    setSales({ number: sr.number || "", certUrl: sr.certUrl || "", exempt: sr.exempt === true });
     setEditAcct(false);
+    setEditSales(false);
     setPicked(b.school || null);
     setSchoolQ("");
     setSchoolHits(null);
@@ -106,7 +112,20 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
     } finally { setBusy(""); }
   };
 
+  const submitSales = async () => {
+    setBusy("sales");
+    try {
+      await saveSalesReport(venue.id, sales);
+      await refresh();
+      setEditSales(false);
+      toast(sales.exempt ? "면제 대상으로 저장했어요." : "통신판매업 신고번호를 저장했어요.");
+    } catch (e) {
+      toast(e?.message || "저장에 실패했어요.");
+    } finally { setBusy(""); }
+  };
+
   const hasAcct = !!(st.bank && st.account);
+  const hasSales = !!(sr.number || sr.exempt);
   // 예금주가 사업자 대표자와 다르면 지급이 반려될 수 있어 미리 경고한다(막지는 않는다 —
   // 법인 계좌처럼 상호로 된 계좌도 있어서).
   const holderMismatch = !!(acct.holder && b.ownerName && acct.holder !== b.ownerName && acct.holder !== b.bizName);
@@ -268,6 +287,10 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
             <Info><span>은행</span><b>{st.bank}</b></Info>
             <Info><span>계좌번호</span><b>{st.account}</b></Info>
             <Info><span>예금주</span><b>{st.holder}</b></Info>
+            {st.taxEmail && <Info><span>세금계산서</span><b>{st.taxEmail}</b></Info>}
+            {st.verified
+              ? <Done><LuCircleCheck size={16} /> 예금주 확인 완료</Done>
+              : <Caption>첫 지급 전에 관리자가 예금주를 대조해요. 확인 전에도 예약·정산 집계는 그대로 쌓여요.</Caption>}
             <Caption>앱에서 결제된 금액에서 플랫폼 이용료 {PLATFORM_FEE_LABEL}를 뺀 금액을 이 계좌로 지급해요. 입점비·월정액은 없어요.</Caption>
             <PrimaryBtn type="button" onClick={() => setEditAcct(true)}>계좌 변경</PrimaryBtn>
           </>
@@ -291,15 +314,64 @@ export default function BusinessSection({ venue, refresh, ownerType }) {
             <Field><Lbl>예금주</Lbl>
               <Input value={acct.holder} onChange={(e) => setAcct({ ...acct, holder: e.target.value })} placeholder="홍길동" />
             </Field>
+            {/* 정산 명세·세금계산서를 보낼 곳. 로그인 이메일과 다른 경우가 많아 따로 받는다. */}
+            <Field><Lbl>세금계산서 받을 이메일</Lbl>
+              <Input value={acct.taxEmail} onChange={(e) => setAcct({ ...acct, taxEmail: e.target.value })} placeholder="tax@example.com" inputMode="email" />
+            </Field>
             {holderMismatch && (
               <Warn>예금주가 {opt.personLabel}({b.ownerName})과 달라요. 명의가 다르면 지급이 보류될 수 있어요.</Warn>
             )}
+            {st.verified && <Caption>계좌를 바꾸면 예금주 확인을 다시 받아요.</Caption>}
             <PrimaryBtn type="button" disabled={busy === "acct"} onClick={submitAcct}>
               {busy === "acct" ? "저장 중…" : "계좌 저장"}
             </PrimaryBtn>
           </>
         )}
       </Card>
+
+      {/* 통신판매업 신고 — 구장 상세의 판매자 정보에 신고번호로 노출된다(전자상거래법 표시).
+          학교·기관은 통신판매업 신고 대상이 아니라 사업자 주체에게만 묻는다. */}
+      {needsBizNo && (
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <SecTitle><LuReceipt size={16} /> 통신판매업 신고</SecTitle>
+            {hasSales && <StatBadge $tone="done">{sr.exempt ? "면제" : "등록완료"}</StatBadge>}
+          </div>
+
+          {hasSales && !editSales ? (
+            <>
+              {sr.exempt
+                ? <Caption>간이과세자 면제 대상으로 등록돼 있어요.</Caption>
+                : <Info><span>신고번호</span><b>{sr.number}</b></Info>}
+              <PrimaryBtn type="button" onClick={() => setEditSales(true)}>정보 변경</PrimaryBtn>
+            </>
+          ) : (
+            <>
+              <Caption>구장 상세의 판매자 정보에 표시돼요. 시·군·구청에 신고하고 받은 번호를 적어주세요.</Caption>
+              <Seg>
+                <SegBtn $on={!sales.exempt} onClick={() => setSales({ ...sales, exempt: false })}>신고번호 있음</SegBtn>
+                <SegBtn $on={sales.exempt} onClick={() => setSales({ ...sales, exempt: true })}>면제 대상</SegBtn>
+              </Seg>
+              {sales.exempt ? (
+                <Caption>직전 연도 매출이 기준 미만인 간이과세자는 신고 의무가 없어요. 일반과세자로 바뀌면 신고 후 등록해주세요.</Caption>
+              ) : (
+                <>
+                  <Field><Lbl>신고번호</Lbl>
+                    <Input value={sales.number} onChange={(e) => setSales({ ...sales, number: e.target.value })} placeholder="예: 2026-서울강남-01234" />
+                  </Field>
+                  <Field><Lbl>신고증 사본 <span style={{ fontWeight: 500, color: C.slate400 }}>(선택)</span></Lbl>
+                    {sales.certUrl ? <Done><LuCircleCheck size={16} /> 첨부 완료</Done> : <Upload type="button" onClick={() => certRef.current?.click()}><LuUpload size={15} /> 파일 첨부</Upload>}
+                    <Hidden ref={certRef} type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0], setSales, "certUrl")} />
+                  </Field>
+                </>
+              )}
+              <PrimaryBtn type="button" disabled={busy === "sales" || (!sales.exempt && !sales.number.trim())} onClick={submitSales}>
+                {busy === "sales" ? "저장 중…" : "저장"}
+              </PrimaryBtn>
+            </>
+          )}
+        </Card>
+      )}
     </>
   );
 }

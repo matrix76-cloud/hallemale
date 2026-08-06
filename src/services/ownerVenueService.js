@@ -402,12 +402,14 @@ export function venueRow(d) {
       exempt: data.salesReport?.exempt === true,
       status: ["submitted"].includes(data.salesReport?.status) ? "submitted" : "none",
     },
-    // 정산 계좌
+    // 정산 계좌 (taxEmail = 세금계산서·정산 명세 받을 주소. 로그인 이메일과 다를 수 있다)
     settlement: {
       bank: safeStr(data.settlement?.bank),
       account: safeStr(data.settlement?.account),
       holder: safeStr(data.settlement?.holder),
+      taxEmail: safeStr(data.settlement?.taxEmail),
       verified: data.settlement?.verified === true,
+      verifiedAt: toDate(data.settlement?.verifiedAt),
     },
 
     createdAt: toDate(data.createdAt),
@@ -801,19 +803,97 @@ export async function saveSalesReport(id, { number, certUrl, exempt } = {}) {
  *    하지 않고 "확인됨"으로 표시하는 것이라 실제로 돈이 나가는 지금 구조에서는 위험하다.
  *    계좌 실명확인은 지급대행 신청 후 붙이고, 그전까지는 어드민이 첫 지급 때 대조한다.
  */
-export async function saveSettlementAccount(id, { bank, account, holder } = {}) {
+export async function saveSettlementAccount(id, { bank, account, holder, taxEmail } = {}) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
   const b = safeStr(bank);
   const acc = safeStr(account).replace(/[^0-9]/g, "");
   const h = safeStr(holder);
+  const mail = safeStr(taxEmail).toLowerCase();
   if (!b) throw new Error("은행을 선택해주세요.");
   if (acc.length < 10 || acc.length > 16) throw new Error("계좌번호를 정확히 입력해주세요.");
   if (!h) throw new Error("예금주를 입력해주세요.");
+  // 세금계산서·정산 명세를 보낼 곳. 계좌만 받고 보낼 곳이 없으면 정산 때 매번 사람이 물어야 한다.
+  if (!mail) throw new Error("세금계산서 받을 이메일을 입력해주세요.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw new Error("이메일 형식을 확인해주세요.");
+  // 계좌가 바뀌면 이전 실명확인은 무효다 — verified 를 반드시 다시 false 로 떨어뜨린다.
   await updateDoc(doc(ownerDb, "venues", vid), {
-    settlement: { bank: b, account: acc, holder: h, verified: false },
+    settlement: { bank: b, account: acc, holder: h, taxEmail: mail, verified: false, verifiedAt: null },
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * 어드민: 정산 계좌 실명확인 처리.
+ * 지급대행(계좌 실명조회 API)이 붙기 전까지는 어드민이 통장 사본·예금주를 눈으로 대조하고
+ * 여기서 켠다. 이게 없으면 verified 를 켤 수 있는 경로가 아예 없어 계좌가 영원히 미확인이다.
+ */
+export async function setSettlementVerified(id, verified) {
+  const vid = safeStr(id);
+  if (!vid) throw new Error("id가 비어있습니다.");
+  const ok = verified === true;
+  await updateDoc(doc(db, "venues", vid), {
+    "settlement.verified": ok,
+    "settlement.verifiedAt": ok ? serverTimestamp() : null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** 어드민: 구장주 계정 조회 (이관 대상 확인용). 이메일은 users 문서에 소문자로 저장된다. */
+export async function findOwnerByEmail(email) {
+  const em = safeStr(email).toLowerCase();
+  if (!em) throw new Error("이메일을 입력해주세요.");
+  const qs = await getDocs(query(collection(db, "users"), where("email", "==", em)));
+  if (qs.empty) return null;
+  const d = qs.docs[0];
+  const u = d.data() || {};
+  return {
+    uid: d.id,
+    email: safeStr(u.email),
+    name: safeStr(u.ownerManagerName) || safeStr(u.name) || safeStr(u.nickname),
+    phone: safeStr(u.ownerManagerPhone),
+  };
+}
+
+/** 어드민: uid 로 계정 요약 조회 (현재 소유자 표시용) */
+export async function getOwnerBrief(uid) {
+  const id = safeStr(uid);
+  if (!id) return null;
+  const s = await getDoc(doc(db, "users", id));
+  if (!s.exists()) return null;
+  const u = s.data() || {};
+  return { uid: id, email: safeStr(u.email), name: safeStr(u.ownerManagerName) || safeStr(u.name) };
+}
+
+/**
+ * 어드민: 구장 소유 계정 이관.
+ * 학교 담당 선생님 인사이동·법인 대표 변경처럼 "시설은 그대로인데 사람만 바뀌는" 경우,
+ * 예약·정산 이력을 살린 채 계정만 넘긴다. 새로 등록하면 예약 이력이 끊긴다.
+ * 이전 소유자는 이 구장에 접근할 수 없게 되므로 되돌릴 땐 반대로 한 번 더 이관해야 한다.
+ */
+export async function transferVenueOwner(id, newOwnerUid) {
+  const vid = safeStr(id);
+  const nextUid = safeStr(newOwnerUid);
+  if (!vid) throw new Error("id가 비어있습니다.");
+  if (!nextUid) throw new Error("넘겨받을 계정을 선택해주세요.");
+
+  const target = await getDoc(doc(db, "users", nextUid));
+  if (!target.exists()) throw new Error("존재하지 않는 계정이에요.");
+
+  const vs = await getDoc(doc(db, "venues", vid));
+  if (!vs.exists()) throw new Error("구장을 찾을 수 없어요.");
+  const prevUid = safeStr(vs.data()?.ownerUid);
+  if (prevUid === nextUid) throw new Error("이미 이 계정이 소유하고 있어요.");
+
+  await updateDoc(doc(db, "venues", vid), {
+    ownerUid: nextUid,
+    // 누가 언제 넘겼는지 남긴다 — 소유자가 바뀌면 정산 지급 대상도 바뀌므로 추적이 필요하다.
+    "ownerTransfer.from": prevUid,
+    "ownerTransfer.to": nextUid,
+    "ownerTransfer.at": serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return { from: prevUid, to: nextUid };
 }
 
 /** 어드민: 사업자 인증 승인/반려 */

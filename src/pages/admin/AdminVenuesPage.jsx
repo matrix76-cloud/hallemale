@@ -11,6 +11,10 @@ import {
   listAllVenuesAdmin,
   setVenueStatus,
   setBusinessStatus,
+  setSettlementVerified,
+  findOwnerByEmail,
+  getOwnerBrief,
+  transferVenueOwner,
   updateMyVenue,
   defaultCourtHours,
   FACILITY_OPTIONS,
@@ -326,6 +330,55 @@ export default function AdminVenuesPage() {
     if (ok) setDetail(null);
   };
 
+  // ── 소유 계정 이관 (담당자 인사이동·대표 변경) ──
+  // 새로 등록시키면 예약·정산 이력이 끊긴다. 구장은 그대로 두고 계정만 넘긴다.
+  const [ownerNow, setOwnerNow] = useState(null);   // 현재 소유자 요약
+  const [xferEmail, setXferEmail] = useState("");
+  const [xferHit, setXferHit] = useState(undefined); // undefined=검색 전, null=없음
+  const handleOwnerLookup = async () => {
+    setBusy(true);
+    try { setXferHit(await findOwnerByEmail(xferEmail)); }
+    catch (e) { showAlert(e?.message || "조회 실패"); }
+    finally { setBusy(false); }
+  };
+  const handleTransfer = async () => {
+    if (!xferHit?.uid) return;
+    if (!await showConfirm(
+      `"${form.name}" 구장을 아래 계정으로 넘길까요?\n\n${xferHit.email}${xferHit.name ? ` (${xferHit.name})` : ""}\n\n` +
+      `이전 담당자는 이 구장에 접근할 수 없게 되고, 정산금도 새 계정 기준으로 지급됩니다.`
+    )) return;
+    setBusy(true);
+    try {
+      await transferVenueOwner(form.id, xferHit.uid);
+      await load();
+      setForm((f) => (f.id === form.id ? { ...f, ownerUid: xferHit.uid } : f));
+      setOwnerNow({ uid: xferHit.uid, email: xferHit.email, name: xferHit.name });
+      setXferEmail(""); setXferHit(undefined);
+      showAlert("소유 계정을 이관했어요.");
+    } catch (e) {
+      showAlert(e?.message || "이관 실패");
+    } finally { setBusy(false); }
+  };
+
+  // 정산 계좌 실명확인 — 지급대행(계좌 실명조회)이 붙기 전까지 어드민이 통장 사본·예금주를
+  // 눈으로 대조하고 켠다. 계좌가 바뀌면 저장 시 자동으로 다시 미확인으로 떨어진다.
+  const handleAcctVerify = async (row, next) => {
+    const st = row.settlement || {};
+    if (next && !await showConfirm(
+      `"${row.name}" 정산 계좌를 확인 처리할까요?\n\n${st.bank} ${st.account}\n예금주 ${st.holder}\n\n예금주가 ${row.business?.ownerName || row.ownerName || "-"}(대표자)·${row.business?.bizName || row.bizName || "-"}(상호)와 맞는지 대조 후 눌러주세요.`
+    )) return;
+    setBusy(true);
+    try {
+      await setSettlementVerified(row.id, next);
+      await load();
+      setForm((f) => (f.id === row.id
+        ? { ...f, settlement: { ...(f.settlement || {}), verified: next } }
+        : f));
+    } catch (e) {
+      showAlert(e?.message || "처리 실패");
+    } finally { setBusy(false); }
+  };
+
   const handleBizStatus = async (row, status) => {
     let reason = "";
     const vt = ownerTypeOption(row.business?.ownerType || row.ownerType).verifyTitle;
@@ -449,7 +502,12 @@ export default function AdminVenuesPage() {
       ownerName: row.ownerName || "", contactPhone: row.contactPhone || "",
       bizName: row.bizName || "", bizNo: row.bizNo || "",
       business: row.business || null,
+      settlement: row.settlement || null,
+      salesReport: row.salesReport || null,
     });
+    // 소유 계정 표시 — 이관 UI 에서 "지금 누구 것인지"가 없으면 잘못 넘긴다.
+    setOwnerNow(null); setXferEmail(""); setXferHit(undefined);
+    if (row.ownerUid) getOwnerBrief(row.ownerUid).then(setOwnerNow).catch(() => {});
     setPhotos(
       row.photos?.length
         ? row.photos.map((url, i) => ({ url, storagePath: row.storagePaths?.[i] || "" }))
@@ -720,6 +778,86 @@ export default function AdminVenuesPage() {
                     </BizBox>
                     );
                   })()}
+
+                  {/* 소유 계정 이관 — 담당자가 바뀌어도 예약·정산 이력을 살린 채 계정만 넘긴다 */}
+                  {form.ownerUid && (
+                    <BizBox>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <b style={{ fontSize: 13 }}>소유 계정</b>
+                      </div>
+                      {/* 이메일 없는 계정(소셜 가입 등)도 있어 이름·uid 까지 폴백한다 */}
+                      <DRow><b>현재</b><span>
+                        {[ownerNow?.email, ownerNow?.name && `(${ownerNow.name})`].filter(Boolean).join(" ") || form.ownerUid}
+                      </span></DRow>
+                      <DRow><b>넘길 계정</b><span style={{ display: "flex", gap: 6, flex: 1 }}>
+                        <FInput
+                          value={xferEmail}
+                          onChange={(e) => { setXferEmail(e.target.value); setXferHit(undefined); }}
+                          placeholder="새 담당자 계정 이메일"
+                          style={{ flex: 1 }}
+                        />
+                        <SBtn onClick={handleOwnerLookup} disabled={busy || xferEmail.trim().length < 5}>찾기</SBtn>
+                      </span></DRow>
+                      {xferHit === null && <DRow><b> </b><span style={{ color: "#b91c1c" }}>그 이메일로 가입한 계정이 없어요. 새 담당자가 먼저 구장주 가입을 해야 해요.</span></DRow>}
+                      {xferHit && (
+                        <>
+                          <DRow><b>확인</b><span style={{ fontWeight: 700 }}>{xferHit.email}{xferHit.name ? ` (${xferHit.name})` : ""}</span></DRow>
+                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                            <SBtn $primary onClick={handleTransfer} disabled={busy || xferHit.uid === form.ownerUid}>
+                              {xferHit.uid === form.ownerUid ? "이미 소유 중" : "이 계정으로 이관"}
+                            </SBtn>
+                          </div>
+                        </>
+                      )}
+                    </BizBox>
+                  )}
+
+                  {/* 정산 계좌 — 지급 전 예금주 대조. 이 화면 말고는 verified 를 켤 곳이 없다. */}
+                  {form.ownerUid && (
+                    <BizBox>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <b style={{ fontSize: 13 }}>정산 계좌</b>
+                        <BizStatus $s={form.settlement?.verified ? "verified" : form.settlement?.bank ? "pending" : "none"}>
+                          {form.settlement?.verified ? "확인완료" : form.settlement?.bank ? "미확인" : "미등록"}
+                        </BizStatus>
+                      </div>
+                      {form.settlement?.bank ? (
+                        <>
+                          <DRow><b>은행</b><span>{form.settlement.bank}</span></DRow>
+                          <DRow><b>계좌번호</b><span>{form.settlement.account}</span></DRow>
+                          <DRow><b>예금주</b><span style={{ fontWeight: 700 }}>{form.settlement.holder}</span></DRow>
+                          <DRow><b>세금계산서</b><span>{form.settlement.taxEmail || "-"}</span></DRow>
+                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                            {form.settlement.verified ? (
+                              <SBtn onClick={() => handleAcctVerify({ id: form.id, name: form.name, settlement: form.settlement, business: form.business, ownerName: form.ownerName, bizName: form.bizName }, false)} disabled={busy}>확인 해제</SBtn>
+                            ) : (
+                              <SBtn $primary onClick={() => handleAcctVerify({ id: form.id, name: form.name, settlement: form.settlement, business: form.business, ownerName: form.ownerName, bizName: form.bizName }, true)} disabled={busy}>계좌 확인 처리</SBtn>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <DRow><b>안내</b><span style={{ color: "#b45309" }}>구장주가 아직 정산 계좌를 등록하지 않았어요. 지급 불가 상태입니다.</span></DRow>
+                      )}
+                    </BizBox>
+                  )}
+
+                  {/* 통신판매업 신고 — 구장 상세의 판매자 정보에 노출되는 값 */}
+                  {form.ownerUid && ownerTypeOption(form.business?.ownerType || form.ownerType).needsBizNo && (
+                    <BizBox>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <b style={{ fontSize: 13 }}>통신판매업 신고</b>
+                        <BizStatus $s={form.salesReport?.number || form.salesReport?.exempt ? "verified" : "none"}>
+                          {form.salesReport?.exempt ? "면제" : form.salesReport?.number ? "등록" : "미등록"}
+                        </BizStatus>
+                      </div>
+                      {form.salesReport?.exempt
+                        ? <DRow><b>사유</b><span>간이과세자 면제 대상으로 신고</span></DRow>
+                        : <DRow><b>신고번호</b><span>{form.salesReport?.number || "-"}</span></DRow>}
+                      {form.salesReport?.certUrl && (
+                        <DRow><b>신고증</b><span><a href={form.salesReport.certUrl} target="_blank" rel="noreferrer" style={{ color: "#4f46e5" }}>사본 보기</a></span></DRow>
+                      )}
+                    </BizBox>
+                  )}
                 </>
               )}
             </TabBody>

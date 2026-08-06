@@ -75,8 +75,19 @@ export default function OwnerSettlementPage() {
       {!hasAcct && (
         <Card>
           <SecTitle><LuLandmark size={16} /> 정산 계좌를 등록해주세요</SecTitle>
-          <Caption>계좌가 없으면 정산금을 보내드릴 수 없어요. 구장정보 탭에서 등록해주세요.</Caption>
-          <PrimaryBtn type="button" onClick={() => navigate("/owner/venue")}>구장정보에서 등록하기</PrimaryBtn>
+          <Caption>계좌가 없으면 정산금을 보내드릴 수 없어요. 내정보 탭에서 등록해주세요.</Caption>
+          <PrimaryBtn type="button" onClick={() => navigate("/owner/my")}>내정보에서 등록하기</PrimaryBtn>
+        </Card>
+      )}
+
+      {/* 계좌는 있는데 예금주 대조 전 — 첫 지급이 밀리는 이유를 미리 알려준다 */}
+      {hasAcct && !acct.verified && (
+        <Card>
+          <SecTitle><LuLandmark size={16} /> 예금주 확인 중이에요</SecTitle>
+          <Caption>
+            첫 지급 전에 등록하신 {acct.bank} {acct.account} · {acct.holder} 계좌의 예금주를 대조해요.
+            정산금 집계는 그대로 쌓이고, 확인이 끝나면 지급 일정에 맞춰 나가요.
+          </Caption>
         </Card>
       )}
 
