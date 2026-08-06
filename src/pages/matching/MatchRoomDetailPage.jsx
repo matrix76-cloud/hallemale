@@ -3150,7 +3150,7 @@ export default function MatchRoomDetailPage() {
   const initOnceRef = useRef(false);
 
   // 구장 정하기 방식 선택 게이트: "none"(미선택) → 게이트 노출 → "direct"(직접 입력) 선택 시 지도 흐름.
-  // ("제휴구장 예약"은 준비중 — 결제/예약 백엔드 미구현)
+  // ("제휴구장 예약"을 고르면 /venues?match=<roomId> 로 넘어가 예약·분담결제로 이어진다)
   // ?venueMode=direct 로 직접입력 단계부터 열 수 있다 (리뷰 보드가 분기별 화면을 프레임으로 띄운다).
   const [venueMode, setVenueMode] = useState(() => {
     try {
@@ -5829,18 +5829,16 @@ export default function MatchRoomDetailPage() {
                   <GateNote>
                     <span>ⓘ</span>
                     <div>
-                      할래말래는 구장을 <b>대신 예약하지 않아요.</b> 직접 입력은
-                      매칭(상대·일정)만 도와드리며, <b>구장 예약은 각 팀이 따로</b> 진행해야
-                      합니다.
+                      <b>제휴구장 예약</b>은 앱에서 코트·시간을 고르고 결제까지 끝내요.
+                      양 팀이 각자 몫을 결제하면 <b>경기가 자동으로 확정</b>돼요.
                     </div>
                   </GateNote>
 
                   <GateNote>
                     <span>ⓘ</span>
                     <div>
-                      <b>제휴구장 예약</b>은 향후 인앱에서 구장 예약·결제와 자동 확정까지
-                      지원하도록 <b>준비 중</b>이에요. 정식 오픈 전까지는 직접 입력으로
-                      이용해 주세요.
+                      <b>직접 입력</b>은 매칭(상대·일정)만 도와드려요. 구장 예약과 결제는
+                      <b> 각 팀이 따로</b> 진행해야 합니다.
                     </div>
                   </GateNote>
                 </>
