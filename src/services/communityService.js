@@ -185,11 +185,17 @@ export async function loadCommunityPostDetail(postId, { myUid = "" } = {}) {
   const data = snap.data() || {};
   const authorUid = String(data.authorUid || data.authorId || "").trim();
 
+  // 어드민이 숨긴 글은 상세로도 열리면 안 된다. 목록(:107)에서만 빼면 알림·공유 링크·뒤로가기로
+  // 그대로 들어와 신고된 글이 계속 노출된다 — 숨김 조치가 절반만 듣던 자리.
+  if (data.hidden) {
+    return { post: null, comments: [], blocked: true, reason: "hidden_by_admin" };
+  }
+
   // 내가 신고/차단한 사용자·게시글이면 상세 진입 차단 (Apple Guideline 1.2)
   const blockedSet = new Set(myBlockedUids);
   const hiddenSet = new Set(myHiddenPostIds);
   if (hiddenSet.has(String(postId)) || (authorUid && blockedSet.has(authorUid))) {
-    return { post: null, comments: [], blocked: true };
+    return { post: null, comments: [], blocked: true, reason: "blocked_by_me" };
   }
 
   const authorMeta = authorUid ? await getUserPublicMeta(authorUid) : { name: "상대", avatar: "" };

@@ -314,8 +314,11 @@ export default function AdminChatRoomDetailPage() {
     if (!room) return;
     let reason = "";
     if (!room.locked) {
-      reason = window.prompt("잠금 사유를 입력해주세요. (어드민 기록용)", "") || "";
-      if (reason === null) return;
+      // prompt 는 취소하면 null 을 준다. `|| ""` 를 먼저 씌우면 취소를 구분할 수 없어
+      // 사유 입력을 취소해도 방이 잠겨버렸다 — 취소 판정을 먼저 한다.
+      const input = window.prompt("잠금 사유를 입력해주세요. (어드민 기록용)", "");
+      if (input === null) return;
+      reason = String(input);
     }
     setBusy(true);
     try {

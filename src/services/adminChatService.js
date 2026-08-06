@@ -12,6 +12,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   serverTimestamp,
@@ -224,7 +225,49 @@ export async function deleteChatMessageByAdmin({ chatId, messageId }) {
   const mid = safeString(messageId);
   if (!cid || !mid) throw new Error("chatId/messageId가 비어있습니다.");
   await deleteDoc(doc(db, "chatRooms", cid, "messages", mid));
+  await refreshLastMessageMeta(cid);
   return { chatId: cid, messageId: mid };
+}
+
+/** 채팅 목록 미리보기 문구 — 보낼 때 쓰는 형식(chatService.js:593-594)과 같게 맞춘다. */
+function previewOf(msg) {
+  const text = safeString(msg?.text);
+  const imgs = Array.isArray(msg?.images) ? msg.images.length : 0;
+  if (!imgs) return text.slice(0, 140);
+  const preview = imgs === 1 ? "사진" : `사진 ${imgs}장`;
+  return (text ? `${preview} · ${text}` : preview).slice(0, 140);
+}
+
+/**
+ * 방 문서의 "최신 메시지" 를 남아 있는 마지막 메시지로 다시 맞춘다.
+ *
+ * 메시지 문서만 지우면 방 문서의 lastMessageText 는 그대로라, 지운 문장이 어드민 채팅 목록과
+ * **사용자 채팅 목록** 미리보기에 계속 보인다. 부적절 메시지를 지운 의미가 없어지는 자리라
+ * 삭제 직후 여기서 되맞춘다. 남은 메시지가 없으면 비운다.
+ */
+async function refreshLastMessageMeta(chatId) {
+  const cid = safeString(chatId);
+  if (!cid) return;
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "chatRooms", cid, "messages"),
+        orderBy("createdAt", "desc"),
+        limit(1),
+      )
+    );
+    const last = snap.docs[0]?.data() || null;
+    await updateDoc(doc(db, "chatRooms", cid), last
+      ? {
+          lastMessageText: previewOf(last),
+          lastMessageAt: last.createdAt || null,
+          lastMessageFromUid: safeString(last.fromUid),
+        }
+      : { lastMessageText: "", lastMessageAt: null, lastMessageFromUid: "" });
+  } catch (e) {
+    // 미리보기 갱신 실패가 삭제를 되돌리지는 않는다.
+    console.warn("[adminChat] refresh last message failed:", e?.message || e);
+  }
 }
 
 /**

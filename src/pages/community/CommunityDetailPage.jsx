@@ -754,9 +754,13 @@ export default function CommunityDetailPage() {
     setLoading(true);
     setLoadError("");
     try {
-      const { post: detail, comments: list } = await loadCommunityPostDetail(postId, { myUid });
+      const { post: detail, comments: list, reason } = await loadCommunityPostDetail(postId, { myUid });
       setPost(detail || null);
       setComments(list || []);
+      // 왜 안 보이는지 알려준다 — "존재하지 않습니다" 로만 뜨면 사라진 이유를 오해한다.
+      if (!detail && reason === "hidden_by_admin") {
+        setLoadError("운영자가 숨긴 게시글입니다.");
+      }
     } catch (e) {
       console.error("[CommunityDetailPage] load failed:", e?.code, e?.message, e);
       setPost(null);
