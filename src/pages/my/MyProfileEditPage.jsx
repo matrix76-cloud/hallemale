@@ -16,7 +16,7 @@ import { uploadUserAvatar } from "../../services/mediaService";
 import { getNameChangeStatus } from "../../utils/nameChange";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
-import { FiChevronRight } from "react-icons/fi";
+import { FiChevronRight, FiCamera, FiEye } from "react-icons/fi";
 import { useUIActions } from "../../hooks/useUI";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { goBackOrHome } from "../../utils/navigation";
@@ -267,7 +267,7 @@ export default function MyProfileEditPage() {
             ) : (
               <AvatarPlaceholder size={104} />
             )}
-            <CameraBadge aria-hidden>📷</CameraBadge>
+            <CameraBadge aria-hidden><FiCamera /></CameraBadge>
           </AvatarCircle>
           <AvatarHint>탭해서 프로필 사진 변경</AvatarHint>
           {!uid ? (
@@ -382,7 +382,7 @@ export default function MyProfileEditPage() {
       {uid ? (
         <Card>
           <PreviewButton type="button" onClick={() => nav(`/player/${uid}`)}>
-            👁 내 프로필 미리보기
+            <FiEye aria-hidden /> 내 프로필 미리보기
           </PreviewButton>
           <PreviewHint>다른 사람에게 보이는 내 프로필을 전체 화면으로 볼 수 있어요. (저장된 정보 기준)</PreviewHint>
         </Card>

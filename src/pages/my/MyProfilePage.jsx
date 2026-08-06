@@ -667,7 +667,7 @@ export default function MyProfilePage() {
             <MenuList>
               <MenuItemButton onClick={handleInviteFriends}>
                 <MenuTextWrap>
-                  <MenuTitle>친구 초대하고 같이 뛰기 🏀</MenuTitle>
+                  <MenuTitle>친구 초대하고 같이 뛰기</MenuTitle>
                 </MenuTextWrap>
                 <MenuArrow>›</MenuArrow>
               </MenuItemButton>

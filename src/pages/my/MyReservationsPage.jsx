@@ -18,7 +18,7 @@ import { copyText, fullAddress, openDirections, openMapView } from "../../utils/
 import { cancelDeadlineText, usableFromText } from "../../constants/cancelPolicy";
 import {
   FiMapPin, FiCalendar, FiClock, FiHash, FiPhone, FiInfo,
-  FiCopy, FiMap, FiNavigation, FiFileText,
+  FiCopy, FiMap, FiNavigation, FiFileText, FiStar,
 } from "react-icons/fi";
 
 const toStr = (v) => String(v || "").trim();
@@ -318,7 +318,7 @@ export default function MyReservationsPage() {
               ) : null}
 
               {r.status === "done" && r.venueId ? (
-                <ReviewBtn type="button" onClick={() => openReview(r)}>⭐ 리뷰 쓰기</ReviewBtn>
+                <ReviewBtn type="button" onClick={() => openReview(r)}><FiStar aria-hidden /> 리뷰 쓰기</ReviewBtn>
               ) : null}
             </Card>
           );
@@ -616,6 +616,9 @@ const ReviewBtn = styled.button`
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   &:active { transform: translateY(1px); }
 `;
 
