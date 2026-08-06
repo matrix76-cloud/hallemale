@@ -126,6 +126,7 @@ export const MENUS = [
     sub: [
       { to: `${A}/notify/notices`, label: "공지 작성" },
       { to: `${A}/notify/push`, label: "푸시 발송" },
+      { to: `${A}/notify/history`, label: "발송 로그" },
     ],
   },
   {

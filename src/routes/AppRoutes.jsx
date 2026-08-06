@@ -105,6 +105,7 @@ const AdminCommunityPostDetailPage = lazy(() => import("../pages/admin/AdminComm
 const AdminCommunityReportsPage = lazy(() => import("../pages/admin/AdminCommunityReportsPage"));
 const AdminNotifyNoticesPage = lazy(() => import("../pages/admin/AdminNotifyNoticesPage"));
 const AdminNotifyPushPage = lazy(() => import("../pages/admin/AdminNotifyPushPage"));
+const AdminNotifyHistoryPage = lazy(() => import("../pages/admin/AdminNotifyHistoryPage"));
 const AdminInquiriesPage = lazy(() => import("../pages/admin/AdminInquiriesPage"));
 const AdminSettingsAdminsPage = lazy(() => import("../pages/admin/AdminSettingsAdminsPage"));
 const AdminSettingsPolicyPage = lazy(() => import("../pages/admin/AdminSettingsPolicyPage"));
@@ -478,6 +479,7 @@ export default function AppRoutes() {
 
           <Route path="/admin/notify/notices" element={<AdminNotifyNoticesPage />} />
           <Route path="/admin/notify/push" element={<AdminNotifyPushPage />} />
+          <Route path="/admin/notify/history" element={<AdminNotifyHistoryPage />} />
 
           <Route path="/admin/settings/admins" element={<AdminSettingsAdminsPage />} />
           <Route path="/admin/settings/policy" element={<AdminSettingsPolicyPage />} />
