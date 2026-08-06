@@ -232,6 +232,38 @@ const MOCK_VENUE = {
   ],
 };
 
+// 인증·정산계좌·통신판매업 신고까지 마친 구장 (owner-verified 시나리오용).
+// 사업자번호·계좌·신고번호는 형식만 맞춘 가짜값이다 — 실존 사업자 정보를 넣지 말 것.
+const VERIFIED_VENUE = {
+  ...MOCK_VENUE,
+  bizName: "더베이스스포츠",
+  bizNo: "123-45-67890",
+  business: {
+    bizName: "더베이스스포츠",
+    ownerName: "박구장",
+    bizNo: "123-45-67890",
+    openDate: "2021-03-02",
+    taxType: "general",
+    licenseUrl: "",
+    status: "verified",
+    ntsChecked: true,
+    rejectReason: "",
+  },
+  settlement: {
+    bank: "국민",
+    account: "12345601234567",
+    holder: "박구장",
+    taxEmail: "tax@example.com",
+    verified: true,
+  },
+  salesReport: {
+    number: "2026-서울용산-01234",
+    certUrl: "",
+    exempt: false,
+    status: "submitted",
+  },
+};
+
 /* ========================= 목업 DB (clubs / users) =========================
  * 서비스의 "Firestore 를 읽는 지점"에만 꽂아, 그 뒤 가공 로직은 실제 코드가 그대로 돌게 한다.
  * 이 한 벌로 팀 프로필·팀 관리·팀원·매칭홈·상대공개·랭킹 화면이 전부 채워진다. */
@@ -1270,6 +1302,21 @@ const RAW = {
         venue: { ...MOCK_VENUE, status: "rejected", rejectReason: "사업자등록증 사진이 흐려 확인이 어렵습니다. 다시 등록해 주세요." },
         venues: [{ ...MOCK_VENUE, status: "rejected" }],
         status: "rejected",
+      },
+    },
+  },
+  /* ── 구장주: 인증·정산계좌·통신판매업 신고까지 다 채운 상태 ──
+   * base-owner 의 구장에는 이 값들이 비어 있어 내정보·정산 화면이 늘 "미등록"으로만 보인다.
+   * 등록완료 배지·확인완료 표시·정산 안내를 보려면 이 시나리오로 띄운다. */
+  "owner-verified": {
+    label: "구장주 · 인증·계좌 등록완료",
+    extends: "base-owner",
+    data: {
+      owner: {
+        ...OWNER_IDENTITY,
+        venue: VERIFIED_VENUE,
+        venues: [VERIFIED_VENUE],
+        status: "approved",
       },
     },
   },

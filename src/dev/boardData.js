@@ -160,6 +160,11 @@ const EXTRA_FRAMES = {
     { key: "sc-onb-org-7",    forScreen: "owner-onboarding", name: "온보딩⑦기관확인(기관)",path: "/owner/onboarding?step=verify",  scenario: "owner-noven-org" },
     { key: "sc-onb-org-8",    forScreen: "owner-onboarding", name: "온보딩⑧최종확인(기관)",path: "/owner/onboarding?step=review",  scenario: "owner-noven-org" },
 
+    // 인증·계좌·통신판매업이 다 채워진 상태 — base-owner 로는 "미등록" 화면만 보인다.
+    { key: "sc-own-my-done",  forScreen: "owner-my",         name: "내정보 · 인증·계좌 등록완료", path: "/owner/my",         scenario: "owner-verified" },
+    { key: "sc-own-set-done", forScreen: "owner-settlement",  name: "정산 · 계좌 확인완료",        path: "/owner/settlement", scenario: "owner-verified" },
+    { key: "sc-own-home-noacct", forScreen: "owner-home",     name: "예약관리 · 계좌 미등록 배너",  path: "/owner/home",       scenario: "base-owner" },
+
     { key: "sc-own-busy",  forScreen: "owner-home",  name: "예약관리 · 승인대기 3건", path: "/owner/home",  scenario: "owner-busy" },
     { key: "sc-own-quiet", forScreen: "owner-home",  name: "예약관리 · 예약 없음",    path: "/owner/home",  scenario: "owner-quiet" },
     { key: "sc-own-s-0",   forScreen: "owner-sales", name: "예약통계 · 예약 없음",    path: "/owner/sales", scenario: "owner-quiet" },
