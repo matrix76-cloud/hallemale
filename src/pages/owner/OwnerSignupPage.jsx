@@ -8,7 +8,7 @@
 import { showAlert } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ownerSignUpEmail, OWNER_PW_MIN } from "../../services/ownerAuthService";
 import { requestPhoneOtp, verifyPhoneOtp, isKrMobile } from "../../services/phoneOtpService";
 import { useOwnerAuth } from "../../hooks/useOwnerAuth";
@@ -35,7 +35,12 @@ const SUBS = {
 export default function OwnerSignupPage() {
   const navigate = useNavigate();
   const { isLoggedIn, uid } = useOwnerAuth();
-  const [step, setStep] = useState(0);
+  // ?step=<key> 로 특정 단계부터 열 수 있다 (리뷰 보드가 단계별로 프레임을 띄운다 — 온보딩과 동일).
+  const [searchParams] = useSearchParams();
+  const [step, setStep] = useState(() => {
+    const i = STEPS.indexOf(searchParams.get("step"));
+    return i >= 0 ? i : 0;
+  });
   const id = STEPS[step];
 
   const [email, setEmail] = useState("");

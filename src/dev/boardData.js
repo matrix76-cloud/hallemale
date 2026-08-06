@@ -127,20 +127,23 @@ const EXTRA_FRAMES = {
     { key: "sc-owner-pending",  forScreen: "owner-pending",    name: "심사 대기",          path: "/owner/pending",    scenario: "owner-pending" },
     { key: "sc-owner-rejected", forScreen: "owner-pending",    name: "심사 반려",          path: "/owner/pending",    scenario: "owner-rejected" },
 
-    // 온보딩(실제 등록 흐름)은 10단계 위저드 → 단계별로 한 장씩 본다.
-    { key: "sc-onb-1",  forScreen: "owner-onboarding", name: "온보딩①시작",      path: "/owner/onboarding?step=intro",      scenario: "owner-noven" },
-    { key: "sc-onb-2",  forScreen: "owner-onboarding", name: "온보딩②구장명",    path: "/owner/onboarding?step=name",       scenario: "owner-noven" },
-    { key: "sc-onb-3",  forScreen: "owner-onboarding", name: "온보딩③위치",      path: "/owner/onboarding?step=location",   scenario: "owner-noven" },
-    { key: "sc-onb-4",  forScreen: "owner-onboarding", name: "온보딩④사진",      path: "/owner/onboarding?step=photos",     scenario: "owner-noven" },
-    { key: "sc-onb-5",  forScreen: "owner-onboarding", name: "온보딩⑤편의시설",  path: "/owner/onboarding?step=facilities", scenario: "owner-noven" },
-    { key: "sc-onb-6",  forScreen: "owner-onboarding", name: "온보딩⑥코트·요금", path: "/owner/onboarding?step=courts",     scenario: "owner-noven" },
-    { key: "sc-onb-7",  forScreen: "owner-onboarding", name: "온보딩⑦이용안내",  path: "/owner/onboarding?step=notice",     scenario: "owner-noven" },
-    { key: "sc-onb-8",  forScreen: "owner-onboarding", name: "온보딩⑧키워드",    path: "/owner/onboarding?step=keywords",   scenario: "owner-noven" },
-    { key: "sc-onb-9",  forScreen: "owner-onboarding", name: "온보딩⑨연락처",    path: "/owner/onboarding?step=contact",    scenario: "owner-noven" },
-    { key: "sc-onb-10", forScreen: "owner-onboarding", name: "온보딩⑩주체증빙",  path: "/owner/onboarding?step=verify",     scenario: "owner-noven" },
-    // 정산 계좌는 앱내 결제(PG)를 켰을 때만 나오는 단계 → 개발 빌드 전용 ?pg=1 로 미리 본다.
-    { key: "sc-onb-11", forScreen: "owner-onboarding", name: "온보딩⑪정산계좌",  path: "/owner/onboarding?step=payout&pg=1", scenario: "owner-noven" },
-    { key: "sc-onb-12", forScreen: "owner-onboarding", name: "온보딩⑫최종확인",  path: "/owner/onboarding?step=review",     scenario: "owner-noven" },
+    // 구장주 가입도 단계형(4단계) → 온보딩과 같이 ?step= 으로 한 장씩 본다.
+    { key: "sc-osu-1", forScreen: "owner-signup", name: "가입①이메일",     path: "/owner/signup?step=email",    scenario: "" },
+    { key: "sc-osu-2", forScreen: "owner-signup", name: "가입②비밀번호",   path: "/owner/signup?step=password", scenario: "" },
+    { key: "sc-osu-3", forScreen: "owner-signup", name: "가입③담당자명",   path: "/owner/signup?step=name",     scenario: "" },
+    { key: "sc-osu-4", forScreen: "owner-signup", name: "가입④휴대폰인증", path: "/owner/signup?step=phone",    scenario: "" },
+
+    // 온보딩(실제 등록 흐름)은 8단계 위저드 → 단계별로 한 장씩 본다.
+    // 편의시설·이용안내·키워드는 승인 후 구장정보에서, 정산 계좌는 승인 후 내정보에서
+    // 받도록 빠졌다(온보딩에서 제거) → 그 단계 프레임도 함께 없앴다.
+    { key: "sc-onb-1",  forScreen: "owner-onboarding", name: "온보딩①시작",      path: "/owner/onboarding?step=intro",    scenario: "owner-noven" },
+    { key: "sc-onb-2",  forScreen: "owner-onboarding", name: "온보딩②구장명",    path: "/owner/onboarding?step=name",     scenario: "owner-noven" },
+    { key: "sc-onb-3",  forScreen: "owner-onboarding", name: "온보딩③위치",      path: "/owner/onboarding?step=location", scenario: "owner-noven" },
+    { key: "sc-onb-4",  forScreen: "owner-onboarding", name: "온보딩④사진",      path: "/owner/onboarding?step=photos",   scenario: "owner-noven" },
+    { key: "sc-onb-5",  forScreen: "owner-onboarding", name: "온보딩⑤코트·요금", path: "/owner/onboarding?step=courts",   scenario: "owner-noven" },
+    { key: "sc-onb-6",  forScreen: "owner-onboarding", name: "온보딩⑥연락처",    path: "/owner/onboarding?step=contact",  scenario: "owner-noven" },
+    { key: "sc-onb-7",  forScreen: "owner-onboarding", name: "온보딩⑦주체증빙",  path: "/owner/onboarding?step=verify",   scenario: "owner-noven" },
+    { key: "sc-onb-8",  forScreen: "owner-onboarding", name: "온보딩⑧최종확인",  path: "/owner/onboarding?step=review",   scenario: "owner-noven" },
 
     // 운영 주체(개인·사업자/학교/기관)로 갈리는 단계만 세 벌로 본다.
     // 위 기본 프레임이 개인·사업자 버전이므로 여기엔 학교·기관만 얹는다.
@@ -148,16 +151,14 @@ const EXTRA_FRAMES = {
     //    "학교 · 온보딩⑨연락처" 가 "온보딩⑨연락처" 로 보여 주체 구분이 사라진다.
     { key: "sc-onb-school-1", forScreen: "owner-onboarding", name: "온보딩①시작(학교)",    path: "/owner/onboarding?step=intro",   scenario: "owner-noven-school" },
     { key: "sc-onb-school-2", forScreen: "owner-onboarding", name: "온보딩②구장명(학교)",  path: "/owner/onboarding?step=name",    scenario: "owner-noven-school" },
-    { key: "sc-onb-school-9", forScreen: "owner-onboarding", name: "온보딩⑨연락처(학교)",  path: "/owner/onboarding?step=contact", scenario: "owner-noven-school" },
-    { key: "sc-onb-school-10",forScreen: "owner-onboarding", name: "온보딩⑩학교확인(학교)",path: "/owner/onboarding?step=verify",  scenario: "owner-noven-school" },
-    { key: "sc-onb-school-11",forScreen: "owner-onboarding", name: "온보딩⑪정산계좌(학교)",path: "/owner/onboarding?step=payout&pg=1", scenario: "owner-noven-school" },
-    { key: "sc-onb-school-12",forScreen: "owner-onboarding", name: "온보딩⑫최종확인(학교)",path: "/owner/onboarding?step=review",  scenario: "owner-noven-school" },
+    { key: "sc-onb-school-6", forScreen: "owner-onboarding", name: "온보딩⑥연락처(학교)",  path: "/owner/onboarding?step=contact", scenario: "owner-noven-school" },
+    { key: "sc-onb-school-7", forScreen: "owner-onboarding", name: "온보딩⑦학교확인(학교)",path: "/owner/onboarding?step=verify",  scenario: "owner-noven-school" },
+    { key: "sc-onb-school-8", forScreen: "owner-onboarding", name: "온보딩⑧최종확인(학교)",path: "/owner/onboarding?step=review",  scenario: "owner-noven-school" },
     { key: "sc-onb-org-1",    forScreen: "owner-onboarding", name: "온보딩①시작(기관)",    path: "/owner/onboarding?step=intro",   scenario: "owner-noven-org" },
     { key: "sc-onb-org-2",    forScreen: "owner-onboarding", name: "온보딩②구장명(기관)",  path: "/owner/onboarding?step=name",    scenario: "owner-noven-org" },
-    { key: "sc-onb-org-9",    forScreen: "owner-onboarding", name: "온보딩⑨연락처(기관)",  path: "/owner/onboarding?step=contact", scenario: "owner-noven-org" },
-    { key: "sc-onb-org-10",   forScreen: "owner-onboarding", name: "온보딩⑩기관확인(기관)",path: "/owner/onboarding?step=verify",  scenario: "owner-noven-org" },
-    { key: "sc-onb-org-11",   forScreen: "owner-onboarding", name: "온보딩⑪정산계좌(기관)",path: "/owner/onboarding?step=payout&pg=1", scenario: "owner-noven-org" },
-    { key: "sc-onb-org-12",   forScreen: "owner-onboarding", name: "온보딩⑫최종확인(기관)",path: "/owner/onboarding?step=review",  scenario: "owner-noven-org" },
+    { key: "sc-onb-org-6",    forScreen: "owner-onboarding", name: "온보딩⑥연락처(기관)",  path: "/owner/onboarding?step=contact", scenario: "owner-noven-org" },
+    { key: "sc-onb-org-7",    forScreen: "owner-onboarding", name: "온보딩⑦기관확인(기관)",path: "/owner/onboarding?step=verify",  scenario: "owner-noven-org" },
+    { key: "sc-onb-org-8",    forScreen: "owner-onboarding", name: "온보딩⑧최종확인(기관)",path: "/owner/onboarding?step=review",  scenario: "owner-noven-org" },
 
     { key: "sc-own-busy",  forScreen: "owner-home",  name: "예약관리 · 승인대기 3건", path: "/owner/home",  scenario: "owner-busy" },
     { key: "sc-own-quiet", forScreen: "owner-home",  name: "예약관리 · 예약 없음",    path: "/owner/home",  scenario: "owner-quiet" },
