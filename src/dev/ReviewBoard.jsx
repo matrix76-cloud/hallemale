@@ -290,7 +290,8 @@ export default function ReviewBoard() {
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 28, maxWidth: 6 * (PHONE_W + 28) }}>
                 {sec.frames.map((f) => (
-                  <Frame key={f.key} frame={f} wide={sec.wide} rootRef={rootRef} onOpenReview={openReview} />
+                  // 프레임이 폭을 직접 지정했으면(랜딩의 PC/모바일) 그걸 쓰고, 아니면 섹션 기본
+                  <Frame key={f.key} frame={f} wide={f.pc ?? sec.wide} rootRef={rootRef} onOpenReview={openReview} />
                 ))}
               </div>
             </section>
