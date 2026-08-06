@@ -3,6 +3,7 @@
 // ownerDb: 구장주 세션(ownerApp)에 묶인 Firestore. 구장주 전용 저장(owner*)은 이걸 써야
 // 보안규칙이 "본인 문서 쓰기"로 인정한다 — 기본 db 는 사용자 앱 세션이라 구장주가 안 보인다.
 import { db, ownerDb } from "./firebase";
+import { LEGAL_EFFECTIVE } from "../data/legalDefaults";
 import { hasMock, mockData } from "../dev/mockBus";
 import {
   doc,
@@ -203,6 +204,9 @@ export const saveOwnerConsents = async ({
       ownerAdultConsent: true,
       ownerMarketingConsent: !!marketing,
       ownerConsentAt: serverTimestamp(),
+      // 어느 버전에 동의했는지까지 남긴다 — 약관이 개정되면 동의 시각만으로는 증빙이 안 된다.
+      ownerTermsVersion: LEGAL_EFFECTIVE.owner_terms,
+      ownerPrivacyVersion: LEGAL_EFFECTIVE.privacy,
       updatedAt: serverTimestamp(),
     },
     { merge: true }
