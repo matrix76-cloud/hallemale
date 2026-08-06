@@ -3,7 +3,14 @@
 // 어드민(운영자) 계정 관리
 // Firestore 컬렉션: admin_accounts (문서 ID = 로그인 아이디)
 // - role: "super" (삭제 불가) | "admin" (삭제 가능)
-// - 비밀번호는 SHA-256 해시로 저장
+// - 비밀번호는 솔트 있는 PBKDF2-SHA256 으로 저장한다.
+//
+// ⚠️ 이 화면에서 만든 해시를 서버(functions/auth/adminLogin.js)가 검증한다.
+//    PBKDF2 파라미터가 어긋나면 로그인이 통째로 막히므로 양쪽을 같이 고칠 것.
+//
+// 예전에는 무솔트 SHA-256 1회였다. admin_accounts 를 읽을 수 있는 사람(=다른 운영자)이
+// 남의 해시를 가져가면 레인보우 테이블로 바로 복원되는 값이라 교체했다.
+// 구버전 해시로 저장된 계정은 서버가 로그인 성공 시점에 PBKDF2 로 올려준다.
 
 import { db } from "./firebase";
 import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
@@ -19,6 +26,14 @@ import {
 
 const SUPER_ADMIN_ID = "admin";
 
+// 서버(functions/auth/adminLogin.js)와 반드시 같은 값
+const PBKDF2_ALGO = "pbkdf2-sha256";
+const PBKDF2_ITERATIONS = 210000;
+const PBKDF2_KEYLEN = 32;
+
+// 4자리 비밀번호는 온라인 대입으로 뚫린다. 관리자 콘솔 전체가 걸린 계정이라 길이를 올렸다.
+const MIN_PASSWORD_LENGTH = 10;
+
 function safeStr(v) {
   return String(v || "").trim();
 }
@@ -30,39 +45,56 @@ function toDate(v) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/**
- * SHA-256 해시 (Web Crypto API)
- */
-async function sha256(text) {
-  const buf = new TextEncoder().encode(String(text || ""));
-  const hash = await crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+function toHex(bytes) {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/**
- * 'admin' 계정이 없으면 자동 생성 (id=admin, pw=admin, role=super)
- */
-export async function ensureSuperAdmin() {
-  const ref = doc(db, "admin_accounts", SUPER_ADMIN_ID);
-  const snap = await getDoc(ref);
-  if (snap.exists()) return false;
+function fromHex(hex) {
+  const s = String(hex || "");
+  const out = new Uint8Array(s.length / 2);
+  for (let i = 0; i < out.length; i += 1) out[i] = parseInt(s.substr(i * 2, 2), 16);
+  return out;
+}
 
-  const passwordHash = await sha256("admin");
-  await setDoc(ref, {
-    id: SUPER_ADMIN_ID,
-    name: "최고 관리자",
-    role: "super",
-    passwordHash,
-    createdAt: serverTimestamp(),
-    createdBy: "system",
-  });
-  return true;
+async function pbkdf2Hex(password, saltHex, iterations) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(String(password || "")),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: fromHex(saltHex), iterations, hash: "SHA-256" },
+    key,
+    PBKDF2_KEYLEN * 8,
+  );
+  return toHex(new Uint8Array(bits));
+}
+
+/** 저장용 비밀번호 필드 묶음 (솔트는 매번 새로 뽑는다) */
+async function newPasswordFields(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const saltHex = toHex(salt);
+  return {
+    passwordAlgo: PBKDF2_ALGO,
+    passwordSalt: saltHex,
+    passwordIterations: PBKDF2_ITERATIONS,
+    passwordHash: await pbkdf2Hex(password, saltHex, PBKDF2_ITERATIONS),
+  };
+}
+
+function assertPassword(pw) {
+  if (!pw) throw new Error("비밀번호를 입력해주세요.");
+  if (pw.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.`);
+  }
 }
 
 /**
  * 운영자 목록
+ * ※ 계정이 없을 때 자동 생성하지 않는다. 최초 1회 생성은 서버 부트스트랩
+ *    (functions/.env 의 ADMIN_BOOTSTRAP_PASSWORD)만 할 수 있다.
  */
 export async function listAdminAccounts() {
   if (hasMock("adminAccounts")) {
@@ -74,7 +106,6 @@ export async function listAdminAccounts() {
     });
     return rows0;
   }
-  await ensureSuperAdmin();
   const snap = await getDocs(collection(db, "admin_accounts"));
   const rows = [];
   snap.forEach((d) => {
@@ -114,19 +145,17 @@ export async function createAdminAccount({ id, password, name, byAdmin = "admin"
   if (!/^[a-zA-Z0-9_-]{3,20}$/.test(cleanId)) {
     throw new Error("아이디는 영문/숫자/_/- 3~20자만 가능합니다.");
   }
-  if (!cleanPw) throw new Error("비밀번호를 입력해주세요.");
-  if (cleanPw.length < 4) throw new Error("비밀번호는 최소 4자 이상이어야 합니다.");
+  assertPassword(cleanPw);
 
   const ref = doc(db, "admin_accounts", cleanId);
   const exist = await getDoc(ref);
   if (exist.exists()) throw new Error("이미 사용중인 아이디입니다.");
 
-  const passwordHash = await sha256(cleanPw);
   await setDoc(ref, {
     id: cleanId,
     name: cleanName,
     role: "admin",
-    passwordHash,
+    ...(await newPasswordFields(cleanPw)),
     createdAt: serverTimestamp(),
     createdBy: safeStr(byAdmin) || "admin",
   });
@@ -163,46 +192,19 @@ export async function changeAdminPassword({ id, newPassword } = {}) {
   const cleanId = safeStr(id);
   const cleanPw = safeStr(newPassword);
   if (!cleanId) throw new Error("id가 비어있습니다.");
-  if (!cleanPw || cleanPw.length < 4) {
-    throw new Error("비밀번호는 최소 4자 이상이어야 합니다.");
-  }
+  assertPassword(cleanPw);
 
   const ref = doc(db, "admin_accounts", cleanId);
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("존재하지 않는 운영자입니다.");
 
-  const passwordHash = await sha256(cleanPw);
-  await setDoc(ref, { passwordHash, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(
+    ref,
+    { ...(await newPasswordFields(cleanPw)), updatedAt: serverTimestamp() },
+    { merge: true },
+  );
   return { id: cleanId };
 }
 
-/**
- * 로그인 검증
- * - 'admin' 계정이 없는 첫 사용 시점에는 자동 시드 후 검증
- */
-export async function verifyAdminLogin({ id, password } = {}) {
-  const cleanId = safeStr(id);
-  const cleanPw = safeStr(password);
-  if (!cleanId || !cleanPw) return { ok: false, reason: "empty" };
-
-  await ensureSuperAdmin();
-
-  const ref = doc(db, "admin_accounts", cleanId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return { ok: false, reason: "not_found" };
-
-  const data = snap.data() || {};
-  const inputHash = await sha256(cleanPw);
-  if (safeStr(data.passwordHash) !== inputHash) {
-    return { ok: false, reason: "wrong_password" };
-  }
-
-  return {
-    ok: true,
-    id: cleanId,
-    name: safeStr(data.name) || cleanId,
-    role: safeStr(data.role) || "admin",
-  };
-}
-
 export const SUPER_ADMIN = SUPER_ADMIN_ID;
+export const ADMIN_MIN_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH;

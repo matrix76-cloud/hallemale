@@ -1,12 +1,13 @@
 /* eslint-disable */
 // src/pages/admin/AdminRefundsPage.jsx
-// 환불 관리 — 결제 완료된 예약을 취소/환불(피지 복구)하고 환불 내역을 관리.
+// 환불 관리 — 결제 완료된 예약을 취소/환불하고 환불 내역을 관리.
+// 카드(토스) 결제 건은 취소만 하고 실제 환불은 서버 트리거가 정책률로 실행한다(refundService 주석 참고).
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
 import {
-  listRefundableReservations, listRefundedReservations, processRefund,
+  listRefundableReservations, listRefundedReservations, processRefund, getRefundRoute,
 } from "../../services/refundService";
 
 const PAGE_SIZE = 10;
@@ -71,6 +72,37 @@ export default function AdminRefundsPage() {
   const pagedRows = rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const doRefund = async (r) => {
+    // 카드(토스) 결제건인지 먼저 확인한다. 카드 건은 환불액을 여기서 정하지 않는다 —
+    // 실제 환불액은 취소 시점 정책에 따라 서버가 계산해 카드로 되돌린다.
+    setBusy(true);
+    let via;
+    try {
+      via = await getRefundRoute(r);
+    } catch (e) {
+      setBusy(false);
+      return showAlert("결제 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    }
+    setBusy(false);
+
+    if (via === "pg") {
+      const reason = window.prompt("취소 사유 (선택, 비워도 됨):", "") || "";
+      if (!await showConfirm(
+        `"${r.venueName}" 은(는) 카드(토스) 결제 건입니다.\n` +
+        `예약을 취소하면 취소 시점 정책에 따라 결제하신 카드로 자동 환불됩니다.\n` +
+        `(환불액은 서버가 계산하므로 여기서 지정할 수 없습니다) 진행할까요?`
+      )) return;
+      setBusy(true);
+      try {
+        await processRefund(r, 0, reason);
+        showAlert("취소 처리 완료 — 카드 환불이 정책에 따라 자동 진행됩니다.");
+        await load();
+      } catch (e) {
+        showAlert(e?.message || "환불 처리 실패");
+      } finally { setBusy(false); }
+      return;
+    }
+
+    // 앱 잔액(피지)으로 결제된 건 — 여기서 잔액을 복구한다.
     const input = window.prompt(
       `"${r.venueName}" 예약 환불액을 입력하세요.\n결제액: ${won(r.price)} (전액 환불은 그대로 확인)`,
       String(r.price)
@@ -97,7 +129,7 @@ export default function AdminRefundsPage() {
       <HeaderRow>
         <div>
           <Title>환불 관리</Title>
-          <Sub>결제 완료된 예약을 환불(피지 복구)하고 예약을 취소합니다. 환불 내역은 '환불 완료'에서 확인.</Sub>
+          <Sub>결제 완료된 예약을 취소·환불합니다. 카드(토스) 결제 건은 취소 시점 정책에 따라 서버가 카드로 환불하고, 앱 잔액(피지) 결제 건만 여기서 금액을 정합니다.</Sub>
         </div>
         <FilterRow>
           {PERIODS.map((p) => (
@@ -114,7 +146,8 @@ export default function AdminRefundsPage() {
 
       <Cards>
         <StatCard><CardLabel>{tab === "refunded" ? "환불 완료 건수" : "환불 가능 건수"}</CardLabel><CardVal>{summary.count}건</CardVal></StatCard>
-        <StatCard><CardLabel>{tab === "refunded" ? "환불 완료 금액" : "환불 가능 금액"}</CardLabel><CardVal $accent={tab === "refunded"}>{won(summary.amount)}</CardVal></StatCard>
+        {/* 카드 환불분은 서버가 금액을 정해 여기 안 잡힌다 — 합계 라벨에 그대로 밝힌다 */}
+        <StatCard><CardLabel>{tab === "refunded" ? "환불 완료 금액 (잔액 환불분만)" : "환불 가능 금액"}</CardLabel><CardVal $accent={tab === "refunded"}>{won(summary.amount)}</CardVal></StatCard>
       </Cards>
 
       <Card>
@@ -141,7 +174,12 @@ export default function AdminRefundsPage() {
                 </NameCell>
                 <span>{r.date}<TimeS>{r.startTime ? ` ${r.startTime}~${r.endTime}` : ""}</TimeS></span>
                 <Hide>{r.userName || "-"}{r.phone ? <PhoneS>{r.phone}</PhoneS> : null}</Hide>
-                <Strong $danger={tab === "refunded"}>{won(tab === "refunded" ? r.refundAmount : r.price)}</Strong>
+                {/* 카드 환불액은 서버(정책)가 정하므로 이 화면이 알 수 없다 — 0원으로 보이지 않게 표기를 나눈다 */}
+                <Strong $danger={tab === "refunded"}>
+                  {tab !== "refunded" ? won(r.price)
+                    : r.refundVia === "pg" ? "카드 환불(정책)"
+                    : won(r.refundAmount)}
+                </Strong>
                 {tab === "refunded" ? (
                   <Hide>
                     <RefDate>{fmtDT(r.refundedAt)}</RefDate>

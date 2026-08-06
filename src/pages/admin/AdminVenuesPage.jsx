@@ -6,7 +6,7 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import AdminLoading from "../../components/admin/AdminLoading";
-import { createVenue, updateVenue, deleteVenue, uploadVenueImage } from "../../services/venuesService";
+import { createVenue, updateVenue, deleteVenue, getVenueDeleteBlockers, uploadVenueImage } from "../../services/venuesService";
 import {
   listAllVenuesAdmin,
   setVenueStatus,
@@ -402,7 +402,33 @@ export default function AdminVenuesPage() {
   };
 
   const handleDelete = async (row) => {
-    if (!await showConfirm(`"${row.name || row.id}" 구장을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    // 몇 건이 걸려 있는지 모른 채 "되돌릴 수 없습니다"만 묻던 자리 — 세어서 보여주고 묻는다.
+    setBusy(true);
+    let blockers;
+    try {
+      blockers = await getVenueDeleteBlockers(row.id);
+    } catch (e) {
+      setBusy(false);
+      return showAlert(e?.message || "예약 확인에 실패했습니다.");
+    }
+    setBusy(false);
+
+    if (blockers.activeReservations > 0 || blockers.livePayments > 0) {
+      const parts = [];
+      if (blockers.activeReservations > 0) parts.push(`진행 중 예약 ${blockers.activeReservations}건`);
+      if (blockers.livePayments > 0) parts.push(`정산 전 결제 ${blockers.livePayments}건`);
+      return showAlert(
+        `"${row.name || row.id}" 은(는) ${parts.join(" · ")}이 남아 삭제할 수 없습니다.\n` +
+        `예약을 먼저 취소·환불 처리하거나, 노출만 막으려면 '비활성'으로 바꿔주세요.`
+      );
+    }
+
+    const past = blockers.totalReservations - blockers.activeReservations;
+    if (!await showConfirm(
+      `"${row.name || row.id}" 구장을 삭제할까요? 되돌릴 수 없습니다.` +
+      (past > 0 ? `\n지난 예약 ${past}건의 기록은 남지만 구장 상세는 열리지 않게 됩니다.` : "")
+    )) return;
+
     setBusy(true);
     try {
       await deleteVenue({ id: row.id, storagePath: row.storagePath });

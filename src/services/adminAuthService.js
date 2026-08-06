@@ -33,12 +33,22 @@ export async function adminSignIn({ id, password } = {}) {
   }
 
   if (!res.ok) {
-    let reason = "";
+    let body = {};
     try {
-      reason = (await res.json())?.error || "";
+      body = (await res.json()) || {};
     } catch (e) {}
+    const reason = body.error || "";
+    // 서버가 실패 5회에 15분 잠근다(adminLogin.js) — 왜 막혔는지 안 알려주면 계속 두드리게 된다.
+    if (reason === "locked") {
+      const mins = Number(body.retryAfterMinutes) || 15;
+      throw new Error(`로그인 시도가 많아 잠겼습니다. ${mins}분 후에 다시 시도해주세요.`);
+    }
     if (reason === "wrong_password" || reason === "not_found" || reason === "empty") {
-      throw new Error("아이디 또는 비밀번호가 올바르지 않습니다.");
+      const left = Number(body.remainingAttempts);
+      throw new Error(
+        "아이디 또는 비밀번호가 올바르지 않습니다." +
+        (Number.isFinite(left) && left > 0 ? ` (남은 시도 ${left}회)` : "")
+      );
     }
     throw new Error("로그인 처리 중 오류가 발생했습니다.");
   }

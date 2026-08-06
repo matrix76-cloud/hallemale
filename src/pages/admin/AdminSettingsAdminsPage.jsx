@@ -484,7 +484,7 @@ export default function AdminSettingsAdminsPage() {
                 type="password"
                 value={createPw}
                 onChange={(e) => setCreatePw(e.target.value)}
-                placeholder="최소 4자 이상"
+                placeholder="최소 10자 이상"
                 disabled={createBusy}
               />
               <HelpText>등록 후 해당 아이디/비밀번호로 어드민 로그인이 가능합니다.</HelpText>
@@ -517,7 +517,7 @@ export default function AdminSettingsAdminsPage() {
                 type="password"
                 value={pwValue}
                 onChange={(e) => setPwValue(e.target.value)}
-                placeholder="최소 4자 이상"
+                placeholder="최소 10자 이상"
                 disabled={pwBusy}
                 autoFocus
               />

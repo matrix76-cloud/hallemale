@@ -134,9 +134,69 @@ export async function updateVenue(id, patch) {
   await updateDoc(doc(db, "venues", vid), update);
 }
 
+// 아직 끝나지 않은 예약 — 구장주 탈퇴(ownerWithdrawService)와 같은 기준을 쓴다.
+const ACTIVE_RESERVATION_STATUSES = ["requested", "pending", "confirmed"];
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * 삭제해도 되는 구장인지 — 걸려 있는 예약·결제를 센다.
+ *
+ * 구장 문서만 지우면 예약(venueReservations)·결제(payments)는 그대로 남는다.
+ * 남은 예약은 이용자의 "내 예약"에서 상세가 깨지고, 남은 결제는 정산(10-26) 지급 대상에
+ * 계속 잡힌다 — 없는 구장에 돈이 나간다. 그래서 삭제 전에 세어서 막는다.
+ *
+ * @returns {{ activeReservations: number, livePayments: number, totalReservations: number }}
+ */
+export async function getVenueDeleteBlockers(id) {
+  const vid = safeStr(id);
+  const out = { activeReservations: 0, livePayments: 0, totalReservations: 0 };
+  if (!vid) return out;
+
+  const resvSnap = await getDocs(
+    query(collection(db, "venueReservations"), where("venueId", "==", vid))
+  );
+  const today = todayStr();
+  const reservationIds = [];
+  resvSnap.forEach((d) => {
+    const data = d.data() || {};
+    out.totalReservations += 1;
+    reservationIds.push(d.id);
+    if (ACTIVE_RESERVATION_STATUSES.includes(safeStr(data.status)) && safeStr(data.date) >= today) {
+      out.activeReservations += 1;
+    }
+  });
+
+  // 취소되지 않은 결제 원장 = 아직 정산에 잡히는 돈. 예약 수만큼 in 쿼리를 30개씩 끊어 센다.
+  for (let i = 0; i < reservationIds.length; i += 30) {
+    const chunk = reservationIds.slice(i, i + 30);
+    const paySnap = await getDocs(
+      query(collection(db, "payments"), where("reservationId", "in", chunk), where("cancelled", "==", false))
+    );
+    out.livePayments += paySnap.size;
+  }
+
+  return out;
+}
+
 export async function deleteVenue({ id, storagePath }) {
   const vid = safeStr(id);
   if (!vid) throw new Error("id가 비어있습니다.");
+
+  // 예약·결제가 살아 있으면 지우지 않는다. 노출만 끊으려면 "비활성"(active=false)을 쓴다.
+  const blockers = await getVenueDeleteBlockers(vid);
+  if (blockers.activeReservations > 0 || blockers.livePayments > 0) {
+    const parts = [];
+    if (blockers.activeReservations > 0) parts.push(`진행 중 예약 ${blockers.activeReservations}건`);
+    if (blockers.livePayments > 0) parts.push(`정산 전 결제 ${blockers.livePayments}건`);
+    throw new Error(
+      `${parts.join(" · ")}이(가) 남아 있어 삭제할 수 없습니다.\n` +
+      `예약을 먼저 취소·환불 처리하거나, 노출만 막으려면 '비활성'으로 바꿔주세요.`
+    );
+  }
 
   if (safeStr(storagePath)) {
     try {
