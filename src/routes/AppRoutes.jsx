@@ -135,7 +135,6 @@ const PaymentResultPage = lazy(() => import("../pages/venue/PaymentResultPage"))
 const OwnerLayout = lazy(() => import("../layouts/OwnerLayout"));
 const OwnerLoginPage = lazy(() => import("../pages/owner/OwnerLoginPage"));
 const OwnerEntry = lazy(() => import("../pages/owner/OwnerEntry"));
-const OwnerRegisterPage = lazy(() => import("../pages/owner/OwnerRegisterPage"));
 const OwnerStatusPage = lazy(() => import("../pages/owner/OwnerStatusPage"));
 const OwnerHomePage = lazy(() => import("../pages/owner/OwnerHomePage"));
 const OwnerVenuePage = lazy(() => import("../pages/owner/OwnerVenuePage"));
@@ -159,6 +158,9 @@ const OwnerProvider = lazy(() =>
 const AuthReview = lazy(() => import("../dev/AuthReview"));
 // 피그마식 전 화면 보드 (/review/board) — 전 화면 + 상태별 경우의 수를 한 캔버스에 고정 배치
 const ReviewBoard = lazy(() => import("../dev/ReviewBoard"));
+// 리뷰 도구는 내 로컬에서만 연다 — 배포본에는 라우트를 아예 만들지 않는다.
+const IS_LOCAL = typeof window !== "undefined"
+  && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
 
 function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
@@ -642,7 +644,6 @@ export default function AppRoutes() {
         >
           <Route path="/owner" element={<OwnerEntry />} />
           <Route path="/owner/onboarding" element={<OwnerOnboardingPage />} />
-          <Route path="/owner/register" element={<OwnerRegisterPage />} />
           <Route path="/owner/pending" element={<OwnerStatusPage />} />
           {/* 소프트 게이트: 막지 않고 입장 → 각 탭에서 등록/심사 안내 */}
           <Route path="/owner/home" element={<OwnerHomePage />} />
@@ -655,27 +656,32 @@ export default function AppRoutes() {
           <Route path="/owner/withdraw" element={<OwnerWithdrawPage />} />
         </Route>
 
-        {/* 개발용 화면 리뷰 허브 — 미연결(URL 직접 접근). 로그인 사용자만 기록 저장 가능. */}
-        {/* /review/board 는 :id 보다 먼저 둬야 "board"가 화면 id 로 먹히지 않는다. */}
-        <Route path="/review/board" element={<ReviewBoard />} />
-        <Route path="/review/:id?" element={<AuthReview />} />
+        {/* 개발용 리뷰 도구 — 로컬(localhost)에서만 존재한다.
+            배포본에서는 라우트 자체를 등록하지 않아 URL 로 쳐도 404 다.
+            /review-auth·/review-owner 는 평소 게이트로만 뜨는 화면을 절차 없이 직접 여는
+            리뷰 전용 우회로라, 리뷰 허브와 같이 로컬에만 둔다. */}
+        {IS_LOCAL && (
+          <>
+            {/* /review/board 는 :id 보다 먼저 둬야 "board"가 화면 id 로 먹히지 않는다. */}
+            <Route path="/review/board" element={<ReviewBoard />} />
+            <Route path="/review/:id?" element={<AuthReview />} />
 
-        {/* 리뷰 전용: 평소 게이트로만 뜨는 인증 화면을 직접 렌더(리뷰에서 절차대로 확인) */}
-        <Route path="/review-auth/agreement" element={<AgreementGate />} />
-        <Route path="/review-auth/phone" element={<PhoneVerifyPage />} />
-        <Route path="/review-auth/signup-complete" element={<SignupCompletePage />} />
-        <Route path="/review-auth/basic-info" element={<SignupBasicInfoPage />} />
+            <Route path="/review-auth/agreement" element={<AgreementGate />} />
+            <Route path="/review-auth/phone" element={<PhoneVerifyPage />} />
+            <Route path="/review-auth/signup-complete" element={<SignupCompletePage />} />
+            <Route path="/review-auth/basic-info" element={<SignupBasicInfoPage />} />
 
-        {/* 리뷰 전용: 구장주 워크스페이스에서 게이트로만 뜨는 화면(운영 주체·필수 동의).
-            useOwner() 를 쓰므로 OwnerProvider 로 감싼다. */}
-        <Route
-          path="/review-owner/type"
-          element={<OwnerProvider><OwnerTypeGate /></OwnerProvider>}
-        />
-        <Route
-          path="/review-owner/agreement"
-          element={<OwnerProvider><ReviewOwnerAgreement /></OwnerProvider>}
-        />
+            {/* useOwner() 를 쓰므로 OwnerProvider 로 감싼다. */}
+            <Route
+              path="/review-owner/type"
+              element={<OwnerProvider><OwnerTypeGate /></OwnerProvider>}
+            />
+            <Route
+              path="/review-owner/agreement"
+              element={<OwnerProvider><ReviewOwnerAgreement /></OwnerProvider>}
+            />
+          </>
+        )}
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

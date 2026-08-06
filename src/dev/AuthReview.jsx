@@ -3,11 +3,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
 import { DOMAINS } from "./reviewData";
-import { baseScenarioFor, scenarioForScreen, variantsForScreen } from "./boardData";
+import { baseScenarioFor, scenarioForScreen, variantsForScreen, withQuery } from "./boardData";
 import { subscribeThread, postEntry, deleteEntry } from "./reviewThreadService";
 
 // 개발용 리뷰 허브 (/review/:id) — 11개 도메인 통합.
-// 좌=실제 화면(iframe) + 핀 찍기(화면공유로 지도까지 캡처) / 우상=기획 / 우하=기록 스레드(Firestore).
+// 좌=실제 화면(iframe) + 핀 찍기(화면공유로 지도까지 캡처) / 우상=경우의 수 / 우하=기록 스레드(Firestore).
 // 핀에 요소정보 저장 + 화면공유로 핀 박은 스샷 자동 첨부(핀 번호가 이미지에 박힘).
 const ALL = DOMAINS.flatMap((d) => d.screens.map((s) => ({ ...s, domain: d.key })));
 
@@ -22,8 +22,7 @@ const previewPath = (screen, variant, freeze) => {
   const q = [];
   if (scenario) q.push("mock=" + scenario);
   if (freeze) q.push("freeze=1");
-  if (!q.length) return base;
-  return base + (base.includes("?") ? "&" : "?") + q.join("&");
+  return withQuery(base, q);
 };
 
 const CORAL = "#fc5b41";
@@ -82,7 +81,6 @@ export default function AuthReview() {
   const nav = useNavigate();
   const cur = ALL.find((r) => r.id === id) || ALL[0];
   const domain = DOMAINS.find((d) => d.key === cur.domain);
-  const isPC = cur.domain === "admin"; // 관리자=PC 풀와이드 → 넓은 프레임(스케일 축소)
   const [thread, setThread] = useState(null); // { id: [{by,at,text}] }
   const [draft, setDraft] = useState("");
   const [author, setAuthor] = useState("개발자"); // 작성자: 개발자 | AI
@@ -90,10 +88,9 @@ export default function AuthReview() {
   const [pinMode, setPinMode] = useState(false); // 핀 찍기 모드
   const [draftPins, setDraftPins] = useState([]); // 작성 중 핀 [{x,y,label,target}]
   const [pinShotDone, setPinShotDone] = useState(false); // 현재 핀들이 이미 캡처돼 첨부됐는지
-  const stageRef = useRef(null);                   // 폰 프레임이 놓일 영역 (가용 높이 측정용)
-  const [phoneScale, setPhoneScale] = useState(1); // 창이 844보다 짧을 때만 1 미만
+  const stageRef = useRef(null);                   // 프레임이 놓일 영역 (가용 가로·세로 측정용)
+  const [phoneScale, setPhoneScale] = useState(1); // 자리에 맞춘 배율 (남으면 1 초과로 확대)
   const [viewPins, setViewPins] = useState(null); // 기록 클릭 시 화면에 표시할 핀
-  const [specExpanded, setSpecExpanded] = useState(false); // 기획 펼치기(기본 접힘)
   const [variantKey, setVariantKey] = useState(""); // 선택한 경우의 수 ("" = 기본 화면)
   const [live, setLive] = useState(false);          // 조작 허용(기본 꺼짐 = 화면 고정)
   const [sending, setSending] = useState(false);
@@ -110,6 +107,9 @@ export default function AuthReview() {
   const variants = variantsForScreen(cur.domain, cur.id);
   const variant = variants.find((v) => v.key === variantKey) || null;
   const frameSrcNow = previewPath(cur, variant, !live);
+  // 프레임 폭 — 관리자는 PC 풀와이드. 랜딩은 화면(pc)·경우의 수(모바일 변형)마다 갈린다.
+  // (변형이 폭을 지정 안 했으면 화면 기본을 그대로 쓴다 — 관리자 변형이 폰 폭으로 쪼그라들지 않게)
+  const isPC = variant?.pc ?? cur.pc ?? cur.domain === "admin";
 
   // ── 화면공유 (핀 박은 스샷 캡처용 — 카카오맵 등 지도까지 포함) ──
   const stopShare = useCallback(() => {
@@ -135,15 +135,22 @@ export default function AuthReview() {
   }, [stopShare]);
   useEffect(() => () => stopShare(), [stopShare]);
 
-  // 폰 프레임은 항상 390×844로 렌더한다. 세로가 모자라면 통째로 축소해 비율을 지킨다.
+  // 폰 프레임은 항상 390×844로 렌더한다(앱이 보는 뷰포트를 실기기와 같게 유지).
+  // 세로가 모자라면 축소, 남으면 확대 — 비율은 그대로. 리뷰용이라 클수록 잘 보인다.
+  // 가로는 창이 좁을 때 오른쪽 기록 패널이 눌리지 않게만 제한한다.
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
-    const fit = () => setPhoneScale(Math.min(1, el.clientHeight / PHONE_H));
+    const fit = () => {
+      const byH = el.clientHeight / PHONE_H;
+      const byW = (window.innerWidth - RIGHT_MIN_W) / PHONE_W;
+      setPhoneScale(Math.min(MAX_SCALE, byH, Math.max(1, byW)));
+    };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener("resize", fit);
+    return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
   }, [cur.path, isPC]);
 
   // 핀이 가리킨 실제 요소 정보(개발자가 위치를 정확히 읽음)
@@ -153,7 +160,8 @@ export default function AuthReview() {
       const doc = el0 && el0.contentDocument;
       if (!doc) return null;
       const r = el0.getBoundingClientRect();
-      const el = doc.elementFromPoint(clientX - r.left, clientY - r.top);
+      // r은 확대·축소된 화면상 크기 → 프레임 내부 좌표로 되돌려야 요소를 제대로 집는다
+      const el = doc.elementFromPoint((clientX - r.left) / phoneScale, (clientY - r.top) / phoneScale);
       if (!el) return null;
       const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
       return { tag: (el.tagName || "").toLowerCase(), text, label: el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("alt") || "" };
@@ -308,7 +316,8 @@ export default function AuthReview() {
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.ink, fontFamily: FONT }}>
       {/* 화면공유 프레임 소스(숨김) — 핀 박은 스샷 캡처용 */}
       <video ref={videoRef} muted autoPlay playsInline style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none", left: -9999, top: -9999 }} />
-      <header style={{ flex: "none", background: C.card, borderBottom: `1px solid ${C.line}`, padding: "12px 20px" }}>
+      {/* 여백은 최소로 — 헤더가 먹는 세로가 곧 폰 프레임 크기 손해다 (배치는 그대로) */}
+      <header style={{ flex: "none", background: C.card, borderBottom: `1px solid ${C.line}`, padding: "8px 20px" }}>
         {/* 도메인 탭 */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {DOMAINS.map((d) => {
@@ -319,7 +328,7 @@ export default function AuthReview() {
                 key={d.key}
                 onClick={() => nav(`/review/${d.screens[0].id}`)}
                 style={{
-                  fontSize: 13, fontWeight: 800, padding: "6px 14px", borderRadius: 8, cursor: "pointer",
+                  fontSize: 13, fontWeight: 800, padding: "5px 13px", borderRadius: 8, cursor: "pointer",
                   border: `1px solid ${on ? C.ink : C.line}`, background: on ? C.ink : "#fff", color: on ? "#fff" : C.ink2,
                 }}
               >
@@ -336,18 +345,18 @@ export default function AuthReview() {
           >
             화면 보드
           </button>
-          <span style={{ fontSize: 12, color: C.gray }}>화면 리뷰 · 좌=화면 / 우상=기획 / 우하=기록(개발자·AI)</span>
+          <span style={{ fontSize: 12, color: C.gray }}>화면 리뷰 · 좌=화면 / 우상=경우의 수 / 우하=기록(개발자·AI)</span>
         </div>
 
         {/* 현재 화면 정보 */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 11 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 7 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: C.gray, fontVariantNumeric: "tabular-nums" }}>{cur.no}</span>
           <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: "-0.3px" }}>{cur.name}</h1>
           <span style={{ fontSize: 12, color: C.gray2, fontFamily: "ui-monospace, monospace" }}>{cur.path || "— 화면 없음(정책)"}</span>
         </div>
 
         {/* 현재 도메인 화면 칩 */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
           {domain.screens.map((r) => {
             const nUn = unanswered(r.id);
             return (
@@ -355,7 +364,7 @@ export default function AuthReview() {
                 key={r.id}
                 onClick={() => nav(`/review/${r.id}`)}
                 style={{
-                  fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 14, cursor: "pointer",
+                  fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 14, cursor: "pointer",
                   border: `1px solid ${nUn > 0 ? "#fc5b41" : r.id === cur.id ? C.ink : C.line}`,
                   background: r.id === cur.id ? C.ink : "#fff", color: r.id === cur.id ? "#fff" : C.gray,
                 }}
@@ -368,21 +377,11 @@ export default function AuthReview() {
         </div>
       </header>
 
-      {/* 본문: 좌 화면 / 우 (기획 + 노트) */}
-      <div style={{ flex: 1, display: "flex", minHeight: 0, padding: 18, gap: 18 }}>
-        <div style={{ flex: "none", width: isPC ? 780 : PHONE_W + 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          {/* 경우의 수 — 이 화면에 등록된 상태 변형을 골라 본다 (목업이라 언제 봐도 같은 화면) */}
-          {cur.path && variants.length > 0 && (
-            <div style={{ width: isPC ? 760 : PHONE_W, flex: "none", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 11, color: C.gray2, fontWeight: 700 }}>경우의 수</span>
-              <button onClick={() => setVariantKey("")} style={VCHIP(!variantKey)}>기본</button>
-              {variants.map((v) => (
-                <button key={v.key} onClick={() => setVariantKey(v.key)} style={VCHIP(variantKey === v.key)} title={v.scenario}>
-                  {v.name.replace(/^[^·]+ · /, "")}
-                </button>
-              ))}
-            </div>
-          )}
+      {/* 본문: 좌 화면 / 우 (경우의 수 + 노트) */}
+      <div style={{ flex: 1, display: "flex", minHeight: 0, padding: "10px 14px", gap: 14 }}>
+        {/* 폰 칸은 확대된 프레임 폭에 맞춰 넓어진다 (프레임이 잘리지 않게).
+            축소 중일 땐 390 아래로 좁히지 않는다 — 그러면 위 도구줄이 칸 밖으로 잘린다. */}
+        <div style={{ flex: "none", width: isPC ? 780 : Math.max(PHONE_W, Math.round(PHONE_W * phoneScale)) + 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
           {cur.path && (
             <div style={{ width: isPC ? 760 : PHONE_W, flex: "none", display: "flex", alignItems: "center", gap: 6 }}>
               {/* 지금 상태를 그대로 읽히게 쓴다.
@@ -396,7 +395,7 @@ export default function AuthReview() {
                     : "지금 고정됨 — 화면이 안 넘어갑니다. 눌러서 직접 만져보기."
                 }
                 style={{
-                  fontSize: 12, fontWeight: 800, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
+                  fontSize: 12, fontWeight: 800, padding: "4px 12px", borderRadius: 8, cursor: "pointer",
                   border: `1px solid ${live ? "#fc5b41" : "#18181b"}`,
                   background: live ? "#fc5b41" : "#18181b",
                   color: "#fff",
@@ -414,7 +413,7 @@ export default function AuthReview() {
           )}
           {cur.path && !isPC && (
             <div style={{ width: PHONE_W, flex: "none", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <button onClick={() => { setPinMode((v) => !v); setViewPins(null); }} style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 8, cursor: "pointer", border: `1px solid ${pinMode ? "#c2410c" : C.line}`, background: pinMode ? "#c2410c" : "#fff", color: pinMode ? "#fff" : C.gray }}>
+              <button onClick={() => { setPinMode((v) => !v); setViewPins(null); }} style={{ fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 8, cursor: "pointer", border: `1px solid ${pinMode ? "#c2410c" : C.line}`, background: pinMode ? "#c2410c" : "#fff", color: pinMode ? "#fff" : C.gray }}>
                 {pinMode ? "핀 찍는 중 · 화면 클릭" : "핀 찍기"}
               </button>
               {draftPins.length > 0 && (
@@ -422,7 +421,7 @@ export default function AuthReview() {
                   <span style={{ fontSize: 12, color: C.gray, fontWeight: 600 }}>핀 {draftPins.length}
                     <button onClick={() => setDraftPins([])} style={{ marginLeft: 5, color: "#c2410c", fontWeight: 700, cursor: "pointer", background: "none", border: "none" }}>지우기</button>
                   </span>
-                  <button onClick={captureWithPins} disabled={!!busy} title="화면공유로 지도까지 캡처 + 핀 박아 첨부 (지도 배경까지 담으려면 여기서 미리 캡처)" style={{ fontSize: 12, fontWeight: 800, padding: "5px 12px", borderRadius: 8, cursor: busy ? "default" : "pointer", border: "none", background: "#111827", color: "#fff" }}>
+                  <button onClick={captureWithPins} disabled={!!busy} title="화면공유로 지도까지 캡처 + 핀 박아 첨부 (지도 배경까지 담으려면 여기서 미리 캡처)" style={{ fontSize: 12, fontWeight: 800, padding: "4px 12px", borderRadius: 8, cursor: busy ? "default" : "pointer", border: "none", background: "#111827", color: "#fff" }}>
                     {busy || "핀 박아 캡처"}
                   </button>
                   <span style={{ fontSize: 11, color: pinShotDone ? "#10b981" : C.gray2, fontWeight: 700 }}>
@@ -469,29 +468,33 @@ export default function AuthReview() {
             </div>
           ) : (
             <div style={{ width: PHONE_W, height: 460, borderRadius: 20, border: `1px dashed ${C.line2}`, display: "flex", alignItems: "center", justifyContent: "center", color: C.gray2, fontSize: 14, textAlign: "center", padding: 24 }}>
-              화면 없음 — 정책/로직 항목입니다.<br />오른쪽 기획 내용을 참고하세요.
+              화면 없음 — 정책/로직 항목입니다.<br />오른쪽 기록으로 리뷰하세요.
             </div>
           )}
         </div>
 
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-          <section style={{ flex: specExpanded ? "1 1 50%" : "none", minHeight: 0, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, display: "flex", flexDirection: "column" }}>
-            <div style={{ flex: "none", padding: "11px 16px", borderBottom: `1px solid ${C.line}`, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span>기획 내용</span>
-              {cur.spec.length > 0 && (
-                <button onClick={() => setSpecExpanded((v) => !v)} style={{ fontSize: 12, fontWeight: 700, color: C.gray, background: "none", border: "none", cursor: "pointer" }}>{specExpanded ? "접기" : "펼치기"}</button>
-              )}
+          {/* 경우의 수 — 이 화면에 등록된 상태 변형을 골라 본다 (목업이라 언제 봐도 같은 화면).
+              폰 프레임 위에 있으면 화면 세로를 먹어서 여기(옛 기획 내용 칸)로 내렸다. */}
+          <section style={{ flex: "none", minHeight: 0, maxHeight: "40%", background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: "none", padding: "9px 14px", borderBottom: `1px solid ${C.line}`, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span>경우의 수</span>
+              <span style={{ fontSize: 11, color: C.gray2, fontWeight: 600 }}>{variants.length > 0 ? `${variants.length}개 등록` : "미등록"}</span>
             </div>
-            <div className="no-scrollbar" style={{ flex: specExpanded ? 1 : "none", maxHeight: specExpanded ? "none" : 96, overflowY: "auto", padding: "12px 16px" }}>
-              {cur.spec.length === 0 ? (
-                <div style={{ fontSize: 13, color: C.gray2 }}>아직 기획 내용이 없습니다. (필요한 화면부터 채워요)</div>
+            <div className="no-scrollbar" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "10px 12px", display: "flex", flexWrap: "wrap", alignContent: "flex-start", gap: 5 }}>
+              {!cur.path ? (
+                <div style={{ fontSize: 13, color: C.gray2 }}>화면 없음 — 정책/로직 항목입니다.</div>
+              ) : variants.length === 0 ? (
+                <div style={{ fontSize: 13, color: C.gray2 }}>이 화면에 등록된 경우의 수가 없습니다. (기본 화면만)</div>
               ) : (
-                <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {cur.spec.map((s, i) => {
-                    const star = s.startsWith("★");
-                    return <li key={i} style={{ fontSize: 13, lineHeight: 1.55, color: star ? C.ink : C.ink2, fontWeight: star ? 700 : 400 }}>{s}</li>;
-                  })}
-                </ul>
+                <>
+                  <button onClick={() => setVariantKey("")} style={VCHIP(!variantKey)}>기본</button>
+                  {variants.map((v) => (
+                    <button key={v.key} onClick={() => setVariantKey(v.key)} style={VCHIP(variantKey === v.key)} title={v.scenario}>
+                      {v.name.replace(/^[^·]+ · /, "")}
+                    </button>
+                  ))}
+                </>
               )}
             </div>
           </section>
@@ -581,6 +584,8 @@ const BY_STYLE = {
   개발자: { ink: "#18181b", line: "#e4e4e7", bg: "#fafafa" },
 };
 // 실제 폰 논리 해상도(iPhone 12~15 / 갤럭시 S 계열 기준). iframe은 항상 이 크기로 렌더해
-// 앱이 인식하는 뷰포트를 실기기와 같게 유지하고, 창이 짧으면 비율 그대로 축소만 한다.
+// 앱이 인식하는 뷰포트를 실기기와 같게 유지하고, 자리에 맞춰 비율 그대로 확대·축소만 한다.
 const PHONE_W = 390, PHONE_H = 844;
+const MAX_SCALE = 1.6;      // 폰 프레임 확대 상한
+const RIGHT_MIN_W = 560;    // 오른쪽(경우의 수 + 기록)에 최소한 남겨둘 가로
 const FONT = "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif";
