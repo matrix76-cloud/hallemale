@@ -2,9 +2,9 @@
 // src/components/common/AppFooter.jsx
 // ✅ links에 "이벤트" 기본 추가
 
-import React from "react";
+import React, { useState } from "react";
 import styled from "styled-components";
-import { FiPhone, FiMail, FiClock } from "react-icons/fi";
+import { FiPhone, FiMail, FiClock, FiChevronDown } from "react-icons/fi";
 
 const Wrap = styled.footer`
   width: 100%;
@@ -89,15 +89,38 @@ const Card = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
   border-radius: 8px;
-  padding: 12px 12px 10px;
+  overflow: hidden;
+`;
+
+/* 접힘 상태에서도 상호·대표는 그대로 보인다 — 사업자 표시 의무가 걸린 항목이라 숨기지 않는다. */
+const CardHead = styled.button`
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+`;
+
+const Chevron = styled.span`
+  display: inline-flex;
+  opacity: 0.75;
+  transition: transform 0.18s ease;
+  transform: rotate(${({ $open }) => ($open ? "180deg" : "0deg")});
+`;
+
+const CardBody = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
-`;
-
-const CardTitle = styled.div`
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.9);
+  padding: 0 12px 12px;
 `;
 
 const CardLine = styled.div`
@@ -170,9 +193,15 @@ export default function AppFooter({
     address:
       "주소 경기도 남양주시 화도읍 마석중앙로37번길 45, 504호-N141호(별나라프라자)",
   },
-  disclaimer = "할래말래는 팀·선수 간 경기 매칭을 연결하는 중개 플랫폼 서비스입니다. 회사는 경기의 개최·진행 및 회원 간 거래·분쟁의 당사자가 아니며, 이에 대한 책임을 지지 않습니다.",
+  // 전자상거래법 제20조① — 통신판매중개자는 자신이 통신판매의 당사자가 아니라는 사실을
+  // 미리 고지해야 한다. 기존 문구는 경기 매칭만 다뤄 구장 예약(통신판매) 고지가 빠져 있었다.
+  // 랜딩(web/index.html)·약관(legalDefaults.js)의 고지와 같은 취지로 맞춘다.
+  disclaimer = "할래말래는 팀·선수 간 경기 매칭과 제휴 구장 예약을 연결하는 중개 플랫폼 서비스입니다. 회사는 통신판매중개자로서 통신판매의 당사자가 아니며, 경기의 개최·진행과 회원·구장 사업자 간 거래 및 분쟁에 대해 책임을 지지 않습니다.",
   copyright = "© 2026 할래말래. All rights reserved.",
 }) {
+  // 사업자 정보는 기본 접힘 — 푸터에서 가장 긴 블록인데 평소엔 볼 일이 없다.
+  const [companyOpen, setCompanyOpen] = useState(false);
+
   return (
     <Wrap>
       <Inner>
@@ -206,11 +235,26 @@ export default function AppFooter({
         </ContactRow>
 
         <Card>
-          <CardTitle>{company?.operatorLine || "운영사 정보"}</CardTitle>
-          {company?.bizNo && <CardLine>{company.bizNo}</CardLine>}
-          {company?.address && <CardLine>{company.address}</CardLine>}
-          {company?.ceo && <CardLine>{company.ceo}</CardLine>}
-          {company?.commerceNo && <CardLine>{company.commerceNo}</CardLine>}
+          <CardHead
+            type="button"
+            onClick={() => setCompanyOpen((v) => !v)}
+            aria-expanded={companyOpen}
+            aria-controls="footer-company-info"
+          >
+            <span>{company?.operatorLine || "운영사 정보"}</span>
+            <Chevron $open={companyOpen}>
+              <FiChevronDown size={16} />
+            </Chevron>
+          </CardHead>
+
+          {companyOpen && (
+            <CardBody id="footer-company-info">
+              {company?.bizNo && <CardLine>{company.bizNo}</CardLine>}
+              {company?.address && <CardLine>{company.address}</CardLine>}
+              {company?.ceo && <CardLine>{company.ceo}</CardLine>}
+              {company?.commerceNo && <CardLine>{company.commerceNo}</CardLine>}
+            </CardBody>
+          )}
         </Card>
 
         {disclaimer && <Disclaimer>{disclaimer}</Disclaimer>}
