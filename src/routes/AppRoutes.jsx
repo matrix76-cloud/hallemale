@@ -7,6 +7,7 @@ import { useUI } from "../hooks/useUI";
 import { goBackOrHome } from "../utils/navigation";
 import { freezeRoute } from "../dev/mockBus";
 import { ADMIN_BASE } from "../config/adminPath";
+import { PAYMENTS_ENABLED } from "../constants/payments";
 
 // ⚡ 아래 모듈만 메인 번들에 남긴다. 앱 부팅(/ → /login)과 카카오 콜백(/oauth/kakao)의
 //    임계 경로라서, 청크를 한 번 더 받으러 가면 그만큼 로그인이 늦어진다.
@@ -115,6 +116,7 @@ const AdminGamesPastPage = lazy(() => import("../pages/admin/AdminGamesPastPage"
 const AdminPlayersListPage = lazy(() => import("../pages/admin/AdminPlayersListPage"));
 const AdminPlayersRankingPage = lazy(() => import("../pages/admin/AdminPlayersRankingPage"));
 const AdminTeamsRankingPage = lazy(() => import("../pages/admin/AdminTeamsRankingPage"));
+const AdminPresencePage = lazy(() => import("../pages/admin/AdminPresencePage"));
 const AdminChatListPage = lazy(() => import("../pages/admin/AdminChatListPage"));
 const AdminChatRoomDetailPage = lazy(() => import("../pages/admin/AdminChatRoomDetailPage"));
 const AdminBannersPage = lazy(() => import("../pages/admin/AdminBannersPage"));
@@ -469,6 +471,7 @@ export default function AppRoutes() {
         >
           <Route index element={<Navigate to={`${ADMIN_BASE}/dashboard`} replace />} />
           <Route path="dashboard" element={<AdminDashboardPage />} />
+          <Route path="presence" element={<AdminPresencePage />} />
 
           <Route path="users" element={<Navigate to={`${ADMIN_BASE}/users/list`} replace />} />
           <Route path="teams" element={<Navigate to={`${ADMIN_BASE}/teams/list`} replace />} />
@@ -556,7 +559,12 @@ export default function AppRoutes() {
           {/* 토스 결제 — /pay/success·/pay/fail 은 결제창이 돌아오는 지점(경로 고정) */}
           <Route path="/pay/success" element={<PaymentResultPage />} />
           <Route path="/pay/fail" element={<PaymentResultPage />} />
-          <Route path="/pay/:reservationId" element={<PaymentPage />} />
+          {/* PG 심사 대기 중에는 주소를 직접 쳐도 결제 화면이 열리지 않는다.
+              예약 목록으로 보내면 거기서 "결제 준비 중" 안내를 본다(constants/payments.js) */}
+          <Route
+            path="/pay/:reservationId"
+            element={PAYMENTS_ENABLED ? <PaymentPage /> : <Navigate to="/my/reservations" replace />}
+          />
 
           <Route path="/matches/finished" element={<FinishedMatchesPage />} />
           <Route path="/event/:id" element={<EventPage />} />

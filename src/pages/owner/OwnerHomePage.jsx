@@ -4,19 +4,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { LuChevronLeft, LuChevronRight, LuLock, LuHourglass, LuCheck, LuPhone } from "react-icons/lu";
+import { LuChevronLeft, LuChevronRight, LuLock, LuHourglass, LuCheck, LuPhone, LuCalendarOff, LuRepeat } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
 import {
   listReservations, listBlocks, addBlock, removeBlock, setReservationStatus,
   rejectReservation, createOwnerReservation,
   cancelReservation, markReservationNoshow,
+  addBlockRange, cancelRecurringSeries,
   dowToKey, expireMatchReservationIfNeeded, resolveSlotPrice,
+  isPerPerson, clampHeadcount, calcSlotPrice,
 } from "../../services/ownerVenueService";
 import { useUIActions } from "../../hooks/useUI";
 import { formatPhoneE164 as formatPhone } from "../../utils/phone";
 import { copyText } from "../../utils/venueLink";
 import { track } from "../../utils/analytics";
-import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, Input, PrimaryBtn, GhostBtn, DangerBtn, C } from "./components/od";
+import { Page, Card, ScreenTitle, SecTitle, Caption, Chip, StatBadge, Input, PrimaryBtn, GhostBtn, DangerBtn, C, OWNER_WIDE_MIN } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerFooter from "./components/OwnerFooter";
 import OwnerSpinner from "./components/OwnerSpinner";
@@ -51,7 +53,11 @@ const Summary=styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:8p
 const Sum=styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:10px 6px;text-align:center;background:#fff;`;
 const SumN=styled.div`font-size:18px;font-weight:800;color:${({$c})=>$c||C.slate800};`;
 const SumL=styled.div`font-size:11px;color:${C.slate500};margin-top:2px;`;
-const Grid=styled.div`display:grid;grid-template-columns:repeat(2,1fr);gap:8px;`;
+// 시간 슬롯 — 모바일 2열, 데스크톱은 폭이 넓어지므로 4열로 펴서 하루가 한눈에 들어오게.
+const Grid=styled.div`
+  display:grid;grid-template-columns:repeat(2,1fr);gap:8px;
+  @media (min-width:${OWNER_WIDE_MIN}px){grid-template-columns:repeat(4,1fr);}
+`;
 const Slot=styled.button`
   display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:11px 12px;border-radius:12px;
   cursor:${({$k})=>$k==="open"||$k==="blocked"||$k==="confirmed"||$k==="pending"||$k==="done"?"pointer":"default"};
@@ -102,6 +108,20 @@ const SmallChip=styled(Chip)`padding:7px 12px;font-size:12.5px;`;
 const SheetBtns=styled.div`display:flex;gap:8px;margin-top:4px;`;
 const ChooseBtn=styled.button`flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 10px;border-radius:14px;border:1px solid ${C.slate200};background:#fff;color:${C.slate800};font-size:14px;font-weight:700;cursor:pointer;&:active{transform:translateY(1px);}& > small{font-size:11px;font-weight:600;color:${C.slate500};}`;
 const RecurBadge=styled.span`display:inline-flex;align-items:center;gap:3px;border:1px solid ${C.violet300};color:${C.violet600};border-radius:999px;padding:2px 8px;font-size:10.5px;font-weight:700;`;
+// 카드 제목 줄 오른쪽에 붙는 보조 액션 (휴무 설정 등)
+const CardHead=styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;`;
+// 주간/월간 전환
+const ViewToggle=styled.div`display:flex;gap:6px;`;
+const ViewBtn=styled.button`flex:1;border:1px solid ${({$on})=>$on?C.violet600:C.slate200};background:${({$on})=>$on?C.violet50:"#fff"};color:${({$on})=>$on?C.violet600:C.slate500};border-radius:10px;padding:7px;font-size:12.5px;font-weight:700;cursor:pointer;`;
+const MonthWd=styled.div`text-align:center;font-size:10.5px;font-weight:700;color:${({$dow})=>($dow===0?C.red500:$dow===6?C.violet600:C.slate400)};`;
+// 예약 검색 결과 줄
+const SearchRow=styled.div`display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid ${C.slate200};cursor:pointer;&:last-of-type{border-bottom:none;}&:active{background:#fafafa;}`;
+const ItemL=styled.div`display:flex;flex-direction:column;gap:2px;min-width:0;`;
+const ItemT=styled.div`font-size:13.5px;font-weight:700;color:${C.slate800};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const ItemS=styled.div`font-size:11.5px;color:${C.slate500};`;
+// 예약 상태 한글 표기 (검색 결과 뱃지)
+const STATUS_LABEL={requested:"승인대기",pending:"결제대기",confirmed:"확정",done:"이용완료",cancelled:"취소",rejected:"반려",noshow:"노쇼"};
+const HeadBtn=styled.button`display:inline-flex;align-items:center;gap:4px;flex-shrink:0;border:1px solid ${C.slate200};background:#fff;color:${C.slate500};border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;&:active{transform:translateY(1px);}`;
 
 export default function OwnerHomePage(){
   const navigate=useNavigate();
@@ -126,8 +146,13 @@ export default function OwnerHomePage(){
   const [approveNote,setApproveNote]=useState("");
   const [slotSheet,setSlotSheet]=useState(null); // 빈 슬롯 탭 → 액션 선택 {s}
   const [bookForm,setBookForm]=useState(null); // 수동예약 폼 {s,name,phone,price,method,weeks,memo}
+  const [offSheet,setOffSheet]=useState(null); // 기간 휴무 폼 {from,to,allDay,start,end,scope}
+  const [allRows,setAllRows]=useState([]);     // 구장 전체 예약(전 코트·전 상태) — 검색용
+  const [searchQ,setSearchQ]=useState("");     // 예약 검색어 (이름·연락처·예약번호)
+  const [calView,setCalView]=useState("week"); // week | month
 
   const court=courts.find(c=>c.id===courtId)||courts[0]||null;
+  const perPerson=isPerPerson(court); // 1인 요금제 코트 — 금액이 인원에 따라 달라진다
 
   const weekDays=useMemo(()=>{
     const base=new Date(today);base.setDate(base.getDate()-base.getDay()+weekOff*7);
@@ -146,7 +171,9 @@ export default function OwnerHomePage(){
       if(ids.length)await Promise.all(ids.map(id=>expireMatchReservationIfNeeded(id).catch(()=>{})));
       setReservations(rsAll.filter(r=>r.courtId===court.id)); // 시간표 그리드는 선택 코트만
       setPendingAll(rsAll.filter(r=>r.status==="requested")); // 승인 대기는 전 코트·전 날짜
-    }catch(e){setReservations([]);setPendingAll([]);setBlocks([]);}finally{setLoading(false);}
+      setAllRows(rsAll);                                     // 검색은 구장 전체·전 상태 대상
+      setBlocks(bs); // 막아둔 시간 — 이걸 담지 않으면 막아도 "예약가능"으로 보이고 해제도 못 한다
+    }catch(e){setReservations([]);setPendingAll([]);setAllRows([]);setBlocks([]);}finally{setLoading(false);}
   };
   useEffect(()=>{load();/*eslint-disable-next-line*/},[venue?.id,courtId]);
 
@@ -173,15 +200,117 @@ export default function OwnerHomePage(){
   const slotTeam=(r)=>{ if(!r)return""; if(r.matchId)return `${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`; return r.teamName||r.userName||"예약"; };
   const dayCounts=(dStr)=>{const rs=reservations.filter(r=>r.date===dStr);return{cf:rs.filter(r=>r.status==="confirmed").length,pd:rs.filter(r=>["requested","pending"].includes(r.status)).length};};
 
+  // 월간 뷰 — 선택한 날짜가 속한 달. 앞쪽 빈칸(null)은 요일 맞추기용.
+  const monthCells=useMemo(()=>{
+    const b=new Date(`${date}T00:00:00`);
+    if(Number.isNaN(b.getTime()))return[];
+    const y=b.getFullYear(),m=b.getMonth();
+    const lead=new Date(y,m,1).getDay();
+    const total=new Date(y,m+1,0).getDate();
+    const cells=Array.from({length:lead},()=>null);
+    for(let d=1;d<=total;d++)cells.push(ymd(new Date(y,m,d)));
+    return cells;
+  },[date]);
+  const shiftMonth=(delta)=>{
+    const b=new Date(`${date}T00:00:00`);
+    if(Number.isNaN(b.getTime()))return;
+    setDate(ymd(new Date(b.getFullYear(),b.getMonth()+delta,1)));
+  };
+
+  // 오늘 요약 — 구장 전체(전 코트) 기준. 코트를 고르기 전에 오늘 상태부터 보여준다.
+  const todaySummary=useMemo(()=>{
+    const rows=allRows.filter(r=>r.date===nowMin.today);
+    const live=rows.filter(r=>["confirmed","done"].includes(r.status));
+    const remaining=live.filter(r=>r.status==="confirmed"&&toMin(r.endTime)>nowMin.min)
+      .sort((a,b)=>toMin(a.startTime)-toMin(b.startTime));
+    return {
+      confirmed: live.length,
+      remaining: remaining.length,
+      doneOrPast: live.length-remaining.length,
+      next: remaining[0]||null,
+    };
+  },[allRows,nowMin]);
+  const todayLabel=`${Number(nowMin.today.slice(5,7))}.${Number(nowMin.today.slice(8))}`;
+  const goToday=()=>{setWeekOff(0);setDate(nowMin.today);};
+
+  // 예약 찾기 — 전화 문의 응대용. 이름·팀명·연락처·예약번호·메모까지 훑는다.
+  const searchHits=useMemo(()=>{
+    const q=searchQ.trim().toLowerCase();
+    if(q.length<2)return[];
+    const digits=q.replace(/[^0-9]/g,"");
+    const hit=(r)=>{
+      const text=[r.userName,r.teamName,r.teamAName,r.teamBName,r.reservationCode,r.memo].filter(Boolean).join(" ").toLowerCase();
+      if(text.includes(q))return true;
+      if(digits.length>=3){
+        const phones=[r.phone,r.teamALeaderPhone,r.teamBLeaderPhone].filter(Boolean).map(p=>String(p).replace(/[^0-9]/g,""));
+        if(phones.some(p=>p.includes(digits)))return true;
+      }
+      return false;
+    };
+    return [...allRows].filter(hit).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:(a.startTime<b.startTime?1:-1));
+  },[allRows,searchQ]);
+  const searchMore=Math.max(0,searchHits.length-20);
+
   const onSlot=async(s,info)=>{
     if(busy)return;
     if(info.k==="confirmed"||info.k==="pending"||info.k==="done"){ if(info.r) setDetailResv(info.r); return; }
     if(info.k==="open"){ setSlotSheet({s}); return; }
-    if(info.k==="blocked"){if(date<nowMin.today)return;setBusy(true);try{await removeBlock(info.b.id);await load();}catch(e){}finally{setBusy(false);}}
+    if(info.k==="blocked"){
+      if(date<nowMin.today)return;
+      // 하루 통째로 막아둔 휴무는 슬롯 하나만 푸는 게 아니라 그날 전체가 열린다 → 먼저 확인.
+      const wholeDay=toMin(info.b.startTime)<=0&&toMin(info.b.endTime)>=1440;
+      if(wholeDay&&!await ask({title:"휴무 해제",message:`${date} ${court?.name} 은(는) 하루 종일 휴무예요.\n해제하면 그날 전체가 다시 예약 가능해져요.`,confirmLabel:"해제"}))return;
+      setBusy(true);
+      try{await removeBlock(info.b.id);await load();toast(wholeDay?"휴무를 해제했어요.":"막아둔 시간을 해제했어요.");}
+      catch(e){toast(e?.message||"해제에 실패했어요.");}
+      finally{setBusy(false);}
+    }
   };
   // 빈 슬롯 액션: 직접 예약 / 시간 막기
-  const doBlock=async(s)=>{setSlotSheet(null);setBusy(true);try{await addBlock({venueId:venue.id,courtId:court.id,date,startTime:s.start,endTime:s.end});await load();}catch(e){}finally{setBusy(false);}};
-  const openBookForm=(s)=>{const p=resolveSlotPrice(court,date,s.start);setSlotSheet(null);setBookForm({s,name:"",phone:"",price:String(p||0),weeks:1,memo:""});};
+  const doBlock=async(s)=>{setSlotSheet(null);setBusy(true);try{await addBlock({venueId:venue.id,courtId:court.id,date,startTime:s.start,endTime:s.end});await load();toast("이 시간을 막았어요.");}catch(e){toast(e?.message||"시간을 막지 못했어요.");}finally{setBusy(false);}};
+
+  // 기간 휴무 — 공사·대회·명절처럼 여러 날을 한 번에 닫는다.
+  const openOffSheet=()=>setOffSheet({from:date,to:date,allDay:true,start:"09:00",end:"18:00",scope:"court"});
+  const submitOff=async()=>{
+    const f=offSheet; if(!f)return;
+    setBusy(true);
+    try{
+      const courtIds=f.scope==="all"?courts.map(c=>c.id):[court.id];
+      const {created,skipped}=await addBlockRange({
+        venueId:venue.id,courtIds,fromDate:f.from,toDate:f.to,
+        allDay:f.allDay,startTime:f.start,endTime:f.end,
+      });
+      setOffSheet(null);
+      await load();
+      toast(created.length
+        ? `휴무 ${created.length}건을 등록했어요${skipped.length?` (예약이 있어 ${skipped.length}건 제외)`:""}.`
+        : "이미 예약이 있어 막지 못했어요. 예약을 먼저 처리해주세요.");
+    }catch(e){toast(e?.message||"휴무 설정에 실패했어요.");}
+    finally{setBusy(false);}
+  };
+  // 정기대관 남은 회차 일괄 취소
+  const cancelSeries=async(r)=>{
+    if(!await ask({title:"정기대관 전체 취소",message:`${nm(r)}의 정기대관 중 오늘 이후 남은 예약을 모두 취소할까요?\n지난 회차는 기록으로 남아요.`,confirmLabel:"모두 취소",danger:true}))return;
+    setBusy(true);
+    try{
+      const {cancelled}=await cancelRecurringSeries(r.recurringId,{venueId:venue.id});
+      await load(); setDetailResv(null);
+      toast(cancelled?`정기대관 ${cancelled}건을 취소했어요.`:"취소할 남은 예약이 없어요.");
+    }catch(e){toast(e?.message||"취소에 실패했어요.");}
+    finally{setBusy(false);}
+  };
+  // 직접 예약 폼 — 인원제 코트는 최소 인원으로 시작하고, 인원을 바꾸면 금액을 다시 계산한다.
+  const openBookForm=(s)=>{
+    const heads=clampHeadcount(court,court?.minHeadcount);
+    const p=calcSlotPrice(court,s.start,s.end,date,heads);
+    setSlotSheet(null);
+    setBookForm({s,name:"",phone:"",price:String(p||0),weeks:1,memo:"",heads});
+  };
+  const setBookHeads=(n)=>setBookForm(f=>{
+    if(!f)return f;
+    const heads=clampHeadcount(court,n);
+    return {...f,heads,price:String(calcSlotPrice(court,f.s.start,f.s.end,date,heads)||0)};
+  });
   const submitBook=async()=>{
     const f=bookForm; if(!f)return;
     setBusy(true);
@@ -189,7 +318,7 @@ export default function OwnerHomePage(){
       const {created,skipped}=await createOwnerReservation({
         venue,court,date,startTime:f.s.start,endTime:f.s.end,
         customerName:f.name,phone:f.phone,memo:f.memo,
-        price:Number(f.price)||0,repeatWeeks:Number(f.weeks)||1,
+        price:Number(f.price)||0,repeatWeeks:Number(f.weeks)||1,headcount:f.heads,
       });
       setBookForm(null);
       await load();
@@ -255,6 +384,23 @@ export default function OwnerHomePage(){
         </Card>
       )}
 
+      {/* 오늘 먼저 — 사장님이 아침에 확인하는 건 "오늘 몇 건, 지금 뭘 처리해야 하나"다. */}
+      <Card>
+        <CardHead>
+          <SecTitle style={{margin:0}}>오늘 {todayLabel}</SecTitle>
+          {date!==nowMin.today&&<HeadBtn type="button" onClick={goToday}>오늘로</HeadBtn>}
+        </CardHead>
+        <Summary>
+          <Sum><SumN $c={C.violet600}>{todaySummary.confirmed}</SumN><SumL>오늘 확정</SumL></Sum>
+          <Sum><SumN $c={C.amber500}>{pendingAll.length}</SumN><SumL>승인 대기</SumL></Sum>
+          <Sum><SumN $c={C.green600}>{todaySummary.remaining}</SumN><SumL>남은 예약</SumL></Sum>
+          <Sum><SumN $c={C.slate400}>{todaySummary.doneOrPast}</SumN><SumL>지난 예약</SumL></Sum>
+        </Summary>
+        {todaySummary.next
+          ? <Caption>다음 예약 {todaySummary.next.startTime}~{todaySummary.next.endTime} · {todaySummary.next.courtName||"코트"} · {nm(todaySummary.next)}</Caption>
+          : <Caption>{todaySummary.confirmed?"오늘 남은 예약이 없어요.":"오늘은 아직 예약이 없어요."}</Caption>}
+      </Card>
+
       <ChipRow>
         {courts.map(c=>{const cnt=pendingAll.filter(r=>r.courtId===c.id).length;return(
           <CourtChip key={c.id} $on={c.id===court?.id} onClick={()=>setCourtId(c.id)}>
@@ -265,19 +411,76 @@ export default function OwnerHomePage(){
 
       <Card>
         <WeekHead>
-          <WeekNav onClick={()=>setWeekOff(w=>w-1)}><LuChevronLeft size={20}/></WeekNav>
-          <WeekLabel>{weekDays[0]?.date.slice(5).replace("-",".")} ~ {weekDays[6]?.date.slice(5).replace("-",".")}</WeekLabel>
-          <WeekNav onClick={()=>setWeekOff(w=>w+1)}><LuChevronRight size={20}/></WeekNav>
+          <WeekNav onClick={()=>calView==="week"?setWeekOff(w=>w-1):shiftMonth(-1)}><LuChevronLeft size={20}/></WeekNav>
+          <WeekLabel>
+            {calView==="week"
+              ? `${weekDays[0]?.date.slice(5).replace("-",".")} ~ ${weekDays[6]?.date.slice(5).replace("-",".")}`
+              : `${date.slice(0,4)}년 ${Number(date.slice(5,7))}월`}
+          </WeekLabel>
+          <WeekNav onClick={()=>calView==="week"?setWeekOff(w=>w+1):shiftMonth(1)}><LuChevronRight size={20}/></WeekNav>
         </WeekHead>
-        <Days>
-          {weekDays.map(d=>{const c=dayCounts(d.date);return(
-            <Day key={d.date} $on={d.date===date} onClick={()=>setDate(d.date)}>
-              <DayWd $dow={d.dow}>{WEEK[d.dow]}</DayWd>
-              <DayNum $on={d.date===date}>{d.num}</DayNum>
-              <Dots>{c.cf>0&&<Dot $c={C.violet600}/>}{c.pd>0&&<Dot $c={C.amber500}/>}</Dots>
-            </Day>
-          );})}
-        </Days>
+
+        {/* 주간은 오늘 중심 운영, 월간은 다음 달 대관 현황 파악용 */}
+        <ViewToggle>
+          <ViewBtn type="button" $on={calView==="week"} onClick={()=>setCalView("week")}>주간</ViewBtn>
+          <ViewBtn type="button" $on={calView==="month"} onClick={()=>setCalView("month")}>월간</ViewBtn>
+        </ViewToggle>
+
+        {calView==="week"?(
+          <Days>
+            {weekDays.map(d=>{const c=dayCounts(d.date);return(
+              <Day key={d.date} $on={d.date===date} onClick={()=>setDate(d.date)}>
+                <DayWd $dow={d.dow}>{WEEK[d.dow]}</DayWd>
+                <DayNum $on={d.date===date}>{d.num}</DayNum>
+                <Dots>{c.cf>0&&<Dot $c={C.violet600}/>}{c.pd>0&&<Dot $c={C.amber500}/>}</Dots>
+              </Day>
+            );})}
+          </Days>
+        ):(
+          <>
+            <Days>
+              {WEEK.map((w,i)=><MonthWd key={w} $dow={i}>{w}</MonthWd>)}
+            </Days>
+            <Days>
+              {monthCells.map((cell,i)=>{
+                if(!cell)return <span key={`e${i}`}/>;
+                const c=dayCounts(cell);
+                const dow=new Date(`${cell}T00:00:00`).getDay();
+                return(
+                  <Day key={cell} $on={cell===date} onClick={()=>setDate(cell)}>
+                    <DayNum $on={cell===date} style={{fontSize:14,color:cell===date?C.violet600:dow===0?C.red500:C.slate800}}>{Number(cell.slice(8))}</DayNum>
+                    <Dots>{c.cf>0&&<Dot $c={C.violet600}/>}{c.pd>0&&<Dot $c={C.amber500}/>}</Dots>
+                  </Day>
+                );
+              })}
+            </Days>
+            <Caption>보라 점 = 확정, 노랑 점 = 대기 ({court?.name} 기준). 날짜를 누르면 그날 시간표를 봐요.</Caption>
+          </>
+        )}
+      </Card>
+
+      {/* 예약 찾기 — 전화 문의 응대용. 이름·연락처·예약번호 어느 것으로도 찾는다. */}
+      <Card>
+        <SecTitle>예약 찾기</SecTitle>
+        <Input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="예약자·팀 이름, 연락처 뒷자리, 예약번호" />
+        {searchQ.trim().length>0&&(
+          searchHits.length===0
+            ? <Empty>{searchQ.trim().length<2?"두 글자 이상 입력해주세요.":"찾는 예약이 없어요."}</Empty>
+            : <>
+                {searchHits.slice(0,20).map(r=>(
+                  <SearchRow key={r.id} onClick={()=>setDetailResv(r)}>
+                    <ItemL>
+                      <ItemT>{nm(r)}</ItemT>
+                      <ItemS>{r.date} {r.startTime}~{r.endTime} · {r.courtName||"코트"}{r.reservationCode?` · ${r.reservationCode}`:""}</ItemS>
+                    </ItemL>
+                    <StatBadge $tone={r.status==="confirmed"?"confirmed":r.status==="done"?"done":(r.status==="requested"||r.status==="pending")?"pending":"refund"}>
+                      {STATUS_LABEL[r.status]||r.status}
+                    </StatBadge>
+                  </SearchRow>
+                ))}
+                {searchMore>0&&<Caption>가장 최근 20건만 보여요 (총 {searchHits.length}건).</Caption>}
+              </>
+        )}
       </Card>
 
       <Summary>
@@ -288,7 +491,10 @@ export default function OwnerHomePage(){
       </Summary>
 
       <Card>
-        <SecTitle>{date.slice(5).replace("-",".")} 시간대</SecTitle>
+        <CardHead>
+          <SecTitle style={{margin:0}}>{date.slice(5).replace("-",".")} 시간대</SecTitle>
+          <HeadBtn type="button" onClick={openOffSheet}><LuCalendarOff size={13}/> 휴무 설정</HeadBtn>
+        </CardHead>
         <Caption>빈 슬롯을 누르면 전화·현장 예약을 직접 넣거나 시간을 막을 수 있어요. 막은 슬롯을 다시 누르면 해제.</Caption>
         {loading?<OwnerSpinner label="불러오는 중…"/>:isClosed?<Empty>이 요일은 휴무예요.</Empty>:slots.length===0?<Empty>운영시간이 없어요.</Empty>:(
           <Grid>
@@ -303,7 +509,7 @@ export default function OwnerHomePage(){
                   :info.k==="pending"?<><LuHourglass size={12}/>{info.r?.status==="pending"?"결제대기":"승인대기"}</>
                   :info.k==="blocked"?<><LuLock size={12}/>막힘</>
                   :info.k==="past"?"지남"
-                  :<>예약가능 · {(()=>{const p=resolveSlotPrice(court,date,s.start);return p?Number(p).toLocaleString()+"원":"무료";})()}</>}
+                  :<>예약가능 · {(()=>{const p=resolveSlotPrice(court,date,s.start);if(!p)return"무료";return `${perPerson?"1인 ":""}${Number(p).toLocaleString()}원`;})()}</>}
                 </SlotS>
                 {info.r&&<SlotTeam>{slotTeam(info.r)}</SlotTeam>}
               </Slot>
@@ -320,7 +526,7 @@ export default function OwnerHomePage(){
               <ResvName>{isMatch?`${r.teamAName||"팀A"} vs ${r.teamBName||"팀B"}`:(r.teamName||r.userName||"예약자")}</ResvName>
               <StatBadge $tone="pending"><LuHourglass size={11}/>{isMatch?"매칭 승인대기":"승인대기"}</StatBadge>
             </ResvTop>
-            <ResvMeta>{r.date?.slice(5).replace("-",".")} · {r.courtName||court?.name||"코트"} · {r.startTime}~{r.endTime}{r.price?` · ${r.price.toLocaleString()}원`:""}</ResvMeta>
+            <ResvMeta>{r.date?.slice(5).replace("-",".")} · {r.courtName||court?.name||"코트"} · {r.startTime}~{r.endTime}{r.headcount>0?` · ${r.headcount}명`:""}{r.price?` · ${r.price.toLocaleString()}원`:""}</ResvMeta>
             <ContactRow>
               {isMatch ? (
                 [{n:r.teamAName||"팀A",p:r.teamALeaderPhone},{n:r.teamBName||"팀B",p:r.teamBLeaderPhone}].map((t,i)=>(
@@ -375,6 +581,9 @@ export default function OwnerHomePage(){
               )}
               <DRow><span>일시</span><b>{r.date} {r.startTime}~{r.endTime}</b></DRow>
               <DRow><span>코트</span><b>{r.courtName||court?.name||"-"}</b></DRow>
+              {r.headcount>0&&(
+                <DRow><span>인원</span><b>{r.headcount}명{r.unitPrice?` · 1인 ${Number(r.unitPrice).toLocaleString()}원`:""}</b></DRow>
+              )}
               <DRow><span>이용료</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원</b></DRow>
               {!isMatch&&r.memo&&<DRow><span>메모</span><b style={{fontWeight:600}}>{r.memo}</b></DRow>}
               {r.userNote&&<DRow><span>요청사항</span><b style={{fontWeight:600}}>{r.userNote}</b></DRow>}
@@ -409,6 +618,13 @@ export default function OwnerHomePage(){
                 <Caption style={{marginTop:4}}>지난 예약이에요. 이용 결과(완료·노쇼)를 기록하면 통계에 반영돼요.</Caption>
               )}
 
+              {/* 정기대관은 회차가 여러 건이라 한 건씩 취소하면 끝이 없다 → 시리즈 통째 취소를 붙인다. */}
+              {r.recurringId && r.status==="confirmed" && r.date>=nowMin.today && (
+                <GhostBtn onClick={()=>cancelSeries(r)} disabled={busy} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                  <LuRepeat size={14}/> 정기대관 남은 회차 모두 취소
+                </GhostBtn>
+              )}
+
               {r.status==="confirmed" && (
                 <>
                   <DoneBtn onClick={()=>markDone(r)} disabled={busy}>이용 완료 처리</DoneBtn>
@@ -429,8 +645,8 @@ export default function OwnerHomePage(){
             <SheetTitle>{slotSheet.s.start}~{slotSheet.s.end} <X onClick={()=>setSlotSheet(null)}>×</X></SheetTitle>
             <Caption>{date.slice(5).replace("-",".")} · {court?.name} — 이 시간에 무엇을 할까요?</Caption>
             <SheetBtns>
-              <ChooseBtn onClick={()=>openBookForm(slotSheet.s)}>📞 직접 예약<small>전화·현장 예약 등록</small></ChooseBtn>
-              <ChooseBtn onClick={()=>doBlock(slotSheet.s)} disabled={busy}>🔒 시간 막기<small>예약 불가로 잠금</small></ChooseBtn>
+              <ChooseBtn onClick={()=>openBookForm(slotSheet.s)}><LuPhone size={20}/>직접 예약<small>전화·현장 예약 등록</small></ChooseBtn>
+              <ChooseBtn onClick={()=>doBlock(slotSheet.s)} disabled={busy}><LuLock size={20}/>시간 막기<small>예약 불가로 잠금</small></ChooseBtn>
             </SheetBtns>
           </Sheet>
         </Overlay>
@@ -448,6 +664,16 @@ export default function OwnerHomePage(){
             <Field>연락처
               <Input value={bookForm.phone} onChange={e=>setBookForm(f=>({...f,phone:e.target.value}))} placeholder="010-0000-0000" inputMode="tel" />
             </Field>
+            {perPerson&&(
+              <Field>이용 인원
+                <PickRow>
+                  <SmallChip onClick={()=>setBookHeads(bookForm.heads-1)}>−</SmallChip>
+                  <SmallChip $on>{bookForm.heads}명</SmallChip>
+                  <SmallChip onClick={()=>setBookHeads(bookForm.heads+1)}>＋</SmallChip>
+                </PickRow>
+                <Caption>1인 {Number(resolveSlotPrice(court,date,bookForm.s.start)||0).toLocaleString()}원 × {bookForm.heads}명 — 금액은 자동 계산되고, 필요하면 아래에서 고쳐도 돼요.</Caption>
+              </Field>
+            )}
             <Field>이용료(원)
               <Input value={bookForm.price} onChange={e=>setBookForm(f=>({...f,price:e.target.value.replace(/[^0-9]/g,"")}))} inputMode="numeric" />
             </Field>
@@ -464,6 +690,43 @@ export default function OwnerHomePage(){
             <PrimaryBtn onClick={submitBook} disabled={busy}>
               {Number(bookForm.weeks)>1?`${bookForm.weeks}주 정기대관 등록`:"예약 등록"}
             </PrimaryBtn>
+          </Sheet>
+        </Overlay>
+      )}
+
+      {offSheet && (
+        <Overlay onClick={()=>!busy&&setOffSheet(null)}>
+          <Sheet onClick={e=>e.stopPropagation()}>
+            <SheetTitle>휴무 설정<X onClick={()=>!busy&&setOffSheet(null)}>×</X></SheetTitle>
+            <Caption>공사·대회·명절처럼 여러 날을 한 번에 닫을 때 써요. 이미 예약이 잡힌 날은 건너뛰고 알려드려요.</Caption>
+            <Field>시작일
+              <Input type="date" value={offSheet.from} onChange={e=>setOffSheet(f=>({...f,from:e.target.value,to:f.to<e.target.value?e.target.value:f.to}))} />
+            </Field>
+            <Field>종료일
+              <Input type="date" value={offSheet.to} min={offSheet.from} onChange={e=>setOffSheet(f=>({...f,to:e.target.value}))} />
+            </Field>
+            <Field>시간
+              <PickRow>
+                <SmallChip $on={offSheet.allDay} onClick={()=>setOffSheet(f=>({...f,allDay:true}))}>하루 종일</SmallChip>
+                <SmallChip $on={!offSheet.allDay} onClick={()=>setOffSheet(f=>({...f,allDay:false}))}>시간대 지정</SmallChip>
+              </PickRow>
+            </Field>
+            {!offSheet.allDay && (
+              <PickRow>
+                <Input type="time" value={offSheet.start} onChange={e=>setOffSheet(f=>({...f,start:e.target.value}))} style={{flex:1}} />
+                <Input type="time" value={offSheet.end} onChange={e=>setOffSheet(f=>({...f,end:e.target.value}))} style={{flex:1}} />
+              </PickRow>
+            )}
+            {courts.length>1 && (
+              <Field>대상 코트
+                <PickRow>
+                  <SmallChip $on={offSheet.scope==="court"} onClick={()=>setOffSheet(f=>({...f,scope:"court"}))}>{court?.name}만</SmallChip>
+                  <SmallChip $on={offSheet.scope==="all"} onClick={()=>setOffSheet(f=>({...f,scope:"all"}))}>전체 코트 ({courts.length})</SmallChip>
+                </PickRow>
+              </Field>
+            )}
+            <PrimaryBtn onClick={submitOff} disabled={busy}>{busy?"설정 중…":"휴무로 막기"}</PrimaryBtn>
+            <GhostBtn onClick={()=>!busy&&setOffSheet(null)} disabled={busy}>취소</GhostBtn>
           </Sheet>
         </Overlay>
       )}

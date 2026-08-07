@@ -11,6 +11,26 @@
 //    현재 키가 테스트인지는 services/tossPayments.js 의 IS_TEST_PAYMENT 로 알 수 있고,
 //    결제 화면에 "테스트 결제" 배지가 뜬다.
 
+/* ── 결제 진입 차단 (토스 PG 가맹 심사 대기) ──────────────────
+ * 심사가 끝나기 전까지 라이브 키가 없다. 테스트 키로 결제 화면을 열어두면 위 경고 그대로
+ * 카드가 청구되지 않는데도 예약이 confirmed 로 넘어간다(= 무료 예약). 결제창을 아예 건너뛰는
+ * "결제 건너뛰기(테스트)" 버튼까지 노출되므로, 심사가 끝날 때까지 결제 진입 자체를 닫고
+ * 개발 서버(npm start)에서만 연다.
+ *
+ * NODE_ENV 로 가르는 이유: 프로덕션 빌드에서 이 값이 false 로 고정돼 진입 분기가 죽는다.
+ * 런타임 호스트명 검사와 달리 배포본에서 조건을 뒤집을 방법이 없다.
+ *
+ * 심사 통과 후 여는 법:
+ *   1) REACT_APP_TOSS_CLIENT_KEY=live_gck_… / TOSS_SECRET_KEY=live_gsk_… 로 교체
+ *   2) 이 상수를 true 로 고정(또는 이 블록 제거)
+ *   3) functions/payments/toss.js 의 LOCAL_ONLY 게이트도 함께 해제
+ */
+export const PAYMENTS_ENABLED = process.env.NODE_ENV !== "production";
+
+/** 결제 진입이 막혀 있을 때 결제 버튼 자리에 대신 넣는 안내. */
+export const PAYMENTS_DISABLED_NOTICE =
+  "결제 기능을 준비하고 있어요. 준비되면 다시 안내드릴게요.";
+
 // 승인 후 결제 마감까지 주는 시간.
 // ⚠️ functions/payments/toss.js 의 PARTNER_PAY_WINDOW_MS 와 같은 값을 유지할 것.
 export const PAYMENT_WINDOW_MS = 2 * 60 * 60 * 1000;

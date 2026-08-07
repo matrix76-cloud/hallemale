@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiChevronLeft, FiList, FiMap, FiCheckCircle, FiHeart } from "react-icons/fi";
-import { listBookableVenues, listReservations, listBlocks } from "../../services/ownerVenueService";
+import { listBookableVenues, listReservations, listBlocks, courtUnitPrice, isPerPerson } from "../../services/ownerVenueService";
 import Spinner from "../../components/common/Spinner";
 import { FacilityIcon } from "./facilityIcons";
 import { track } from "../../utils/analytics";
@@ -20,15 +20,30 @@ import { setFavoriteVenue } from "../../services/favoriteService";
 import { calcDisplayPrice, DISPLAY_PRICE_NOTE } from "../../constants/payments";
 
 const toStr = (v) => String(v || "").trim();
+// 가장 싼 코트의 단가. 인원제 코트는 "1인 시간당"이라 뜻이 달라져 모드도 함께 돌려준다.
+function cheapestCourt(v) {
+  let best = null;
+  for (const c of v?.courts || []) {
+    const p = courtUnitPrice(c);
+    if (p > 0 && (best == null || p < best.p)) best = { p, perPerson: isPerPerson(c) };
+  }
+  return best;
+}
 function minPrice(v) {
-  const prices = (v.courts || []).map((c) => Number(c.pricePerHour) || 0).filter((n) => n > 0);
-  if (!prices.length) return null;
-  return Math.min(...prices);
+  const b = cheapestCourt(v);
+  return b ? b.p : null;
 }
 // 목록·지도에 찍는 금액은 "실제 결제 총액"이어야 한다(순차공개 가격책정 금지).
 function minDisplayPrice(v) {
   const p = minPrice(v);
   return p == null ? null : calcDisplayPrice(p);
+}
+// 금액 옆 단위 — 코트 대관은 "/시간", 인원제는 "1인 ... /시간".
+function priceLabel(v, { tilde = false } = {}) {
+  const b = cheapestCourt(v);
+  if (!b) return "";
+  const amount = `${calcDisplayPrice(b.p).toLocaleString()}원${tilde ? "~" : ""}`;
+  return `${b.perPerson ? "1인 " : ""}${amount} / 시간${DISPLAY_PRICE_NOTE ? ` · ${DISPLAY_PRICE_NOTE}` : ""}`;
 }
 const isValidLatLng = (v) =>
   Number.isFinite(Number(v?.lat)) &&
@@ -528,9 +543,7 @@ export default function VenueListPage() {
                         <Tag>코트 {v.courts?.length || 0}개</Tag>
                       </CardTags>
                       <CardPrice>
-                        {minDisplayPrice(v) != null
-                          ? `${minDisplayPrice(v).toLocaleString()}원/시간${DISPLAY_PRICE_NOTE ? ` · ${DISPLAY_PRICE_NOTE}` : ""}`
-                          : "가격 문의"}
+                        {minDisplayPrice(v) != null ? priceLabel(v) : "가격 문의"}
                       </CardPrice>
                     </CardBottom>
                   </CardInfo>
@@ -565,10 +578,7 @@ export default function VenueListPage() {
                     {v.imageUrl ? <CardPhotoImg src={v.imageUrl} alt={v.name} /> : <CardNoImg><FiMapPin size={20} /><span>구장 사진 / No image</span></CardNoImg>}
                     {ratingNode(v)}
                     {minDisplayPrice(v) != null && (
-                      <PriceTag>
-                        {minDisplayPrice(v).toLocaleString()}원~ / 시간
-                        {DISPLAY_PRICE_NOTE ? ` · ${DISPLAY_PRICE_NOTE}` : ""}
-                      </PriceTag>
+                      <PriceTag>{priceLabel(v, { tilde: true })}</PriceTag>
                     )}
                     {(v.photos?.length || 0) > 1 ? <PhotoCountTag>사진 {v.photos.length}</PhotoCountTag> : null}
                   </ListCover>

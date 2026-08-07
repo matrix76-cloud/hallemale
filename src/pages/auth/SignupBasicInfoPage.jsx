@@ -1,24 +1,27 @@
 /* eslint-disable */
 // src/pages/auth/SignupBasicInfoPage.jsx
 // 전화번호 인증까지 마친 신규 가입자에게 1회 노출되는 "기본 정보 입력" 화면.
-// 이름·생년월일·성별·활동지역을 받아 users 문서에 저장하고 basicInfoDone=true 로 게이트를 통과시킨다.
+// 이름·생년월일·성별을 받아 users 문서에 저장하고 basicInfoDone=true 로 게이트를 통과시킨다.
 // (RequirePhone 통과 후 진입 · RequireWelcome 완료 화면 앞 단계)
 import React, { useMemo, useState } from "react";
 import styled from "styled-components";
 import { useAuth } from "../../hooks/useAuth";
 import { updateUserProfile } from "../../services/userService";
-import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 import { showAlert } from "../../utils/appDialog";
 import { track } from "../../utils/analytics";
-import { FiChevronRight } from "react-icons/fi";
 import { WizardTopProgress } from "../../components/wizard/SignupWizard";
 
-// 오늘 날짜(YYYY-MM-DD) — 미래 생년월일 입력 방지용 max
-function todayYmd() {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${day}`;
+// "20030207" → "2003-02-07" (실재하지 않는 날짜·미래·1920년 이전이면 null)
+function parseBirth8(s) {
+  if (!/^\d{8}$/.test(s)) return null;
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(4, 6));
+  const d = Number(s.slice(6, 8));
+  if (y < 1920) return null;
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  if (dt.getTime() > Date.now()) return null;
+  return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 }
 
 export default function SignupBasicInfoPage() {
@@ -27,40 +30,32 @@ export default function SignupBasicInfoPage() {
   const uid = userDoc?.id || userDoc?.uid || firebaseUser?.uid || "";
 
   const [realName, setRealName] = useState(String(userDoc?.realName || "").trim());
-  const [birthDate, setBirthDate] = useState(String(userDoc?.birthDate || ""));
+  // 화면 입력값은 숫자 8자리("20030207"), 저장은 기존과 동일한 YYYY-MM-DD
+  const [birth8, setBirth8] = useState(String(userDoc?.birthDate || "").replace(/\D/g, "").slice(0, 8));
   const [gender, setGender] = useState(String(userDoc?.gender || ""));
-  const [regionSido, setRegionSido] = useState(String(userDoc?.regionSido || ""));
-  const [regionGu, setRegionGu] = useState(String(userDoc?.regionGu || ""));
-  const [regionOpen, setRegionOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const regionText = useMemo(
-    () => (regionSido && regionGu ? `${regionSido} ${regionGu}` : ""),
-    [regionSido, regionGu]
-  );
+  const birthDate = useMemo(() => parseBirth8(birth8), [birth8]);
+  const birthInvalid = birth8.length === 8 && !birthDate;
 
   const canSubmit =
     !!uid &&
     realName.trim().length >= 2 &&
     !!birthDate &&
     (gender === "male" || gender === "female") &&
-    !!regionText &&
     !busy;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setBusy(true);
     try {
-      const birthYear = Number(String(birthDate).slice(0, 4)) || null;
+      const birthYear = Number(birthDate.slice(0, 4)) || null;
       await updateUserProfile({
         uid,
         realName: realName.trim(),
         birthDate,
         birthYear,
         gender,
-        regionSido,
-        regionGu,
-        region: regionText,
         basicInfoDone: true,
       });
       track("basic_info_complete"); // 온보딩 기본정보 입력 완료 — 퍼널
@@ -100,13 +95,18 @@ export default function SignupBasicInfoPage() {
           <Label htmlFor="birthDate">생년월일</Label>
           <Input
             id="birthDate"
-            type="date"
-            value={birthDate}
-            max={todayYmd()}
-            min="1920-01-01"
-            onChange={(e) => setBirthDate(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            placeholder="20030207"
+            value={birth8}
+            maxLength={8}
+            onChange={(e) => setBirth8(e.target.value.replace(/\D/g, "").slice(0, 8))}
             disabled={busy}
+            $error={birthInvalid}
           />
+          <Hint $error={birthInvalid}>
+            {birthInvalid ? "생년월일을 다시 확인해 주세요." : "숫자 8자리로 입력해 주세요. (예: 20030207)"}
+          </Hint>
         </FieldGroup>
 
         <FieldGroup>
@@ -129,24 +129,6 @@ export default function SignupBasicInfoPage() {
               여성
             </GenderBtn>
           </GenderRow>
-        </FieldGroup>
-
-        <FieldGroup>
-          <Label>활동 지역</Label>
-          <RegionBtn type="button" $muted={!regionText} onClick={() => setRegionOpen(true)} disabled={busy}>
-            <span>{regionText || "활동 지역 선택"}</span>
-            <FiChevronRight size={16} />
-          </RegionBtn>
-          <RegionPickerSheet
-            open={regionOpen}
-            onClose={() => setRegionOpen(false)}
-            value={{ sido: regionSido, gu: regionGu }}
-            onPick={({ sido, gu }) => {
-              setRegionSido(sido);
-              setRegionGu(gu);
-            }}
-            title="활동 지역 선택"
-          />
         </FieldGroup>
 
         <Spacer />
@@ -210,7 +192,7 @@ const Label = styled.label`
 const Input = styled.input`
   min-width: 0;
   border-radius: 12px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.border)};
   padding: 14px 14px;
   font-size: 15px;
   outline: none;
@@ -218,12 +200,17 @@ const Input = styled.input`
   color: ${({ theme }) => theme.colors.textStrong};
 
   &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
+    border-color: ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.primary)};
     background: ${({ theme }) => theme.colors.card};
   }
   &:disabled {
     opacity: 0.6;
   }
+`;
+
+const Hint = styled.span`
+  font-size: 12px;
+  color: ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.textWeak)};
 `;
 
 const GenderRow = styled.div`
@@ -250,28 +237,6 @@ const GenderBtn = styled.button`
   &:disabled {
     opacity: 0.6;
     cursor: default;
-  }
-`;
-
-const RegionBtn = styled.button`
-  width: 100%;
-  border-radius: 12px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  padding: 14px 14px;
-  font-size: 15px;
-  background: ${({ theme }) => (theme.mode === "dark" ? theme.colors.surface : "#f6f7f9")};
-  color: ${({ $muted, theme }) => ($muted ? theme.colors.textWeak : theme.colors.textStrong)};
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-
-  &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
-  }
-  &:disabled {
-    opacity: 0.6;
   }
 `;
 

@@ -5,7 +5,7 @@
 import React from "react";
 import styled from "styled-components";
 import { LuCalendar, LuChartColumn, LuSettings, LuUser } from "react-icons/lu";
-import { C } from "../../pages/owner/components/od";
+import { C, OWNER_WIDE_MIN, OWNER_MAX_W } from "../../pages/owner/components/od";
 
 const Wrap = styled.nav`
   position: fixed;
@@ -20,6 +20,11 @@ const Wrap = styled.nav`
   z-index: 50;
   max-width: 448px;
   margin: 0 auto;
+
+  /* 본문 폭이 넓어지는 데스크톱에서 탭바도 같이 넓힌다 (od.js Page 와 같은 기준) */
+  @media (min-width: ${OWNER_WIDE_MIN}px) {
+    max-width: ${OWNER_MAX_W}px;
+  }
 `;
 
 const Item = styled.button`

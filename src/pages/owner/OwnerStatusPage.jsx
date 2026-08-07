@@ -6,7 +6,8 @@ import { Navigate, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { useOwner } from "../../context/OwnerContext";
 import OwnerSpinner from "./components/OwnerSpinner";
-import { Page, Card, PrimaryBtn, GhostBtn, Badge } from "./components/ownerUi";
+import { LuFileText, LuHourglass } from "react-icons/lu";
+import { Page, Card, PrimaryBtn, GhostBtn, Badge, C } from "./components/ownerUi";
 
 const Hero = styled.div`
   display: flex;
@@ -18,8 +19,9 @@ const Hero = styled.div`
 `;
 
 const Emoji = styled.div`
-  font-size: 52px;
-  line-height: 1;
+  display: flex;
+  justify-content: center;
+  color: ${C.violet600};
 `;
 
 const Title = styled.div`
@@ -66,7 +68,7 @@ export default function OwnerStatusPage() {
   return (
     <Page>
       <Hero>
-        <Emoji>{isRejected ? "📋" : "⏳"}</Emoji>
+        <Emoji>{isRejected ? <LuFileText size={46} /> : <LuHourglass size={46} />}</Emoji>
         <Title>{isRejected ? "등록이 반려되었어요" : "심사가 진행 중이에요"}</Title>
         <Desc>
           {isRejected

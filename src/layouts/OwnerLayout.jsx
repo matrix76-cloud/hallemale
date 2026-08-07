@@ -13,7 +13,7 @@ import OwnerNotifBell from "../pages/owner/components/OwnerNotifBell";
 import OwnerAgreementGate from "../pages/owner/OwnerAgreementGate";
 import OwnerTypeGate from "../pages/owner/OwnerTypeGate";
 import { OWNER_TYPES, resolveOwnerType } from "../constants/ownerType";
-import { C } from "../pages/owner/components/od";
+import { C, OWNER_WIDE_MIN, OWNER_MAX_W } from "../pages/owner/components/od";
 import { useUI } from "../hooks/useUI";
 import { images } from "../utils/imageAssets";
 
@@ -26,6 +26,11 @@ const Wrap = styled.div`
   padding-top: env(safe-area-inset-top);
   max-width: 448px;
   margin: 0 auto;
+
+  /* 구장 사무실 PC — 좁은 띠 대신 본문 폭을 넓힌다 (본문 폭 기준은 od.js Page 와 같은 값) */
+  @media (min-width: ${OWNER_WIDE_MIN}px) {
+    max-width: ${OWNER_MAX_W}px;
+  }
 `;
 
 const Header = styled.header`
@@ -113,7 +118,9 @@ const TAB_PATHS = ["/owner/home", "/owner/sales", "/owner/venue", "/owner/my"];
 // 상단 헤더 중앙에 표시할 현재 페이지 이름 (하단탭/서브페이지별)
 function getTitle(p) {
   if (p.startsWith("/owner/home")) return "예약관리";
-  if (p.startsWith("/owner/sales")) return "예약통계";
+  // 하단탭·화면 제목과 같은 이름을 쓴다 — 같은 화면을 세 이름으로 부르면 길을 잃는다.
+  if (p.startsWith("/owner/sales")) return "매출·정산";
+  if (p.startsWith("/owner/settlement")) return "정산";
   if (p.startsWith("/owner/venue")) return "구장정보";
   if (p.startsWith("/owner/withdraw")) return "회원탈퇴";
   if (p.startsWith("/owner/inquiry")) return "1:1 문의";

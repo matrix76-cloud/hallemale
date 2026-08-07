@@ -13,6 +13,7 @@ import { useOwner } from "../../context/OwnerContext";
 import { saveOwnerConsents } from "../../services/userService";
 import { ownerTypeOption } from "../../constants/ownerType";
 import { C } from "./components/od";
+import { images } from "../../utils/imageAssets";
 
 export default function OwnerAgreementGate({ ownerType }) {
   const navigate = useNavigate();
@@ -63,7 +64,7 @@ export default function OwnerAgreementGate({ ownerType }) {
     <Wrap>
       <Inner>
         <Hero>
-          <Logo>🏟️</Logo>
+          <Logo src={images.logo} alt="할래말래" />
           <Title>서비스 이용 동의</Title>
           <Sub>{typeOpt.consentSub}</Sub>
         </Hero>
@@ -146,7 +147,7 @@ const Hero = styled.div`
   margin-bottom: 28px;
 `;
 
-const Logo = styled.div`font-size: 56px; line-height: 1; margin-bottom: 6px;`;
+const Logo = styled.img`width: 56px; height: 56px; object-fit: contain; margin-bottom: 6px;`;
 
 const Title = styled.h1`
   margin: 0;

@@ -1066,6 +1066,13 @@ export function adaptMatchRequestToRoom(docId, data) {
     confirmedByClubId: toStr(d.confirmedByClubId),
     cancelledByClubId: toStr(d.cancelledByClubId),
 
+    // 진행 이력 시각 — 상세 화면이 "언제 성사돼서 언제 확정됐다가 언제 취소됐는지"를
+    // 한 눈에 보여주려면 종결 시각(cancelledAt)만으로는 부족하다.
+    createdAt: d.createdAt || null,
+    acceptedAt: d.acceptedAt || null,
+    proposedAt: d.proposedAt || null,
+    confirmedAt: d.confirmedAt || null,
+
     // 취소 사유/환불 — 취소된 경기 카드(사유·정산) 표시용
     cancelReason: toStr(d.cancelReason),
     cancelReasonKey: toStr(d.cancelReasonKey),
@@ -1567,8 +1574,9 @@ export async function cancelMatchRequest({
   await updateDoc(ref, patch);
 
   // 상대팀 알림(푸시) — 취소 사유 포함
+  let oppClubId = "";
   try {
-    const oppClubId = await getOpponentClubId(id, by);
+    oppClubId = await getOpponentClubId(id, by);
     if (oppClubId) {
       const refundNote =
         refund && refund.amount > 0
@@ -1587,6 +1595,30 @@ export async function cancelMatchRequest({
     }
   } catch (e) {
     console.warn("[cancelMatchRequest] notify failed:", e?.message || e);
+  }
+
+  // ✅ 양 팀 팀원에게도 취소 통보 (팀장은 위 notifyMatchRoomEvent / 본인 행동으로 이미 앎).
+  //    이게 없으면 "라인업에 포함됐어요" 알림만 받은 팀원이 취소된 줄 모르고 구장에 간다.
+  //    subType 은 "matchCancelled" 를 쓰면 안 된다 — LEADER_ONLY_MATCH_SUBTYPES 에 걸려
+  //    팀원 알림창에서 도로 걸러진다(notificationDefinitions.js).
+  try {
+    await Promise.all(
+      [by, oppClubId].filter(Boolean).map((cid) =>
+        notifyClubMembersEvent({
+          matchId: id,
+          clubId: cid,
+          subType: "matchCancelledMember",
+          type: "match_cancelled",
+          title: "경기가 취소됐어요",
+          body:
+            cid === by
+              ? `우리 팀이 경기를 취소했어요. 사유: ${reasonStr}`
+              : `${toStr(cancelledByName) || "상대팀"}이(가) 경기를 취소했어요. 사유: ${reasonStr}`,
+        })
+      )
+    );
+  } catch (e) {
+    console.warn("[cancelMatchRequest] member notify failed:", e?.message || e);
   }
 
   // 채팅 시스템 메시지

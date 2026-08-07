@@ -985,7 +985,12 @@ export default function AdminVenuesPage() {
                   <CourtBox key={i}>
                     <CourtTop>
                       <span>{c.name || `${i + 1}코트`} · {c.type === "outdoor" ? "실외" : "실내"}</span>
-                      <span>{won(c.pricePerHour)} / {c.slotMinutes || 60}분</span>
+                      {/* 1인 요금제 코트는 pricePerHour 가 비어 있다 — 그대로 찍으면 0원으로 보인다. */}
+                      <span>
+                        {c.priceMode === "perPerson"
+                          ? `1인 ${won(c.pricePerPerson)}`
+                          : won(c.pricePerHour)} / {c.slotMinutes || 60}분
+                      </span>
                     </CourtTop>
                     <Hours>
                       {DAY_KEYS.map((d) => {

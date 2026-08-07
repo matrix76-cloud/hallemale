@@ -16,6 +16,7 @@ import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
 import { copyText, fullAddress, openDirections, openMapView } from "../../utils/venueLink";
 import { cancelDeadlineText, usableFromText } from "../../constants/cancelPolicy";
+import { PAYMENTS_ENABLED, PAYMENTS_DISABLED_NOTICE } from "../../constants/payments";
 import {
   FiMapPin, FiCalendar, FiClock, FiHash, FiPhone, FiInfo,
   FiCopy, FiMap, FiNavigation, FiFileText, FiStar,
@@ -288,11 +289,16 @@ export default function MyReservationsPage() {
                 ) : null}
               </BottomRow>
 
-              {/* 승인 완료 → 결제해야 확정. 매칭 예약도 각 팀장이 여기서 자기 몫을 결제할 수 있다. */}
+              {/* 승인 완료 → 결제해야 확정. 매칭 예약도 각 팀장이 여기서 자기 몫을 결제할 수 있다.
+                  PG 심사 대기 중에는 진입을 닫고 안내만 남긴다(constants/payments.js). */}
               {needsPayment(r) ? (
-                <PayBtn type="button" onClick={() => navigate(`/pay/${r.id}`)}>
-                  결제하고 예약 확정하기
-                </PayBtn>
+                PAYMENTS_ENABLED ? (
+                  <PayBtn type="button" onClick={() => navigate(`/pay/${r.id}`)}>
+                    결제하고 예약 확정하기
+                  </PayBtn>
+                ) : (
+                  <ClosedHint>{PAYMENTS_DISABLED_NOTICE}</ClosedHint>
+                )
               ) : null}
 
               {canCancel(r) ? (

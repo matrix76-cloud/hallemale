@@ -286,28 +286,15 @@ const VenueRow = styled.div`
   }
 `;
 
-/* 구장 방식 구분 태그: 제휴구장(보라) / 직접입력(중립) */
+/* 구장 방식 구분 태그 — 배경 박스 없이 글씨만. 한 줄에 태그·주소가 같이 오는데
+   박스까지 있으면 시선이 태그로 먼저 가서 정작 구장 이름이 안 읽힌다. */
 const VenueTag = styled.span`
   flex-shrink: 0;
-  padding: 2px 8px;
-  border-radius: 999px;
   font-size: 10.5px;
   font-weight: 800;
   white-space: nowrap;
-  background: ${({ $partner, theme }) =>
-    $partner
-      ? theme.mode === "dark"
-        ? "rgba(124, 92, 201, 0.22)"
-        : "#efe9ff"
-      : theme.mode === "dark"
-      ? theme.colors.surface
-      : "#f3f4f6"};
   color: ${({ $partner, theme }) =>
-    $partner
-      ? theme.mode === "dark"
-        ? "#c4b5fd"
-        : "#7c5cc9"
-      : theme.colors.textWeak};
+    $partner ? theme.colors.primary : theme.colors.textWeak};
 `;
 
 const VenueText = styled.span`

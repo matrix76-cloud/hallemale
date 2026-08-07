@@ -10,13 +10,17 @@ import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
 import { FiMapPin } from "react-icons/fi";
 import { calcDisplayPrice, DISPLAY_PRICE_NOTE } from "../../constants/payments";
+import { courtUnitPrice, isPerPerson } from "../../services/ownerVenueService";
 
 // 표시 금액은 실제 결제 총액(구장 이용료 + 플랫폼 이용료) — 순차공개 가격책정 금지.
+// 인원제 코트는 단가가 "1인 시간당"이라 뜻이 달라진다 → 모드도 같이 돌려준다.
 function minPrice(v) {
-  const prices = (v?.courts || [])
-    .map((c) => Number(c.pricePerHour) || 0)
-    .filter((n) => n > 0);
-  return prices.length ? calcDisplayPrice(Math.min(...prices)) : null;
+  let best = null;
+  for (const c of v?.courts || []) {
+    const p = courtUnitPrice(c);
+    if (p > 0 && (best == null || p < best.p)) best = { p: calcDisplayPrice(p), perPerson: isPerPerson(c) };
+  }
+  return best;
 }
 
 export default function MyFavVenuesPage() {
@@ -90,7 +94,7 @@ export default function MyFavVenuesPage() {
                   </Addr>
                   {p != null ? (
                     <Price>
-                      {p.toLocaleString()}원~ / 시간
+                      {p.perPerson ? "1인 " : ""}{p.p.toLocaleString()}원~ / 시간
                       {DISPLAY_PRICE_NOTE ? ` · ${DISPLAY_PRICE_NOTE}` : ""}
                     </Price>
                   ) : null}

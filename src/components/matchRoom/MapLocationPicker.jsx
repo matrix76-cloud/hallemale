@@ -7,7 +7,7 @@
 import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
-import { FiMapPin } from "react-icons/fi";
+import { FiMapPin, FiSearch, FiInfo, FiChevronLeft } from "react-icons/fi";
 import { mrp } from "./matchRoomPalette";
 
 const SEOUL = { lat: 37.5665, lng: 126.978 };
@@ -223,8 +223,8 @@ export default function MapLocationPicker({
   return (
     <Overlay>
       <AppBar>
-        <Back type="button" onClick={onClose}>
-          ‹
+        <Back type="button" onClick={onClose} aria-label="뒤로">
+          <FiChevronLeft size={22} />
         </Back>
         <TitleWrap>
           <Title>구장 위치 선택</Title>
@@ -235,7 +235,7 @@ export default function MapLocationPicker({
 
       <Body>
         <SearchBar type="button" onClick={openAddressSearch}>
-          <span>🔍</span>
+          <FiSearch size={15} />
           <Mq>건물명 · 도로명으로 검색</Mq>
         </SearchBar>
 
@@ -257,7 +257,7 @@ export default function MapLocationPicker({
         </PickCard>
 
         <Notice>
-          <Em>💡</Em>
+          <Em><FiInfo size={12} /></Em>
           <div>
             지도에서 잡은 위치는 다음 단계에서 <b>주소로 자동 입력</b>돼요. 핀이
             정확한지 한 번 더 확인하세요.
@@ -309,6 +309,8 @@ const AppBar = styled.div`
 `;
 
 const Back = styled.button`
+  display: inline-flex;
+  align-items: center;
   border: none;
   background: transparent;
   font-size: 24px;
@@ -512,8 +514,11 @@ const Notice = styled.div`
 `;
 
 const Em = styled.span`
+  display: inline-flex;
+  align-items: center;
   font-size: 13px;
   flex-shrink: 0;
+  margin-top: 2px;
 `;
 
 const ActionBar = styled.div`

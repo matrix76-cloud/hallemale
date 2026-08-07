@@ -6,7 +6,7 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiStar, FiMapPin, FiUser, FiShield, FiBarChart2, FiClock, FiImage } from "react-icons/fi";
+import { FiStar, FiMapPin, FiUser, FiShield, FiBarChart2, FiClock, FiImage, FiFlag, FiSlash, FiPlay, FiX } from "react-icons/fi";
 
 import { images } from "../../utils/imageAssets";
 import { getPlayerProfile } from "../../services/playerService";
@@ -334,15 +334,6 @@ const SectionIconCircle = styled.div`
   font-size: 16px;
 `;
 
-/* 섹션 헤더 3D 아이콘 */
-const Ico3D = styled.img`
-  width: 26px;
-  height: 26px;
-  object-fit: contain;
-  transform: translateY(-2px);
-  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.16));
-`;
-
 const SectionTitleText = styled.h2`
   margin: 0;
   font-size: 15px;
@@ -544,7 +535,8 @@ const ViewerClose = styled.button`
   border: none;
   background: none;
   color: #fff;
-  font-size: 26px;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
   cursor: pointer;
 `;
@@ -619,6 +611,9 @@ const ReportLink = styled.button`
   text-decoration: underline;
   cursor: pointer;
   padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 
   &:hover {
     color: ${({ theme }) =>
@@ -1128,7 +1123,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <Ico3D src={images.emoji3dIdCard} alt="" />
+                  <FiUser size={18} />
                 </SectionIconCircle>
                 <SectionTitleText>선수 프로필</SectionTitleText>
               </SectionHeaderLeft>
@@ -1165,7 +1160,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
               <SectionHeaderRow>
                 <SectionHeaderLeft>
                   <SectionIconCircle>
-                    <Ico3D src={images.emoji3dShield} alt="" />
+                    <FiShield size={18} />
                   </SectionIconCircle>
                   <SectionTitleText>소속 팀</SectionTitleText>
                 </SectionHeaderLeft>
@@ -1208,7 +1203,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <Ico3D src={images.emoji3dBarchart} alt="" />
+                  <FiBarChart2 size={18} />
                 </SectionIconCircle>
                 <SectionTitleText>전적</SectionTitleText>
               </SectionHeaderLeft>
@@ -1222,7 +1217,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <Ico3D src={images.emoji3dFlag} alt="" />
+                  <FiFlag size={18} />
                 </SectionIconCircle>
                 <SectionTitleText>경기 기록</SectionTitleText>
               </SectionHeaderLeft>
@@ -1278,7 +1273,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             <SectionHeaderRow>
               <SectionHeaderLeft>
                 <SectionIconCircle>
-                  <Ico3D src={images.emoji3dPicture} alt="" />
+                  <FiImage size={18} />
                 </SectionIconCircle>
                 <SectionTitleText>경기 사진 / 영상</SectionTitleText>
               </SectionHeaderLeft>
@@ -1299,7 +1294,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                     <MediaImg src={m.thumbnailUrl || m.url} alt={m.title || m.caption || "media"} />
                     {m.type === "video" && (
                       <MediaPlay>
-                        <PlayCircle>▶</PlayCircle>
+                        <PlayCircle><FiPlay size={16} fill="currentColor" /></PlayCircle>
                       </MediaPlay>
                     )}
                   </MediaCell>
@@ -1313,10 +1308,10 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
           {!isSelf && (
             <ReportRow>
               <ReportLink type="button" onClick={openReport}>
-                🚩 신고하기
+                <FiFlag size={13} aria-hidden /> 신고하기
               </ReportLink>
               <ReportLink type="button" onClick={handleBlock}>
-                🚫 차단하기
+                <FiSlash size={13} aria-hidden /> 차단하기
               </ReportLink>
             </ReportRow>
           )}
@@ -1328,7 +1323,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
           <ViewerTop>
             <span>경기 사진 / 영상</span>
             <ViewerClose type="button" onClick={() => setMediaModalOpen(false)}>
-              ×
+              <FiX size={20} />
             </ViewerClose>
           </ViewerTop>
           <ViewerTrack>
@@ -1337,7 +1332,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                 <ViewerImg src={m.thumbnailUrl || m.url} alt={m.title || m.caption || "media"} />
                 {m.type === "video" && (
                   <ViewerPlay onClick={() => onMediaClick(m)}>
-                    <PlayCircle>▶</PlayCircle>
+                    <PlayCircle><FiPlay size={16} fill="currentColor" /></PlayCircle>
                   </ViewerPlay>
                 )}
               </ViewerSlide>

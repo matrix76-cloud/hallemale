@@ -40,14 +40,25 @@ function ts(iso) {
 // Timestamp 흉내 객체로 주면 `new Date(v)` 를 쓰는 화면에서 Invalid Date 가 된다.
 const iso = (v) => new Date(v).toISOString();
 
-// 보드 프레임을 언제 열어도 같은 화면이 나와야 하므로 날짜도 고정값으로 박는다.
+// 경기 일시만은 고정값으로 박을 수 없다 — 화면이 "확정(경기 전)"인지 "지난 경기"인지를
+// scheduledAt 과 현재 시각의 비교로 가르기 때문에, 박아둔 날짜가 지나면 "일정 확정" 시나리오가
+// 어느 날부터 조용히 "경기 종료" 화면으로 바뀐다(실제로 그렇게 썩어 있었다).
+// 그래서 경기 일시만 오늘 기준 상대일로 잡고, 나머지 이력 시각은 고정값을 유지한다.
+// 날짜 경계로 정렬해서 같은 날 안에서는 항상 같은 화면이 나온다.
+function dayOffsetAt(days, hour) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+}
+
 const T = {
   createdAt: ts("2026-07-20T10:00:00+09:00"),
   acceptedAt: ts("2026-07-21T14:30:00+09:00"),
   proposedAt: ts("2026-07-22T09:10:00+09:00"),
   confirmedAt: ts("2026-07-22T18:40:00+09:00"),
-  scheduledAt: iso("2026-08-02T19:00:00+09:00"),
-  pastScheduledAt: iso("2026-07-12T19:00:00+09:00"),
+  scheduledAt: dayOffsetAt(5, 19), // 확정(경기 전) 시나리오용 — 닷새 뒤 19:00
+  pastScheduledAt: dayOffsetAt(-5, 19), // 지난 경기 시나리오용 — 닷새 전 19:00
   cancelledAt: ts("2026-07-23T11:05:00+09:00"),
   updatedAt: ts("2026-07-23T11:05:00+09:00"),
 };
@@ -1826,7 +1837,17 @@ const RAW = {
         myScore: 68,
         oppScore: 61,
         resultState: "waiting_accept",
-        result: { submittedByClubId: OPP_CLUB, myScore: 68, oppScore: 61, photos: [], comments: [] },
+        // 실제 문서의 result 모양 — submitMatchResultWithMedia 가 쓰는 필드와 같아야
+        // 화면의 "결과 입력(작성자·시각)" 표시가 실제와 같이 나온다.
+        result: {
+          submittedByClubId: OPP_CLUB,
+          authorUid: OPP_LEADER_UID,
+          authorName: OPP_TEAM_SNAP.name,
+          authorRole: "owner",
+          comment: "",
+          photoUrls: [],
+          submittedAt: ts(dayOffsetAt(-4, 22)),
+        },
       }),
       matchReviews: [],
       chatMessages: CHAT_CONFIRMED,
@@ -1848,13 +1869,15 @@ const RAW = {
         myScore: 68,
         oppScore: 61,
         resultState: "confirmed",
-        statsAppliedAt: ts("2026-07-13T10:00:00+09:00"),
+        statsAppliedAt: ts(dayOffsetAt(-4, 10)),
         result: {
           submittedByClubId: MY_CLUB,
-          myScore: 68,
-          oppScore: 61,
-          photos: [],
-          comments: [{ uid: OPP_LEADER_UID, text: "좋은 경기였습니다!", createdAt: ts("2026-07-13T11:00:00+09:00") }],
+          authorUid: MY_UID,
+          authorName: MY_TEAM_SNAP.name,
+          authorRole: "owner",
+          comment: "좋은 경기였습니다!",
+          photoUrls: [],
+          submittedAt: ts(dayOffsetAt(-5, 21)),
         },
       }),
       matchReviews: [
@@ -1875,14 +1898,96 @@ const RAW = {
         status: "cancelled",
         proposedByClubId: MY_CLUB,
         confirmedByClubId: OPP_CLUB,
+        acceptedAt: T.acceptedAt,
+        confirmedAt: T.confirmedAt,
         scheduledAt: T.scheduledAt,
         field: FIELD,
         cancelledByClubId: OPP_CLUB,
-        cancelReasonKey: "team_issue",
-        cancelReason: "팀 사정으로 경기 진행이 어려워졌습니다.",
-        cancelReasonText: "팀 사정으로 경기 진행이 어려워졌습니다.",
-        cancelledAt: T.cancelledAt,
-        refund: { amount: 40000, rate: 100, state: "done" },
+        // 실제 문서와 같은 키를 써야 한다 — MATCH_CANCEL_REASONS 밖의 키를 넣으면
+        // 라벨 조회가 빗나가 화면에서만 사유가 다르게 보인다.
+        cancelReasonKey: "shortage",
+        cancelReasonText: "부상자가 겹쳐 5명을 못 채웠어요. 다음에 꼭 다시 붙어요!",
+        cancelReason: "팀원이 부족해요 · 부상자가 겹쳐 5명을 못 채웠어요. 다음에 꼭 다시 붙어요!",
+        cancelledAt: ts(dayOffsetAt(-1, 11)), // 경기 6일 전에 취소 → 전액 환불 구간
+
+        // releasePartnerReservationOnCancel 이 남기는 실제 모양
+        refund: {
+          status: "pending",
+          amount: 80000,
+          breakdown: [
+            { team: "A", uid: MY_UID, amount: 40000 },
+            { team: "B", uid: "mock_u_opp_leader", amount: 40000 },
+          ],
+        },
+        partnerBooking: {
+          venueId: "mock_venue_1",
+          venueName: "용산 더베이스 농구장",
+          courtName: "A코트",
+          date: "2026-08-02",
+          startTime: "19:00",
+          endTime: "21:00",
+          totalPrice: 80000,
+          shareA: 40000,
+          shareB: 40000,
+          proposerClubId: MY_CLUB,
+          proposerTeamName: MY_TEAM_SNAP.name,
+          opponentClubId: OPP_CLUB,
+          opponentTeamName: OPP_TEAM_SNAP.name,
+          reservationCode: "HM-260802-011",
+          finalized: true,
+        },
+      }),
+      matchReviews: [],
+      chatMessages: CHAT_CONFIRMED,
+      chatRoom: { ...CHAT_ROOM, locked: true },
+      matchReservation: null,
+    },
+  },
+
+  /* 같은 취소 화면의 반대편 — 우리 팀이 임박해서 취소한 경우.
+   * 취소 시점(하루 전)에 따라 위약금이 공제되고 규정 표에서 해당 줄이 강조된다. */
+  "match-cancelled-mine": {
+    label: "매치룸 · 취소됨(우리팀·위약금)",
+    extends: "base-leader",
+    data: {
+      matchRequestDoc: matchDoc({
+        status: "cancelled",
+        proposedByClubId: MY_CLUB,
+        confirmedByClubId: OPP_CLUB,
+        acceptedAt: T.acceptedAt,
+        confirmedAt: T.confirmedAt,
+        scheduledAt: dayOffsetAt(-2, 19), // 이틀 전에 열릴 예정이던 경기
+        field: FIELD,
+        cancelledByClubId: MY_CLUB,
+        cancelReasonKey: "etc",
+        cancelReasonText: "주장이 갑자기 출장을 가게 됐어요. 죄송합니다.",
+        cancelReason: "기타(직접 입력) · 주장이 갑자기 출장을 가게 됐어요. 죄송합니다.",
+        cancelledAt: ts(dayOffsetAt(-3, 20)), // 경기 하루 전 취소 → 50% 환불 구간
+        refund: {
+          status: "pending",
+          amount: 80000,
+          breakdown: [
+            { team: "A", uid: MY_UID, amount: 40000 },
+            { team: "B", uid: "mock_u_opp_leader", amount: 40000 },
+          ],
+        },
+        partnerBooking: {
+          venueId: "mock_venue_1",
+          venueName: "용산 더베이스 농구장",
+          courtName: "A코트",
+          date: "2026-08-02",
+          startTime: "19:00",
+          endTime: "21:00",
+          totalPrice: 80000,
+          shareA: 40000,
+          shareB: 40000,
+          proposerClubId: MY_CLUB,
+          proposerTeamName: MY_TEAM_SNAP.name,
+          opponentClubId: OPP_CLUB,
+          opponentTeamName: OPP_TEAM_SNAP.name,
+          reservationCode: "HM-260802-011",
+          finalized: true,
+        },
       }),
       matchReviews: [],
       chatMessages: CHAT_CONFIRMED,

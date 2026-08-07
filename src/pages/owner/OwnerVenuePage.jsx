@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import {
   LuPlus, LuTrash2, LuPin, LuMegaphone, LuTriangleAlert, LuCoins, LuClock, LuLayoutGrid, LuBuilding2, LuLogOut,
-  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo, LuEye, LuMapPin, LuCheck,
+  LuImage, LuPhone, LuFileText, LuReceipt, LuInfo, LuEye, LuMapPin, LuCheck, LuCar,
 } from "react-icons/lu";
 import { useNavigate } from "react-router-dom";
 import { useOwner } from "../../context/OwnerContext";
@@ -18,6 +18,7 @@ import PriceBandsEditor from "./components/PriceBandsEditor";
 import VenuePreviewSheet from "./components/VenuePreviewSheet";
 import { FacilityIcon } from "../venue/facilityIcons";
 import { payoutHint } from "../../constants/payments";
+import { useUIActions } from "../../hooks/useUI";
 import {
   Page, Card, ScreenTitle, SecTitle, Caption, Input, Chip, PrimaryBtn, GhostBtn, DangerBtn, C,
 } from "./components/od";
@@ -49,6 +50,13 @@ const Row = styled.div`display:flex;gap:10px;& > *{flex:1;min-width:0;}`;
 const Field = styled.label`display:flex;flex-direction:column;gap:6px;flex:1;`;
 const Lbl = styled.span`font-size:12.5px;font-weight:700;color:${C.slate500};`;
 const PayoutHint = styled.span`font-size:11.5px;color:${C.slate500};`;
+/* 1인 요금제의 최소 인원 안내 — 미설정이면 경고 톤 */
+const MinGuard = styled.div`
+  font-size:12px;line-height:1.5;border-radius:10px;padding:9px 11px;
+  border:1px solid ${({ $warn }) => ($warn ? C.amber400 : C.slate200)};
+  color:${({ $warn }) => ($warn ? C.slate800 : C.slate500)};
+  background:${({ $warn }) => ($warn ? "#FFFBEB" : "#fff")};
+`;
 const Sel = styled.select`border:1px solid ${C.slate200};border-radius:12px;padding:11px 10px;font-size:14px;color:${C.slate800};background:#fff;`;
 const Seg = styled.div`display:flex;gap:8px;`;
 const SegBtn = styled.button`flex:1;border:1px solid ${({$on})=>$on?C.violet600:C.slate200};background:${({$on})=>$on?C.violet50:"#fff"};color:${({$on})=>$on?C.violet600:C.slate500};border-radius:12px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;`;
@@ -77,6 +85,11 @@ function courtForm(c, i) {
     id: c?.id, name: c?.name || `${i + 1}코트`, type: c?.type || "indoor",
     surface: c?.surface || "",
     pricePerHour: String(c?.pricePerHour ?? ""), slotMinutes: c?.slotMinutes || 60,
+    priceMode: c?.priceMode === "perPerson" ? "perPerson" : "hourly",
+    pricePerPerson: String(c?.pricePerPerson ?? ""),
+    // 최소 인원은 "아직 안 정함"과 "1명"을 구분해야 한다 → 미설정은 빈 값으로 둔다.
+    minHeadcount: Number(c?.minHeadcount) >= 1 ? String(c.minHeadcount) : "",
+    maxHeadcount: Number(c?.maxHeadcount) > 0 ? String(c.maxHeadcount) : "",
     hours: c?.hours || defaultCourtHours(),
     priceBands: c?.priceBands || {}, priceOverrides: c?.priceOverrides || {},
     notices: c?.notices || [], cautions: c?.cautions || [],
@@ -87,13 +100,23 @@ function courtForm(c, i) {
 // 저장/미리보기용 — 폼의 photos([{url,storagePath}])를 문서 형태(photos/storagePaths)로 되돌린다.
 function courtPayload(c) {
   const ps = c.photos || [];
-  return { ...c, photos: ps.map((p) => p.url), storagePaths: ps.map((p) => p.storagePath) };
+  return {
+    ...c,
+    photos: ps.map((p) => p.url),
+    storagePaths: ps.map((p) => p.storagePath),
+    // 인원 관련 값은 폼에서 문자열로 다루므로 저장 직전에 숫자로 되돌린다.
+    pricePerPerson: Number(c.pricePerPerson) || 0,
+    minHeadcount: Math.max(1, Number(c.minHeadcount) || 1),
+    maxHeadcount: Math.max(0, Number(c.maxHeadcount) || 0),
+  };
 }
 function makeCourt(i) { return courtForm({ name: `${i + 1}코트` }, i); }
 
 export default function OwnerVenuePage() {
   const navigate = useNavigate();
   const { venue, loading, refresh, signOut } = useOwner();
+  const { showToast } = useUIActions() || {};
+  const toast = (m) => { if (showToast) showToast({ message: m }); };
   const fileRef = useRef(null);
   const courtFileRef = useRef(null);
   const [courts, setCourts] = useState([]);
@@ -159,6 +182,9 @@ export default function OwnerVenuePage() {
   if (!venue) return <Page><VenueGateNotice venue={null} refresh={refresh} /></Page>;
 
   const court = courts[sel] || courts[0];
+  const isPer = court?.priceMode === "perPerson"; // 1인 요금제 코트
+  const bandBase = Number(isPer ? court?.pricePerPerson : court?.pricePerHour) || 0;
+  const minHeads = Math.floor(Number(court?.minHeadcount) || 0); // 0 = 아직 안 정함
   const setCourt = (patch) => setCourts((cs) => cs.map((c, i) => (i === sel ? { ...c, ...patch } : c)));
   const addCourt = () => { setCourts((cs) => [...cs, makeCourt(cs.length)]); setSel(courts.length); };
   const removeCourt = () => { if (courts.length <= 1) return; setCourts((cs) => cs.filter((_, i) => i !== sel)); setSel(0); };
@@ -223,6 +249,21 @@ export default function OwnerVenuePage() {
   const save = async () => {
     if (!name.trim()) { showAlert("구장명을 입력해 주세요."); return; }
     if (courts.some((c) => !c.name.trim())) { showAlert("코트 이름을 입력해 주세요."); return; }
+    // 1인 요금제는 최소 인원이 하한가 역할을 한다 — 비워두면 1명 예약이 그 시간을 통째로 잠근다.
+    const noMin = courts.findIndex((c) => c.priceMode === "perPerson" && !(Number(c.minHeadcount) >= 1));
+    if (noMin >= 0) {
+      setSel(noMin);
+      setPriceTab("base");
+      showAlert(`${courts[noMin].name || "코트"}는 1인 요금제예요.\n최소 인원을 정해주세요. 정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓰게 돼요.`);
+      return;
+    }
+    const badMax = courts.findIndex((c) => c.priceMode === "perPerson" && Number(c.maxHeadcount) > 0 && Number(c.maxHeadcount) < Number(c.minHeadcount));
+    if (badMax >= 0) {
+      setSel(badMax);
+      setPriceTab("base");
+      showAlert(`${courts[badMax].name || "코트"}의 정원이 최소 인원보다 적어요.`);
+      return;
+    }
     setSaving(true);
     try {
       await updateMyVenue(venue.id, {
@@ -234,8 +275,10 @@ export default function OwnerVenuePage() {
         description, phone, rules, refundPolicy, defaultOwnerNote, autoApprove,
       }, { asOwner: true });
       await refresh();
+      toast("구장정보를 저장했어요.");
     } catch (e) {
-      // 토스트 대신 조용히
+      // 조용히 넘기면 저장이 안 된 줄 모르고 화면을 떠난다.
+      showAlert(e?.message || "저장에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally { setSaving(false); }
   };
 
@@ -373,6 +416,26 @@ export default function OwnerVenuePage() {
           {/* 요금 3단계 */}
           <Card>
             <SecTitle><LuCoins size={16} /> 이용 요금</SecTitle>
+
+            {/* 과금 방식 — 코트를 통째로 빌려주는 곳과 1인당 받는 곳이 갈린다. */}
+            <Lbl>과금 방식</Lbl>
+            <ModeRow>
+              <ModeBtn type="button" $on={!isPer} onClick={() => setCourt({ priceMode: "hourly" })}>
+                <ModeName>코트 대관</ModeName>
+                <ModeDesc>시간당 금액으로 코트를 통째로 빌려줘요.</ModeDesc>
+              </ModeBtn>
+              <ModeBtn type="button" $on={isPer} onClick={() => setCourt({ priceMode: "perPerson" })}>
+                <ModeName>1인 요금</ModeName>
+                <ModeDesc>1인 시간당 금액 × 인원으로 받아요.</ModeDesc>
+              </ModeBtn>
+            </ModeRow>
+            {isPer && (
+              <Caption>
+                손님이 예약할 때 인원을 고르고, 금액은 (1인 요금 × 인원 × 시간)으로 계산돼요.
+                매칭 제휴예약(두 팀 반반 결제)에는 이 코트가 제안되지 않아요.
+              </Caption>
+            )}
+
             <Caption>적용 우선순위: 특정 날짜 &gt; 요일별 구간 &gt; 기본요금</Caption>
             <Seg>
               <SegBtn $on={priceTab === "base"} onClick={() => setPriceTab("base")}>기본</SegBtn>
@@ -380,19 +443,48 @@ export default function OwnerVenuePage() {
               <SegBtn $on={priceTab === "date"} onClick={() => setPriceTab("date")}>특정날짜</SegBtn>
             </Seg>
 
-            {priceTab === "base" && (
+            {priceTab === "base" && (isPer ? (
+              <>
+                <Field>
+                  <Lbl>1인 요금 (시간당) · 손님 1명이 결제할 금액</Lbl>
+                  <Input type="number" value={court.pricePerPerson} onChange={(e) => setCourt({ pricePerPerson: e.target.value })} placeholder="5000" />
+                  {payoutHint(court.pricePerPerson) ? <PayoutHint>1인 기준 · {payoutHint(court.pricePerPerson)}</PayoutHint> : null}
+                </Field>
+                <Row>
+                  <Field>
+                    <Lbl>최소 인원 · 필수</Lbl>
+                    <Input type="number" min="1" value={court.minHeadcount} onChange={(e) => setCourt({ minHeadcount: e.target.value })} placeholder="예: 8" />
+                  </Field>
+                  <Field>
+                    <Lbl>정원 (최대 인원)</Lbl>
+                    <Input type="number" value={court.maxHeadcount} onChange={(e) => setCourt({ maxHeadcount: e.target.value })} placeholder="제한 없음" />
+                  </Field>
+                </Row>
+                {/* 최소 인원이 곧 이 코트의 시간당 하한가다 — 안 정하면 1명이 1인 요금만 내고
+                    그 시간을 통째로 쓴다. 그래서 필수로 받고, 보장 금액을 숫자로 보여준다. */}
+                <MinGuard $warn={!minHeads}>
+                  {(() => {
+                    const unit = Number(court.pricePerPerson) || 0;
+                    const hours = Math.max(1, Math.round(((court.slotMinutes || 60) / 60) * 10) / 10);
+                    if (!minHeads) return "최소 인원을 정해주세요. 정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓸 수 있어요.";
+                    if (!unit) return `최소 ${minHeads}명 · 1인 요금을 입력하면 보장 금액을 계산해 드려요.`;
+                    return `${hours}시간 예약 기준 최소 ${(unit * minHeads * hours).toLocaleString()}원부터 받아요 (${minHeads}명 미만도 ${minHeads}명 요금).`;
+                  })()}
+                </MinGuard>
+              </>
+            ) : (
               <Field>
                 <Lbl>기본 요금 (시간당) · 손님이 결제할 금액</Lbl>
                 <Input type="number" value={court.pricePerHour} onChange={(e) => setCourt({ pricePerHour: e.target.value })} placeholder="40000" />
                 {payoutHint(court.pricePerHour) ? <PayoutHint>{payoutHint(court.pricePerHour)}</PayoutHint> : null}
               </Field>
-            )}
+            ))}
 
             {priceTab === "weekday" && (
               <>
                 <DowChips>{DAY_KEYS.map((k) => <DowChip key={k} $on={dow === k} onClick={() => setDow(k)}>{DAY_LABELS[k]}</DowChip>)}</DowChips>
-                <Lbl>{DAY_LABELS[dow]}요일 시간대별 요금</Lbl>
-                <PriceBandsEditor bands={court.priceBands?.[dow] || []} basePrice={Number(court.pricePerHour) || 0}
+                <Lbl>{DAY_LABELS[dow]}요일 시간대별 {isPer ? "1인 요금" : "요금"}</Lbl>
+                <PriceBandsEditor bands={court.priceBands?.[dow] || []} basePrice={bandBase}
                   onChange={(bands) => setCourt({ priceBands: { ...court.priceBands, [dow]: bands } })} />
                 <GhostBtn type="button" onClick={() => { const b = court.priceBands?.[dow] || []; const next = {}; DAY_KEYS.forEach((k) => next[k] = b.map((x) => ({ ...x }))); setCourt({ priceBands: next }); }}>
                   {DAY_LABELS[dow]} 구간을 모든 요일에 복사
@@ -407,7 +499,7 @@ export default function OwnerVenuePage() {
                   <Dates>{configuredDates.map((d) => <DateTag key={d} $on={d === pdate} onClick={() => setPdate(d)}>{d.slice(5)}</DateTag>)}</Dates>
                 )}
                 {pdate && (
-                  <PriceBandsEditor bands={court.priceOverrides?.[pdate] || []} basePrice={Number(court.pricePerHour) || 0}
+                  <PriceBandsEditor bands={court.priceOverrides?.[pdate] || []} basePrice={bandBase}
                     onChange={(bands) => { const ov = { ...court.priceOverrides }; if (bands.length) ov[pdate] = bands; else delete ov[pdate]; setCourt({ priceOverrides: ov }); }} />
                 )}
               </>
@@ -474,7 +566,7 @@ export default function OwnerVenuePage() {
       <Card>
         <SecTitle>편의시설</SecTitle>
         <FacWrap>{FACILITY_OPTIONS.map((f) => <Fac key={f} $on={facilities.includes(f)} onClick={() => toggleFac(f)}><FacilityIcon name={f} size={15} /> {f}</Fac>)}</FacWrap>
-        <Lbl style={{ marginTop: 4 }}>🅿️ 주차</Lbl>
+        <Lbl style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 5 }}><LuCar size={14} /> 주차</Lbl>
         <FacWrap>
           <Fac $on={!parking.available} onClick={() => setParking((p) => ({ ...p, available: false }))}>주차 불가</Fac>
           <Fac $on={parking.available && parking.fee === "free"} onClick={() => setParking((p) => ({ ...p, available: true, fee: "free" }))}>무료 주차</Fac>

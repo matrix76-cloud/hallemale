@@ -46,6 +46,16 @@ function refundDecision(data, payment, nowMs) {
   }
 
   const by = s(data.canceledBy);
+
+  // 관리자가 "전액 환불"로 처리한 건. 예전엔 어드민 환불이 canceledBy 를 아예 안 세워서
+  // 아래 캐치올에 걸려 무조건 전액 환불이 나갔고, 고객에게는 "구장 사정 취소"라고 통지됐다.
+  // 이제 어드민이 기준을 고르고(refundService.processRefund), 그 선택이 여기 문구까지 이어진다.
+  //  · 전액 환불   → canceledBy="admin"  (아래)
+  //  · 정책 적용   → canceledBy="user"   (이용자 귀책 = 취소 시점 위약금 공제)
+  if (by === "admin") {
+    return { rate: 1, basis: "관리자 확인 · 전액 환불" };
+  }
+
   if (by !== "user" && by !== "team") {
     return {
       rate: 1,

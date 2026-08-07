@@ -4,7 +4,16 @@ import React from "react";
 import styled from "styled-components";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
-import { FiMessageSquare, FiCheckCircle, FiFlag, FiXCircle } from "react-icons/fi";
+import {
+  FiMessageSquare,
+  FiCheckCircle,
+  FiFlag,
+  FiXCircle,
+  FiAward,
+  FiZap,
+  FiCalendar,
+  FiUsers,
+} from "react-icons/fi";
 
 const SectionWrap = styled.section`
   display: flex;
@@ -49,17 +58,16 @@ const ProfileCard = styled.div`
   }
 `;
 
-/* 팀 프로필 우하단 3D 데코 (매칭하기 카드와 톤 맞춤) */
-const ProfileDeco = styled.img`
+/* 카드 우하단 데코 — 3D 이모지 스티커를 라인 아이콘으로 교체.
+   스티커는 카드마다 하나씩 박히면 앱이 가벼워 보인다. 아이콘은 옅게 깔아
+   카드 성격만 알려주고 콘텐츠를 방해하지 않는다. */
+const ProfileDeco = styled.div`
   position: absolute;
-  right: -4px;
-  bottom: -4px;
-  width: 56px;
-  height: 56px;
-  object-fit: contain;
-  transform: rotate(8deg);
-  opacity: 0.95;
-  filter: drop-shadow(0 6px 12px rgba(15, 23, 42, 0.2));
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  color: ${({ theme }) => theme.colors.textWeak};
+  opacity: 0.22;
   pointer-events: none;
 `;
 
@@ -131,7 +139,8 @@ const MemberBadge = styled.div`
 `;
 
 const MemberIcon = styled.span`
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
 `;
 
 /* ============ 아래: 홈 액션 ============ */
@@ -167,16 +176,14 @@ const BigActionCard = styled.button`
   }
 `;
 
-/* 3D 농구공 — 우하단 코너에 살짝 걸치게 (앱2 일러스트 배치) */
-const BigIcon = styled.img`
+/* 매칭하기 카드 우하단 아이콘 (채움 카드 위라 흰색 저투명) */
+const BigIcon = styled.div`
   position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 70px;
-  height: 70px;
-  object-fit: contain;
-  transform: rotate(-8deg);
-  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.3));
+  right: 12px;
+  bottom: 10px;
+  display: flex;
+  color: #ffffff;
+  opacity: 0.3;
   pointer-events: none;
 `;
 
@@ -226,16 +233,15 @@ const WideActionCard = styled.button`
   }
 `;
 
-/* 3D 캘린더 — 매칭하기 농구공과 동일한 코너 배치 */
-const WideIcon = styled.img`
+/* 구장 예약 카드 우측 아이콘 — 매칭하기와 동일 규격 */
+const WideIcon = styled.div`
   position: absolute;
-  right: 2px;
-  bottom: -2px;
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-  transform: rotate(-8deg);
-  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.3));
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: #ffffff;
+  opacity: 0.3;
   pointer-events: none;
 `;
 
@@ -248,24 +254,11 @@ const MatchRoomCard = styled.div`
     theme.mode === "dark" ? theme.colors.border : "transparent"};
   border-radius: 16px;
   box-shadow: ${({ theme }) => theme.shadows.card};
-  padding: 14px 12px 54px;
+  /* 하단 54px 여백은 60px 3D 스티커 자리였다. 아이콘으로 바뀌어 필요 없어졌다. */
+  padding: 14px 12px 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-`;
-
-/* 카드 우하단 매칭룸 3D (매칭하기 농구공 배치와 동일) */
-const MatchRoomDeco = styled.img`
-  position: absolute;
-  right: 2px;
-  bottom: 4px;
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-  transform: rotate(-6deg);
-  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.22));
-  pointer-events: none;
-  z-index: 0;
 `;
 
 const MatchRoomHeader = styled.div`
@@ -563,7 +556,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
       <CardsWrap>
       <ProfileRow>
       <ProfileCard onClick={handleGoMyTeamDetail}>
-        <ProfileDeco src={images.emoji3dTrophy} alt="" />
+        <ProfileDeco><FiAward size={44} /></ProfileDeco>
         <TopRow>
           <LogoOuter>
             <LogoBase>
@@ -575,7 +568,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
             <TeamName>{safeTeam.name}</TeamName>
 
             <MemberBadge>
-              <MemberIcon>👥</MemberIcon>
+              <MemberIcon><FiUsers size={12} /></MemberIcon>
               <span>{memberCountLabel}</span>
             </MemberBadge>
           </TeamMeta>
@@ -585,14 +578,14 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
         <BigActionCard type="button" onClick={handleGoMatching}>
           <BigTitle>매칭하기</BigTitle>
           <BigSubtitle>원하는 팀과 경기 잡기</BigSubtitle>
-          <BigIcon src={images.emoji3dBasketball} alt="" />
+          <BigIcon><FiZap size={46} /></BigIcon>
         </BigActionCard>
       </ProfileRow>
 
       <WideActionCard type="button" onClick={() => navigate("/venues")}>
         <BigTitle>구장 예약 바로가기</BigTitle>
         <BigSubtitle>제휴 구장 코트·시간 예약하기</BigSubtitle>
-        <WideIcon src={images.emoji3dCalendar} alt="" />
+        <WideIcon><FiCalendar size={40} /></WideIcon>
       </WideActionCard>
 
       <ActionsCol>
@@ -645,7 +638,6 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
             </StatItem>
           </StatRow>
 
-          <MatchRoomDeco src={images.emoji3dFolder} alt="" />
         </MatchRoomCard>
       </ActionsCol>
       </CardsWrap>

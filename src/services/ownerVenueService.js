@@ -30,7 +30,7 @@ import {
 } from "firebase/firestore";
 import { payFizz } from "./fizzService";
 import { BOOKING_WINDOW_DAYS, isBookableDate } from "../constants/booking";
-import { PAYMENT_WINDOW_MS, PLATFORM_FEE_RATE } from "../constants/payments";
+import { PAYMENT_WINDOW_MS, PLATFORM_FEE_RATE, PAYMENTS_ENABLED } from "../constants/payments";
 import { OWNER_TYPES, ownerTypeOption } from "../constants/ownerType";
 import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 
@@ -277,6 +277,12 @@ function normalizeCourt(c, idx = 0) {
     type: o.type === "outdoor" ? "outdoor" : "indoor",
     surface: safeStr(o.surface), // 바닥재질 (마루/우레탄/인조잔디 등)
     pricePerHour: toNum(o.pricePerHour) ?? 0, // 기본요금(통일)
+    // 과금 방식 — "hourly"(코트 대관, 기본) | "perPerson"(1인 요금).
+    // 필드가 없는 기존 코트는 전부 hourly 다. 새 값이 들어와야만 인원제로 바뀐다.
+    priceMode: o.priceMode === "perPerson" ? "perPerson" : "hourly",
+    pricePerPerson: toNum(o.pricePerPerson) ?? 0, // 1인 · 시간당 요금 (perPerson 모드의 기본요금)
+    minHeadcount: Math.max(1, toNum(o.minHeadcount) ?? 1), // 최소 인원(이 인원 미만으로는 예약 불가)
+    maxHeadcount: Math.max(0, toNum(o.maxHeadcount) ?? 0), // 정원 (0 = 제한 없음)
     slotMinutes: toNum(o.slotMinutes) || 60,
     hours: normalizeHours(o.hours, o.openTime, o.closeTime),
     // 요금 3단계: 기본(pricePerHour) > 요일별(priceBands) > 특정날짜(priceOverrides)
@@ -292,8 +298,30 @@ function normalizeCourt(c, idx = 0) {
   };
 }
 
+/** 이 코트가 1인 요금제인가 (인원 × 시간으로 값을 매기는 구장) */
+export function isPerPerson(court) {
+  return court?.priceMode === "perPerson";
+}
+
+/** 코트의 기본 단가 — 코트 대관이면 시간당, 인원제면 1인 시간당. 목록·지도·찜 표기 공용. */
+export function courtUnitPrice(court) {
+  return (isPerPerson(court) ? toNum(court?.pricePerPerson) : toNum(court?.pricePerHour)) ?? 0;
+}
+
+/** 인원제 코트의 정원·최소인원 안에 인원을 가둔다. 코트 대관이면 항상 1(인원 개념 없음). */
+export function clampHeadcount(court, n) {
+  if (!isPerPerson(court)) return 1;
+  const min = Math.max(1, toNum(court?.minHeadcount) ?? 1);
+  const max = Math.max(0, toNum(court?.maxHeadcount) ?? 0);
+  let v = Math.floor(toNum(n) ?? min);
+  if (!Number.isFinite(v) || v < min) v = min;
+  if (max > 0 && v > max) v = max;
+  return v;
+}
+
 /**
- * 요금 우선순위 해석: 특정날짜 > 요일별 구간 > 기본요금. (시간당 요금 반환)
+ * 요금 우선순위 해석: 특정날짜 > 요일별 구간 > 기본요금. (시간당 단가 반환)
+ * 인원제 코트에서는 "1인 · 시간당" 단가다 — 구간(priceBands/priceOverrides)도 같은 뜻으로 쓰인다.
  * 사용자앱 예약가/구장주 슬롯표시 공용.
  */
 export function resolveSlotPrice(court, date, startTime) {
@@ -312,7 +340,7 @@ export function resolveSlotPrice(court, date, startTime) {
   try { dk = dowToKey(new Date(date).getDay()); } catch {}
   p = inBand(court.priceBands?.[dk]);
   if (p != null) return p;
-  return toNum(court.pricePerHour) ?? 0;
+  return (isPerPerson(court) ? toNum(court.pricePerPerson) : toNum(court.pricePerHour)) ?? 0;
 }
 
 /** venues 문서 → 화면용 row */
@@ -1090,6 +1118,10 @@ function reservationRow(d) {
     teamName: safeStr(data.teamName),
     phone: safeStr(data.phone),
     price: toNum(data.price) ?? 0,
+    // 인원제 예약의 근거 — 몇 명이 1인 얼마로 잡았는지. 코트 대관이면 headcount=0(인원 개념 없음).
+    headcount: toNum(data.headcount) ?? 0,
+    unitPrice: toNum(data.unitPrice) ?? 0, // 계산에 쓴 단가(코트 시간당 또는 1인 시간당)
+    priceMode: data.priceMode === "perPerson" ? "perPerson" : "hourly",
     // 예약 시점에 고정된 플랫폼 이용료율. 구버전 예약엔 없으므로 화면에서 현재 요율로 폴백한다.
     feeRate: toNum(data.feeRate),
     status: ["requested", "pending", "confirmed", "rejected", "cancelled", "done", "noshow"].includes(data.status)
@@ -1383,9 +1415,15 @@ export async function setReservationStatus(reservationId, status, opts = {}) {
 
   // 💳 승인은 확정이 아니라 "결제 대기"다 — 결제가 끝나야(서버 승인) confirmed 로 간다.
   //    2시간 안에 결제가 없으면 만료 잡(functions/jobs/venuePaymentJobs)이 취소하고 슬롯을 반납한다.
+  //
+  // ⚠️ 단, 결제 진입이 닫혀 있으면(PG 심사 대기 · constants/payments.js PAYMENTS_ENABLED=false)
+  //    사용자가 결제할 방법이 아예 없다 — /pay/:id 라우트는 리다이렉트되고, 서버도
+  //    payments/toss.js 의 LOCAL_ONLY 로 주문 생성을 막는다.
+  //    그 상태에서 결제 대기로 내려보내면 승인된 예약이 예외 없이 2시간 뒤 자동취소된다.
+  //    → 결제가 닫혀 있는 동안에는 승인 = 즉시 확정.
   const approving = next === "confirmed";
-  const toPaymentWait = approving;
-  const effective = approving ? "pending" : next;
+  const toPaymentWait = approving && PAYMENTS_ENABLED;
+  const effective = toPaymentWait ? "pending" : next;
   // 매칭룸에도 같은 값을 미러링해야 해서 트랜잭션 밖에서 한 번만 만든다.
   const paymentDeadline = toPaymentWait
     ? new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString()
@@ -1538,6 +1576,31 @@ export async function rejectReservation(reservationId, opts = {}) {
 /** 확정 예약 취소 (구장주 사정·우천 등) — status=cancelled */
 export async function cancelReservation(reservationId, opts = {}) {
   return setReservationEndStatus(reservationId, "cancelled", opts);
+}
+
+/**
+ * 정기대관 시리즈의 남은 예약을 한 번에 취소한다.
+ * fromDate(기본 오늘) 이후의 살아있는 건만 — 이미 이용한 지난 주차는 기록으로 남긴다.
+ */
+export async function cancelRecurringSeries(recurringId, { venueId, fromDate = "" } = {}) {
+  const rid = safeStr(recurringId);
+  if (!rid) throw new Error("정기대관 정보를 찾을 수 없습니다.");
+  const from = safeStr(fromDate) || todayStrKst();
+  const rows = (await listReservations({ venueId })).filter(
+    (r) => r.recurringId === rid && r.date >= from && LIVE_STATUSES.includes(r.status)
+  );
+  let cancelled = 0;
+  for (const r of rows) {
+    try { await cancelReservation(r.id, { by: "owner" }); cancelled += 1; } catch (e) {}
+  }
+  return { cancelled, total: rows.length };
+}
+
+/** 오늘 날짜(KST) — 정기대관 취소 기준일 */
+function todayStrKst() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
+  return `${kst.getFullYear()}-${String(kst.getMonth() + 1).padStart(2, "0")}-${String(kst.getDate()).padStart(2, "0")}`;
 }
 
 /* ============================================================
@@ -1708,7 +1771,7 @@ function addDaysStr(dateStr, days) {
 export async function createOwnerReservation({
   venue, court, date, startTime, endTime,
   customerName, phone, memo = "", price, paymentMethod = "onsite_card",
-  repeatWeeks = 1,
+  repeatWeeks = 1, headcount,
 }) {
   const venueId = safeStr(venue?.id);
   const courtId = safeStr(court?.id);
@@ -1719,6 +1782,7 @@ export async function createOwnerReservation({
   const ownerUid = safeStr(venue?.ownerUid);
   const method = PAYMENT_METHODS.includes(paymentMethod) ? paymentMethod : "onsite_card";
   const priceOverride = toNum(price);
+  const heads = clampHeadcount(court, headcount);
   const recurringId = weeks > 1
     ? "rec_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
     : "";
@@ -1735,7 +1799,7 @@ export async function createOwnerReservation({
       skipped.push(d);
       continue;
     }
-    const per = priceOverride != null ? priceOverride : calcSlotPrice(court, startTime, endTime, d);
+    const per = priceOverride != null ? priceOverride : calcSlotPrice(court, startTime, endTime, d, heads);
     try {
       // 구장주 전용 — 정기대관(최대 52주)은 예약 창구(21일) 밖이라 규칙이 isVenueOwner 로만 통과시킨다.
       const id = await createReservationLocked(
@@ -1751,6 +1815,9 @@ export async function createOwnerReservation({
           userId: "", userName: safeStr(customerName), teamName: safeStr(customerName),
           phone: safeStr(phone), memo: safeStr(memo),
           price: per, paid: true, paidFizz: 0, paymentMethod: method,
+          headcount: isPerPerson(court) ? heads : 0,
+          unitPrice: resolveSlotPrice(court, d, startTime),
+          priceMode: isPerPerson(court) ? "perPerson" : "hourly",
           source: "owner", status: "confirmed",
           recurringId,
           createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
@@ -1824,11 +1891,16 @@ function assertBookableDate(date) {
   throw e;
 }
 
-/** 슬롯 가격 계산 — date 주면 3단계 요금(특정날짜>요일별>기본) 반영, 없으면 기본요금 */
-export function calcSlotPrice(court, startTime, endTime, date) {
-  const per = date ? resolveSlotPrice(court, date, startTime) : (toNum(court?.pricePerHour) ?? 0);
+/**
+ * 슬롯 가격 계산 — date 주면 3단계 요금(특정날짜>요일별>기본) 반영, 없으면 기본요금.
+ * 인원제 코트는 (1인 시간당 단가 × 시간 × 인원). headcount 를 안 주면 최소 인원으로 계산한다.
+ */
+export function calcSlotPrice(court, startTime, endTime, date, headcount) {
+  const base = isPerPerson(court) ? toNum(court?.pricePerPerson) : toNum(court?.pricePerHour);
+  const per = date ? resolveSlotPrice(court, date, startTime) : (base ?? 0);
   const mins = Math.max(0, hhmmToMin(endTime) - hhmmToMin(startTime));
-  return Math.round((per * mins) / 60);
+  const heads = clampHeadcount(court, headcount);
+  return Math.round((per * mins * heads) / 60);
 }
 
 /**
@@ -1847,7 +1919,7 @@ export function genReservationCode(date) {
   return `HM-${ymd || "000000"}-${rand}`;
 }
 
-export async function bookVenue({ venue, court, date, startTime, endTime, user, userNote = "" }) {
+export async function bookVenue({ venue, court, date, startTime, endTime, user, userNote = "", headcount }) {
   const venueId = safeStr(venue?.id);
   const courtId = safeStr(court?.id);
   const uid = safeStr(user?.uid);
@@ -1874,7 +1946,9 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
     throw err;
   }
 
-  const price = calcSlotPrice(court, startTime, endTime, date);
+  // 인원제 코트는 인원이 금액을 좌우한다 — 화면에서 온 값을 그대로 믿지 않고 정원 안으로 가둔다.
+  const heads = clampHeadcount(court, headcount);
+  const price = calcSlotPrice(court, startTime, endTime, date, heads);
 
   // 2) 슬롯 선점 + 예약 생성을 한 트랜잭션으로.
   //    승인제(기본)  → requested. 구장주가 승인해야 잡힌다.
@@ -1882,7 +1956,10 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
   //      (setReservationStatus 의 승인 처리와 같은 규칙 — 한쪽만 바꾸면 흐름이 어긋난다)
   const ownerUid = safeStr(venue?.ownerUid);
   const auto = venue?.autoApprove === true;
-  const initialStatus = auto ? "pending" : "requested";
+  // 결제가 닫혀 있으면(PG 심사 대기) 결제 대기로 두면 안 된다 — 낼 방법이 없어 2시간 뒤
+  // 만료 잡에 자동취소된다. setReservationStatus 의 승인 처리와 같은 규칙을 유지한다.
+  const autoToPaymentWait = auto && PAYMENTS_ENABLED;
+  const initialStatus = auto ? (autoToPaymentWait ? "pending" : "confirmed") : "requested";
   const ownerNote = auto ? safeStr(venue?.defaultOwnerNote) : "";
   const reservationId = await createReservationLocked(
     db,
@@ -1904,6 +1981,10 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
       phone: safeStr(user?.phone),
       userNote: safeStr(userNote).slice(0, 300), // 구장에 전달할 요청사항 (선택)
       price,
+      // 인원제면 몇 명 · 1인 얼마로 잡힌 금액인지 남긴다(구장주 확인·문의 응대용).
+      headcount: isPerPerson(court) ? heads : 0,
+      unitPrice: resolveSlotPrice(court, date, startTime),
+      priceMode: isPerPerson(court) ? "perPerson" : "hourly",
       paid: false,
       paymentMethod: "toss",
       // 플랫폼 이용료율을 예약 시점에 고정 — 요율을 바꿔도 이미 잡힌 예약의 결제액은 안 흔들린다.
@@ -1912,7 +1993,8 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
       status: initialStatus,
       ...(ownerNote ? { ownerNote } : {}),
       // 즉시예약은 승인 경유가 없으므로 결제 마감을 여기서 찍는다.
-      ...(auto
+      // 결제가 닫혀 있으면 마감을 남기면 안 된다 — 만료 잡이 그 값을 보고 집어간다.
+      ...(autoToPaymentWait
         ? { paymentDeadline: new Date(Date.now() + PAYMENT_WINDOW_MS).toISOString() }
         : {}),
       createdAt: serverTimestamp(),
@@ -1929,7 +2011,9 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
       userId: uid, ownerNote,
     };
     try {
-      await notifyPaymentRequested(forNotify);
+      // 결제가 닫혀 있으면 "결제해 주세요"가 아니라 확정 안내를 보내야 한다 — 결제 화면이 안 열린다.
+      if (autoToPaymentWait) await notifyPaymentRequested(forNotify);
+      else await notifyBookingUserOnStatusChange(forNotify, "confirmed");
     } catch (e) {
       console.warn("[bookVenue] auto-approve notify failed:", e?.message || e);
     }
@@ -2233,6 +2317,59 @@ export async function addBlock({ venueId, courtId, date, startTime, endTime }) {
     createdAt: serverTimestamp(),
   });
   return { id: ref.id };
+}
+
+/**
+ * 기간 휴무 — 시작일~종료일의 각 날짜에 블록을 1건씩 만든다.
+ * 하루 종일(allDay)이면 00:00~24:00 한 건으로 덮는다(슬롯 개수와 무관 · 겹침 판정은 범위 기준).
+ * 이미 예약이 잡힌 날은 건드리지 않고 skipped 로 돌려준다 — 예약을 조용히 무효화하면 안 된다.
+ */
+export async function addBlockRange({
+  venueId, courtIds = [], fromDate, toDate,
+  startTime = "00:00", endTime = "24:00", allDay = true, weekdays = null,
+}) {
+  const vid = safeStr(venueId);
+  if (!vid) throw new Error("venueId가 필요합니다.");
+  const ids = arr(courtIds).map(safeStr).filter(Boolean);
+  if (!ids.length) throw new Error("코트를 선택해주세요.");
+  const from = safeStr(fromDate);
+  const to = safeStr(toDate) || from;
+  if (!from) throw new Error("시작일을 선택해주세요.");
+  if (to < from) throw new Error("종료일이 시작일보다 빨라요.");
+
+  const s = allDay ? "00:00" : safeStr(startTime);
+  const e = allDay ? "24:00" : safeStr(endTime);
+  if (hhmmToMin(e) <= hhmmToMin(s)) throw new Error("종료 시각이 시작 시각보다 빨라요.");
+
+  const created = [];
+  const skipped = [];
+  // 실수로 몇 년을 한 번에 막는 걸 방지 (최대 92일)
+  for (let d = from, guard = 0; d <= to && guard < 92; d = addDaysStr(d, 1), guard++) {
+    // 요일 제한(예: 매주 월요일 정기휴무)
+    if (Array.isArray(weekdays) && weekdays.length) {
+      let dk = "";
+      try { dk = dowToKey(new Date(`${d}T00:00:00`).getDay()); } catch {}
+      if (!weekdays.includes(dk)) continue;
+    }
+    for (const cid of ids) {
+      try {
+        const { id } = await addBlock({ venueId: vid, courtId: cid, date: d, startTime: s, endTime: e });
+        created.push({ id, date: d, courtId: cid });
+      } catch (err) {
+        skipped.push({ date: d, courtId: cid, reason: err?.message || "" });
+      }
+    }
+  }
+  return { created, skipped };
+}
+
+/** 그 날짜·코트에 걸린 블록을 모두 해제 (하루 휴무 풀기) */
+export async function removeBlocksOn({ venueId, courtId, date }) {
+  const rows = await listBlocks({ venueId, courtId, date });
+  for (const b of rows) {
+    try { await removeBlock(b.id); } catch (e) {}
+  }
+  return { removed: rows.length };
 }
 
 export async function removeBlock(blockId) {

@@ -7,7 +7,11 @@ import styled from "styled-components";
 import AdminFilterSummaryBar from "../../components/admin/AdminFilterSummaryBar";
 import AdminLoading from "../../components/admin/AdminLoading";
 import AdminPager from "../../components/admin/AdminPager";
-import { fetchPlayersAdminView } from "../../services/adminPlayersService";
+import {
+  fetchPlayersAdminView,
+  countPlayersAdminView,
+  searchPlayersAdminView,
+} from "../../services/adminPlayersService";
 import { blockUser } from "../../services/adminUserBlockService";
 import { formatPhoneE164 } from "../../utils/phone";
 import PlayerProfilePage from "../player/PlayerProfilePage";
@@ -79,6 +83,45 @@ const Row = styled.div`
 
 const EmptyText = styled.div`
   color: ${({ theme }) => theme?.colors?.textNormal || "#4b5563"};
+`;
+
+/* ── 커서 페이징 · 누락 경고 ── */
+const MoreBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid ${({ theme }) => theme?.colors?.border || "#eef2f7"};
+`;
+
+const MoreBtn = styled.button`
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid ${({ theme }) => theme?.colors?.border || "#e5e7eb"};
+  background: ${({ theme }) => theme?.colors?.card || "#ffffff"};
+  color: ${({ theme }) => theme?.colors?.textStrong || "#111827"};
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+`;
+
+const MoreNote = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme?.colors?.textNormal || "#6b7280"};
+`;
+
+const MissingWarn = styled.div`
+  margin: 0 14px 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  background: ${({ theme }) => (theme?.mode === "dark" ? "rgba(245,158,11,0.16)" : "#fffbeb")};
+  color: ${({ theme }) => (theme?.mode === "dark" ? "#fbbf24" : "#92400e")};
+  border: 1px solid ${({ theme }) => (theme?.mode === "dark" ? "rgba(245,158,11,0.45)" : "#fde68a")};
 `;
 
 const Cell = styled.div`
@@ -517,6 +560,16 @@ export default function AdminPlayersListPage() {
   const pageSize = 25;
   const [page, setPage] = useState(1);
 
+  // 커서 페이징 상태 — 200건 상한을 없애기 위해 이어 받는다.
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [moreLoading, setMoreLoading] = useState(false);
+  // 필터 조건의 전체 회원 수(정렬 필드 없는 문서 포함). 목록 수와 비교해 누락을 드러낸다.
+  const [totalAll, setTotalAll] = useState(null);
+  // 검색 모드에서는 서버 검색 결과만 보여 준다(클라 필터를 겹치지 않는다).
+  const [searchMode, setSearchMode] = useState(false);
+  const [searchExact, setSearchExact] = useState(false);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
   const [modalBody, setModalBody] = useState("");
@@ -589,32 +642,59 @@ export default function AdminPlayersListPage() {
     }
   };
 
+  // 한 번에 받아 오는 묶음 크기. 예전엔 200명을 한 번 받고 끝이라 201번째부터는
+  // 목록에도 검색에도 영영 안 나왔다. 이제 커서로 이어 받는다.
+  const PAGE_FETCH = 100;
+
   const load = async () => {
     setLoading(true);
     setErr("");
+    setSearchMode(false);
+    try {
+      const filters = { regionSido, mainPosition, skillLevel, onlyCaptains };
+      // 전체 건수는 orderBy 없이 세므로, 정렬 기준(createdAt) 필드가 없어
+      // 목록에서 빠지는 회원이 있으면 이 수와 어긋난다 → 아래 경고로 드러난다.
+      const [res, total] = await Promise.all([
+        fetchPlayersAdminView({ limitCount: PAGE_FETCH, ...filters }),
+        countPlayersAdminView(filters).catch(() => null),
+      ]);
+      setRows(Array.isArray(res?.rows) ? res.rows : []);
+      setCursor(res?.nextCursor || null);
+      setHasMore(!!res?.hasMore);
+      setTotalAll(typeof total === "number" ? total : null);
+      setPage(1);
+    } catch (e) {
+      console.error("[AdminPlayersListPage] load failed", e);
+      setRows([]);
+      setCursor(null);
+      setHasMore(false);
+      setErr(e?.message || "불러오기에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** 다음 묶음 이어 받기 */
+  const loadMore = async () => {
+    if (!cursor || moreLoading) return;
+    setMoreLoading(true);
     try {
       const res = await fetchPlayersAdminView({
-        limitCount: 200,
+        limitCount: PAGE_FETCH,
+        cursor,
         regionSido,
         mainPosition,
         skillLevel,
         onlyCaptains,
       });
-      const list = Array.isArray(res?.rows) ? res.rows : [];
-      // 새로 가입한 사람 순(가입일 내림차순)으로 정렬
-      list.sort((a, b) => {
-        const ta = toDate(a?.createdAt)?.getTime() || 0;
-        const tb = toDate(b?.createdAt)?.getTime() || 0;
-        return tb - ta;
-      });
-      setRows(list);
-      setPage(1);
+      setRows((prev) => [...prev, ...(Array.isArray(res?.rows) ? res.rows : [])]);
+      setCursor(res?.nextCursor || null);
+      setHasMore(!!res?.hasMore);
     } catch (e) {
-      console.error("[AdminPlayersListPage] load failed", e);
-      setRows([]);
-      setErr(e?.message || "불러오기에 실패했습니다.");
+      console.error("[AdminPlayersListPage] loadMore failed", e);
+      showAlert(e?.message || "더 불러오지 못했습니다.");
     } finally {
-      setLoading(false);
+      setMoreLoading(false);
     }
   };
 
@@ -622,8 +702,30 @@ export default function AdminPlayersListPage() {
     load();
   }, []);
 
-  const onSubmit = () => {
-    load();
+  /** 검색 — 받아 온 목록만 훑지 않고 users 전체에서 찾는다. */
+  const onSubmit = async () => {
+    const kw = String(keyword || "").trim();
+    if (!kw) {
+      load();
+      return;
+    }
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await searchPlayersAdminView({ keyword: kw });
+      setRows(Array.isArray(res?.rows) ? res.rows : []);
+      setCursor(null);
+      setHasMore(false);
+      setSearchMode(true);
+      setSearchExact(!!res?.exact);
+      setPage(1);
+    } catch (e) {
+      console.error("[AdminPlayersListPage] search failed", e);
+      setRows([]);
+      setErr(e?.message || "검색에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onReset = () => {
@@ -640,7 +742,10 @@ export default function AdminPlayersListPage() {
   // 닉네임 · 이메일 · 전화번호(숫자만) 부분일치
   const keywordDigits = useMemo(() => keyword.replace(/\D/g, ""), [keyword]);
 
+  // 검색 모드면 rows 자체가 이미 서버 검색 결과다 — 여기서 또 거르면
+  // 접두 검색으로 찾아 온 사람을 클라 부분일치가 다시 떨어뜨린다.
   const filteredRows = useMemo(() => {
+    if (searchMode) return rows;
     if (!keywordLower) return rows;
     return rows.filter(
       (r) =>
@@ -648,7 +753,14 @@ export default function AdminPlayersListPage() {
         normalizeText(r?.email).includes(keywordLower) ||
         (!!keywordDigits && String(r?._phoneDigits || "").includes(keywordDigits))
     );
-  }, [rows, keywordLower, keywordDigits]);
+  }, [rows, searchMode, keywordLower, keywordDigits]);
+
+  // 목록에 뜬 수 + 아직 안 받은 게 없는데도 전체 건수보다 적다면,
+  // 그 차이는 정렬 기준(createdAt) 필드가 없어 조회에서 빠진 회원이다.
+  const missingCount = useMemo(() => {
+    if (searchMode || totalAll == null || hasMore) return 0;
+    return Math.max(0, totalAll - rows.length);
+  }, [searchMode, totalAll, hasMore, rows.length]);
 
   useEffect(() => {
     setPage(1);
@@ -748,7 +860,15 @@ export default function AdminPlayersListPage() {
     <Page>
       <AdminFilterSummaryBar
         title="선수 목록"
-        subtitle={`users 컬렉션 기준 · 페이지당 ${pageSize}개 · 팀명/로고는 clubs에서 채움 · 닉네임/이메일/전화번호 검색은 클라 필터`}
+        subtitle={
+          searchMode
+            ? searchExact
+              ? "전화번호 정확일치로 users 전체에서 찾았습니다."
+              : "닉네임·이메일 앞부분으로 users 전체에서 찾았습니다. (Firestore는 중간 글자 검색을 못 합니다)"
+            : `users 컬렉션 기준 · 가입일 최신순 · 페이지당 ${pageSize}개 · 팀명/로고는 clubs에서 채움${
+                totalAll != null ? ` · 전체 ${totalAll.toLocaleString()}명 중 ${rows.length.toLocaleString()}명 불러옴` : ""
+              }`
+        }
         dateFrom=""
         dateTo=""
         onChangeDateFrom={() => {}}
@@ -1004,6 +1124,29 @@ export default function AdminPlayersListPage() {
           pageSize={pageSize}
           onPageChange={setPage}
         />
+
+        {/* 아직 안 받아 온 회원이 있으면 이어 받는다. 예전엔 200명에서 조용히 잘렸다. */}
+        {!searchMode && hasMore ? (
+          <MoreBar>
+            <MoreBtn type="button" onClick={loadMore} disabled={moreLoading}>
+              {moreLoading ? "불러오는 중…" : "더 불러오기"}
+            </MoreBtn>
+            <MoreNote>
+              {totalAll != null
+                ? `${rows.length.toLocaleString()} / ${totalAll.toLocaleString()}명`
+                : `${rows.length.toLocaleString()}명 불러옴`}
+            </MoreNote>
+          </MoreBar>
+        ) : null}
+
+        {/* 조회에서 통째로 빠진 회원 — 가입일 필드가 없는 레거시 계정이 여기 걸린다 */}
+        {missingCount > 0 ? (
+          <MissingWarn>
+            전체 {totalAll.toLocaleString()}명 중 {missingCount.toLocaleString()}명이 이 목록에
+            나오지 않습니다. 가입일(createdAt) 필드가 없어 정렬 조회에서 빠지는 계정입니다.
+            해당 회원은 닉네임·이메일·전화번호로 검색하면 찾을 수 있습니다.
+          </MissingWarn>
+        ) : null}
       </Card>
       )}
 

@@ -140,6 +140,19 @@ const NameLine = styled.div.attrs({ className: "name" })`
   white-space: nowrap;
 `;
 
+/* 매칭룸 채팅 표식 — 목록에서 1:1 대화와 한눈에 갈라 보이게 한다 */
+const KindTag = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: ${({ theme }) => (theme?.mode === "dark" ? "rgba(99,102,241,0.16)" : "#eef2ff")};
+  color: ${({ theme }) => (theme?.mode === "dark" ? "#a5b4fc" : "#4338ca")};
+`;
+
 const Pill = styled.span`
   display: inline-flex;
   align-items: center;
@@ -235,6 +248,8 @@ export default function AdminChatListPage() {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState("all"); // all | active | locked
+  // 방 종류 — 매칭룸 채팅은 양 팀장 사이 대화라 분쟁 확인에 따로 봐야 한다.
+  const [kind, setKind] = useState("all"); // all | matchRoom | dm
   const [keyword, setKeyword] = useState("");
   const [submittedKeyword, setSubmittedKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -273,6 +288,9 @@ export default function AdminChatListPage() {
     if (tab === "active") arr = arr.filter((r) => !r.locked);
     else if (tab === "locked") arr = arr.filter((r) => r.locked);
 
+    if (kind === "matchRoom") arr = arr.filter((r) => r.type === "matchRoom");
+    else if (kind === "dm") arr = arr.filter((r) => r.type !== "matchRoom");
+
     const kw = String(submittedKeyword || "").trim().toLowerCase();
     if (kw) {
       arr = arr.filter((r) => {
@@ -295,11 +313,11 @@ export default function AdminChatListPage() {
     }
 
     return arr;
-  }, [rows, tab, submittedKeyword, dateFrom, dateTo]);
+  }, [rows, tab, kind, submittedKeyword, dateFrom, dateTo]);
 
   useEffect(() => {
     setPage(1);
-  }, [tab, submittedKeyword, dateFrom, dateTo]);
+  }, [tab, kind, submittedKeyword, dateFrom, dateTo]);
 
   const totalCount = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -314,7 +332,8 @@ export default function AdminChatListPage() {
     const total = rows.length;
     const locked = rows.filter((r) => r.locked).length;
     const active = total - locked;
-    return { total, active, locked };
+    const matchRoom = rows.filter((r) => r.type === "matchRoom").length;
+    return { total, active, locked, matchRoom };
   }, [rows]);
 
   const toggleLock = async (r) => {
@@ -380,6 +399,14 @@ export default function AdminChatListPage() {
           { label: "전체", value: counts.total, onClick: () => setTab("all") },
           { label: "활성", value: counts.active, tone: "good", onClick: () => setTab("active") },
           { label: "잠금", value: counts.locked, tone: "danger", onClick: () => setTab("locked") },
+          {
+            label: "매칭룸",
+            value: counts.matchRoom,
+            onClick: () => {
+              setTab("all");
+              setKind("matchRoom");
+            },
+          },
         ]}
       />
 
@@ -387,6 +414,15 @@ export default function AdminChatListPage() {
         <TabBtn type="button" $active={tab === "all"} onClick={() => setTab("all")}>전체</TabBtn>
         <TabBtn type="button" $active={tab === "active"} onClick={() => setTab("active")}>활성</TabBtn>
         <TabBtn type="button" $active={tab === "locked"} onClick={() => setTab("locked")}>잠금</TabBtn>
+      </Tabs>
+
+      {/* 방 종류 — 팀장끼리 다툰 매칭룸 대화만 따로 보기 위한 필터 */}
+      <Tabs>
+        <TabBtn type="button" $active={kind === "all"} onClick={() => setKind("all")}>모든 채팅</TabBtn>
+        <TabBtn type="button" $active={kind === "matchRoom"} onClick={() => setKind("matchRoom")}>
+          매칭룸(팀장) {counts.matchRoom}
+        </TabBtn>
+        <TabBtn type="button" $active={kind === "dm"} onClick={() => setKind("dm")}>1:1</TabBtn>
       </Tabs>
 
       {loading ? (
@@ -421,8 +457,11 @@ export default function AdminChatListPage() {
                         onClick={() => navigate(`${ADMIN_BASE}/chat/list/${r.id}`)}
                         title={names}
                       >
-                        <NameLine>{names || "(참여자 없음)"}</NameLine>
-                        <Mono>{uids}</Mono>
+                        <NameLine>
+                          {r.type === "matchRoom" ? <KindTag>매칭룸</KindTag> : null}
+                          {names || "(참여자 없음)"}
+                        </NameLine>
+                        <Mono>{r.type === "matchRoom" && r.matchRoomId ? `매칭방 ${r.matchRoomId}` : uids}</Mono>
                       </ParticipantsRow>
                     </Cell>
 

@@ -8,7 +8,7 @@ import styled from "styled-components";
 import {
   LuX, LuMapPin, LuPhone, LuStar, LuInfo, LuImage, LuClock,
   LuFileText, LuCreditCard, LuCopy, LuLayoutGrid, LuCircleCheck, LuStore,
-  LuBell, LuTriangleAlert,
+  LuBell, LuTriangleAlert, LuEye,
 } from "react-icons/lu";
 import { FacilityIcon } from "../../venue/facilityIcons";
 import { FACILITY_OPTIONS } from "../../../services/ownerVenueService";
@@ -62,7 +62,7 @@ export default function VenuePreviewSheet({ venue, onClose }) {
     <Overlay onClick={onClose}>
       <Sheet onClick={(e) => e.stopPropagation()}>
         <Bar>
-          <BarTitle>👀 사용자에게 보이는 상세페이지</BarTitle>
+          <BarTitle><LuEye size={14} /> 사용자에게 보이는 상세페이지</BarTitle>
           <CloseBtn type="button" onClick={onClose}><LuX size={20} /></CloseBtn>
         </Bar>
 
@@ -159,7 +159,11 @@ export default function VenuePreviewSheet({ venue, onClose }) {
                         {c.type === "outdoor" ? "실외" : "실내"} 코트{c.surface ? ` · ${c.surface}` : ""}
                         {cp.length ? ` · 사진 ${cp.length}장` : ""}
                       </CourtCSub>
-                      <CourtCPrice>{(Number(c.pricePerHour) || 0).toLocaleString()}원<small> / 시간</small></CourtCPrice>
+                      <CourtCPrice>
+                        {c.priceMode === "perPerson" ? <small>1인 </small> : null}
+                        {(Number(c.priceMode === "perPerson" ? c.pricePerPerson : c.pricePerHour) || 0).toLocaleString()}원
+                        <small> / 시간</small>
+                      </CourtCPrice>
                     </CourtBody>
                     <CourtBadge>예약 가능 ›</CourtBadge>
                   </CourtCard>
@@ -328,7 +332,7 @@ const Bar = styled.div`
   flex-shrink: 0; height: 50px; display: flex; align-items: center; justify-content: space-between;
   padding: 0 8px 0 16px; border-bottom: 1px solid ${C.slate200};
 `;
-const BarTitle = styled.div`font-size: 13.5px; font-weight: 700; color: ${C.slate500};`;
+const BarTitle = styled.div`display: inline-flex; align-items: center; gap: 5px; font-size: 13.5px; font-weight: 700; color: ${C.slate500};`;
 const CloseBtn = styled.button`border: none; background: transparent; color: ${C.slate400}; cursor: pointer; display: flex; padding: 8px;`;
 const Body = styled.div`flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 22px; padding: 16px;`;
 

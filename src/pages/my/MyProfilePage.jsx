@@ -4,7 +4,8 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { playerAvatars, images } from "../../utils/imageAssets";
+import { FiChevronRight, FiCheck, FiUsers, FiUser, FiSettings, FiShield, FiX } from "react-icons/fi";
+import { playerAvatars } from "../../utils/imageAssets";
 import { useAuth } from "../../hooks/useAuth";
 import { useClub } from "../../hooks/useClub";
 import { useThemeMode } from "../../context/ThemeContext";
@@ -457,7 +458,7 @@ export default function MyProfilePage() {
             <ModalTopRow>
               <ModalTitle>팀장 권한 이임</ModalTitle>
               <ModalCloseBtn type="button" onClick={closeTransferLeader} disabled={transferBusy}>
-                ×
+                <FiX size={18} />
               </ModalCloseBtn>
             </ModalTopRow>
 
@@ -502,7 +503,7 @@ export default function MyProfilePage() {
                         </MemberText>
                       </MemberLeft>
 
-                      <MemberRadio $selected={selected}>{selected ? "✓" : ""}</MemberRadio>
+                      <MemberRadio $selected={selected}>{selected ? <FiCheck size={12} /> : ""}</MemberRadio>
                     </MemberRow>
                   );
                 })}
@@ -561,7 +562,6 @@ export default function MyProfilePage() {
               <ProfileInfo>
                 <NameRow>
                   <Name>{loading ? "불러오는 중..." : nickname ? nickname : "닉네임 미설정"}</Name>
-                  <HeaderWave src={images.emoji3dWave} alt="" />
                   {isTeamLeader ? <OwnerPill>팀장</OwnerPill> : null}
                 </NameRow>
 
@@ -573,13 +573,13 @@ export default function MyProfilePage() {
               </ProfileInfo>
             </ProfileLeft>
 
-            <EditChevron aria-hidden>›</EditChevron>
+            <EditChevron aria-hidden><FiChevronRight size={22} /></EditChevron>
           </ProfileHeaderInner>
         </ProfileHeader>
 
         <Section>
           <SectionInner>
-            <SectionIcon src={images.emoji3dPeople} alt="" $nudgeUp={4} />
+            <SectionIcon><FiUsers size={19} /></SectionIcon>
             <SectionTitle>팀 정보 설정</SectionTitle>
           </SectionInner>
 
@@ -590,7 +590,7 @@ export default function MyProfilePage() {
                   <MenuTextWrap>
                     <MenuTitle>팀 생성</MenuTitle>
                   </MenuTextWrap>
-                  <MenuArrow>›</MenuArrow>
+                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
                 </MenuItemButton>
               ) : null}
 
@@ -600,7 +600,7 @@ export default function MyProfilePage() {
                   <MenuTextWrap>
                     <MenuTitle>팀원 초대</MenuTitle>
                   </MenuTextWrap>
-                  <MenuArrow>›</MenuArrow>
+                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
                 </MenuItemButton>
               ) : null}
 
@@ -609,7 +609,7 @@ export default function MyProfilePage() {
                   <MenuTextWrap>
                     <MenuTitle>팀 관리</MenuTitle>
                   </MenuTextWrap>
-                  <MenuArrow>›</MenuArrow>
+                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
                 </MenuItemButton>
               ) : null}
 
@@ -626,14 +626,14 @@ export default function MyProfilePage() {
                     ) : null}
                   </MenuTitleRow>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleMainMenuClick("team-join")}>
                 <MenuTextWrap>
                   <MenuTitle>팀 가입 신청</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               {/* ✅ 팀장만: 팀장 권한 이임 */}
@@ -642,7 +642,7 @@ export default function MyProfilePage() {
                   <MenuTextWrap>
                     <MenuTitle>팀장 권한 이임</MenuTitle>
                   </MenuTextWrap>
-                  <MenuArrow>›</MenuArrow>
+                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
                 </MenuItemButton>
               ) : null}
 
@@ -651,7 +651,7 @@ export default function MyProfilePage() {
                   <MenuTextWrap>
                     <MenuTitle>{clubLoading ? "팀 불러오는 중..." : "팀 탈퇴"}</MenuTitle>
                   </MenuTextWrap>
-                  <MenuArrow>›</MenuArrow>
+                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
                 </MenuItemButton>
               ) : null}
             </MenuList>
@@ -660,7 +660,7 @@ export default function MyProfilePage() {
 
         <Section>
           <SectionInner>
-            <SectionIcon src={images.emoji3dIdCard} alt="" $nudgeUp={4} />
+            <SectionIcon><FiUser size={19} /></SectionIcon>
             <SectionTitle>내 정보</SectionTitle>
           </SectionInner>
           <SectionBody>
@@ -669,42 +669,42 @@ export default function MyProfilePage() {
                 <MenuTextWrap>
                   <MenuTitle>친구 초대하고 같이 뛰기</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleMainMenuClick("reservations")}>
                 <MenuTextWrap>
                   <MenuTitle>내 구장 예약</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleMainMenuClick("fav-venues")}>
                 <MenuTextWrap>
                   <MenuTitle>찜한 구장</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleMainMenuClick("posts")}>
                 <MenuTextWrap>
                   <MenuTitle>내가 쓴 게시글</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleMainMenuClick("personal-matches")}>
                 <MenuTextWrap>
                   <MenuTitle>개인 활동 경기</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleMainMenuClick("my-reports")}>
                 <MenuTextWrap>
                   <MenuTitle>내가 신고한 내역</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
             </MenuList>
           </SectionBody>
@@ -712,7 +712,7 @@ export default function MyProfilePage() {
 
         <Section>
           <SectionInner>
-            <SectionIcon src={images.emoji3dGear} alt="" />
+            <SectionIcon><FiSettings size={19} /></SectionIcon>
             <SectionTitle>계정 · 앱 설정</SectionTitle>
           </SectionInner>
           <SectionBody>
@@ -724,42 +724,42 @@ export default function MyProfilePage() {
                 <ThemeModeText>
                   {themeMode === "dark" ? "다크" : "라이트"}
                 </ThemeModeText>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("alarm")}>
                 <MenuTextWrap>
                   <MenuTitle>알림 설정</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("notice")}>
                 <MenuTextWrap>
                   <MenuTitle>공지사항</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("faq")}>
                 <MenuTextWrap>
                   <MenuTitle>FAQ</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("cs")}>
                 <MenuTextWrap>
                   <MenuTitle>1:1 문의</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("reportBlock")}>
                 <MenuTextWrap>
                   <MenuTitle>차단 관리</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
             </MenuList>
           </SectionBody>
@@ -767,7 +767,7 @@ export default function MyProfilePage() {
 
         <Section>
           <SectionInner>
-            <SectionIcon src={images.emoji3dShield} alt="" />
+            <SectionIcon><FiShield size={19} /></SectionIcon>
             <SectionTitle>약관 · 계정 관리</SectionTitle>
           </SectionInner>
           <SectionBody>
@@ -776,35 +776,35 @@ export default function MyProfilePage() {
                 <MenuTextWrap>
                   <MenuTitle>개인정보처리방침</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("terms")}>
                 <MenuTextWrap>
                   <MenuTitle>이용약관</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("operation")}>
                 <MenuTextWrap>
                   <MenuTitle>운영정책</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("logout")}>
                 <MenuTextWrap>
                   <MenuTitle>로그아웃</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
 
               <MenuItemButton onClick={() => handleSettingMenuClick("withdraw")}>
                 <MenuTextWrap>
                   <MenuTitle>회원탈퇴</MenuTitle>
                 </MenuTextWrap>
-                <MenuArrow>›</MenuArrow>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
             </MenuList>
           </SectionBody>
@@ -896,7 +896,8 @@ const ModalTitle = styled.div`
 const ModalCloseBtn = styled.button`
   border: none;
   background: transparent;
-  font-size: 22px;
+  display: inline-flex;
+  align-items: center;
   cursor: pointer;
   color: ${({ theme }) => theme.colors.textWeak};
 
@@ -1021,7 +1022,6 @@ const MemberRadio = styled.div`
   background: ${({ $selected, theme }) =>
     $selected ? theme.colors.primary : theme.colors.card};
   color: #ffffff;
-  font-size: 11px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -1118,14 +1118,6 @@ const AvatarWrap = styled.div`
   background: ${({ theme }) => theme.colors.border};
 `;
 
-/* 프로필 헤더 인사 3D (손 흔들기) */
-const HeaderWave = styled.img`
-  width: 26px;
-  height: 26px;
-  object-fit: contain;
-  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
-`;
-
 const Avatar = styled.img`
   width: 100%;
   height: 100%;
@@ -1173,7 +1165,8 @@ const MetaDot = styled.span``;
 /* 카드가 클릭 가능함을 알리는 화살표 */
 const EditChevron = styled.span`
   flex-shrink: 0;
-  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
@@ -1253,16 +1246,15 @@ const SectionInner = styled.div`
   padding: 13px 14px 8px;
 `;
 
-/* 섹션 헤더 3D 아이콘 */
-/* $nudgeUp: 그림이 PNG 내부에서 아래로 쏠린 이모지(people·idcard)를 위로 올려
-   텍스트와 시각 중심을 맞추기 위한 광학 보정(px). gear는 정중앙이라 보정 없음. */
-const SectionIcon = styled.img`
+/* 섹션 헤더 아이콘 */
+const SectionIcon = styled.span`
   width: 28px;
   height: 28px;
-  object-fit: contain;
   flex-shrink: 0;
-  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.16));
-  ${({ $nudgeUp }) => ($nudgeUp ? `transform: translateY(-${$nudgeUp}px);` : "")}
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const SectionTitle = styled.h2`
@@ -1337,7 +1329,8 @@ const MenuTitle = styled.div`
 `;
 
 const MenuArrow = styled.div`
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 

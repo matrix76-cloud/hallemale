@@ -4,6 +4,7 @@
 // onChange({ lat, lng, address, region }) 로 상위에 전달.
 import React, { useEffect, useRef } from "react";
 import styled from "styled-components";
+import { LuMapPin } from "react-icons/lu";
 
 const SEOUL = { lat: 37.5665, lng: 126.9780 };
 const isValid = (lat, lng) =>
@@ -97,7 +98,7 @@ export default function VenueMapPicker({ value, onChange, height = 230 }) {
   return (
     <Wrap style={{ height }}>
       <Host ref={hostRef} />
-      <CenterPin aria-hidden>📍</CenterPin>
+      <CenterPin aria-hidden><LuMapPin size={30} /></CenterPin>
       <Hint>지도를 움직여 구장 위치에 핀을 맞춰주세요</Hint>
     </Wrap>
   );
@@ -116,7 +117,8 @@ const CenterPin = styled.div`
   left: 50%;
   top: 50%;
   transform: translate(-50%, -100%);
-  font-size: 30px;
+  color: #7C3AED;
+  display: flex;
   line-height: 1;
   pointer-events: none;
   z-index: 5;

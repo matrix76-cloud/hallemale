@@ -86,6 +86,8 @@ const ERROR_TEXT = {
   amount_mismatch: "결제 금액이 맞지 않아요. 처음부터 다시 시도해 주세요.",
   order_not_payable: "이미 처리된 결제예요.",
   test_skip_not_allowed: "결제 건너뛰기는 테스트 환경에서만 쓸 수 있어요.",
+  // PG 가맹 심사 대기 게이트(functions/payments/toss.js 의 LOCAL_ONLY)에 걸린 경우
+  payments_disabled: "결제 기능을 준비하고 있어요. 준비되면 다시 안내드릴게요.",
 };
 
 /**

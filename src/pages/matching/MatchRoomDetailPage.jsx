@@ -7,7 +7,20 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { goBackOrHome } from "../../utils/navigation";
 import { images, playerAvatars, teamLogoSrc } from "../../utils/imageAssets";
 import { openDirections as openKakaoDirections, openMapView, copyText } from "../../utils/venueLink";
-import { FiMapPin, FiCalendar } from "react-icons/fi";
+import {
+  FiMapPin,
+  FiCalendar,
+  FiHome,
+  FiInfo,
+  FiCheck,
+  FiClock,
+  FiChevronLeft,
+  FiChevronRight,
+  FiCheckCircle,
+  FiBarChart2,
+  FiFlag,
+  FiAlertTriangle,
+} from "react-icons/fi";
 import {
   loadMatchRoomDetail,
   proposeMatchSchedule,
@@ -21,10 +34,18 @@ import {
   markMatchRoomSeen,
   sendLineupReminder,
   subscribeMatchRoom,
+  MATCH_CANCEL_REASONS,
 } from "../../services/matchRoomService";
+import {
+  CANCEL_POLICY_TIERS,
+  CANCEL_POLICY_NOTE,
+  cancelStageIndex,
+  refundRate,
+} from "../../constants/cancelPolicy";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
 import { getMatchReservationStatus, requestVenueReservationForMatch, rejectReservation } from "../../services/ownerVenueService";
+import { PAYMENTS_ENABLED, PAYMENTS_DISABLED_NOTICE } from "../../constants/payments";
 import { doc as fsDoc, getDoc as fsGetDoc } from "firebase/firestore";
 import { db as fsDb } from "../../services/firebase";
 import { useUIContext } from "../../context/UIContext";
@@ -47,6 +68,7 @@ import { getTeamRankMap } from "../../services/teamRankingService";
 import { getPlayerRankMap } from "../../services/rankingService";
 import { createTeamReport } from "../../services/teamReportService";
 import { mrp } from "../../components/matchRoom/matchRoomPalette";
+import { hasMock, mockData } from "../../dev/mockBus";
 
 /* 기획안 색 토큰 (할래말래_직접입력.html :root) — 폴백/참조용 */
 const HC = {
@@ -116,6 +138,21 @@ const formatRelTime = (v) => {
   const hr = Math.floor(min / 60);
   if (hr < 24) return `${hr}시간`;
   return `${Math.floor(hr / 24)}일`;
+};
+
+// Firestore Timestamp / ISO / Date 아무거나 → Date | null
+const toDateAny = (v) => {
+  if (!v) return null;
+  const d = typeof v?.toDate === "function" ? v.toDate() : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// "2026.08.07 (금) 14:30" — 취소 내역처럼 시각을 정확히 남겨야 하는 곳용
+const formatFullDateTime = (v) => {
+  const d = toDateAny(v);
+  if (!d) return "";
+  const wk = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+  return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} (${wk}) ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
 
 /* ==================== 스타일 ==================== */
@@ -501,6 +538,8 @@ const SectionTitleLeft = styled.div`
 `;
 
 const SectionIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
   font-size: 20px;
 `;
 
@@ -901,19 +940,15 @@ const DirBtn = styled.button`
   color: ${({ theme }) => mrp(theme.mode).t2};
   cursor: pointer;
 `;
-/* 구장 타입 구분 뱃지: 제휴구장(보라) / 직접입력(중립) */
+/* 구장 타입 구분: 제휴구장(보라) / 직접입력(중립) — 배경 박스 없이 글씨만 */
 const VenueTypeTag = styled.span`
   display: inline-block;
   margin-left: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
   font-size: 10.5px;
   font-weight: 800;
   vertical-align: middle;
-  background: ${({ theme, $partner }) =>
-    $partner ? mrp(theme.mode).puBg : mrp(theme.mode).surface2};
   color: ${({ theme, $partner }) =>
-    $partner ? mrp(theme.mode).pu : mrp(theme.mode).t2};
+    $partner ? mrp(theme.mode).pu : mrp(theme.mode).t3};
 `;
 const LineupMiniBtn = styled.button`
   margin-top: 8px;
@@ -945,97 +980,161 @@ const ShareBtn = styled.button`
   box-shadow: 0 12px 24px -12px rgba(108, 92, 231, 0.7);
 `;
 
-/* ───── 경기 확정 / 종료 상단 웅장 배너 ───── */
-const ConfBanner = styled.div`
+/* ───── 확정 경기 헤더 — 카운트다운이 주인공, 색은 한 가지만 ───── */
+const CfHero = styled.div`
   width: 100%;
   max-width: 360px;
+  margin: 4px 0 0;
+  padding: 18px 18px 16px;
+  border-radius: 18px;
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.35);
+`;
+const CfHeroTop = styled.div`
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: flex-start;
-  gap: 16px;
-  padding: 22px 22px;
-  border-radius: 20px;
-  text-align: left;
-  color: #fff;
-  position: relative;
-  overflow: hidden;
-  background: ${({ $tone }) =>
-    $tone === "red"
-      ? "linear-gradient(135deg, #f87171 0%, #ef4444 55%, #dc2626 100%)"
-      : $tone === "slate"
-      ? "linear-gradient(135deg, #64748b 0%, #475569 60%, #334155 100%)"
-      : "linear-gradient(135deg, #22c55e 0%, #16a34a 60%, #15803d 100%)"};
-  box-shadow: ${({ $tone }) =>
-    $tone === "red"
-      ? "0 18px 38px -16px rgba(220, 38, 38, 0.6)"
-      : $tone === "slate"
-      ? "0 18px 38px -16px rgba(51, 65, 85, 0.6)"
-      : "0 18px 38px -16px rgba(22, 163, 74, 0.7)"};
-
-  /* 우측 상단 장식 원 */
-  &::before {
-    content: "";
-    position: absolute;
-    top: -34px;
-    right: -24px;
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.12);
-  }
-  &::after {
-    content: "";
-    position: absolute;
-    bottom: -40px;
-    right: 40px;
-    width: 90px;
-    height: 90px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
-  }
+  gap: 6px;
+  flex-wrap: wrap;
 `;
-const ConfBannerCheck = styled.div`
-  flex-shrink: 0;
+const CfChip = styled.span`
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: ${({ theme, $accent }) =>
+    $accent ? mrp(theme.mode).grBg : mrp(theme.mode).surface2};
+  color: ${({ theme, $accent }) => ($accent ? mrp(theme.mode).grL : mrp(theme.mode).t3)};
+`;
+const CfDday = styled.div`
+  margin: 12px 0 0;
   font-size: 40px;
-  line-height: 1;
-  position: relative;
-  z-index: 1;
-`;
-const ConfBannerText = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-  position: relative;
-  z-index: 1;
-`;
-const ConfBannerTitle = styled.div`
-  font-size: 23px;
   font-weight: 900;
-  letter-spacing: -0.02em;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: ${({ theme }) => mrp(theme.mode).t1};
 `;
-const ConfBannerSub = styled.div`
+const CfWhen = styled.div`
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+`;
+const CfSub = styled.div`
+  margin: 4px 0 0;
   font-size: 12.5px;
-  font-weight: 600;
-  opacity: 0.92;
-  line-height: 1.5;
+  line-height: 1.55;
+  color: ${({ theme }) => mrp(theme.mode).t3};
 `;
-/* 확정 배너 우측 D-day 뱃지 */
-const ConfBannerDday = styled.div`
+/* 확정 경기 준비 체크리스트 */
+const CfItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 0;
+  & + & {
+    border-top: 1px solid ${({ theme }) => mrp(theme.mode).line};
+  }
+`;
+const CfMark = styled.span`
   flex-shrink: 0;
-  margin-left: auto;
-  position: relative;
-  z-index: 1;
-  padding: 8px 13px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.2);
-  font-size: 18px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
   font-weight: 900;
-  letter-spacing: 0.01em;
-  line-height: 1;
+  box-sizing: border-box;
+  background: ${({ theme, $state }) =>
+    $state === "done" ? mrp(theme.mode).gr : $state === "warn" ? mrp(theme.mode).yeBg : "transparent"};
+  border: ${({ theme, $state }) =>
+    $state === "todo" ? `2px solid ${mrp(theme.mode).line2}` : "none"};
+  color: ${({ theme, $state }) => ($state === "warn" ? mrp(theme.mode).yeL : "#fff")};
+`;
+const CfItemBody = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+const CfItemTitle = styled.div`
+  font-size: 13px;
+  font-weight: 800;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+`;
+const CfItemSub = styled.div`
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+`;
+const CfItemAct = styled.button`
+  flex-shrink: 0;
+  padding: 6px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: ${({ theme }) => mrp(theme.mode).pu};
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+/* 지난 경기 상단 한 줄 — 큰 배너 대신 상태만 담백하게 */
+const PxLine = styled.div`
+  width: 100%;
+  max-width: 360px;
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+`;
+const PxLineText = styled.div`
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 `;
+const PxLineTag = styled.span`
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: ${({ theme, $tone }) =>
+    $tone === "done"
+      ? mrp(theme.mode).grBg
+      : $tone === "wait"
+      ? mrp(theme.mode).yeBg
+      : mrp(theme.mode).surface2};
+  color: ${({ theme, $tone }) =>
+    $tone === "done"
+      ? mrp(theme.mode).grL
+      : $tone === "wait"
+      ? mrp(theme.mode).yeL
+      : mrp(theme.mode).t3};
+`;
+/* 리뷰 진행 현황 한 줄 (섹션 카드 안) */
+const PxReviewProgress = styled.div`
+  margin: 10px 0 2px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: ${({ theme }) => mrp(theme.mode).surface2};
+  font-size: 11.5px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+`;
+
 
 /* ───── 확정 경기 취소 버튼 ───── */
 const ConfCancelBtn = styled.button`
@@ -1288,16 +1387,6 @@ const CancelIcon = styled.div`
   color: ${({ theme }) => mrp(theme.mode).t2};
   margin-top: 10px;
 `;
-const CancelCard = styled.div`
-  width: 100%;
-  max-width: 360px;
-  margin: 22px 0 0;
-  border-radius: 16px;
-  background: ${({ theme }) => mrp(theme.mode).surface};
-  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
-  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.35);
-  padding: 4px 16px;
-`;
 const CancelRow = styled.div`
   display: flex;
   justify-content: space-between;
@@ -1318,23 +1407,281 @@ const CancelV = styled.span`
   font-weight: 800;
   text-align: right;
 `;
-const CancelInfo = styled.div`
+/* ───── 취소 상세: 요약 칩 / 섹션 카드 / 환불 진행 / 규정 표 ───── */
+const CxMetaRow = styled.div`
+  width: 100%;
+  max-width: 360px;
+  margin: 12px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+`;
+const CxChip = styled.span`
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  font-size: 11.5px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+`;
+const CxCard = styled.section`
   width: 100%;
   max-width: 360px;
   margin: 14px 0 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.35);
+`;
+const CxHead = styled.div`
   display: flex;
-  gap: 8px;
-  border-radius: 12px;
-  padding: 13px 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid ${({ theme }) => mrp(theme.mode).line};
+`;
+const CxHeadTitle = styled.h3`
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: ${({ theme }) => mrp(theme.mode).t1};
+`;
+const CxHeadBadge = styled.span`
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: ${({ theme, $tone }) =>
+    $tone === "done"
+      ? mrp(theme.mode).grBg
+      : $tone === "wait"
+      ? mrp(theme.mode).yeBg
+      : mrp(theme.mode).surface2};
+  color: ${({ theme, $tone }) =>
+    $tone === "done"
+      ? mrp(theme.mode).grL
+      : $tone === "wait"
+      ? mrp(theme.mode).yeL
+      : mrp(theme.mode).t3};
+`;
+const CxBody = styled.div`
+  padding: 2px 16px 15px;
+`;
+/* 진행 이력 — 유플랫폼 예약취소 상세 패턴: 지난 단계는 흐리게, 현재 상태의 시각만 진하게.
+   "언제 성사돼서 언제 확정됐다가 언제 취소됐는지"가 한 줄씩 읽힌다. */
+const CxHistory = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 13px 0 3px;
+`;
+const CxHistoryRow = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: ${({ theme, $now }) => ($now ? mrp(theme.mode).t1 : mrp(theme.mode).t3)};
+  font-weight: ${({ $now }) => ($now ? 800 : 600)};
+  & > span:first-child {
+    color: ${({ theme, $now }) => ($now ? mrp(theme.mode).t2 : mrp(theme.mode).t3)};
+    font-weight: 600;
+  }
+  & > span:last-child {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+`;
+const CxQuote = styled.div`
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border-left: 2px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: ${({ theme }) => mrp(theme.mode).surface2};
   font-size: 12.5px;
   line-height: 1.6;
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.12)" : "#eef2ff"};
-  color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : "#4f46e5")};
-
-  b {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: ${({ theme }) => mrp(theme.mode).t2};
+  & > b {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
     font-weight: 800;
+    color: ${({ theme }) => mrp(theme.mode).t3};
   }
+`;
+/* 환불 예정액처럼 한 줄만 크게 읽혀야 하는 행 */
+const CxTotalRow = styled(CancelRow)`
+  & > span:last-child {
+    font-size: 17px;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+`;
+const CxSteps = styled.ol`
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+`;
+const CxStep = styled.li`
+  position: relative;
+  padding: 0 0 13px 22px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-weight: ${({ $done }) => ($done ? 700 : 600)};
+  color: ${({ theme, $done }) => ($done ? mrp(theme.mode).t1 : mrp(theme.mode).t3)};
+  &::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 4px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    box-sizing: border-box;
+    background: ${({ theme, $done }) => ($done ? mrp(theme.mode).gr : "transparent")};
+    border: 2px solid ${({ theme, $done }) => ($done ? mrp(theme.mode).gr : mrp(theme.mode).line2)};
+  }
+  &::after {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 16px;
+    bottom: 2px;
+    width: 1px;
+    background: ${({ theme }) => mrp(theme.mode).line};
+  }
+  &:last-child {
+    padding-bottom: 0;
+  }
+  &:last-child::after {
+    display: none;
+  }
+  & > small {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: ${({ theme }) => mrp(theme.mode).t3};
+  }
+`;
+const CxNote = styled.p`
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+  & > b {
+    font-weight: 800;
+    color: ${({ theme }) => mrp(theme.mode).t2};
+  }
+`;
+const CxPolicyTable = styled.div`
+  margin-top: 13px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line};
+`;
+const CxPolicyRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 12px;
+  background: ${({ theme, $on }) => ($on ? mrp(theme.mode).puBg : "transparent")};
+  color: ${({ theme, $on }) => ($on ? mrp(theme.mode).t1 : mrp(theme.mode).t2)};
+  font-weight: ${({ $on }) => ($on ? 800 : 600)};
+  & + & {
+    border-top: 1px solid ${({ theme }) => mrp(theme.mode).line};
+  }
+`;
+const CxPolicyLink = styled.button`
+  margin: 12px 0 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: ${({ theme }) => mrp(theme.mode).pu};
+`;
+const CxActions = styled.div`
+  width: 100%;
+  max-width: 360px;
+  margin: 10px 0 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+`;
+const CxGhostBtn = styled.button`
+  height: 46px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
+  background: ${({ theme }) => mrp(theme.mode).surface};
+  color: ${({ theme }) => mrp(theme.mode).t1};
+  font-size: 13.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+const CxTextLink = styled.button`
+  margin: 14px 0 0;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: ${({ theme }) => mrp(theme.mode).t3};
+`;
+/* 무효 처리된 매치 티켓 — 회색조 + CANCELLED 스탬프 */
+const CxTicketWrap = styled.div`
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  margin: 18px 0 0;
+  & > div:first-child {
+    margin-top: 0;
+  }
+`;
+const CxStamp = styled.span`
+  position: absolute;
+  top: 56%;
+  right: 14px;
+  z-index: 2;
+  transform: translateY(-50%) rotate(-11deg);
+  padding: 4px 11px;
+  border-radius: 7px;
+  border: 2px solid
+    ${({ theme }) => (theme.mode === "dark" ? "rgba(248,113,113,0.45)" : "rgba(220,38,38,0.3)")};
+  color: ${({ theme }) => (theme.mode === "dark" ? "#f87171" : "#dc2626")};
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  pointer-events: none;
+`;
+const CxVoid = styled.div`
+  filter: grayscale(0.45);
+  opacity: 0.88;
+`;
+const CxStrike = styled.span`
+  text-decoration: line-through;
+  text-decoration-color: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(248,113,113,0.7)" : "rgba(220,38,38,0.55)"};
+  text-decoration-thickness: 1.5px;
 `;
 
 const FieldMapWrap = styled.div`
@@ -1381,6 +1728,9 @@ const TimeHead = styled.div`
   margin-bottom: 8px;
 `;
 const TimeTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 13px;
   font-weight: 800;
   color: ${({ theme }) => (theme.mode === "dark" ? "#fff" : "#1f2937")};
@@ -2222,6 +2572,11 @@ const NoticeInfo = styled.div`
   margin-top: 10px;
   color: ${({ theme }) => mrp(theme.mode).t3};
 
+  > svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+
   b {
     font-weight: 700;
     color: ${({ theme }) => mrp(theme.mode).t2};
@@ -2260,6 +2615,11 @@ const GateNote = styled.div`
   line-height: 1.55;
   margin-top: 12px;
   color: ${({ theme }) => mrp(theme.mode).t3};
+
+  > svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
 
   b {
     font-weight: 700;
@@ -2354,6 +2714,9 @@ const MonthLabel = styled.div`
 `;
 
 const MonthNavButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   font-size: 16px;
@@ -2690,45 +3053,36 @@ const RatingSubtitle = styled.div`
 `;
 
 /* 완료 경기 결과 히어로 배너 (승리=그린 그라데이션 / 무·패 컬러) */
+/* 승/패/무 표시 — 그라데이션 대신 결과색 한 가지만 쓰는 절제된 필 뱃지 */
 const ResultBanner = styled.div`
-  position: relative;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
   margin: 2px 0 14px;
-  padding: 13px 16px;
-  border-radius: 14px;
+  padding: 10px 16px;
+  border-radius: 12px;
   background: ${({ $outcome, theme }) =>
     $outcome === "win"
-      ? "linear-gradient(135deg,#34d399 0%,#10b981 100%)"
+      ? mrp(theme.mode).grBg
       : $outcome === "lose"
       ? theme.mode === "dark"
-        ? "rgba(220,38,38,0.16)"
+        ? "rgba(220,38,38,0.14)"
         : "#fef2f2"
-      : theme.mode === "dark"
-      ? "rgba(255,255,255,0.06)"
-      : "#f3f4f6"};
-  box-shadow: ${({ $outcome }) =>
-    $outcome === "win" ? "0 12px 22px -12px rgba(16,185,129,0.6)" : "none"};
+      : mrp(theme.mode).surface2};
 `;
 const ResultBannerText = styled.div`
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: -0.3px;
   color: ${({ $outcome, theme }) =>
     $outcome === "win"
-      ? "#ffffff"
+      ? mrp(theme.mode).grL
       : $outcome === "lose"
-      ? "#dc2626"
-      : theme.colors.textStrong};
-`;
-const ResultBanner3D = styled.img`
-  width: 30px;
-  height: 30px;
-  object-fit: contain;
-  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.25));
+      ? theme.mode === "dark"
+        ? "#f87171"
+        : "#dc2626"
+      : mrp(theme.mode).t2};
 `;
 
 /* 완료 경기: 가로 스코어보드 (가운데 큰 점수 · 이긴 쪽만 진하게) */
@@ -3082,8 +3436,15 @@ export default function MatchRoomDetailPage() {
   const loadPartnerPay = React.useCallback(async () => {
     if (!room?.id) { setPartnerPay(null); return; }
     try {
-      const snap = await fsGetDoc(fsDoc(fsDb, "match_requests", room.id));
-      const pb = snap.exists() ? snap.data()?.partnerBooking : null;
+      // 리뷰 목업에선 match_requests 를 실제로 읽을 수 없다 — 시나리오 문서의 partnerBooking 을 쓴다.
+      // (안 그러면 목업 매치룸이 전부 "직접입력"으로 보여 구장·결제 화면을 검수할 수 없다)
+      let pb = null;
+      if (hasMock("matchRequestDoc")) {
+        pb = mockData("matchRequestDoc")?.partnerBooking || null;
+      } else {
+        const snap = await fsGetDoc(fsDoc(fsDb, "match_requests", room.id));
+        pb = snap.exists() ? snap.data()?.partnerBooking : null;
+      }
       if (!pb) { setPartnerPay(null); return; }
       const resv = await getMatchReservationStatus(room.id);
       setPartnerPay({ pb, resv });
@@ -4014,18 +4375,6 @@ export default function MatchRoomDetailPage() {
     ? "lose"
     : "draw";
 
-  // 상단 배너(종료 경기): 무효 → 승/패/무 → 경기 종료 폴백
-  const pastBanner =
-    isVoided
-      ? { icon: "🚫", title: "무효 처리", sub: "양 팀 결과 미입력 · 전적에 반영되지 않아요", tone: "slate" }
-      : outcome === "win"
-      ? { icon: "🏆", title: "경기 승리", sub: "멋진 승리예요 · 수고하셨습니다", tone: "green" }
-      : outcome === "lose"
-      ? { icon: "😞", title: "경기 패배", sub: "아쉬운 경기였어요 · 다음을 기약해요", tone: "red" }
-      : outcome === "draw"
-      ? { icon: "🤝", title: "경기 무승부", sub: "치열한 경기였어요 · 수고하셨습니다", tone: "slate" }
-      : { icon: "🏁", title: "경기 종료", sub: "경기가 종료됐어요 · 수고하셨습니다", tone: "slate" };
-
   const resultOpenAtLabel = Number.isFinite(resultOpenAtMs)
     ? formatKoreanDateTime(new Date(resultOpenAtMs).toISOString())
     : "";
@@ -4474,7 +4823,166 @@ export default function MatchRoomDetailPage() {
     ? "우리팀 사정으로 확정된 경기가 취소됐어요."
     : "상대팀 사정으로 확정된 경기가 취소됐어요.";
   const cancelReasonStored = toStr(room?.cancelReason); // 선택한 실제 취소 사유(상대팀에 표시)
-  const cancelRefund = room?.refund || null; // { status:"refunded"|"pending", amount } | null
+  const cancelRefund = room?.refund || null; // { status, amount, breakdown } | null
+
+  // 취소한 팀 이름 — "우리팀/상대팀"만 쓰면 나중에 기록을 봤을 때 어느 팀이었는지 알 수 없다.
+  const cancelActorName = !cancelledBy
+    ? "-"
+    : iCancelled
+    ? `${toStr(myTeamView?.name) || "우리 팀"} (우리 팀)`
+    : `${oppName || "상대 팀"} (상대 팀)`;
+
+  // 사유: 프리셋 라벨과 직접 입력 텍스트를 분리해 보여준다.
+  // (구버전 문서는 cancelReason 한 줄만 있으므로 그대로 폴백)
+  const cancelReasonPreset = MATCH_CANCEL_REASONS.find(
+    (r) => r.key === toStr(room?.cancelReasonKey)
+  );
+  const cancelReasonMain =
+    (cancelReasonPreset && cancelReasonPreset.label) || cancelReasonStored || "사유 미입력";
+  const cancelReasonDetail = toStr(room?.cancelReasonText);
+
+  // 진행 이력 — 마지막(현재 상태) 행만 진하게. 값이 없는 단계는 아예 빼서 빈 줄을 남기지 않는다.
+  const cancelHistory = [
+    { label: "매칭 성사", at: formatFullDateTime(room?.acceptedAt) },
+    { label: "일정 확정", at: formatFullDateTime(room?.confirmedAt) },
+    { label: "경기 취소", at: formatFullDateTime(room?.cancelledAt), now: true },
+  ].filter((h) => !!h.at);
+
+  const cancelledAtDate = toDateAny(room?.cancelledAt);
+  const cancelledAtFull = formatFullDateTime(room?.cancelledAt);
+  const cancelledAtShort = cancelledAtDate
+    ? `${cancelledAtDate.getMonth() + 1}.${cancelledAtDate.getDate()} ${pad2(cancelledAtDate.getHours())}:${pad2(cancelledAtDate.getMinutes())}`
+    : "";
+
+  // 경기 예정 시각 — 취소 규정(cancelPolicy)은 "YYYY-MM-DD" + "HH:mm" 을 받는다.
+  const schedDate = toDateAny(room?.scheduledAt);
+  const schedYmd = schedDate
+    ? `${schedDate.getFullYear()}-${pad2(schedDate.getMonth() + 1)}-${pad2(schedDate.getDate())}`
+    : "";
+  const schedHm = schedDate ? `${pad2(schedDate.getHours())}:${pad2(schedDate.getMinutes())}` : "";
+  const schedFullLabel = formatFullDateTime(room?.scheduledAt) || "일정 미정";
+
+  // 취소 시점 — 위약 규정이 왜 그렇게 적용됐는지 판단 근거가 된다.
+  const cancelLeadLabel = (() => {
+    if (!schedDate || !cancelledAtDate) return "";
+    if (cancelledAtDate.getTime() >= schedDate.getTime()) return "경기 시작 후 취소";
+    const d0 = new Date(cancelledAtDate.getFullYear(), cancelledAtDate.getMonth(), cancelledAtDate.getDate());
+    const dS = new Date(schedDate.getFullYear(), schedDate.getMonth(), schedDate.getDate());
+    const days = Math.round((dS.getTime() - d0.getTime()) / 86400000);
+    if (days >= 2) return `경기 ${days}일 전 취소`;
+    if (days === 1) return "경기 하루 전 취소";
+    const mins = Math.max(0, Math.round((schedDate.getTime() - cancelledAtDate.getTime()) / 60000));
+    const h = Math.floor(mins / 60);
+    return `경기 당일 취소 (시작 ${h > 0 ? `${h}시간 ` : ""}${mins % 60}분 전)`;
+  })();
+
+  // 취소 시점에 적용되는 규정 단계(CANCEL_POLICY_TIERS 인덱스)
+  const cancelStage =
+    schedYmd && cancelledAtDate ? cancelStageIndex(schedYmd, schedHm, cancelledAtDate) : null;
+
+  // ───── 취소 화면 환불 계산 ─────
+  // 취소되면 예약 문서가 cancelled 로 내려가 partnerPay.resv 는 null 이 된다.
+  // 누가 결제했는지는 refund.breakdown([{team:"A"|"B", amount}]) 만 남으므로 그걸 단일 출처로 쓴다.
+  const cancelPb = partnerPay?.pb || null;
+  const refundBreakdown = Array.isArray(cancelRefund?.breakdown) ? cancelRefund.breakdown : [];
+  const paidTeamA = refundBreakdown.some((b) => toStr(b?.team) === "A");
+  const paidTeamB = refundBreakdown.some((b) => toStr(b?.team) === "B");
+  const mySide = cancelPb && myClubId === toStr(cancelPb.proposerClubId) ? "A" : "B";
+  const myPaidRow = refundBreakdown.find((b) => toStr(b?.team) === mySide) || null;
+  const myPaidAmt = Number(myPaidRow?.amount) || 0;
+  // 상대팀 귀책 취소는 위약금 없이 전액 환불, 우리팀 취소는 취소 시점 규정을 따른다.
+  const myRefundRate =
+    !iCancelled || !schedYmd || !cancelledAtDate ? 1 : refundRate(schedYmd, schedHm, cancelledAtDate);
+  const myRefundAmt = Math.floor(myPaidAmt * myRefundRate);
+  const myPenaltyAmt = Math.max(0, myPaidAmt - myRefundAmt);
+  const refundDone = toStr(cancelRefund?.status) === "refunded";
+  const hasCancelPayment = !!cancelRefund && Number(cancelRefund.amount) > 0;
+  // 앱 결제가 있었다는 건 곧 제휴구장이었다는 뜻 — partnerBooking 을 못 읽어도 구장 종류는 단정할 수 있다.
+  const isPartnerVenue = !!cancelPb || hasCancelPayment;
+  const won = (v) => `${(Number(v) || 0).toLocaleString()}원`;
+
+  // ───── 확정 경기(경기 전) 헤더·체크리스트 ─────
+  const schedAtDate = toDateAny(room?.scheduledAt);
+  const confCountdownText = (() => {
+    if (!schedAtDate) return "일정이 정해지면 알려드릴게요";
+    const diff = schedAtDate.getTime() - Date.now();
+    if (diff <= 0) return "경기 시작 시각이 지났어요";
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return `${Math.max(1, Math.round(diff / 60000))}분 뒤 시작`;
+    if (hours < 24) return `${hours}시간 뒤 시작`;
+    return `${Math.floor(hours / 24)}일 ${hours % 24}시간 뒤 시작`;
+  })();
+
+  // 경기 당일까지 남은 준비 — 무엇이 끝났고 무엇이 남았는지 한 카드에서 본다.
+  const confChecklist = (() => {
+    const items = [
+      { state: "done", title: "일정 확정", sub: confDateLabel },
+    ];
+
+    const pb = partnerPay?.pb;
+    if (pb) {
+      const resv = partnerPay?.resv;
+      const side = myClubId === toStr(pb.proposerClubId) ? "A" : "B";
+      const myPaid = side === "A" ? !!resv?.paidByA : !!resv?.paidByB;
+      const payPending = toStr(resv?.status) === "pending";
+      items.push({
+        state: payPending ? "todo" : "done",
+        title: "구장 예약",
+        sub: !payPending
+          ? `${toStr(pb.venueName) || "제휴구장"}${toStr(pb.courtName) ? ` · ${toStr(pb.courtName)}` : ""} 예약 완료`
+          : myPaid
+          ? "우리 팀 몫은 결제했어요 · 상대 팀 결제를 기다리는 중"
+          : "우리 팀 몫 결제가 남았어요",
+      });
+    } else {
+      items.push({
+        state: "warn",
+        title: "구장 예약",
+        sub: "직접 입력 구장이에요 · 예약·문의는 두 팀이 직접 해야 해요",
+      });
+    }
+
+    items.push({
+      state: myLineupConfirmed ? "done" : "todo",
+      title: "우리 팀 라인업",
+      sub: myLineupConfirmed
+        ? `${myPlayers.length}명 확정${mySubPlayers.length ? ` · 후보 ${mySubPlayers.length}명` : ""}`
+        : "아직 확정하지 않았어요",
+      act:
+        !myLineupConfirmed && isViewerMyTeam && isTeamLeader
+          ? { label: "확정하기", onClick: () => setLineupSheetOpen(true) }
+          : null,
+    });
+    items.push({
+      state: oppLineupConfirmed ? "done" : "todo",
+      title: `${oppName} 라인업`,
+      sub: oppLineupConfirmed
+        ? `${oppPlayers.length}명 확정`
+        : "상대 팀이 확정하기를 기다리는 중이에요",
+    });
+    return items;
+  })();
+
+  // ───── 지난 경기 상단 한 줄 · 경기 기록 ─────
+  const pastStatusTag = isVoided
+    ? { tone: "none", label: "무효" }
+    : resultState === "confirmed" || isFinished
+    ? { tone: "done", label: "결과 확정" }
+    : resultState === "waiting_accept"
+    ? { tone: "wait", label: "승인 대기" }
+    : resultState === "disputed"
+    ? { tone: "wait", label: "이의 제기" }
+    : { tone: "wait", label: "결과 대기" };
+
+  const matchSizeLabel = matchSizeKey ? toStr(matchSizeKey).toUpperCase() : "";
+  const resultAuthorLabel = (() => {
+    const r = room?.result;
+    if (!r) return "";
+    const name = toStr(r.authorName);
+    const at = formatFullDateTime(r.submittedAt);
+    return [name, at].filter(Boolean).join(" · ");
+  })();
+  const statsAppliedLabel = formatFullDateTime(room?.statsAppliedAt);
 
   // 제안한 구장 사진(제휴구장). 있으면 지도 대신 사진을 보여준다(직접입력 구장은 사진이 없어 지도 폴백).
   const propVenueImage = toStr(partnerPay?.pb?.venueImageUrl);
@@ -4806,11 +5314,15 @@ export default function MatchRoomDetailPage() {
     chatTopBar = needPay ? (
       <ActStack>
         <ActNote>{venuePayNotice}</ActNote>
-        {isViewerMyTeam && isTeamLeader && (
-          <ActPrimary type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
-            {myPayTotal.toLocaleString()}원 결제하러 가기
-          </ActPrimary>
-        )}
+        {/* PG 심사 대기 중에는 결제 진입을 닫고 안내만 남긴다(constants/payments.js) */}
+        {isViewerMyTeam && isTeamLeader &&
+          (PAYMENTS_ENABLED ? (
+            <ActPrimary type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
+              {myPayTotal.toLocaleString()}원 결제하러 가기
+            </ActPrimary>
+          ) : (
+            <ActNote>{PAYMENTS_DISABLED_NOTICE}</ActNote>
+          ))}
       </ActStack>
     ) : myTeamPaid ? (
       <ActStack>
@@ -4881,6 +5393,24 @@ export default function MatchRoomDetailPage() {
             />
           </ScoreTeamCol>
         </ScoreCardRow>
+
+        <ResultInfoBox>
+          제출하면 <strong>{oppName}</strong>의 승인을 거쳐 최종 확정돼요. 확정된 점수는 양 팀
+          전적·랭킹에 반영되고 <strong>되돌릴 수 없어요.</strong>
+          {autoConfirmAtLabel ? (
+            <>
+              <br />
+              상대 팀이 {autoConfirmAtLabel}까지 응답하지 않으면 입력한 결과로 자동 확정됩니다.
+            </>
+          ) : null}
+        </ResultInfoBox>
+        {/* 서버 잡(matchAutoVoid)이 같은 기한에 무효 처리한다 — 안내가 없으면 왜 전적이 안 붙는지 알 수 없다 */}
+        {autoConfirmAtLabel ? (
+          <ResultInfoBox>
+            ⏳ <strong>{autoConfirmAtLabel}</strong>까지 양 팀 모두 결과를 입력하지 않으면 이 경기는{" "}
+            <strong>무효 처리</strong>되고 전적에 반영되지 않아요.
+          </ResultInfoBox>
+        ) : null}
       </SectionCard>
 
       {/* 별점 평가는 '리뷰 남기기' 카드로 분리 (팀장·팀원 공통, 지난 경기에서) */}
@@ -4912,9 +5442,8 @@ export default function MatchRoomDetailPage() {
         </SectionTitleRow>
 
         <ResultBanner $outcome={outcome}>
-          {outcome === "win" && <ResultBanner3D src={images.emoji3dTrophy} alt="" />}
           <ResultBannerText $outcome={outcome}>
-            {outcome === "win" ? "승리!" : outcome === "lose" ? "패배" : "무승부"}
+            {outcome === "win" ? "승리" : outcome === "lose" ? "패배" : "무승부"}
           </ResultBannerText>
         </ResultBanner>
 
@@ -4951,6 +5480,12 @@ export default function MatchRoomDetailPage() {
             <SbSub>{oppRank ? `${oppRank}위` : "랭킹 없음"}</SbSub>
           </SbTeam>
         </ScoreBoard>
+
+        <ScoreHeroHint>
+          {statsAppliedLabel
+            ? `${statsAppliedLabel} 확정 · 양 팀 전적과 랭킹에 반영됐어요`
+            : "양 팀이 인정한 최종 결과예요"}
+        </ScoreHeroHint>
       </SectionCard>
     </>
   );
@@ -5144,7 +5679,10 @@ export default function MatchRoomDetailPage() {
           </ReviewAvg>
         )}
       </ReviewHeadRow>
-      <RatingSubtitle>상대 팀 선수들이 우리 팀에 남겼어요</RatingSubtitle>
+      <RatingSubtitle>
+        상대 팀 선수들이 우리 팀에 남겼어요
+        {oppReviews.length > 0 ? ` · ${oppReviews.length}명 작성` : ""}
+      </RatingSubtitle>
       {oppReviews.length > 0 ? (
         <ReviewList>
           {oppReviews.map((r) => (
@@ -5166,10 +5704,22 @@ export default function MatchRoomDetailPage() {
           ))}
         </ReviewList>
       ) : (
-        <ReviewEmpty>아직 상대 팀이 남긴 평점이 없어요.</ReviewEmpty>
+        <ReviewEmpty>
+          아직 상대 팀이 남긴 평점이 없어요.
+          <br />
+          경기 후 며칠 안에 들어오는 경우가 많아요.
+        </ReviewEmpty>
       )}
     </SectionCard>
   );
+
+  // 우리 팀에서 몇 명이 리뷰를 남겼는지 — 혼자만 남기고 끝나는 걸 막는 넛지
+  const myTeamReviewProgress = (() => {
+    const roster = myPlayers.length + mySubPlayers.length;
+    if (!roster) return "";
+    const done = allReviews.filter((r) => toStr(r.targetClubId) === toStr(oppClubId)).length;
+    return `우리 팀 ${roster}명 중 ${Math.min(done, roster)}명이 리뷰를 남겼어요`;
+  })();
 
   // ✅ 내가 상대 팀에 남기는 리뷰 카드 (팀장·팀원 공통, 지난 경기) — 1인 1리뷰
   const myReview = allReviews.find((r) => toStr(r.raterUid) === myUid) || null;
@@ -5200,6 +5750,7 @@ export default function MatchRoomDetailPage() {
         </SectionTitleActions>
       </SectionTitleRow>
       <RatingSubtitle>매너·실력을 별점으로 남기면 상대 팀 평판에 반영돼요. 팀원도 남길 수 있어요.</RatingSubtitle>
+      {myTeamReviewProgress ? <PxReviewProgress>{myTeamReviewProgress}</PxReviewProgress> : null}
       <StarsRow>
         {[1, 2, 3, 4, 5].map((n) => (
           <StarBtn
@@ -5351,71 +5902,351 @@ export default function MatchRoomDetailPage() {
             <ConfTitle>경기가 취소됐어요</ConfTitle>
             <ConfSub>{cancelSubText}</ConfSub>
 
-            <CancelCard>
-              <CancelRow>
-                <CancelK>취소 주체</CancelK>
-                <CancelV>{cancelReasonLabel}</CancelV>
-              </CancelRow>
-              <CancelRow>
-                <CancelK>사유</CancelK>
-                <CancelV>{cancelReasonStored || "사유 미입력"}</CancelV>
-              </CancelRow>
-              <CancelRow>
-                <CancelK>정산</CancelK>
-                <CancelV>
-                  {cancelRefund && cancelRefund.amount > 0
-                    ? cancelRefund.status === "refunded"
-                      ? `${Number(cancelRefund.amount).toLocaleString()}원 환불 완료`
-                      : `${Number(cancelRefund.amount).toLocaleString()}원 환불 예정`
-                    : "결제 없음"}
-                </CancelV>
-              </CancelRow>
-            </CancelCard>
+            <CxMetaRow>
+              <CxChip>{cancelReasonLabel}</CxChip>
+              {cancelledAtShort ? <CxChip>{cancelledAtShort} 취소</CxChip> : null}
+              {cancelLeadLabel ? <CxChip>{cancelLeadLabel}</CxChip> : null}
+            </CxMetaRow>
 
-            <CancelInfo>
-              <span>ⓘ</span>
-              <div>
-                {cancelRefund && cancelRefund.amount > 0 ? (
-                  cancelRefund.status === "refunded" ? (
-                    <>결제하신 구장비는 <b>환불 처리됐어요.</b> (결제 수단으로 환불)</>
-                  ) : (
-                    <>결제하신 구장비는 <b>환불 처리될 예정이에요.</b> (영업일 기준 처리)</>
-                  )
-                ) : (
-                  <>직접 입력 경기는 앱 결제가 없어 <b>환불 절차가 없어요.</b> 별도 정산이 있었다면 두 팀이 직접 정리해요.</>
-                )}
-              </div>
-            </CancelInfo>
+            {/* 무산된 경기 티켓 — 어떤 경기가 취소됐는지(상대·일시·구장)를 남긴다 */}
+            <CxTicketWrap>
+              <Ticket>
+                <TicketHead>
+                  <TicketBrand>MATCH TICKET</TicketBrand>
+                  <TicketBadge $tone="red">취소됨</TicketBadge>
+                </TicketHead>
+                <CxVoid>
+                  <TicketBody>
+                    <VsRow>
+                      <VsTeam role="button" onClick={() => goTeamDetail(myTeamView)}>
+                        <CrestWrap>
+                          <Crest $home>
+                            <CrestImg src={teamLogoSrc(myTeamView?.logoUrl)} alt={myTeamView?.name} />
+                          </Crest>
+                        </CrestWrap>
+                        <VsNmWrap>
+                          <VsNm>{toStr(myTeamView?.name) || "내 팀"}</VsNm>
+                          {myRank ? <RankTag>랭킹 {myRank}위</RankTag> : null}
+                        </VsNmWrap>
+                      </VsTeam>
+
+                      <VsMid>
+                        <VsX>VS</VsX>
+                      </VsMid>
+
+                      <VsTeam role="button" onClick={() => goTeamDetail(oppTeamView)}>
+                        <CrestWrap>
+                          <Crest>
+                            <CrestImg src={teamLogoSrc(oppTeamView?.logoUrl)} alt={oppTeamView?.name} />
+                          </Crest>
+                        </CrestWrap>
+                        <VsNmWrap>
+                          <VsNm>{oppName}</VsNm>
+                          {oppRank ? <RankTag>랭킹 {oppRank}위</RankTag> : null}
+                        </VsNmWrap>
+                      </VsTeam>
+                    </VsRow>
+
+                    <TicketRows>
+                      <TicketRow>
+                        <RowIconChip><FiCalendar size={17} /></RowIconChip>
+                        <RowKV>
+                          <RowK>예정이던 일시</RowK>
+                          <RowV><CxStrike>{confDateLabel}</CxStrike></RowV>
+                        </RowKV>
+                      </TicketRow>
+                      <TicketRow>
+                        <RowIconChip><FiMapPin size={17} /></RowIconChip>
+                        <RowKV>
+                          <RowK>
+                            구장
+                            <VenueTypeTag $partner={isPartnerVenue}>
+                              {isPartnerVenue ? "제휴구장" : "직접입력"}
+                            </VenueTypeTag>
+                          </RowK>
+                          <RowV>
+                            <CxStrike>
+                              {toStr(fieldAddress) || toStr(cancelPb?.venueName) || "구장 미정"}
+                            </CxStrike>
+                          </RowV>
+                        </RowKV>
+                      </TicketRow>
+                      {toStr(cancelPb?.reservationCode) ? (
+                        <TicketRow>
+                          <RowIconChip>🎟️</RowIconChip>
+                          <RowKV>
+                            <RowK>예약번호</RowK>
+                            <RowV>{toStr(cancelPb.reservationCode)}</RowV>
+                          </RowKV>
+                        </TicketRow>
+                      ) : null}
+                    </TicketRows>
+                  </TicketBody>
+                </CxVoid>
+              </Ticket>
+              <CxStamp>CANCELLED</CxStamp>
+            </CxTicketWrap>
+
+            {/* 취소 내역 — 누가·왜·언제 취소했는지 */}
+            <CxCard>
+              <CxHead>
+                <CxHeadTitle>취소 내역</CxHeadTitle>
+                <CxHeadBadge $tone={iCancelled ? "wait" : "none"}>{cancelReasonLabel}</CxHeadBadge>
+              </CxHead>
+              <CxBody>
+                {cancelHistory.length > 1 ? (
+                  <CxHistory>
+                    {cancelHistory.map((h) => (
+                      <CxHistoryRow key={h.label} $now={h.now}>
+                        <span>{h.label}</span>
+                        <span>{h.at}</span>
+                      </CxHistoryRow>
+                    ))}
+                  </CxHistory>
+                ) : null}
+                <CancelRow>
+                  <CancelK>취소한 팀</CancelK>
+                  <CancelV>{cancelActorName}</CancelV>
+                </CancelRow>
+                <CancelRow>
+                  <CancelK>취소 사유</CancelK>
+                  <CancelV>{cancelReasonMain}</CancelV>
+                </CancelRow>
+                <CancelRow>
+                  <CancelK>경기 예정 일시</CancelK>
+                  <CancelV>{schedFullLabel}</CancelV>
+                </CancelRow>
+                {cancelLeadLabel ? (
+                  <CancelRow>
+                    <CancelK>취소 시점</CancelK>
+                    <CancelV>{cancelLeadLabel}</CancelV>
+                  </CancelRow>
+                ) : null}
+                {cancelReasonDetail ? (
+                  <CxQuote>
+                    <b>상세 사유</b>
+                    {cancelReasonDetail}
+                  </CxQuote>
+                ) : null}
+              </CxBody>
+            </CxCard>
+
+            {/* 환불·정산 — 제휴구장 결제가 있었던 경기만 금액을 편다 */}
+            {hasCancelPayment ? (
+              <CxCard>
+                <CxHead>
+                  <CxHeadTitle>환불 · 정산</CxHeadTitle>
+                  <CxHeadBadge $tone={refundDone ? "done" : "wait"}>
+                    {refundDone ? "환불 완료" : "환불 처리 중"}
+                  </CxHeadBadge>
+                </CxHead>
+                <CxBody>
+                  {cancelPb ? (
+                    <>
+                      <CancelRow>
+                        <CancelK>총 대관료</CancelK>
+                        <CancelV>{won(cancelPb.totalPrice)}</CancelV>
+                      </CancelRow>
+                      <CancelRow>
+                        <CancelK>{toStr(cancelPb.proposerTeamName) || "A팀"}</CancelK>
+                        <CancelV>
+                          {won(cancelPb.shareA)} · {paidTeamA ? "결제완료" : "미결제"}
+                        </CancelV>
+                      </CancelRow>
+                      <CancelRow>
+                        <CancelK>{toStr(cancelPb.opponentTeamName) || "B팀"}</CancelK>
+                        <CancelV>
+                          {won(cancelPb.shareB)} · {paidTeamB ? "결제완료" : "미결제"}
+                        </CancelV>
+                      </CancelRow>
+                    </>
+                  ) : null}
+                  <CancelRow>
+                    <CancelK>우리 팀 결제액</CancelK>
+                    <CancelV>{myPaidAmt > 0 ? won(myPaidAmt) : "결제 없음"}</CancelV>
+                  </CancelRow>
+                  <CancelRow>
+                    <CancelK>적용 규정</CancelK>
+                    <CancelV>
+                      {!iCancelled
+                        ? "상대 팀 귀책 · 전액 환불"
+                        : cancelStage != null && CANCEL_POLICY_TIERS[cancelStage]
+                        ? `${CANCEL_POLICY_TIERS[cancelStage].when} · ${CANCEL_POLICY_TIERS[cancelStage].what}`
+                        : "전액 환불"}
+                    </CancelV>
+                  </CancelRow>
+                  {myPenaltyAmt > 0 ? (
+                    <CancelRow>
+                      <CancelK>위약금 공제</CancelK>
+                      <CancelV>-{won(myPenaltyAmt)}</CancelV>
+                    </CancelRow>
+                  ) : null}
+                  <CxTotalRow>
+                    <CancelK>우리 팀 환불{refundDone ? "액" : " 예정액"}</CancelK>
+                    <CancelV>{won(myRefundAmt)}</CancelV>
+                  </CxTotalRow>
+
+                  <CxSteps>
+                    <CxStep $done>
+                      경기 취소 접수
+                      {cancelledAtFull ? <small>{cancelledAtFull}</small> : null}
+                    </CxStep>
+                    <CxStep $done>
+                      구장 예약 취소 · 환불 요청
+                      <small>예약이 취소되고 그 시간대는 다시 열렸어요</small>
+                    </CxStep>
+                    <CxStep $done={refundDone}>
+                      환불 완료
+                      <small>
+                        {refundDone
+                          ? "결제하신 수단으로 환불됐어요"
+                          : "결제하신 수단으로 자동 환불돼요"}
+                      </small>
+                    </CxStep>
+                  </CxSteps>
+
+                  <CxNote>
+                    환불은 <b>결제하신 수단으로 자동</b> 처리돼요. 카드 결제는 카드사 승인 취소까지
+                    영업일 기준 3~5일이 더 걸릴 수 있어요.
+                  </CxNote>
+                  {myPaidAmt === 0 ? (
+                    <CxNote>
+                      우리 팀은 결제한 금액이 없어 <b>환불 대상이 아니에요.</b> 상대 팀이 결제한
+                      금액은 상대 팀 결제 수단으로 환불돼요.
+                    </CxNote>
+                  ) : null}
+                </CxBody>
+              </CxCard>
+            ) : (
+              <CxCard>
+                <CxHead>
+                  <CxHeadTitle>환불 · 정산</CxHeadTitle>
+                  <CxHeadBadge $tone="none">결제 없음</CxHeadBadge>
+                </CxHead>
+                <CxBody>
+                  <CxNote>
+                    {cancelPb ? (
+                      <>
+                        앱에서 결제된 금액이 없어 <b>환불 절차가 없어요.</b> 예약은 함께 취소됐고,
+                        구장에 직접 낸 금액이 있다면 구장에 문의해 주세요.
+                      </>
+                    ) : (
+                      <>
+                        직접 입력 구장 경기는 앱 결제가 없어 <b>환불 절차가 없어요.</b> 두 팀 사이에
+                        정산할 금액이 있다면 직접 정리해 주세요.
+                      </>
+                    )}
+                  </CxNote>
+                </CxBody>
+              </CxCard>
+            )}
+
+            {/* 규정 — 왜 이 금액인지 근거를 같은 화면에서 확인할 수 있게 */}
+            {isPartnerVenue ? (
+              <CxCard>
+                <CxHead>
+                  <CxHeadTitle>취소 · 환불 규정</CxHeadTitle>
+                </CxHead>
+                <CxBody>
+                  <CxPolicyTable>
+                    {CANCEL_POLICY_TIERS.map((t, i) => (
+                      <CxPolicyRow key={t.when} $on={iCancelled && cancelStage === i}>
+                        <span>{t.when}</span>
+                        <span>{t.what}</span>
+                      </CxPolicyRow>
+                    ))}
+                  </CxPolicyTable>
+                  <CxNote>
+                    확정된 경기를 취소하면 <b>취소한 팀에만</b> 위 규정이 적용되고, 상대 팀은 위약금
+                    없이 전액 환불돼요.
+                  </CxNote>
+                  <CxNote>{CANCEL_POLICY_NOTE}</CxNote>
+                  <CxPolicyLink type="button" onClick={() => navigate("/refund")}>
+                    환불 정책 전문 보기 ›
+                  </CxPolicyLink>
+                </CxBody>
+              </CxCard>
+            ) : null}
 
             <ShareBtn type="button" onClick={() => navigate("/matching")}>
               새 매칭 찾기
             </ShareBtn>
+            <CxActions>
+              <CxGhostBtn type="button" onClick={() => goTeamDetail(oppTeamView)}>
+                {oppName} 프로필
+              </CxGhostBtn>
+              <CxGhostBtn type="button" onClick={() => navigate("/match-roomlist")}>
+                매칭룸 목록
+              </CxGhostBtn>
+            </CxActions>
+
+            {cancelledBy && !iCancelled ? (
+              <CxTextLink
+                type="button"
+                onClick={() => {
+                  setReportReason("");
+                  setReportOpen(true);
+                }}
+              >
+                취소 과정에 문제가 있었나요? 상대 팀 신고하기
+              </CxTextLink>
+            ) : null}
           </ConfWrap>
         ) : !isVenue && (status === "confirmed" || status === "finished") ? (
           <ConfWrap>
             {isPast ? (
-              <ConfBanner $tone={pastBanner.tone}>
-                <ConfBannerCheck>{pastBanner.icon}</ConfBannerCheck>
-                <ConfBannerText>
-                  <ConfBannerTitle>{pastBanner.title}</ConfBannerTitle>
-                  <ConfBannerSub>{pastBanner.sub}</ConfBannerSub>
-                </ConfBannerText>
-              </ConfBanner>
+              // 지난 경기: 큰 배너 대신 상태 한 줄. 결과는 바로 아래 스코어보드가 말한다.
+              <PxLine>
+                <PxLineText>
+                  {confDateLabel} · {oppName}전
+                </PxLineText>
+                <PxLineTag $tone={pastStatusTag.tone}>{pastStatusTag.label}</PxLineTag>
+              </PxLine>
             ) : isConfirmed ? (
-              <ConfBanner $tone="green">
-                <ConfBannerCheck>✓</ConfBannerCheck>
-                <ConfBannerText>
-                  <ConfBannerTitle>경기 확정!</ConfBannerTitle>
-                  <ConfBannerSub>
-                    {partnerPay?.pb
-                      ? "구장 예약까지 완료됐어요. 경기장에서 만나요!"
-                      : "상대 팀과 일정이 확정됐어요. 경기장에서 만나요!"}
-                  </ConfBannerSub>
-                </ConfBannerText>
-                {partnerPay?.pb && confDDay ? (
-                  <ConfBannerDday>{confDDay}</ConfBannerDday>
-                ) : null}
-              </ConfBanner>
+              <>
+                <CfHero>
+                  <CfHeroTop>
+                    <CfChip $accent>확정됨</CfChip>
+                    {matchSizeLabel ? <CfChip>{matchSizeLabel}</CfChip> : null}
+                    {venueDurLabel ? <CfChip>{venueDurLabel}</CfChip> : null}
+                  </CfHeroTop>
+                  {confDDay ? <CfDday>{confDDay}</CfDday> : null}
+                  <CfWhen>{confDateLabel}</CfWhen>
+                  <CfSub>
+                    {confCountdownText} · {oppName}와의 경기예요
+                  </CfSub>
+                </CfHero>
+
+                {/* 경기 당일까지 남은 준비를 한 카드에서 확인한다 */}
+                <CxCard>
+                  <CxHead>
+                    <CxHeadTitle>경기 준비</CxHeadTitle>
+                    <CxHeadBadge
+                      $tone={confChecklist.every((c) => c.state === "done") ? "done" : "wait"}
+                    >
+                      {confChecklist.filter((c) => c.state === "done").length}/{confChecklist.length}
+                    </CxHeadBadge>
+                  </CxHead>
+                  <CxBody>
+                    {confChecklist.map((c) => (
+                      <CfItem key={c.title}>
+                        <CfMark $state={c.state}>
+                          {c.state === "done" ? "✓" : c.state === "warn" ? "!" : ""}
+                        </CfMark>
+                        <CfItemBody>
+                          <CfItemTitle>{c.title}</CfItemTitle>
+                          <CfItemSub>{c.sub}</CfItemSub>
+                        </CfItemBody>
+                        {c.act ? (
+                          <CfItemAct type="button" onClick={c.act.onClick}>
+                            {c.act.label}
+                          </CfItemAct>
+                        ) : null}
+                      </CfItem>
+                    ))}
+                  </CxBody>
+                </CxCard>
+              </>
             ) : null}
 
             {/* ✅ 확정 후에도 같은 매칭룸 채팅 계속 (팀장 전용) */}
@@ -5453,12 +6284,80 @@ export default function MatchRoomDetailPage() {
             {/* 결과 확정된 완료 경기: 상대 팀 선수들이 우리 팀에 남긴 평점 (보기 전용) */}
             {isResultView && oppReviewSection}
 
+            {/* 지난 경기는 티켓(입장권) 대신 기록 카드 — 길찾기·지도는 끝난 경기에 쓸모가 없다 */}
+            {isPast ? (
+              <CxCard>
+                <CxHead>
+                  <CxHeadTitle>경기 기록</CxHeadTitle>
+                  <CxHeadBadge $tone={pastStatusTag.tone}>{pastStatusTag.label}</CxHeadBadge>
+                </CxHead>
+                <CxBody>
+                  <CancelRow>
+                    <CancelK>경기 일시</CancelK>
+                    <CancelV>{formatFullDateTime(room?.scheduledAt) || "일정 미정"}</CancelV>
+                  </CancelRow>
+                  {venueDurLabel ? (
+                    <CancelRow>
+                      <CancelK>경기 시간</CancelK>
+                      <CancelV>{venueDurLabel}</CancelV>
+                    </CancelRow>
+                  ) : null}
+                  {matchSizeLabel ? (
+                    <CancelRow>
+                      <CancelK>경기 형식</CancelK>
+                      <CancelV>{matchSizeLabel}</CancelV>
+                    </CancelRow>
+                  ) : null}
+                  <CancelRow>
+                    <CancelK>구장</CancelK>
+                    <CancelV>
+                      {toStr(fieldAddress) || toStr(partnerPay?.pb?.venueName) || "구장 미정"}
+                      <VenueTypeTag $partner={!!partnerPay?.pb}>
+                        {partnerPay?.pb ? "제휴구장" : "직접입력"}
+                      </VenueTypeTag>
+                    </CancelV>
+                  </CancelRow>
+                  <CancelRow>
+                    <CancelK>출전 인원</CancelK>
+                    <CancelV>
+                      우리 팀 {myPlayers.length}명 · {oppName} {oppPlayers.length}명
+                    </CancelV>
+                  </CancelRow>
+                  {resultAuthorLabel ? (
+                    <CancelRow>
+                      <CancelK>결과 입력</CancelK>
+                      <CancelV>{resultAuthorLabel}</CancelV>
+                    </CancelRow>
+                  ) : null}
+                  {statsAppliedLabel ? (
+                    <CancelRow>
+                      <CancelK>결과 확정</CancelK>
+                      <CancelV>{statsAppliedLabel}</CancelV>
+                    </CancelRow>
+                  ) : null}
+                  <CancelRow>
+                    <CancelK>전적 반영</CancelK>
+                    <CancelV>
+                      {isVoided
+                        ? "미반영 (무효 처리)"
+                        : statsAppliedLabel
+                        ? "반영 완료"
+                        : "결과 확정 후 반영"}
+                    </CancelV>
+                  </CancelRow>
+
+                  <div style={{ textAlign: "center", marginTop: 12 }}>
+                    <LineupMiniBtn type="button" onClick={() => setLineupViewOpen(true)}>
+                      출전 명단 보기
+                    </LineupMiniBtn>
+                  </div>
+                </CxBody>
+              </CxCard>
+            ) : (
             <Ticket>
               <TicketHead>
                 <TicketBrand>MATCH TICKET</TicketBrand>
-                <TicketBadge $tone={isPast ? pastBanner.tone : "green"}>
-                  {isPast ? pastBanner.title : "확정됨"}
-                </TicketBadge>
+                <TicketBadge $tone="green">확정됨</TicketBadge>
               </TicketHead>
               <TicketBody>
                 <VsRow>
@@ -5585,6 +6484,7 @@ export default function MatchRoomDetailPage() {
                 )}
               </TicketBody>
             </Ticket>
+            )}
 
             {/* ✅ 제휴구장 예약 카드. 앱내 결제 ON이면 우리 팀 몫 결제 버튼까지 여기서 처리한다. */}
             {partnerPay?.pb && (() => {
@@ -5601,8 +6501,10 @@ export default function MatchRoomDetailPage() {
               return (
                 <PaidCard>
                   <PaidHead>
-                    <PaidTitle>{needPay ? "🎟️ 구장 예약 승인" : "🎟️ 구장 예약 완료"}</PaidTitle>
-                    <PaidBadge>{needPay ? "결제대기" : "예약확정"}</PaidBadge>
+                    <PaidTitle>
+                      {isPast ? "🧾 구장 정산 내역" : needPay ? "🎟️ 구장 예약 승인" : "🎟️ 구장 예약 완료"}
+                    </PaidTitle>
+                    <PaidBadge>{isPast ? "이용완료" : needPay ? "결제대기" : "예약확정"}</PaidBadge>
                   </PaidHead>
                   {toStr(pb.reservationCode) ? (
                     <PaidCode>
@@ -5622,39 +6524,47 @@ export default function MatchRoomDetailPage() {
                     <span>결제 금액{myPaid ? " · 결제완료" : ""}</span>
                     <b>{myPayTotal.toLocaleString()}원</b>
                   </PaidRow>
-                  {needPay ? (
-                    <PayNowBtn type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
-                      {myPayTotal.toLocaleString()}원 결제하기
-                    </PayNowBtn>
+                  {needPay && !isPast ? (
+                    PAYMENTS_ENABLED ? (
+                      <PayNowBtn type="button" onClick={() => navigate(`/pay/${toStr(resv?.id)}`)}>
+                        {myPayTotal.toLocaleString()}원 결제하기
+                      </PayNowBtn>
+                    ) : (
+                      <PaidNote>{PAYMENTS_DISABLED_NOTICE}</PaidNote>
+                    )
                   ) : null}
                   <PaidNote>
-                    {myPaid && !oppPaid
+                    {isPast
+                      ? "이용이 끝난 경기예요. 영수증·현금영수증이 필요하면 고객센터로 문의해 주세요."
+                      : myPaid && !oppPaid
                       ? "우리 팀 몫은 결제됐어요. 상대 팀이 결제하면 경기가 확정돼요. 2시간 안에 결제되지 않으면 자동 취소되고 전액 환불됩니다."
                       : needPay
                         ? "양 팀이 각자 몫을 결제하면 경기가 확정돼요."
                         : "결제가 완료됐어요."}
                   </PaidNote>
-                  {toStr(pb.ownerNote) ? (
+                  {toStr(pb.ownerNote) && !isPast ? (
                     <PaidOwnerNote><b>구장 안내</b>{toStr(pb.ownerNote)}</PaidOwnerNote>
                   ) : null}
-                  {/* 경기 당일 현장 도착까지 필요한 액션 한 줄 */}
-                  <PaidActions>
-                    {toStr(pb.venuePhone) ? (
-                      <PaidAction as="a" href={`tel:${toStr(pb.venuePhone)}`}>
-                        <b>📞</b><span>구장문의</span>
-                      </PaidAction>
-                    ) : null}
-                    {toStr(fieldAddress) ? (
-                      <PaidAction type="button" onClick={copyVenueAddress}><b>📋</b><span>주소복사</span></PaidAction>
-                    ) : null}
-                    <PaidAction type="button" onClick={() => openMapView(venuePlace)}><b>🗺️</b><span>지도보기</span></PaidAction>
-                    <PaidAction type="button" onClick={openDirections}><b>🧭</b><span>길찾기</span></PaidAction>
-                  </PaidActions>
+                  {/* 경기 당일 현장 도착까지 필요한 액션 한 줄 — 끝난 경기엔 쓸모가 없어 감춘다 */}
+                  {!isPast && (
+                    <PaidActions>
+                      {toStr(pb.venuePhone) ? (
+                        <PaidAction as="a" href={`tel:${toStr(pb.venuePhone)}`}>
+                          <b>📞</b><span>구장문의</span>
+                        </PaidAction>
+                      ) : null}
+                      {toStr(fieldAddress) ? (
+                        <PaidAction type="button" onClick={copyVenueAddress}><b>📋</b><span>주소복사</span></PaidAction>
+                      ) : null}
+                      <PaidAction type="button" onClick={() => openMapView(venuePlace)}><b>🗺️</b><span>지도보기</span></PaidAction>
+                      <PaidAction type="button" onClick={openDirections}><b>🧭</b><span>길찾기</span></PaidAction>
+                    </PaidActions>
+                  )}
                 </PaidCard>
               );
             })()}
 
-            {!partnerPay?.pb && (
+            {!partnerPay?.pb && !isPast && (
               <VenueNote>
                 <span>📌</span>
                 <span>
@@ -5796,16 +6706,16 @@ export default function MatchRoomDetailPage() {
                     aria-pressed={gateChoice === "partner"}
                     onClick={() => setGateChoice("partner")}
                   >
-                    <Oic $primary={gateChoice === "partner"}>🏟️</Oic>
+                    <Oic $primary={gateChoice === "partner"}><FiHome size={26} /></Oic>
                     <Ob>
                       <OptT>제휴구장 예약</OptT>
-                      <OptD>앱에서 결제 · 자동 확정</OptD>
+                      <OptD>앱에서 예약 · 팀별 분담결제</OptD>
                       <Chips>
                         <Pill $tone="p">앱 결제</Pill>
-                        <Pill $tone="n">바로 확정</Pill>
+                        <Pill $tone="n">구장주 승인 필요</Pill>
                       </Chips>
                     </Ob>
-                    <SelDot $on={gateChoice === "partner"}>{gateChoice === "partner" ? "✓" : ""}</SelDot>
+                    <SelDot $on={gateChoice === "partner"}>{gateChoice === "partner" ? <FiCheck size={13} /> : ""}</SelDot>
                   </OptCard>
 
                   {/* 직접 입력 — 선택 후 하단 버튼으로 진행 */}
@@ -5823,19 +6733,20 @@ export default function MatchRoomDetailPage() {
                         <Pill $tone="n">팀끼리 직접 합의</Pill>
                       </Chips>
                     </Ob>
-                    <SelDot $on={gateChoice === "direct"}>{gateChoice === "direct" ? "✓" : ""}</SelDot>
+                    <SelDot $on={gateChoice === "direct"}>{gateChoice === "direct" ? <FiCheck size={13} /> : ""}</SelDot>
                   </OptCard>
 
                   <GateNote>
-                    <span>ⓘ</span>
+                    <FiInfo size={13} />
                     <div>
-                      <b>제휴구장 예약</b>은 앱에서 코트·시간을 고르고 결제까지 끝내요.
-                      양 팀이 각자 몫을 결제하면 <b>경기가 자동으로 확정</b>돼요.
+                      <b>제휴구장 예약</b>은 앱에서 코트·시간을 골라 상대팀에 제안해요.
+                      상대팀이 수락하고 구장주가 승인하면, 양 팀이 각자 몫을 결제해야
+                      <b> 경기가 확정</b>돼요.
                     </div>
                   </GateNote>
 
                   <GateNote>
-                    <span>ⓘ</span>
+                    <FiInfo size={13} />
                     <div>
                       <b>직접 입력</b>은 매칭(상대·일정)만 도와드려요. 구장 예약과 결제는
                       <b> 각 팀이 따로</b> 진행해야 합니다.
@@ -5878,7 +6789,7 @@ export default function MatchRoomDetailPage() {
 
                 {/* (2-2) 직접입력 구장 안내 */}
                 <NoticeInfo>
-                  <span>ⓘ</span>
+                  <FiInfo size={12} />
                   <div>
                     할래말래 <b>제휴 구장만</b> 앱에서 예약·결제가 가능합니다. 직접 입력
                     구장은 <b>매칭 전용</b>이며, 실제 이용 가능 여부·예약·문의는 이용자가
@@ -5899,14 +6810,14 @@ export default function MatchRoomDetailPage() {
 
                   <CalendarWrap>
                       <CalendarHeader>
-                        <MonthNavButton type="button" onClick={goPrevMonth} disabled={atCurrentMonth}>
-                          ‹
+                        <MonthNavButton type="button" onClick={goPrevMonth} disabled={atCurrentMonth} aria-label="이전 달">
+                          <FiChevronLeft size={18} />
                         </MonthNavButton>
                         <MonthLabel>
                           {calYear}년 {calMonth + 1}월
                         </MonthLabel>
-                        <MonthNavButton type="button" onClick={goNextMonth}>
-                          ›
+                        <MonthNavButton type="button" onClick={goNextMonth} aria-label="다음 달">
+                          <FiChevronRight size={18} />
                         </MonthNavButton>
                       </CalendarHeader>
 
@@ -5944,7 +6855,7 @@ export default function MatchRoomDetailPage() {
                   {/* (2-4) 시작 시각 탭 → 그 시각부터 2시간 고정 */}
                   <TimeWrap>
                     <TimeHead>
-                      <TimeTitle>🕐 시간</TimeTitle>
+                      <TimeTitle><FiClock size={13} /> 시간</TimeTitle>
                       <TimeHint>시작·종료 시각을 탭</TimeHint>
                     </TimeHead>
                     <HourScroll>
@@ -6021,7 +6932,7 @@ export default function MatchRoomDetailPage() {
 
                   {/* (2-6) 시간대 안내 */}
                   <NoticeInfo style={{ marginTop: 10 }}>
-                    <span>ⓘ</span>
+                    <FiInfo size={12} />
                     <div>
                       직접 입력 구장은 <b>앱 결제·자동 확정이 없어요.</b> 가용 여부·대관·정산은
                       두 팀이 직접 확인·진행해요.
@@ -6032,7 +6943,7 @@ export default function MatchRoomDetailPage() {
                 <SectionCard>
                   <SectionTitleRow>
                     <SectionTitleLeft>
-                      <SectionIcon>🕒</SectionIcon>
+                      <SectionIcon><FiClock size={18} /></SectionIcon>
                       <span>제안된 일정</span>
                     </SectionTitleLeft>
                     <SectionTitleActions />
@@ -6050,7 +6961,7 @@ export default function MatchRoomDetailPage() {
               <SectionCard>
                 <SectionTitleRow>
                   <SectionTitleLeft>
-                    <SectionIcon>✅</SectionIcon>
+                    <SectionIcon><FiCheckCircle size={18} /></SectionIcon>
                     <span>확정된 일정</span>
                   </SectionTitleLeft>
                   <SectionTitleActions />
@@ -6062,7 +6973,7 @@ export default function MatchRoomDetailPage() {
               <SectionCard>
                 <SectionTitleRow>
                   <SectionTitleLeft>
-                    <SectionIcon>📊</SectionIcon>
+                    <SectionIcon><FiBarChart2 size={18} /></SectionIcon>
                     <span>경기 결과</span>
                   </SectionTitleLeft>
                   <SectionTitleActions />
@@ -6164,7 +7075,7 @@ export default function MatchRoomDetailPage() {
               <SectionCard>
                 <SectionTitleRow>
                   <SectionTitleLeft>
-                    <SectionIcon>🏁</SectionIcon>
+                    <SectionIcon><FiFlag size={18} /></SectionIcon>
                     <span>확정된 경기 결과</span>
                   </SectionTitleLeft>
                   <SectionTitleActions />
@@ -6185,7 +7096,7 @@ export default function MatchRoomDetailPage() {
             <SectionCard>
               <SectionTitleRow>
                 <SectionTitleLeft>
-                  <SectionIcon>⚠️</SectionIcon>
+                  <SectionIcon><FiAlertTriangle size={18} /></SectionIcon>
                   <span>취소된 매칭</span>
                 </SectionTitleLeft>
                 <SectionTitleActions />

@@ -41,6 +41,28 @@ const n = (v) => {
   return Number.isFinite(x) ? x : 0;
 };
 
+/* ── PG 가맹 심사 대기 게이트 ───────────────────────────────
+ * 라이브 키가 나오기 전까지 결제는 로컬 개발 환경에서만 받는다.
+ * 클라이언트도 진입을 막지만(src/constants/payments.js 의 PAYMENTS_ENABLED) 그건 화면 분기라
+ * devtools 로 우회할 수 있다. 돈이 걸린 주문 생성·승인은 서버에서 한 번 더 막는다.
+ *
+ * 판정 기준이 Origin 인 이유: 로컬 프론트도 이 "배포된" 함수를 부른다(클라의 CF_BASE 가 고정).
+ * 그래서 배포 플래그로는 로컬만 열어줄 수가 없다.
+ * ⚠️ Origin 은 브라우저 밖(curl 등)에서는 위조할 수 있다. 이 게이트는 "실사용자가 앱에서
+ *    무료 예약을 만들어 가는 것"을 막는 방어이지 완전한 접근 통제가 아니다.
+ *    더 조여야 하면 결제 가능 uid 허용목록으로 바꿀 것.
+ *
+ * 심사 통과 후 여는 법: 라이브 키로 교체한 뒤 LOCAL_ONLY = false.
+ */
+const LOCAL_ONLY = true;
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+/** 심사 게이트에 걸리는 요청인가 — 걸리면 결제를 받지 않는다. */
+function paymentsBlocked(req) {
+  if (!LOCAL_ONLY) return false;
+  return !LOCAL_ORIGIN.test(s(req.headers.origin));
+}
+
 /** 토스 API 인증 헤더 — 시크릿키 뒤에 콜론(:)을 붙여 base64. */
 function authHeader() {
   const key = TOSS_SECRET_KEY.value();
@@ -129,6 +151,7 @@ exports.createTossOrder = onRequest(
   { region: REGION, cors: true, secrets: [TOSS_SECRET_KEY] },
   async (req, res) => {
     if (req.method !== "POST") return void res.status(405).json({ error: "method_not_allowed" });
+    if (paymentsBlocked(req)) return void res.status(503).json({ error: "payments_disabled" });
 
     const uid = await callerUid(req);
     if (!uid) return void res.status(401).json({ error: "unauthenticated" });
@@ -204,6 +227,7 @@ exports.confirmTossPayment = onRequest(
   { region: REGION, cors: true, secrets: [TOSS_SECRET_KEY] },
   async (req, res) => {
     if (req.method !== "POST") return void res.status(405).json({ error: "method_not_allowed" });
+    if (paymentsBlocked(req)) return void res.status(503).json({ error: "payments_disabled" });
 
     const uid = await callerUid(req);
     if (!uid) return void res.status(401).json({ error: "unauthenticated" });
@@ -344,52 +368,103 @@ exports.confirmTossPayment = onRequest(
 );
 
 /**
+ * 부분취소를 여러 번 해도 장부가 맞도록 "이번 취소"를 이전 취소분에 누적한다.
+ *
+ * ⚠️ 예전엔 매번 결제 원금 기준으로 다시 계산해 덮어썼다. 그래서 부분취소를 두 번 하면
+ *    첫 번째 환불이 장부에서 사라지고 netVenueAmount(구장에 줄 돈)가 실제보다 커졌다.
+ *    지급대행(자동이체)이 붙으면 그 커진 금액이 그대로 나간다.
+ *
+ * 환불은 총 결제금액 기준 비율로 나간다(환불정책 제5조) → 구장 몫과 플랫폼 이용료가 같은 비율로 준다.
+ * 정산이 쓸 "환불 후 구장 몫"을 여기서 확정해 둔다. 화면에서 정책을 다시 계산하면
+ * 정책이 바뀔 때 과거 건까지 소급돼 장부가 어긋난다.
+ *
+ * @param {object} prev            payments 문서의 현재 값
+ * @param {number} [requested]     이번에 환불할 금액. 0/미지정이면 "남은 전액"
+ * @returns {{thisRefund:number, totalRefunded:number, totalRefundedVenue:number,
+ *            netVenueAmount:number, fullyCancelled:boolean}}
+ */
+function computeRefundLedger(prev, requested) {
+  const paidTotal = n(prev.amount);
+  const venueAmount = n(prev.venueAmount);
+  const prevRefunded = n(prev.refundedAmount);
+  const prevRefundedVenue = n(prev.refundedVenueAmount);
+
+  const remaining = Math.max(0, paidTotal - prevRefunded);
+  // 남은 금액을 넘겨 환불하지 않는다(토스도 거부하지만 장부가 먼저 틀어지면 안 된다).
+  const thisRefund = n(requested) > 0 ? Math.min(n(requested), remaining) : remaining;
+
+  // 구장 몫도 같은 비율로 깎는다. 마지막 취소에서는 남은 구장 몫을 전부 털어
+  // 반올림 오차가 쌓여 1원이 남는 일이 없게 한다.
+  const totalRefunded = prevRefunded + thisRefund;
+  const fullyCancelled = paidTotal > 0 && totalRefunded >= paidTotal;
+  const thisRefundVenue = fullyCancelled
+    ? Math.max(0, venueAmount - prevRefundedVenue)
+    : paidTotal > 0
+      ? Math.round((venueAmount * thisRefund) / paidTotal)
+      : venueAmount;
+  const totalRefundedVenue = Math.min(venueAmount, prevRefundedVenue + thisRefundVenue);
+
+  return {
+    thisRefund,
+    totalRefunded,
+    totalRefundedVenue,
+    netVenueAmount: Math.max(0, venueAmount - totalRefundedVenue),
+    fullyCancelled,
+  };
+}
+
+/**
  * 결제 취소(환불). 예약 취소·마감 만료 처리에서 호출한다.
  * @param {string} paymentKey
  * @param {string} reason  - 취소 사유(토스 관리자에 그대로 노출)
- * @param {number} [amount] - 부분취소 금액. 생략하면 전액취소.
+ * @param {number} [amount] - 부분취소 금액. 생략하면 남은 전액을 취소한다.
  */
 async function cancelTossPayment(paymentKey, reason, amount) {
   const key = s(paymentKey);
   if (!key) throw new Error("paymentKey 없음");
 
+  const db = getDb();
+  const ref = db.collection("payments").doc(key);
+  const prev = (await ref.get()).data() || {};
+
+  const led = computeRefundLedger(prev, amount);
+  if (led.thisRefund <= 0) {
+    // 이미 전액 환불된 건 — 토스를 또 부르면 실패하고, 장부만 흔든다.
+    return { status: s(prev.status) || "CANCELED", skipped: "no_remaining_amount" };
+  }
+
   const body = { cancelReason: s(reason) || "예약 취소" };
-  if (n(amount) > 0) body.cancelAmount = n(amount);
+  // 남은 전액을 터는 경우엔 cancelAmount 를 넘기지 않는다(토스 전액취소).
+  if (!led.fullyCancelled) body.cancelAmount = led.thisRefund;
 
   // 테스트 건너뛰기로 만든 결제는 토스에 실제 승인 건이 없다 → 취소 API 를 부르면 실패한다.
   // 원장 정리(환불액·정산액 차감)는 실결제와 똑같이 진행해야 취소 이후 흐름을 확인할 수 있다.
   const json = key.startsWith("TESTSKIP_")
-    ? { status: "CANCELED" }
+    ? { status: led.fullyCancelled ? "CANCELED" : "PARTIAL_CANCELED" }
     : await tossFetch(`${API_BASE}/${encodeURIComponent(key)}/cancel`, body);
 
-  const db = getDb();
-  const ref = db.collection("payments").doc(key);
-
-  // 환불은 총 결제금액 기준 비율로 나간다(환불정책 제5조). 그러면 구장 몫과 플랫폼 이용료가
-  // 같은 비율로 줄어든다. 정산이 쓸 "환불 후 구장 몫"을 여기서 확정해 둔다 —
-  // 화면에서 정책을 다시 계산하면 정책이 바뀔 때 과거 건까지 소급돼 장부가 어긋난다.
-  const prev = (await ref.get()).data() || {};
-  const paidTotal = n(prev.amount);
-  const venueAmount = n(prev.venueAmount);
-  const refunded = n(amount) > 0 ? n(amount) : paidTotal; // 부분취소 아니면 전액
-  const refundedVenue =
-    paidTotal > 0 ? Math.min(venueAmount, Math.round((venueAmount * refunded) / paidTotal)) : venueAmount;
-
   const log = {
-    cancelled: true,
+    // ⚠️ 부분취소는 cancelled=false 로 남긴다. true 로 찍으면 남은 금액이 있는데도
+    //    "취소된 결제"로 분류돼 이후 전액취소 대상 조회(venuePaymentJobs)에서 빠진다.
+    cancelled: led.fullyCancelled,
     cancelledAt: new Date().toISOString(),
     cancelReason: s(reason),
     status: s(json.status),
-    refundedAmount: refunded,
-    refundedVenueAmount: refundedVenue,
+    refundedAmount: led.totalRefunded,
+    refundedVenueAmount: led.totalRefundedVenue,
     // 정산 대상 금액 = 환불하고 남은 구장 몫. 전액취소면 0.
-    netVenueAmount: Math.max(0, venueAmount - refundedVenue),
+    netVenueAmount: led.netVenueAmount,
   };
-  if (n(amount) > 0) log.cancelAmount = n(amount); // 부분취소일 때만 기록(undefined 저장 불가)
+  if (!led.fullyCancelled) log.cancelAmount = led.thisRefund; // 부분취소일 때만 기록
   await ref.set(log, { merge: true });
   return json;
 }
 
 module.exports.cancelTossPayment = cancelTossPayment;
+module.exports.computeRefundLedger = computeRefundLedger;
 module.exports.TOSS_SECRET_KEY = TOSS_SECRET_KEY;
 module.exports.PARTNER_PAY_WINDOW_MS = PARTNER_PAY_WINDOW_MS;
+// 결제가 아직 실사용자에게 열려 있지 않다는 표식. 만료 잡(venuePaymentJobs)이 이 값을 보고
+// "결제할 방법이 없는데 미결제로 취소하는" 짓을 안 하도록 판단한다. 심사 통과 후 LOCAL_ONLY 와
+// 함께 풀린다 — 게이트가 한 상수에 모여 있어야 한쪽만 열리는 사고가 안 난다.
+module.exports.PAYMENTS_LOCAL_ONLY = LOCAL_ONLY;

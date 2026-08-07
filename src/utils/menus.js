@@ -10,6 +10,7 @@
 
 import {
   IoGridOutline,
+  IoPulseOutline,
   IoPersonOutline,
   IoPeopleOutline,
   IoBasketballOutline,
@@ -39,6 +40,12 @@ export const MENUS = [
     icon: IoGridOutline,
     label: "대시보드",
     end: true,
+  },
+  {
+    key: "presence",
+    to: `${A}/presence`,
+    icon: IoPulseOutline,
+    label: "접속 현황",
   },
   {
     key: "users",

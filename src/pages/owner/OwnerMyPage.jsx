@@ -9,6 +9,7 @@ import { useOwner } from "../../context/OwnerContext";
 import { Page, Card, SectionTitle, SectionDesc, GhostBtn, PrimaryBtn, Badge } from "./components/ownerUi";
 import BusinessSection from "./components/BusinessSection";
 import { ownerTypeOption, resolveOwnerType } from "../../constants/ownerType";
+import { LuStore } from "react-icons/lu";
 
 // 스토어 배포 버전과 함께 올린다.
 const APP_VERSION = "1.0.0";
@@ -124,7 +125,7 @@ export default function OwnerMyPage() {
     <Page>
       <Card>
         <ProfRow>
-          <Avatar>🧑‍💼</Avatar>
+          <Avatar><LuStore size={26} /></Avatar>
           <Info>
             <Name>{name}</Name>
             {email && <Email>{email}</Email>}

@@ -85,16 +85,36 @@ export default function AdminRefundsPage() {
     setBusy(false);
 
     if (via === "pg") {
+      // 환불 "기준"을 반드시 고르게 한다. 예전엔 이 선택이 없어 어떤 건이든 전액 환불이
+      // 나갔다 — 이용 당일 취소처럼 위약금을 물려야 하는 건도 100% 돌려줬다.
+      const basisInput = window.prompt(
+        `"${r.venueName}" 카드(토스) 결제 건입니다. 환불 기준을 고르세요.\n\n` +
+        `  1 = 전액 환불 (구장 사정·플랫폼 귀책)\n` +
+        `  2 = 정책 적용 (이용자 귀책 — 이용 2일 전 100% / 1일 전 50% / 당일 0%)\n\n` +
+        `실제 환불액은 이 기준으로 서버가 계산해 카드로 되돌립니다.`,
+        "1"
+      );
+      if (basisInput === null) return;
+      const pick = String(basisInput).trim();
+      if (pick !== "1" && pick !== "2") return showAlert("1 또는 2 를 입력해주세요.");
+      const basis = pick === "2" ? "policy" : "full";
+
       const reason = window.prompt("취소 사유 (선택, 비워도 됨):", "") || "";
       if (!await showConfirm(
-        `"${r.venueName}" 은(는) 카드(토스) 결제 건입니다.\n` +
-        `예약을 취소하면 취소 시점 정책에 따라 결제하신 카드로 자동 환불됩니다.\n` +
-        `(환불액은 서버가 계산하므로 여기서 지정할 수 없습니다) 진행할까요?`
+        `"${r.venueName}" · 결제액 ${won(r.price)}\n\n` +
+        (basis === "full"
+          ? "전액 환불로 처리합니다. 결제하신 카드로 전액이 돌아갑니다."
+          : "정책 적용으로 처리합니다. 취소 시점에 따라 위약금이 공제될 수 있고,\n당일 취소면 환불액이 0원일 수 있습니다.") +
+        "\n\n진행할까요?"
       )) return;
       setBusy(true);
       try {
-        await processRefund(r, 0, reason);
-        showAlert("취소 처리 완료 — 카드 환불이 정책에 따라 자동 진행됩니다.");
+        await processRefund(r, 0, reason, basis);
+        showAlert(
+          basis === "full"
+            ? "취소 처리 완료 — 카드로 전액 환불이 진행됩니다."
+            : "취소 처리 완료 — 취소 시점 정책에 따라 카드 환불이 진행됩니다."
+        );
         await load();
       } catch (e) {
         showAlert(e?.message || "환불 처리 실패");

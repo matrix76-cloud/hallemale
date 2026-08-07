@@ -311,11 +311,11 @@ export default function PlayerMonthlyActivitySection({
     if (diff >= 1) {
       note = isSelf ? (
         <>
-          팀 평균보다 <b>{diff}%p</b> 더 자주 나왔어요. 꾸준한 참여 중이에요 👍
+          팀 평균보다 <b>{diff}%p</b> 더 자주 나왔어요. 꾸준한 참여 중이에요.
         </>
       ) : (
         <>
-          팀 평균보다 <b>{diff}%p</b> 더 자주 출전했어요. 꾸준히 참여하는 선수예요 👍
+          팀 평균보다 <b>{diff}%p</b> 더 자주 출전했어요. 꾸준히 참여하는 선수예요.
         </>
       );
     } else if (diff <= -1) {

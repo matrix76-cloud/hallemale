@@ -61,8 +61,9 @@ const ColumnsHeader = styled.div`
   padding: 8px 12px;
   font-size: 11px;
   color: ${({ theme }) => theme.colors.textWeak};
+  /* 컬럼 헤더는 표의 안내일 뿐이라 색을 쓰지 않는다(기존 연보라 #eef2ff 제거) */
   background: ${({ theme }) =>
-    theme.mode === "dark" ? theme.colors.surface : "#eef2ff"};
+    theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
   border-radius: 8px 14px 10px 10px;
   font-weight: 500;
 `;
@@ -137,9 +138,8 @@ const RankBadge = styled.div`
   font-size: 13px;
   font-weight: 800;
   line-height: 1;
-  /* 1~3위: 보라색(상세보기와 동일), 그 외: 기본 글씨색 */
-  color: ${({ $top, theme }) =>
-    $top ? theme.colors.primary : theme.colors.textStrong};
+  /* 순위는 전부 기본 글씨색 — 1~3위는 왕관으로 이미 구분된다(개인 랭킹과 통일) */
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 

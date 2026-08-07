@@ -7,7 +7,7 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiStar, FiInfo, FiBarChart2, FiClock, FiUsers, FiImage } from "react-icons/fi";
+import { FiStar, FiInfo, FiBarChart2, FiClock, FiUsers, FiImage, FiFlag, FiCheck, FiMessageSquare, FiPlay, FiX } from "react-icons/fi";
 import { TbBallBasketball } from "react-icons/tb";
 
 import TeamStatsSection from "../../components/team/TeamStatsSection";
@@ -96,10 +96,12 @@ const formatReviewDate = (value) => {
   return `${yy}.${mm}.${dd}`;
 };
 
-// 별점(1~5) → 채운별/빈별 문자열
-const starsString = (n) => {
+// 별점(1~5) → 채운별/빈별 아이콘 5개
+const Stars = ({ n, size = 14 }) => {
   const v = Math.max(0, Math.min(5, Math.round(Number(n) || 0)));
-  return "★".repeat(v) + "☆".repeat(5 - v);
+  return [1, 2, 3, 4, 5].map((i) => (
+    <FiStar key={i} size={size} fill={i <= v ? "currentColor" : "none"} />
+  ));
 };
 
 /**
@@ -353,14 +355,6 @@ const SectionIconCircle = styled.div`
   font-size: 17px;
 `;
 
-/* 섹션 헤더 3D 아이콘 */
-const Ico3D = styled.img`
-  width: 27px;
-  height: 27px;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.16));
-`;
-
 const SectionTitleText = styled.h2`
   margin: 0;
   font-size: 16px;
@@ -381,9 +375,10 @@ const ReviewSummary = styled.div`
 `;
 
 const ReviewSummaryStars = styled.span`
-  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
   color: #f5a623;
-  letter-spacing: 1px;
 `;
 
 const ReviewSummaryNum = styled.span`
@@ -430,9 +425,10 @@ const ReviewItemName = styled.span`
 
 const ReviewItemStars = styled.span`
   flex-shrink: 0;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
   color: #f5a623;
-  letter-spacing: 1px;
 `;
 
 const ReviewItemText = styled.p`
@@ -507,8 +503,9 @@ const RepValue = styled.div`
 `;
 
 const RepStars = styled.span`
-  font-size: 14px;
-  letter-spacing: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
   color: ${({ theme }) => theme.colors.primary};
 `;
 
@@ -596,7 +593,8 @@ const ViewerClose = styled.button`
   border: none;
   background: none;
   color: #fff;
-  font-size: 26px;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
   cursor: pointer;
 `;
@@ -675,8 +673,10 @@ const LineupModalTitle = styled.div`
 const LineupModalClose = styled.button`
   border: none;
   background: none;
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
   cursor: pointer;
+  color: ${({ theme }) => theme.colors.textNormal};
 `;
 
 const LineupModalBody = styled.div`
@@ -850,6 +850,9 @@ const ReportLink = styled.button`
   text-decoration: underline;
   cursor: pointer;
   padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 
   &:hover {
     color: ${({ theme }) =>
@@ -1283,8 +1286,6 @@ useEffect(() => {
   // 상대 팀들이 매긴 별점 평판 (경기 결과 확정 시 집계됨)
   const repCount = Number(team?.reputation?.count) || 0;
   const repAvg = repCount > 0 ? Number(team?.reputation?.avg) || 0 : 0;
-  const repRounded = Math.round(repAvg);
-  const repStars = "★".repeat(repRounded) + "☆".repeat(Math.max(0, 5 - repRounded));
 
   const activityLabel = resolveActivityLabel(team?.activity);
 
@@ -1543,7 +1544,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <Ico3D src={images.emoji3dSpeech} alt="" />
+                      <FiMessageSquare size={19} />
                     </SectionIconCircle>
                     <SectionTitleText>팀 소개</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1563,7 +1564,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <Ico3D src={images.emoji3dBarchart} alt="" />
+                      <FiBarChart2 size={19} />
                     </SectionIconCircle>
                     <SectionTitleText>팀 전적</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1590,7 +1591,7 @@ useEffect(() => {
                   <RecentResultsRow>
                     <RecentResultsLabel>팀 평판</RecentResultsLabel>
                     <RepValue>
-                      <RepStars>{repStars}</RepStars>
+                      <RepStars><Stars n={repAvg} size={14} /></RepStars>
                       <RepNum>{repAvg.toFixed(1)}</RepNum>
                       <RepCount>({repCount})</RepCount>
                     </RepValue>
@@ -1602,7 +1603,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <Ico3D src={images.emoji3dFlag} alt="" />
+                      <FiFlag size={19} />
                     </SectionIconCircle>
                     <SectionTitleText>경기 기록</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1653,7 +1654,7 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <Ico3D src={images.emoji3dPeople} alt="" />
+                      <FiUsers size={19} />
                     </SectionIconCircle>
                     <SectionTitleText>팀 멤버</SectionTitleText>
                   </SectionHeaderLeft>
@@ -1668,7 +1669,7 @@ useEffect(() => {
                   <SectionHeaderRow>
                     <SectionHeaderLeft>
                       <SectionIconCircle>
-                        <Ico3D src={images.emoji3dPicture} alt="" />
+                        <FiImage size={19} />
                       </SectionIconCircle>
                       <SectionTitleText>팀 사진/영상</SectionTitleText>
                     </SectionHeaderLeft>
@@ -1692,7 +1693,7 @@ useEffect(() => {
                         />
                         {m.type === "video" && (
                           <MediaPlay>
-                            <PlayCircle>▶</PlayCircle>
+                            <PlayCircle><FiPlay size={16} fill="currentColor" /></PlayCircle>
                           </MediaPlay>
                         )}
                       </MediaCell>
@@ -1707,13 +1708,13 @@ useEffect(() => {
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
                     <SectionIconCircle>
-                      <Ico3D src={images.emoji3dStar} alt="" />
+                      <FiStar size={19} />
                     </SectionIconCircle>
                     <SectionTitleText>팀 리뷰</SectionTitleText>
                   </SectionHeaderLeft>
                   {teamReviews.count > 0 && (
                     <ReviewSummary>
-                      <ReviewSummaryStars>{starsString(teamReviews.avg)}</ReviewSummaryStars>
+                      <ReviewSummaryStars><Stars n={teamReviews.avg} size={15} /></ReviewSummaryStars>
                       <ReviewSummaryNum>{teamReviews.avg.toFixed(1)}</ReviewSummaryNum>
                       <ReviewSummaryCount>({teamReviews.count})</ReviewSummaryCount>
                     </ReviewSummary>
@@ -1733,7 +1734,7 @@ useEffect(() => {
                             {r.raterName}
                             {r.oppTeamName ? ` · ${r.oppTeamName}` : ""}
                           </ReviewItemName>
-                          <ReviewItemStars>{starsString(r.stars)}</ReviewItemStars>
+                          <ReviewItemStars><Stars n={r.stars} size={12} /></ReviewItemStars>
                         </ReviewItemTop>
                         {r.comment ? <ReviewItemText>{r.comment}</ReviewItemText> : null}
                         {formatReviewDate(r.createdAt) ? (
@@ -1752,7 +1753,7 @@ useEffect(() => {
               {!isMyTeam && (
                 <ReportLinkRow>
                   <ReportLink type="button" onClick={openReport}>
-                    🚩 부정 팀 신고하기
+                    <FiFlag size={13} aria-hidden /> 부정 팀 신고하기
                   </ReportLink>
                 </ReportLinkRow>
               )}
@@ -1790,7 +1791,7 @@ useEffect(() => {
               <SelectCard onClick={(e) => e.stopPropagation()}>
                 <LineupModalHeader>
                   <LineupModalTitle>매치 사이즈를 선택해 주세요</LineupModalTitle>
-                  <LineupModalClose onClick={() => setShowLineupSelectModal(false)}>×</LineupModalClose>
+                  <LineupModalClose onClick={() => setShowLineupSelectModal(false)}><FiX size={18} /></LineupModalClose>
                 </LineupModalHeader>
 
                 <SelectBody>
@@ -1826,7 +1827,7 @@ useEffect(() => {
                             <SelectName>{opt.label}</SelectName>
                             <SelectMeta>{blocked ? reason : opt.desc}</SelectMeta>
                           </SelectTexts>
-                          <SelectRadio $selected={selected}>{selected ? "✓" : ""}</SelectRadio>
+                          <SelectRadio $selected={selected}>{selected ? <FiCheck size={12} /> : ""}</SelectRadio>
                         </SelectItem>
                       );
                     })}
@@ -1856,7 +1857,7 @@ useEffect(() => {
                 <LineupModalHeader>
                   <LineupModalTitle>매칭 신청 확인</LineupModalTitle>
                   <LineupModalClose onClick={() => !submittingMatch && setShowMatchConfirm(false)}>
-                    ×
+                    <FiX size={18} />
                   </LineupModalClose>
                 </LineupModalHeader>
 
@@ -1934,7 +1935,7 @@ useEffect(() => {
           <ViewerTop>
             <span>팀 사진/영상</span>
             <ViewerClose type="button" onClick={() => setMediaModalOpen(false)}>
-              ×
+              <FiX size={20} />
             </ViewerClose>
           </ViewerTop>
           <ViewerTrack>
@@ -1946,7 +1947,7 @@ useEffect(() => {
                 />
                 {m.type === "video" && (
                   <ViewerPlay onClick={() => onMediaClick(m)}>
-                    <PlayCircle>▶</PlayCircle>
+                    <PlayCircle><FiPlay size={16} fill="currentColor" /></PlayCircle>
                   </ViewerPlay>
                 )}
               </ViewerSlide>

@@ -30,7 +30,10 @@ async function notifyClubMembersAccepted({ matchId, clubId, opponentName }) {
 
   await addDoc(collection(db, "notifications"), {
     kind: "match",
-    subType: "matchAccepted",
+    // ⚠️ "matchAccepted" 를 쓰면 안 된다 — LEADER_ONLY_MATCH_SUBTYPES 에 들어 있어서
+    //    팀장이 아닌 수신자에겐 알림창·벨 배지에서 통째로 걸러진다(notificationDefinitions.js).
+    //    이 알림은 애초에 팀원 전용이라, 걸러지면 "푸시는 왔는데 앱엔 아무것도 없는" 상태가 됐다.
+    subType: "matchAcceptedMember",
     type: "match_accepted",
     title: "매칭 성사 🎉",
     body: `팀장이 '${toStr(opponentName) || "상대 팀"}'과(와) 일정·구장을 조율 중이에요. 확정되면 다시 알려드릴게요!`,

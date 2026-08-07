@@ -138,10 +138,11 @@ export async function getRefundRoute(reservation) {
  * @param reservation  대상 예약 row (id/userId/price 필요)
  * @param amount       앱 잔액 결제건의 환불액(기본=전액). 카드 결제건에서는 무시된다.
  * @param reason       환불 사유(선택)
+ * @param basis        카드 결제건의 환불 기준 — "full"(전액) | "policy"(취소 시점 위약금 공제)
  * @returns {{ via: "pg"|"fizz", refundAmount: number|null }}
  *          via==="pg" 면 실제 환불액은 서버가 정하므로 여기서 알 수 없다(null).
  */
-export async function processRefund(reservation, amount, reason = "") {
+export async function processRefund(reservation, amount, reason = "", basis = "full") {
   const r = reservation || {};
   const rid = s(r.id);
   if (!rid) throw new Error("예약 정보가 올바르지 않습니다.");
@@ -152,11 +153,19 @@ export async function processRefund(reservation, amount, reason = "") {
   if (isPg) {
     // 카드 결제건 — 취소만 한다. 환불은 서버 트리거가 정책률로 실행하고 payments 를 깎는다.
     // 여기서 잔액을 얹으면 카드 환불과 겹쳐 이중 환불이 된다.
+    //
+    // ⚠️ canceledBy 를 반드시 세운다. 예전엔 안 세워서 서버 판정(refundPolicy.refundDecision)이
+    //    캐치올에 걸려 **어떤 건이든 무조건 전액 환불**이 나갔고, 고객 알림톡에도
+    //    "구장 사정 취소"라고 찍혔다. 위약금을 물려야 하는 임박 취소도 100% 환불됐다.
+    //      · full   → "admin" : 관리자 확인 · 전액 환불
+    //      · policy → "user"  : 이용자 귀책 = 취소 시점 위약금 공제(2일 전 100/1일 전 50/당일 0)
     await updateDoc(doc(db, "venueReservations", rid), {
       status: "cancelled",
+      canceledBy: basis === "policy" ? "user" : "admin",
       cancelReason: s(reason) || "관리자 환불 처리",
       refunded: true,
       refundVia: "pg",
+      refundBasis: basis === "policy" ? "policy" : "full",
       refundReason: s(reason),
       refundedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

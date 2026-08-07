@@ -5,7 +5,7 @@
 // ✅ 팀장 뱃지 위치: "아바타 이미지 밑" (p.isTeamCaptain === true)
 
 import React, { useMemo, useState, useEffect } from "react";
-import styled, { keyframes, css } from "styled-components";
+import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { getTeamRankMap } from "../../services/teamRankingService";
@@ -73,9 +73,8 @@ const RankBadge = styled.div`
   font-size: 13px;
   font-weight: 800;
   line-height: 1;
-  /* 1~3위: 보라색(팀 랭킹과 동일), 그 외: 기본 글씨색 — 원형 배경 없음 */
-  color: ${({ $top, theme }) =>
-    $top ? theme.colors.primary : theme.colors.textStrong};
+  /* 순위는 전부 기본 글씨색. 1~3위는 왕관으로 이미 구분되므로 색까지 쓰지 않는다. */
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 /* 1~3위: 프로필 사진 위에 살짝 겹쳐 배치(로고 PNG 하단 여백 보정) — 앱 전체 공통 기준 */
@@ -92,38 +91,16 @@ const CrownImg = styled.img`
   filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.2));
 `;
 
+/* NEW — 배경 박스 없이 초록 글씨만 */
 const NewBadge = styled.span`
-  padding: 2px 6px;
-  border-radius: 999px;
   font-size: 10px;
-  font-weight: 600;
-  background: #22c55e;
-  color: #ffffff;
+  font-weight: 800;
+  color: ${({ theme }) => theme.colors.accent};
 `;
 
-const blinkHighlight = keyframes`
-  0% {
-    border-color: rgba(79, 70, 229, 0);
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
-    background-color: var(--rank-card-bg);
-  }
-  40% {
-    border-color: rgba(79, 70, 229, 0.9);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
-    background-color: var(--rank-highlight-strong);
-  }
-  60% {
-    border-color: rgba(79, 70, 229, 0.4);
-    box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.15);
-    background-color: var(--rank-highlight-weak);
-  }
-  100% {
-    border-color: rgba(79, 70, 229, 0);
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
-    background-color: var(--rank-card-bg);
-  }
-`;
-
+/* 강조 카드 — 예전엔 형광 노랑(#fef9c3) 배경이 3.2초 주기로 무한 점멸했다.
+   신규 진입자가 여럿이면 카드 여러 장이 동시에 깜빡여 목록을 읽을 수 없었고,
+   깜빡임 자체는 정보를 담지 않는다. 신규 표시는 NEW 라벨 하나로 충분하다. */
 const PlayerCard = styled.div`
   flex: 1;
   border-radius: 8px;
@@ -132,23 +109,11 @@ const PlayerCard = styled.div`
   align-items: center;
   gap: 10px;
 
-  --rank-card-bg: ${({ theme }) => theme.colors.card};
-  --rank-highlight-strong: ${({ theme }) =>
-    theme.mode === "dark" ? "#3a2f0a" : "#fef9c3"};
-  --rank-highlight-weak: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(58, 47, 10, 0.7)" : "rgba(254, 249, 195, 0.7)"};
-
-  background: var(--rank-card-bg);
+  background: ${({ theme }) => theme.colors.card};
   box-shadow: ${({ theme }) => theme.shadows.card};
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "transparent"};
   cursor: pointer;
-
-  ${({ $highlight }) =>
-    $highlight &&
-    css`
-      animation: ${blinkHighlight} 3.2s ease-in-out infinite;
-    `}
 `;
 
 /* ✅ 아바타 + 팀장뱃지 세로 스택 */
@@ -355,10 +320,7 @@ export default function PlayerRankingSection({ rows = [] }) {
 
           const clubName = p.clubName || "소속 없음";
 
-          const isTop1 = rank === 1;
           const isNew = !!p.isNew; // 7일 내 랭킹 신규 진입자
-          const highlight = isTop1 || isNew;
-
           return (
             <RowWrap key={`${p.userId || index}-${rank}`}>
               <RankCell>
@@ -368,10 +330,7 @@ export default function PlayerRankingSection({ rows = [] }) {
                 {isNew && <NewBadge>NEW</NewBadge>}
               </RankCell>
 
-              <PlayerCard
-                $highlight={highlight}
-                onClick={() => handlePlayerClick(p.userId)}
-              >
+              <PlayerCard onClick={() => handlePlayerClick(p.userId)}>
                 <AvatarStack>
                   <AvatarBox>
                     {showCrown ? <CrownImg src={images.logo} alt={`${rank}위`} /> : null}

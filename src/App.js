@@ -17,6 +17,7 @@ import BlockedAuthGate from "./components/common/BlockedAuthGate";
 import EventPopupModal from "./components/common/EventPopupModal";
 import AppDialog from "./components/common/AppDialog";
 import OfflineBanner from "./components/common/OfflineBanner";
+import PresenceTracker from "./components/common/PresenceTracker";
 
 function VersionChecker() {
   const [toast, setToast] = useState(null);
@@ -83,6 +84,7 @@ function ThemedApp() {
                     <AppRoutes />
                   </AppErrorBoundary>
                   <VersionChecker />
+                  <PresenceTracker />
                   <BlockedAuthGate />
                   <EventPopupModal />
                   <OfflineBanner />

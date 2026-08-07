@@ -42,7 +42,8 @@ const EXTRA_FRAMES = {
     { key: "sc-match-result-input",  forScreen: "match-roomdetail", name: "매치룸 · 결과 입력",        path: M_ROOM,            scenario: "match-result-input" },
     { key: "sc-match-result-accept", forScreen: "match-roomdetail", name: "매치룸 · 결과 승인 대기",   path: M_ROOM,            scenario: "match-result-wait-accept" },
     { key: "sc-match-finished",      forScreen: "match-roomdetail", name: "매치룸 · 종료(결과확정)",   path: M_ROOM,            scenario: "match-finished" },
-    { key: "sc-match-cancelled",     forScreen: "match-roomdetail", name: "매치룸 · 취소됨",           path: M_ROOM,            scenario: "match-cancelled" },
+    { key: "sc-match-cancelled",     forScreen: "match-roomdetail", name: "매치룸 · 취소됨(상대팀)",   path: M_ROOM,            scenario: "match-cancelled" },
+    { key: "sc-match-cancelled-mine",forScreen: "match-roomdetail", name: "매치룸 · 취소됨(우리팀·위약금)", path: M_ROOM,        scenario: "match-cancelled-mine" },
     // 구장 정하기 분기 — 방식 선택 → 제휴구장(구장목록으로 이동) / 직접입력(지도→날짜·시간)
     { key: "sc-venue-gate",   forScreen: "match-roomvenue", name: "①구장 정하기 · 방식 선택",   path: `${M_ROOM}/venue`,                    scenario: "match-coordinating" },
     { key: "sc-venue-partner",forScreen: "match-roomvenue", name: "②제휴구장 · 구장 고르기",     path: "/venues?match=mock_room",            scenario: "match-coordinating" },

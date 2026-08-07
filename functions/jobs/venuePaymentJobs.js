@@ -15,7 +15,7 @@
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { getDb, getAdmin } = require("../firebaseAdmin");
-const { cancelTossPayment, TOSS_SECRET_KEY } = require("../payments/toss");
+const { cancelTossPayment, TOSS_SECRET_KEY, PAYMENTS_LOCAL_ONLY } = require("../payments/toss");
 const { refundDecision } = require("../payments/refundPolicy");
 // 알림톡은 환불을 실행한 이 자리에서 보낸다 — 별도 트리거로 빼면 환불 완료 전에 읽어
 // 금액이 어긋난다. LUNA_API_KEY 는 아래 두 함수의 secrets 에 함께 실려야 한다.
@@ -271,6 +271,16 @@ const REMIND_BEFORE_MS = 30 * 60 * 1000;
 exports.venuePaymentExpireTick = onSchedule(
   { schedule: "*/10 * * * *", region: REGION, secrets: [TOSS_SECRET_KEY, LUNA_API_KEY] },
   async () => {
+    // ⚠️ 결제가 실사용자에게 아직 안 열린 동안(PG 심사 대기)에는 이 잡을 돌리면 안 된다.
+    //    낼 방법이 없는 예약을 "미결제"로 취소해 버린다 — 구장주가 승인한 예약이 예외 없이
+    //    2시간 뒤 사라지고 사용자에겐 "결제 시간이 지나 예약이 취소됐어요"가 나간다.
+    //    지금은 승인이 곧 확정이라 pending 이 새로 생기지 않지만, 이 가드가 있어야
+    //    수정 이전에 만들어져 남아 있는 pending 건까지 살아남는다.
+    if (PAYMENTS_LOCAL_ONLY) {
+      console.log("[venuePaymentExpireTick] 결제 미오픈(LOCAL_ONLY) — 만료 처리 건너뜀");
+      return;
+    }
+
     const db = getDb();
     const FieldValue = getAdmin().firestore.FieldValue;
     const nowISO = new Date().toISOString();

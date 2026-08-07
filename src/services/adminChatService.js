@@ -84,6 +84,9 @@ export async function listAdminChatRooms() {
     return {
       id: r.id,
       type: safeString(r.type) || "dm",
+      // 매칭룸 채팅(type="matchRoom")은 양 팀장 둘만 있는 방이다. 분쟁이 나면 여기 대화가
+      // 근거가 되므로 어느 매칭방인지 같이 넘긴다(chatService.js getOrCreateMatchRoomChat).
+      matchRoomId: safeString(r.matchRoomId) || safeString(r.createdFromRefId),
       dmKey: safeString(r.dmKey),
       participants,
       participantUids: ps.map((u) => safeString(u)),
@@ -150,6 +153,7 @@ export async function loadAdminChatRoomDetail(chatId) {
   const room = {
     id,
     type: safeString(data.type) || "dm",
+    matchRoomId: safeString(data.matchRoomId) || safeString(data.createdFromRefId),
     dmKey: safeString(data.dmKey),
     participants,
     participantUids: ps.map((u) => safeString(u)),

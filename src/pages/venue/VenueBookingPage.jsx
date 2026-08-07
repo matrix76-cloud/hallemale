@@ -20,6 +20,8 @@ import {
   calcSlotPrice,
   splitPrice,
   dowToKey,
+  isPerPerson,
+  clampHeadcount,
   FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
 import { BOOKING_WINDOW_DAYS } from "../../constants/booking";
@@ -28,7 +30,7 @@ import { calcDisplayPrice } from "../../constants/payments";
 import { openDirections, openMapView, copyText, fullAddress } from "../../utils/venueLink";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
-import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome, FiMap, FiNavigation } from "react-icons/fi";
+import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome, FiMap, FiNavigation, FiUsers } from "react-icons/fi";
 import { FacilityIcon } from "./facilityIcons";
 import CourtNotices from "./CourtNotices";
 import { listVenueReviews } from "../../services/venueReviewService";
@@ -215,7 +217,15 @@ export default function VenueBookingPage() {
     setSelected({ start: s.start, end: s.end });
   };
 
-  const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date) : 0;
+  // 인원제 코트(1인 요금)에서만 쓰는 인원. 코트를 바꾸면 그 코트의 최소 인원으로 되돌린다.
+  const perPerson = isPerPerson(court);
+  const [headcount, setHeadcount] = useState(1);
+  useEffect(() => { setHeadcount(clampHeadcount(court, court?.minHeadcount)); }, [court?.id]); // eslint-disable-line
+  const heads = clampHeadcount(court, headcount);
+  const maxHeads = Math.max(0, Number(court?.maxHeadcount) || 0);
+  const minHeads = Math.max(1, Number(court?.minHeadcount) || 1);
+
+  const price = selected && court ? calcSlotPrice(court, selected.start, selected.end, date, heads) : 0;
   // 총액 표시 모델 — 구장 등록가가 곧 결제액이다. 플랫폼 이용료는 여기에 더하는 게 아니라
   // 구장 정산에서 떼므로, 소비자 화면에는 항목으로 노출하지 않는다.
   const payTotal = price;
@@ -244,6 +254,7 @@ export default function VenueBookingPage() {
           phone: userDoc?.phoneE164 || userDoc?.phone || "",
         },
         userNote,
+        headcount: heads,
       });
       setPayOpen(false);
       setUserNote("");
@@ -262,6 +273,9 @@ export default function VenueBookingPage() {
     if (!matchInfo) return toast("매칭 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.");
     if (!myClubId) return toast("팀 정보를 확인할 수 없어요.");
     if (venue.lat == null || venue.lng == null) return toast("이 구장은 좌표 정보가 없어 제안할 수 없어요.");
+    // 매칭 제휴예약은 총액을 두 팀이 반씩 낸다 — 인원제 코트는 총액이 인원에 따라 달라져
+    // 반반 규칙이 성립하지 않는다. 다른 코트·구장으로 제안하게 막는다.
+    if (perPerson) return toast("1인 요금제 코트는 매칭 제휴예약으로 제안할 수 없어요. 다른 코트를 골라주세요.");
 
     const isActor = myClubId === matchInfo.actorClubId;
     const opponentClubId = isActor ? matchInfo.targetClubId : matchInfo.actorClubId;
@@ -463,13 +477,39 @@ export default function VenueBookingPage() {
                     <Slot key={i} $st={st} $on={on} disabled={st !== "open"} onClick={() => onSlotClick(s)}>
                       <b>{s.start}~{s.end}</b>
                       <span className={st === "open" ? "price" : ""}>
-                        {/* 슬롯 금액도 목록과 같은 기준(결제 총액)으로 보여준다 — 고르는 동안 금액이 커지면 순차공개 가격책정이 된다. */}
-                        {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감" : `${calcDisplayPrice(calcSlotPrice(court, s.start, s.end, date)).toLocaleString()}원`}
+                        {/* 슬롯 금액도 목록과 같은 기준(결제 총액)으로 보여준다 — 고르는 동안 금액이 커지면 순차공개 가격책정이 된다.
+                            인원제 코트는 인원에 따라 총액이 달라지므로 슬롯에는 1인 단가를 적는다. */}
+                        {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감"
+                          : `${perPerson ? "1인 " : ""}${calcDisplayPrice(calcSlotPrice(court, s.start, s.end, date, 1)).toLocaleString()}원`}
                       </span>
                     </Slot>
                   );
                 })}
               </SlotGrid>
+            )}
+
+            {/* 인원제 코트 — 인원이 곧 금액이라 시간 선택 바로 아래에서 정한다. */}
+            {perPerson && !viewOnly && selected && (
+              <HeadBox>
+                <HeadTop>
+                  <HeadLabel><FiUsers size={15} /> 이용 인원</HeadLabel>
+                  <Stepper>
+                    <StepBtn type="button" onClick={() => setHeadcount((n) => Math.max(minHeads, n - 1))} disabled={heads <= minHeads}>−</StepBtn>
+                    <StepNum>{heads}명</StepNum>
+                    <StepBtn type="button" onClick={() => setHeadcount((n) => (maxHeads > 0 ? Math.min(maxHeads, n + 1) : n + 1))} disabled={maxHeads > 0 && heads >= maxHeads}>＋</StepBtn>
+                  </Stepper>
+                </HeadTop>
+                <HeadHint>
+                  1인 {calcDisplayPrice(calcSlotPrice(court, selected.start, selected.end, date, 1)).toLocaleString()}원 × {heads}명
+                  {maxHeads > 0 ? ` · 최대 ${maxHeads}명` : ""}
+                </HeadHint>
+                {/* 최소 인원은 구장이 정한 하한이다 — 적게 와도 이 인원 요금을 낸다는 걸 결제 전에 못 박는다. */}
+                {minHeads > 1 && (
+                  <HeadHint>
+                    이 코트는 <b>최소 {minHeads}명</b>부터 예약할 수 있어요. {minHeads}명보다 적게 와도 {minHeads}명 요금이에요.
+                  </HeadHint>
+                )}
+              </HeadBox>
             )}
           </>
         )}
@@ -634,7 +674,7 @@ export default function VenueBookingPage() {
       {!viewOnly && selected && (
         <BottomBar>
           <div>
-            <BbDate>{date} {selected.start}~{selected.end}</BbDate>
+            <BbDate>{date} {selected.start}~{selected.end}{perPerson ? ` · ${heads}명` : ""}</BbDate>
             <BbPrice>
               {(matchId ? price : payTotal).toLocaleString()}원
               {matchId ? (
@@ -657,6 +697,17 @@ export default function VenueBookingPage() {
             <SheetLead>아래 내용이 맞는지 확인해 주세요.</SheetLead>
             <PayRow><span>{venue.name} · {court.name}</span></PayRow>
             <PayRow><span>{date} {selected.start}~{selected.end}</span></PayRow>
+            {perPerson && (
+              <>
+                <PayRow>
+                  <span>이용 인원</span>
+                  <b>{heads}명 · 1인 {calcDisplayPrice(calcSlotPrice(court, selected.start, selected.end, date, 1)).toLocaleString()}원</b>
+                </PayRow>
+                {minHeads > 1 && (
+                  <PayRow><span>최소 인원</span><b>{minHeads}명 (미달해도 {minHeads}명 요금)</b></PayRow>
+                )}
+              </>
+            )}
             <Divider />
             <PayRow $big><span>결제 금액</span><b>{payTotal.toLocaleString()} 원</b></PayRow>
             <PayRow><span>결제 방식</span><b>앱에서 결제</b></PayRow>
@@ -1069,6 +1120,33 @@ const Slot = styled.button`
   & .price { color: ${({ $on, theme }) => ($on ? "#fff" : theme.colors.primary)}; }
 `;
 const Empty = styled.div`text-align: center; font-size: 13px; color: ${({ theme }) => theme.colors.textWeak}; padding: 24px 0;`;
+
+/* 인원제 코트의 인원 선택 */
+const HeadBox = styled.div`
+  display: flex; flex-direction: column; gap: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px; padding: 13px 14px;
+`;
+const HeadTop = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 10px;`;
+const HeadLabel = styled.div`
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong};
+`;
+const Stepper = styled.div`display: flex; align-items: center; gap: 4px;`;
+const StepBtn = styled.button`
+  width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 16px; font-weight: 700; line-height: 1;
+  &:disabled { opacity: 0.35; cursor: not-allowed; }
+  &:active:not(:disabled) { transform: translateY(1px); }
+`;
+const StepNum = styled.div`
+  min-width: 52px; text-align: center;
+  font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};
+`;
+const HeadHint = styled.div`font-size: 12px; color: ${({ theme }) => theme.colors.textWeak};`;
 const Legend = styled.div`
   display: flex; gap: 14px; font-size: 11.5px; color: ${({ theme }) => theme.colors.textWeak};
   & span { display: inline-flex; align-items: center; }

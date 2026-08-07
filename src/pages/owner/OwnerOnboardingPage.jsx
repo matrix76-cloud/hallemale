@@ -30,6 +30,7 @@ import { payoutHint, PLATFORM_FEE_LABEL } from "../../constants/payments";
 import OwnerSpinner from "./components/OwnerSpinner";
 import CourtHoursEditor from "./components/CourtHoursEditor";
 import VenueMapPicker from "./components/VenueMapPicker";
+import { images } from "../../utils/imageAssets";
 
 // 환불 비율은 플랫폼 공통 기준(constants/cancelPolicy.js)이라 여기 적지 않는다.
 // 이 필드는 구장 고유 안내(우천·일정변경·노쇼 당부)만 담는다.
@@ -38,7 +39,11 @@ const DEFAULT_REFUND =
 
 function makeCourt(idx) {
   // photos 는 편집 중 {url, storagePath} 형태 — 제출할 때 photos/storagePaths 두 배열로 쪼갠다.
-  return { name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60, hours: defaultCourtHours(), photos: [] };
+  return {
+    name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60,
+    priceMode: "hourly", pricePerPerson: "", minHeadcount: "", maxHeadcount: "",
+    hours: defaultCourtHours(), photos: [],
+  };
 }
 
 // 단계 정의 — 농구 전용이라 종목 선택 단계 없음.
@@ -146,6 +151,10 @@ export default function OwnerOnboardingPage() {
             ...c, // priceBands/priceOverrides/notices/cautions 등 고급 필드 보존 (반려 재신청 시 소실 방지)
             name: c.name, type: c.type, surface: c.surface || "",
             pricePerHour: String(c.pricePerHour ?? ""), slotMinutes: c.slotMinutes,
+            priceMode: c.priceMode === "perPerson" ? "perPerson" : "hourly",
+            pricePerPerson: String(c.pricePerPerson ?? ""),
+            minHeadcount: Number(c.minHeadcount) >= 1 ? String(c.minHeadcount) : "",
+            maxHeadcount: Number(c.maxHeadcount) > 0 ? String(c.maxHeadcount) : "",
             hours: c.hours || defaultCourtHours(),
             photos: (c.photos || []).map((url, i) => ({ url, storagePath: c.storagePaths?.[i] || "" })),
           }))
@@ -312,7 +321,10 @@ export default function OwnerOnboardingPage() {
     if (id === "name") return !!form.name.trim();
     if (id === "location") return !!form.address.trim();
     if (id === "photos") return photos.length > 0;
-    if (id === "courts") return courts.length > 0 && courts.every((c) => c.name.trim() && hasAnyOpenDay(c.hours));
+    // 1인 요금제 코트는 최소 인원이 하한가 역할이라 반드시 정하고 넘어가야 한다.
+    if (id === "courts") return courts.length > 0 && courts.every(
+      (c) => c.name.trim() && hasAnyOpenDay(c.hours) && (c.priceMode !== "perPerson" || Number(c.minHeadcount) >= 1)
+    );
     // 심사는 담당자 연락으로 이뤄지므로 이름·연락처가 없으면 승인 자체가 불가능하다.
     // 구장 연락처도 필수 — 예약자에게 공개할 번호가 없으면 담당자 개인 휴대폰이 대신
     // 노출되던 문제가 있었다(지금은 폴백을 끊었으므로 여기서 반드시 받아야 한다).
@@ -341,7 +353,12 @@ export default function OwnerOnboardingPage() {
       if (id === "name") return showAlert("구장명을 입력해주세요.");
       if (id === "location") return showAlert("지도에서 구장 위치에 핀을 맞춰주세요.");
       if (id === "photos") return showAlert("구장 사진을 최소 1장 등록해주세요.\n사진이 있으면 승인도 빠르고 예약도 잘 들어와요.");
-      if (id === "courts") return showAlert("코트 이름과 운영시간(최소 1개 요일)을 확인해주세요.");
+      if (id === "courts") {
+        const noMin = courts.some((c) => c.priceMode === "perPerson" && !(Number(c.minHeadcount) >= 1));
+        return showAlert(noMin
+          ? "1인 요금제 코트는 최소 인원을 정해주세요.\n정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓰게 돼요."
+          : "코트 이름과 운영시간(최소 1개 요일)을 확인해주세요.");
+      }
       if (id === "contact") return showAlert(`구장 연락처와 ${typeOpt.personLabel}, 담당자 연락처를 입력해주세요.\n구장 연락처는 예약자에게 안내되고, 담당자 연락처로는 심사 확인 연락을 드려요.`);
       if (id === "verify") return showAlert(verifyError());
       return;
@@ -355,6 +372,10 @@ export default function OwnerOnboardingPage() {
     if (!form.name.trim()) { setStep(STEPS.indexOf("name")); return showAlert("구장명을 입력해주세요."); }
     if (!form.address.trim()) { setStep(STEPS.indexOf("location")); return showAlert("주소를 입력해주세요."); }
     if (photos.length === 0) { setStep(STEPS.indexOf("photos")); return showAlert("구장 사진을 최소 1장 등록해주세요."); }
+    if (courts.some((c) => c.priceMode === "perPerson" && !(Number(c.minHeadcount) >= 1))) {
+      setStep(STEPS.indexOf("courts"));
+      return showAlert("1인 요금제 코트는 최소 인원을 정해주세요.\n정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓰게 돼요.");
+    }
     if (!form.phone.trim()) { setStep(STEPS.indexOf("contact")); return showAlert("구장 연락처를 입력해주세요. 예약자에게 안내되는 번호예요."); }
     const vErr = verifyError();
     if (vErr) { setStep(STEPS.indexOf("verify")); return showAlert(vErr); }
@@ -426,7 +447,7 @@ export default function OwnerOnboardingPage() {
     return (
       <Shell>
         <Intro>
-          <IntroLogo>🏟️</IntroLogo>
+          <IntroLogo src={images.logo} alt="할래말래" />
           {/* 가입 때 고른 주체를 다시 보여준다 — 잘못 고른 걸 여기서 알아차릴 수 있게. */}
           <TypeTag>{typeOpt.label}</TypeTag>
           <IntroTitle>{editingId ? "구장 정보를 다시 등록해요" : "구장 등록을 시작해요"}</IntroTitle>
@@ -529,19 +550,65 @@ export default function OwnerOnboardingPage() {
                     {SURFACE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </Select>
                 </Field>
-                <Row>
-                  <Field>
-                    <Label>시간당 가격(원) · 손님이 결제할 금액</Label>
-                    <Input type="number" value={c.pricePerHour} onChange={(e) => setCourt(i, { pricePerHour: e.target.value })} placeholder="예: 40000" />
-                    {payoutHint(c.pricePerHour) ? <FieldHint>{payoutHint(c.pricePerHour)}</FieldHint> : null}
-                  </Field>
-                  <Field>
-                    <Label>슬롯 단위(분)</Label>
-                    <Select value={c.slotMinutes} onChange={(e) => setCourt(i, { slotMinutes: Number(e.target.value) })}>
-                      <option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option>
-                    </Select>
-                  </Field>
-                </Row>
+                <Field>
+                  <Label>과금 방식</Label>
+                  <Select value={c.priceMode || "hourly"} onChange={(e) => setCourt(i, { priceMode: e.target.value })}>
+                    <option value="hourly">코트 대관 — 시간당 금액</option>
+                    <option value="perPerson">1인 요금 — 1인 시간당 × 인원</option>
+                  </Select>
+                </Field>
+                {c.priceMode === "perPerson" ? (
+                  <>
+                    <Row>
+                      <Field>
+                        <Label>1인 시간당 가격(원)</Label>
+                        <Input type="number" value={c.pricePerPerson} onChange={(e) => setCourt(i, { pricePerPerson: e.target.value })} placeholder="예: 5000" />
+                        {payoutHint(c.pricePerPerson) ? <FieldHint>1인 기준 · {payoutHint(c.pricePerPerson)}</FieldHint> : null}
+                      </Field>
+                      <Field>
+                        <Label>슬롯 단위(분)</Label>
+                        <Select value={c.slotMinutes} onChange={(e) => setCourt(i, { slotMinutes: Number(e.target.value) })}>
+                          <option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option>
+                        </Select>
+                      </Field>
+                    </Row>
+                    <Row>
+                      <Field>
+                        <Label>최소 인원 · 필수</Label>
+                        <Input type="number" min="1" value={c.minHeadcount} onChange={(e) => setCourt(i, { minHeadcount: e.target.value })} placeholder="예: 8" />
+                      </Field>
+                      <Field>
+                        <Label>정원 <Opt>(비우면 제한 없음)</Opt></Label>
+                        <Input type="number" value={c.maxHeadcount} onChange={(e) => setCourt(i, { maxHeadcount: e.target.value })} placeholder="예: 20" />
+                      </Field>
+                    </Row>
+                    {/* 최소 인원이 이 코트의 시간당 하한가 — 안 정하면 1명이 1인 요금만 내고 그 시간을 통째로 쓴다. */}
+                    <FieldHint>
+                      {(() => {
+                        const heads = Math.floor(Number(c.minHeadcount) || 0);
+                        const unit = Number(c.pricePerPerson) || 0;
+                        const hours = Math.max(1, Math.round(((c.slotMinutes || 60) / 60) * 10) / 10);
+                        if (!heads) return "최소 인원을 정해주세요. 정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓸 수 있어요.";
+                        if (!unit) return `최소 ${heads}명 · 1인 요금을 넣으면 보장 금액을 계산해 드려요.`;
+                        return `${hours}시간 예약 기준 최소 ${(unit * heads * hours).toLocaleString()}원부터 받아요 (${heads}명 미만도 ${heads}명 요금).`;
+                      })()}
+                    </FieldHint>
+                  </>
+                ) : (
+                  <Row>
+                    <Field>
+                      <Label>시간당 가격(원) · 손님이 결제할 금액</Label>
+                      <Input type="number" value={c.pricePerHour} onChange={(e) => setCourt(i, { pricePerHour: e.target.value })} placeholder="예: 40000" />
+                      {payoutHint(c.pricePerHour) ? <FieldHint>{payoutHint(c.pricePerHour)}</FieldHint> : null}
+                    </Field>
+                    <Field>
+                      <Label>슬롯 단위(분)</Label>
+                      <Select value={c.slotMinutes} onChange={(e) => setCourt(i, { slotMinutes: Number(e.target.value) })}>
+                        <option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option>
+                      </Select>
+                    </Field>
+                  </Row>
+                )}
                 <Field>
                   <Label>요일별 운영시간</Label>
                   <CourtHoursEditor hours={c.hours} onChange={(hours) => setCourt(i, { hours })} />
@@ -881,7 +948,7 @@ const Intro = styled.div`
   gap: 14px;
   padding: 24px;
 `;
-const IntroLogo = styled.div`font-size: 84px; line-height: 1;`;
+const IntroLogo = styled.img`width: 84px; height: 84px; object-fit: contain;`;
 const IntroTitle = styled.div`
   font-size: 24px;
   font-weight: 800;

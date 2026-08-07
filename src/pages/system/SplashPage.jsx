@@ -38,7 +38,7 @@ const LogoCard = styled.div`
   align-items: center;
   justify-content: center;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
-  animation: ${fadeUp} 700ms ease-out both;
+  animation: ${fadeUp} 320ms ease-out both;
 `;
 
 const LogoImage = styled.img`
@@ -53,7 +53,7 @@ const BrandName = styled.h1`
   font-weight: 800;
   color: #41522f;
   letter-spacing: -0.5px;
-  animation: ${fadeUp} 700ms ease-out 120ms both;
+  animation: ${fadeUp} 320ms ease-out 60ms both;
 `;
 
 const Tagline = styled.p`
@@ -61,8 +61,13 @@ const Tagline = styled.p`
   font-size: 14px;
   font-weight: 500;
   color: #7b8c5f;
-  animation: ${fadeUp} 700ms ease-out 220ms both;
+  animation: ${fadeUp} 320ms ease-out 110ms both;
 `;
+
+// 스플래시 최소 노출 시간.
+// 준비(auth/club)가 이보다 오래 걸리면 추가 대기 없이 즉시 진입한다.
+// 0 이 아닌 이유: 웜 스타트에서 화면이 한 프레임 번쩍이고 사라지는 걸 막는 하한선.
+const MIN_SPLASH_MS = 300;
 
 export default function SplashPage() {
   const navigate = useNavigate();
@@ -74,6 +79,7 @@ export default function SplashPage() {
 
   const onceRef = useRef(false);
   const timerRef = useRef(null);
+  const mountedAtRef = useRef(Date.now());
 
   const uid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
   const activeTeamId = String(club?.id || "").trim();
@@ -89,21 +95,26 @@ export default function SplashPage() {
     };
   }, []);
 
+  // 준비 완료 시점 기준으로 "남은 최소 노출분"만 채우고 이동한다.
+  // (예전엔 준비가 끝난 뒤에도 무조건 1000ms를 더 기다렸다)
+  const gotoAfterMinSplash = (dest) => {
+    const wait = Math.max(0, MIN_SPLASH_MS - (Date.now() - mountedAtRef.current));
+    timerRef.current = setTimeout(() => navigate(dest, { replace: true }), wait);
+  };
+
   useEffect(() => {
     if (onceRef.current) return;
     if (authLoading || clubLoading) return;
 
     if (!isLoggedIn) {
       onceRef.current = true;
-      timerRef.current = setTimeout(() => navigate("/welcome", { replace: true }), 1000);
+      gotoAfterMinSplash("/welcome");
       return;
     }
 
     if (!uid) return;
 
     onceRef.current = true;
-
-    const SPLASH_MS = 1000;
 
     console.log("[SplashPage] ready", {
       isLoggedIn,
@@ -126,20 +137,19 @@ export default function SplashPage() {
       console.error("[SplashPage] preload failed:", e);
     });
 
-    // ✅ 프리로드 완료 여부와 무관하게 1초 후 무조건 이동
+    // ✅ 프리로드 완료를 기다리지 않고 즉시 이동
+    //    (홈/매칭 페이지에 자체 fallback 로드가 있어 미완료여도 안전)
     // (cleanup으로 지우지 않음 — 의존성 재실행 때 타이머가 사라져 멈추는 문제 방지)
-    timerRef.current = setTimeout(() => {
-      // 구장주 로그인 등에서 지정한 복귀 경로 우선, 없으면 /home
-      let dest = "/home";
-      try {
-        const saved = localStorage.getItem("hm.postLoginRedirect");
-        if (saved) {
-          dest = saved;
-          localStorage.removeItem("hm.postLoginRedirect");
-        }
-      } catch {}
-      navigate(dest, { replace: true });
-    }, SPLASH_MS);
+    // 구장주 로그인 등에서 지정한 복귀 경로 우선, 없으면 /home
+    let dest = "/home";
+    try {
+      const saved = localStorage.getItem("hm.postLoginRedirect");
+      if (saved) {
+        dest = saved;
+        localStorage.removeItem("hm.postLoginRedirect");
+      }
+    } catch {}
+    gotoAfterMinSplash(dest);
   }, [
     authLoading,
     clubLoading,
