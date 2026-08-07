@@ -75,12 +75,17 @@ export default function SignupBasicInfoPage() {
       <WizardTopProgress step={3} total={3} />
       <Inner>
         <Head>
-          <Title>기본 정보 입력</Title>
-          <Sub>매칭을 위해 몇 가지만 알려주세요.</Sub>
+          {/* 제목이 이 화면에서 뭘 해야 하는지 말하게 한다 */}
+          <Title>
+            매칭을 위해
+            <br />
+            기본 정보를 알려주세요.
+          </Title>
+          <Sub>이름·생년월일·성별은 매칭과 랭킹에 쓰여요.</Sub>
         </Head>
 
         <FieldGroup>
-          <Label htmlFor="realName">이름</Label>
+          <Label htmlFor="realName">이름<Req>*</Req></Label>
           <Input
             id="realName"
             placeholder="실명을 입력해 주세요"
@@ -92,7 +97,7 @@ export default function SignupBasicInfoPage() {
         </FieldGroup>
 
         <FieldGroup>
-          <Label htmlFor="birthDate">생년월일</Label>
+          <Label htmlFor="birthDate">생년월일<Req>*</Req></Label>
           <Input
             id="birthDate"
             type="text"
@@ -110,7 +115,7 @@ export default function SignupBasicInfoPage() {
         </FieldGroup>
 
         <FieldGroup>
-          <Label>성별</Label>
+          <Label>성별<Req>*</Req></Label>
           <GenderRow>
             <GenderBtn
               type="button"
@@ -165,13 +170,15 @@ const Head = styled.div`
 
 const Title = styled.h1`
   margin: 0;
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: -0.4px;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const Sub = styled.p`
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   font-size: 14px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
@@ -179,29 +186,44 @@ const Sub = styled.p`
 const FieldGroup = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 18px;
+  gap: 6px;
+  margin-bottom: 22px;
 `;
 
+/* 라벨은 작은 회색 — 값이 주인공이고 라벨은 안내다 */
 const Label = styled.label`
-  font-size: 13px;
-  font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 12px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
+/* 필수 표시 */
+const Req = styled.span`
+  margin-left: 2px;
+  color: ${({ theme }) => theme.colors.danger};
+  font-weight: 800;
+`;
+
+/* 밑줄형 입력 — 박스(테두리+채운 배경)를 걷어내면 필드가 늘어나도 화면이 무겁지 않다 */
 const Input = styled.input`
   min-width: 0;
-  border-radius: 12px;
-  border: 1px solid ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.border)};
-  padding: 14px 14px;
-  font-size: 15px;
+  border: none;
+  border-bottom: 1px solid
+    ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.border)};
+  border-radius: 0;
+  padding: 10px 2px;
+  font-size: 16px;
   outline: none;
-  background: ${({ theme }) => (theme.mode === "dark" ? theme.colors.surface : "#f6f7f9")};
+  background: transparent;
   color: ${({ theme }) => theme.colors.textStrong};
 
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textWeak};
+    opacity: 0.7;
+  }
   &:focus {
-    border-color: ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.primary)};
-    background: ${({ theme }) => theme.colors.card};
+    border-bottom-color: ${({ $error, theme }) =>
+      $error ? theme.colors.danger : theme.colors.primary};
   }
   &:disabled {
     opacity: 0.6;
@@ -262,8 +284,12 @@ const SubmitBtn = styled.button`
   &:active {
     transform: translateY(1px);
   }
+  /* 비활성도 브랜드색 옅은 버전 — 회색으로 죽이면 "여기가 다음 단계"라는 신호가 사라진다 */
   &:disabled {
-    opacity: 0.4;
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(157,134,220,0.28)" : "#d7cef4"};
+    color: #ffffff;
+    opacity: 1;
     cursor: not-allowed;
   }
 `;

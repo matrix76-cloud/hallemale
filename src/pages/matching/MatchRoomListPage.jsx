@@ -1,9 +1,9 @@
 /* eslint-disable */
 // src/pages/matching/MatchRoomListPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import styled from "styled-components";
+import styled, { useTheme } from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FiMessageSquare } from "react-icons/fi";
+import { FiMessageSquare, FiCheckCircle, FiFlag, FiXCircle, FiFolder } from "react-icons/fi";
 import { images } from "../../utils/imageAssets";
 import Spinner from "../../components/common/Spinner";
 import { loadMatchRoomListPageData, listMyReviewedMatchIds } from "../../services/matchRoomService";
@@ -267,39 +267,38 @@ const SubText = styled.div`
 `;
 
 /* 탭별 컬러 히어로 타이틀 (매칭하기 카드처럼 · 우측 3D) */
+/* 탭 헤더 — 탭마다 다른 그라데이션 + 3D 스티커였다. 상태색 tint 한 겹으로 낮춘다. */
 const TabHero = styled.div`
   position: relative;
   overflow: hidden;
   border-radius: 18px;
-  padding: 16px 92px 16px 16px;
+  padding: 16px 76px 16px 16px;
   min-height: 74px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 4px;
-  background: ${({ $grad }) => $grad};
-  box-shadow: 0 14px 26px -12px ${({ $shadow }) => $shadow};
+  background: ${({ $tint }) => $tint};
 `;
 const TabHeroTitle = styled.div`
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.3px;
-  color: #ffffff;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 const TabHeroSub = styled.div`
   font-size: 12.5px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
-const TabHeroDeco = styled.img`
+const TabHeroDeco = styled.div`
   position: absolute;
-  right: -2px;
-  bottom: -4px;
-  width: 66px;
-  height: 66px;
-  object-fit: contain;
-  transform: rotate(-6deg);
-  filter: ${({ $gray }) => ($gray ? "grayscale(1) " : "")}drop-shadow(0 8px 14px rgba(15, 23, 42, 0.28));
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: ${({ $color }) => $color};
+  opacity: 0.5;
   pointer-events: none;
 `;
 
@@ -362,6 +361,8 @@ const VsStatusPill = styled.div`
 `;
 
 /* 조율중 카드 좌상단 상태 배지 (제안 필요 = 보라, 확정 대기 = 회색) */
+/* 상태 pill — 채움(primary+흰글씨)은 목록에서 너무 세게 튄다.
+   저채도 tint 배경 + 진한 글씨로 낮춰 목록 전체가 조용해지게 한다. */
 const StatusPill = styled.span`
   padding: 4px 11px;
   border-radius: 999px;
@@ -370,7 +371,7 @@ const StatusPill = styled.span`
   white-space: nowrap;
   ${({ $tone, theme }) =>
     $tone === "accepted"
-      ? `background:${theme.colors.primary}; color:#fff;`
+      ? `background:${theme.mode === "dark" ? "rgba(124,92,201,0.24)" : "#efe9ff"}; color:${theme.colors.primary};`
       : `background:${theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "#eef0f3"}; color:${theme.colors.textNormal};`}
 `;
 
@@ -1143,14 +1144,6 @@ const SubLine = styled.div`
 `;
 
 /* 몇대몇 앞 농구공 3D (받은요청 페이지와 통일) */
-const SubBall = styled.img`
-  width: 17px;
-  height: 17px;
-  object-fit: contain;
-  flex-shrink: 0;
-  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.16));
-`;
-
 const VsLine = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textWeak};
@@ -1189,6 +1182,7 @@ const ScoreCaption = styled.span`
 export default function MatchRoomListPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme();
   const { club, isTeamLeader } = useClub();
   const myClubId = toStr(club?.clubId || club?.id);
   const { firebaseUser, userDoc } = useAuth();
@@ -1458,7 +1452,6 @@ export default function MatchRoomListPage() {
               <StatusPill $tone={status.tone}>{text || "조율중"}</StatusPill>
             </BodyTop>
             <SubLine>
-              <SubBall src={images.emoji3dBasketball} alt="" />
               <span>{joinDot([sizeLabel, matchedAt && `성사 ${matchedAt}`])}</span>
             </SubLine>
           </Body>
@@ -1483,7 +1476,6 @@ export default function MatchRoomListPage() {
             ) : null}
           </BodyTop>
           <SubLine>
-            <SubBall src={images.emoji3dBasketball} alt="" />
             <span>{joinDot([sizeLabel, whenLabel])}</span>
           </SubLine>
         </Body>
@@ -1529,7 +1521,6 @@ export default function MatchRoomListPage() {
             <EndedBadge>{waiting ? "🕓 승인 대기" : "⏱ 결과 입력"}</EndedBadge>
           </BodyTop>
           <SubLine>
-            <SubBall src={images.emoji3dBasketball} alt="" />
             <span>{joinDot([sizeLabel, dateLabel])}</span>
           </SubLine>
           <ResultInputBtn type="button" onClick={(e) => { e.stopPropagation(); handleClickRoom(room.id); }}>
@@ -1588,7 +1579,6 @@ export default function MatchRoomListPage() {
             ) : null}
           </BodyTop>
           <SubLine>
-            <SubBall src={images.emoji3dBasketball} alt="" />
             <span>{joinDot([sizeLabel, scoreText, dateLabel])}</span>
           </SubLine>
           {opts.memberReview && !reviewed && (
@@ -1707,22 +1697,25 @@ export default function MatchRoomListPage() {
     return [];
   }, [tab, adjustingRooms, confirmedRooms, pastRooms, cancelledRooms]);
 
+  // 탭별 tint + 라인 아이콘 (그라데이션·3D 스티커 대체)
+  const dark = theme?.mode === "dark";
   const HERO = {
-    adjusting: { grad: "linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%)", shadow: "rgba(245,158,11,0.5)", deco: images.emoji3dSpeech },
-    confirmed: { grad: "linear-gradient(135deg,#7c6ef2 0%,#4f46e5 100%)", shadow: "rgba(79,70,229,0.5)", deco: images.emoji3dCheck },
-    past: { grad: "linear-gradient(135deg,#34d399 0%,#10b981 100%)", shadow: "rgba(16,185,129,0.45)", deco: images.emoji3dFlag },
-    cancelled: { grad: "linear-gradient(135deg,#9ca3af 0%,#6b7280 100%)", shadow: "rgba(107,114,128,0.4)", deco: images.emoji3dCross },
-    all: { grad: "linear-gradient(135deg,#7c6ef2 0%,#4f46e5 100%)", shadow: "rgba(79,70,229,0.5)", deco: images.emoji3dFolder },
+    adjusting: { tint: dark ? "rgba(217,119,6,0.18)" : "#fef4e2", color: "#b45309", Icon: FiMessageSquare },
+    confirmed: { tint: dark ? "rgba(124,92,201,0.20)" : "#efe9ff", color: "#7c5cc9", Icon: FiCheckCircle },
+    past: { tint: dark ? "rgba(22,163,74,0.18)" : "#e8f6ee", color: "#15803d", Icon: FiFlag },
+    cancelled: { tint: dark ? "rgba(255,255,255,0.06)" : "#f1f3f5", color: "#6b7280", Icon: FiXCircle },
+    all: { tint: dark ? "rgba(255,255,255,0.06)" : "#f1f3f5", color: "#6b7280", Icon: FiFolder },
   };
   const hero = HERO[tab] || HERO.all;
+  const HeroIcon = hero.Icon;
 
   return (
     <PageWrap>
       <Inner>
-        <TabHero $grad={hero.grad} $shadow={hero.shadow}>
+        <TabHero $tint={hero.tint}>
           <TabHeroTitle>{titleText}</TabHeroTitle>
           <TabHeroSub>{subText}</TabHeroSub>
-          <TabHeroDeco src={hero.deco} alt="" $gray={tab === "cancelled"} />
+          <TabHeroDeco $color={hero.color}><HeroIcon size={38} /></TabHeroDeco>
         </TabHero>
 
         {loading ? (
