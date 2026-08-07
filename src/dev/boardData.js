@@ -164,6 +164,7 @@ const EXTRA_FRAMES = {
 
     { key: "sc-own-busy",  forScreen: "owner-home",  name: "예약관리 · 승인대기 3건", path: "/owner/home",  scenario: "owner-busy" },
     { key: "sc-own-quiet", forScreen: "owner-home",  name: "예약관리 · 예약 없음",    path: "/owner/home",  scenario: "owner-quiet" },
+    { key: "sc-own-resv-detail", forScreen: "owner-home", name: "예약관리 · 예약 상세(확정)", path: "/owner/home", scenario: "owner-resv-detail" },
     { key: "sc-own-s-0",   forScreen: "owner-sales", name: "예약통계 · 예약 없음",    path: "/owner/sales", scenario: "owner-quiet" },
   ],
 

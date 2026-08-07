@@ -52,6 +52,14 @@ function dayOffsetAt(days, hour) {
   return d.toISOString();
 }
 
+// 예약 date 는 "YYYY-MM-DD" 문자열이다. 고정 날짜로 박으면 그 날이 지나는 순간
+// "다가오는 예약"에서 빠져 상세 시트를 열 수 없다(실제로 그렇게 썩어 있었다).
+function dayOffsetYmd(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const T = {
   createdAt: ts("2026-07-20T10:00:00+09:00"),
   acceptedAt: ts("2026-07-21T14:30:00+09:00"),
@@ -1598,6 +1606,39 @@ const RAW = {
     label: "구장주 · 예약 없음",
     extends: "base-owner",
     data: { venueReservationDocs: {} },
+  },
+
+  /* 예약 상세 시트를 열어보기 위한 시나리오 — 확정 1건 + 승인대기 1건을 앞으로 다가올 날짜로 둔다.
+     기본 픽스처의 확정 건은 날짜가 고정이라 지나가면 목록에서 빠져 시트를 열 수 없다. */
+  "owner-resv-detail": {
+    label: "구장주 · 예약 상세(확정)",
+    extends: "base-owner",
+    data: {
+      venueReservationDocs: {
+        mock_resv_up1: resvRaw({
+          reservationCode: "HM-UP-0031",
+          status: "confirmed",
+          // 오늘자로 둬야 예약관리 첫 화면("오늘")에서 바로 눌러 상세를 열 수 있다
+          date: dayOffsetYmd(0),
+          startTime: "19:00",
+          endTime: "21:00",
+          ownerNote: "주차는 지하 1층을 이용해 주세요.",
+          userNote: "농구공 2개 대여 가능할까요?",
+        }),
+        mock_resv_up2: resvRaw({
+          reservationCode: "HM-UP-0032",
+          status: "requested",
+          date: dayOffsetYmd(4),
+          startTime: "20:00",
+          endTime: "22:00",
+          courtId: "court_b",
+          courtName: "B코트",
+          price: 70000,
+          userName: "송지호",
+          userNote: "샤워실 이용 가능한가요?",
+        }),
+      },
+    },
   },
 
   /* ── 관리자 ── */
