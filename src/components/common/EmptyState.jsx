@@ -46,6 +46,8 @@ const Title = styled.div`
 const Sub = styled.div`
   font-size: 12.5px;
   line-height: 1.6;
+  /* 줄바꿈(\n)을 그대로 살린다 — 서브카피는 보통 2~3줄로 끊어 읽힌다 */
+  white-space: pre-line;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 

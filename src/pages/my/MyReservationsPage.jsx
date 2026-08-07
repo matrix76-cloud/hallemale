@@ -199,8 +199,13 @@ export default function MyReservationsPage() {
   if (sorted.length === 0) {
     return (
       <Wrap>
-        <EmptyState text="아직 예약한 구장이 없어요." />
-        <FindBtn type="button" onClick={() => navigate("/venues")}>구장 둘러보기</FindBtn>
+        <EmptyState
+          text="아직 예약한 구장이 없어요."
+          sub={`제휴 구장은 코트·시간을 앱에서 바로 잡을 수 있어요.
+예약 승인이 나면 결제로 확정돼요.`}
+          actionLabel="구장 둘러보기"
+          onAction={() => navigate("/venues")}
+        />
       </Wrap>
     );
   }
@@ -378,20 +383,25 @@ const Notice = styled.div`
   padding: 10px 12px;
 `;
 
+/* 목록 — 아이템마다 테두리 카드를 씌우지 않고 한 장 위에 구분선으로만 나눈다 */
 const List = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
 const Card = styled.div`
-  background: ${({ theme }) => theme.colors.card};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 14px;
-  padding: 14px;
+  background: transparent;
+  padding: 15px 14px;
   display: flex;
   flex-direction: column;
   gap: 7px;
+  & + & {
+    border-top: 1px solid ${({ theme }) => theme.colors.divider};
+  }
 `;
 
 const TopRow = styled.div`
@@ -552,11 +562,14 @@ const BottomRow = styled.div`
   gap: 10px;
 `;
 
+/* 금액 — 숫자가 먼저 읽히도록 크기·굵기만 올린다(라벨성 small 은 평문 유지) */
 const Price = styled.div`
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  font-variant-numeric: tabular-nums;
   color: ${({ theme }) => theme.colors.textStrong};
-  & small { font-size: 11px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; }
+  & small { font-size: 11px; font-weight: 600; letter-spacing: 0; color: ${({ theme }) => theme.colors.textWeak}; }
 `;
 
 const CancelBtn = styled.button`
