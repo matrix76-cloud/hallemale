@@ -19,7 +19,12 @@ const { cancelTossPayment, TOSS_SECRET_KEY } = require("../payments/toss");
 const { refundDecision } = require("../payments/refundPolicy");
 // 알림톡은 환불을 실행한 이 자리에서 보낸다 — 별도 트리거로 빼면 환불 완료 전에 읽어
 // 금액이 어긋난다. LUNA_API_KEY 는 아래 두 함수의 secrets 에 함께 실려야 한다.
-const { sendMatchConfirmed, sendMatchCanceled, LUNA_API_KEY } = require("./venueAlimtalk");
+const {
+  sendReservationConfirmed,
+  sendReservationCanceled,
+  sendPaymentReminder,
+  LUNA_API_KEY,
+} = require("./venueAlimtalk");
 
 const REGION = "asia-northeast3";
 const s = (v) => String(v ?? "").trim();
@@ -137,7 +142,7 @@ exports.venuePaidConfirmTrigger = onDocumentUpdated(
       }
       // 알림톡 실패가 환불·취소를 되돌리면 안 된다.
       try {
-        await sendMatchCanceled(db, event.params.id, after, refunds);
+        await sendReservationCanceled(db, event.params.id, after, refunds);
       } catch (e) {
         console.error(`[venuePaidConfirm] alimtalk failed (resv ${event.params.id}):`, e?.message || e);
       }
@@ -234,7 +239,7 @@ exports.venuePaidConfirmTrigger = onDocumentUpdated(
         prefsCategory: "match",
       });
       try {
-        await sendMatchConfirmed(db, reservationId, after);
+        await sendReservationConfirmed(db, reservationId, after);
       } catch (e) {
         console.error(`[venuePaidConfirm] alimtalk failed (resv ${reservationId}):`, e?.message || e);
       }
@@ -249,6 +254,11 @@ exports.venuePaidConfirmTrigger = onDocumentUpdated(
       deepLink: "/my/reservations",
       linkTargetId: s(after.venueId),
     });
+    try {
+      await sendReservationConfirmed(db, reservationId, after);
+    } catch (e) {
+      console.error(`[venuePaidConfirm] alimtalk failed (resv ${reservationId}):`, e?.message || e);
+    }
   }
 );
 
@@ -305,7 +315,7 @@ exports.venuePaymentExpireTick = onSchedule(
         });
 
         try {
-          await sendMatchCanceled(db, d.id, { ...data, status: "cancelled", cancelReason: "payment_timeout" }, refunds);
+          await sendReservationCanceled(db, d.id, { ...data, status: "cancelled", cancelReason: "payment_timeout" }, refunds);
         } catch (e) {
           console.error(`[venuePaymentExpire] alimtalk failed (resv ${d.id}):`, e?.message || e);
         }
@@ -363,13 +373,16 @@ exports.venuePaymentExpireTick = onSchedule(
       if (data.paymentReminderSent === true) continue;   // 이미 보냄
 
       // 안 낸 쪽만. 매칭이면 미결제 팀장(들), 단독 예약이면 예약자.
+      // 알림톡은 각자 낼 금액을 본문에 실으므로 uid 와 부담분을 함께 들고 다닌다
+      // (매칭은 분담결제라 팀마다 금액이 다르다).
       const matchId = s(data.matchId);
-      const targets = matchId
+      const recipients = matchId
         ? [
-            data.paidByA === true ? "" : s(data.teamALeaderUid),
-            data.paidByB === true ? "" : s(data.teamBLeaderUid),
-          ].filter(Boolean)
-        : [s(data.userId)].filter(Boolean);
+            data.paidByA === true ? null : { uid: s(data.teamALeaderUid), amount: Number(data.shareA) || 0 },
+            data.paidByB === true ? null : { uid: s(data.teamBLeaderUid), amount: Number(data.shareB) || 0 },
+          ].filter((r) => r && r.uid)
+        : [{ uid: s(data.userId), amount: Number(data.price) || 0 }].filter((r) => r.uid);
+      const targets = recipients.map((r) => r.uid);
       if (!targets.length) continue;
 
       try {
@@ -388,6 +401,12 @@ exports.venuePaymentExpireTick = onSchedule(
           prefsCategory: matchId ? "match" : "venue",
         });
         await d.ref.update({ paymentReminderSent: true });
+        // 알림톡 실패가 "이미 보냄" 플래그를 되돌리면 안 된다 — 되돌리면 10분 뒤 푸시가 또 나간다.
+        try {
+          await sendPaymentReminder(db, d.id, data, recipients, until);
+        } catch (e) {
+          console.error(`[venuePaymentExpire] reminder alimtalk failed (resv ${d.id}):`, e?.message || e);
+        }
       } catch (e) {
         console.error(`[venuePaymentExpire] reminder failed (reservation ${d.id}):`, e?.message || e);
       }

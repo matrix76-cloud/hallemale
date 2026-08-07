@@ -52,11 +52,23 @@ async function clubName(db, clubId) {
 }
 
 // 취소 사유 — 내부 코드값이 그대로 고객에게 나가면 안 된다("payment_timeout").
-function cancelReasonText(data) {
+// 개인 예약에는 "상대 팀"이 없다 — 같은 코드값이라도 문구를 갈라야 한다.
+function cancelReasonText(data, isSolo) {
   const raw = toStr(data.cancelReason);
-  if (raw === "payment_timeout") return "상대 팀 미결제로 자동 취소";
+  if (raw === "payment_timeout") {
+    return isSolo ? "결제 시간 초과로 자동 취소" : "상대 팀 미결제로 자동 취소";
+  }
   if (toStr(data.status) === "rejected") return "구장 사정으로 예약 반려";
-  return toStr(data.refundReason) || raw || "팀 사정";
+  return toStr(data.refundReason) || raw || (isSolo ? "예약자 취소" : "팀 사정");
+}
+
+// 구장 주소 — 예약 문서에 없어서 venues 문서에서 조회한다.
+async function venueAddress(db, venueId) {
+  try {
+    const vs = await db.collection("venues").doc(toStr(venueId)).get();
+    if (vs.exists) return toStr(vs.data()?.address) || "앱에서 확인";
+  } catch (e) {}
+  return "앱에서 확인";
 }
 
 /** 템플릿 승인 전이면 발송하지 않는다(에러 대신 스킵 — 예약·환불 흐름을 깨지 않게). */
@@ -80,9 +92,31 @@ async function baseVars(db, reservationId, data) {
     nameB,
     예약번호: toStr(data.reservationCode) || reservationId,
     구장명: toStr(data.venueName) || "구장",
-    코트: toStr(data.courtName),
+    // 변수가 비면 루나가 발송을 거부한다 — 코트가 없는 구장(단일 필드)도 있으므로 폴백 필수.
+    코트: toStr(data.courtName) || "-",
     일시: formatSlotFromParts(data.date, data.startTime, data.endTime),
   };
+}
+
+/** 개인 예약(매칭 아님) 공통 변수. 매칭 예약이면 null. */
+function soloVars(reservationId, data) {
+  if (toStr(data.matchId)) return null;
+  return {
+    예약번호: toStr(data.reservationCode) || reservationId,
+    구장명: toStr(data.venueName) || "구장",
+    코트: toStr(data.courtName) || "-",
+    일시: formatSlotFromParts(data.date, data.startTime, data.endTime),
+  };
+}
+
+/** 개인 예약자 전화 — users 문서 우선, 없으면 예약 시점에 박힌 phone. */
+async function soloPhone(db, data) {
+  const uid = toStr(data.userId);
+  if (uid) {
+    const p = await resolvePhone(db, "", uid);
+    if (p) return p;
+  }
+  return toStr(data.phone);
 }
 
 /**
@@ -94,12 +128,7 @@ async function sendMatchConfirmed(db, reservationId, data) {
   const base = await baseVars(db, reservationId, data);
   if (!base) return;
 
-  // 주소는 예약 문서에 없다 → 구장 문서에서 조회
-  let 주소 = "앱에서 확인";
-  try {
-    const vs = await db.collection("venues").doc(toStr(data.venueId)).get();
-    if (vs.exists) 주소 = toStr(vs.data()?.address) || 주소;
-  } catch (e) {}
+  const 주소 = await venueAddress(db, data.venueId);
 
   // 인원: 라인업 스냅샷 → 없으면 매치 사이즈(5v5 → 5)
   let mr = {};
@@ -154,7 +183,7 @@ async function sendMatchCanceled(db, reservationId, data, refunds) {
   const base = await baseVars(db, reservationId, data);
   if (!base) return;
 
-  const 사유 = cancelReasonText(data);
+  const 사유 = cancelReasonText(data, false);
 
   for (const r of refunds) {
     const isA = toStr(r.side) === "A";
@@ -184,4 +213,120 @@ async function sendMatchCanceled(db, reservationId, data, refunds) {
   }
 }
 
-module.exports = { sendMatchConfirmed, sendMatchCanceled, LUNA_API_KEY };
+/* ============================================================
+ * 개인 예약(매칭 아님) — 상대팀 변수가 없어 별도 템플릿(50007/50008)을 쓴다.
+ * ========================================================== */
+
+/** 예약 확정 안내 — 결제 완료로 confirmed 된 직후. */
+async function sendSoloConfirmed(db, reservationId, data) {
+  if (!templateReady("soloConfirmed", reservationId)) return;
+  const base = soloVars(reservationId, data);
+  if (!base) return;
+
+  try {
+    const phone = await soloPhone(db, data);
+    if (!phone) {
+      console.warn(`[venueAlimtalk] no phone for solo resv ${reservationId}`);
+      return;
+    }
+    await sendAlimtalk("soloConfirmed", phone, {
+      ...base,
+      주소: await venueAddress(db, data.venueId),
+      금액: won(data.price),
+      // 구장안내는 선택 입력이라 비는 게 정상 — 비면 발송이 거부되므로 폴백을 넣는다.
+      구장안내: toStr(data.ownerNote) || "-",
+    });
+    console.log(`[venueAlimtalk] sent soloConfirmed (resv ${reservationId})`);
+  } catch (e) {
+    console.error(`[venueAlimtalk] solo confirm send failed (resv ${reservationId}):`, e?.message || e);
+  }
+}
+
+/**
+ * 예약 취소·환불 안내 — 실제 환불을 실행한 직후.
+ * @param {Array<{paid: number, refund: number, basis: string}>} refunds 실제 환불한 결제건들.
+ */
+async function sendSoloCanceled(db, reservationId, data, refunds) {
+  if (!Array.isArray(refunds) || !refunds.length) return;
+  if (!templateReady("soloCanceled", reservationId)) return;
+  const base = soloVars(reservationId, data);
+  if (!base) return;
+
+  const 사유 = cancelReasonText(data, true);
+  const phone = await soloPhone(db, data);
+  if (!phone) {
+    console.warn(`[venueAlimtalk] no phone for solo resv ${reservationId}`);
+    return;
+  }
+
+  for (const r of refunds) {
+    try {
+      await sendAlimtalk("soloCanceled", phone, {
+        ...base, 사유,
+        금액: won(r.paid), 환불금액: won(r.refund), 환불기준: toStr(r.basis) || "앱에서 확인",
+      });
+      console.log(`[venueAlimtalk] sent soloCanceled (resv ${reservationId})`);
+    } catch (e) {
+      console.error(`[venueAlimtalk] solo cancel send failed (resv ${reservationId}):`, e?.message || e);
+    }
+  }
+}
+
+/* ============================================================
+ * 결제 마감 임박 (50006) — 매칭·개인 예약 공용
+ * ========================================================== */
+
+/**
+ * 마감 30분 전 리마인더. 아직 결제하지 않은 수신자에게만.
+ *
+ * 승인 직후의 "결제 요청"(50005)은 카카오 반려라 알림톡이 없다 —
+ * 결제창이 열렸다는 걸 알림톡으로 알릴 수 있는 지점은 지금 이 한 번뿐이다.
+ *
+ * @param {Array<{uid: string, amount: number}>} recipients 미결제자와 각자 부담분
+ * @param {string} deadlineText 결제 마감 시각(KST 표기) — 호출측이 이미 만든 값을 그대로 쓴다
+ */
+async function sendPaymentReminder(db, reservationId, data, recipients, deadlineText) {
+  if (!Array.isArray(recipients) || !recipients.length) return;
+  if (!templateReady("paymentReminder", reservationId)) return;
+
+  const vars = {
+    예약번호: toStr(data.reservationCode) || reservationId,
+    구장명: toStr(data.venueName) || "구장",
+    코트: toStr(data.courtName) || "-",
+    일시: formatSlotFromParts(data.date, data.startTime, data.endTime),
+    마감시각: toStr(deadlineText) || "앱에서 확인",
+  };
+
+  for (const r of recipients) {
+    try {
+      const phone = await resolvePhone(db, "", r.uid);
+      if (!phone) {
+        console.warn(`[venueAlimtalk] no phone for reminder ${r.uid} (resv ${reservationId})`);
+        continue;
+      }
+      await sendAlimtalk("paymentReminder", phone, { ...vars, 금액: won(r.amount) });
+      console.log(`[venueAlimtalk] sent paymentReminder to ${r.uid} (resv ${reservationId})`);
+    } catch (e) {
+      console.error(`[venueAlimtalk] reminder send failed (${r.uid}, resv ${reservationId}):`, e?.message || e);
+    }
+  }
+}
+
+/* ============================================================
+ * 진입점 — 호출측이 매칭/개인을 분기하지 않도록 여기서 가른다.
+ * 분기를 호출측에 두면 새 취소 경로가 생길 때마다 한쪽을 빠뜨린다.
+ * ========================================================== */
+const sendReservationConfirmed = (db, id, data) =>
+  toStr(data?.matchId) ? sendMatchConfirmed(db, id, data) : sendSoloConfirmed(db, id, data);
+
+const sendReservationCanceled = (db, id, data, refunds) =>
+  toStr(data?.matchId) ? sendMatchCanceled(db, id, data, refunds) : sendSoloCanceled(db, id, data, refunds);
+
+module.exports = {
+  sendMatchConfirmed,
+  sendMatchCanceled,
+  sendReservationConfirmed,
+  sendReservationCanceled,
+  sendPaymentReminder,
+  LUNA_API_KEY,
+};
