@@ -34,27 +34,29 @@ const LogoImg = styled.img`
   ${({ theme }) => (theme.mode === "dark" ? "filter: brightness(1.6);" : "")}
 `;
 
+/* 제목은 굵고 진하게 — 예전엔 500 굵기 + textWeak + opacity 0.85 라
+   빈 화면 전체가 흐려 보였다. 무엇이 없다는 건지가 먼저 읽혀야 한다. */
 const Title = styled.div`
-  font-size: 14px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.textWeak};
-  opacity: 0.85;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: ${({ theme }) => theme.colors.textStrong};
 `;
 
 const Sub = styled.div`
   font-size: 12.5px;
-  line-height: 1.5;
+  line-height: 1.6;
   color: ${({ theme }) => theme.colors.textWeak};
-  opacity: 0.7;
 `;
 
+/* 빈 상태의 CTA 는 아웃라인 — 아직 아무것도 안 한 사용자를 채움 버튼으로 밀지 않는다 */
 const ActionBtn = styled.button`
-  margin-top: 6px;
-  border: none;
+  margin-top: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: 12px;
-  padding: 11px 20px;
-  background: ${({ theme }) => theme.colors.primary};
-  color: #ffffff;
+  padding: 11px 22px;
+  background: transparent;
+  color: ${({ theme }) => theme.colors.textNormal};
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;

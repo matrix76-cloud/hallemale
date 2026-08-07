@@ -4974,14 +4974,19 @@ export default function MatchRoomDetailPage() {
     ? { tone: "wait", label: "이의 제기" }
     : { tone: "wait", label: "결과 대기" };
 
-  const matchSizeLabel = matchSizeKey ? toStr(matchSizeKey).toUpperCase() : "";
-  const resultAuthorLabel = (() => {
-    const r = room?.result;
-    if (!r) return "";
-    const name = toStr(r.authorName);
-    const at = formatFullDateTime(r.submittedAt);
-    return [name, at].filter(Boolean).join(" · ");
+  // 지난 경기 진행 이력 — 취소 화면과 같은 규칙(지난 단계는 흐리게, 현재 상태만 진하게)
+  const pastHistory = (() => {
+    const rows = [
+      { label: "매칭 성사", at: formatFullDateTime(room?.acceptedAt) },
+      { label: "일정 확정", at: formatFullDateTime(room?.confirmedAt) },
+      { label: "결과 제출", at: formatFullDateTime(room?.result?.submittedAt) },
+      { label: "결과 확정", at: formatFullDateTime(room?.statsAppliedAt) },
+    ].filter((h) => !!h.at);
+    if (rows.length) rows[rows.length - 1].now = true;
+    return rows;
   })();
+
+  const matchSizeLabel = matchSizeKey ? toStr(matchSizeKey).toUpperCase() : "";
   const statsAppliedLabel = formatFullDateTime(room?.statsAppliedAt);
 
   // 제안한 구장 사진(제휴구장). 있으면 지도 대신 사진을 보여준다(직접입력 구장은 사진이 없어 지도 폴백).
@@ -6292,6 +6297,16 @@ export default function MatchRoomDetailPage() {
                   <CxHeadBadge $tone={pastStatusTag.tone}>{pastStatusTag.label}</CxHeadBadge>
                 </CxHead>
                 <CxBody>
+                  {pastHistory.length > 1 ? (
+                    <CxHistory>
+                      {pastHistory.map((h) => (
+                        <CxHistoryRow key={h.label} $now={h.now}>
+                          <span>{h.label}</span>
+                          <span>{h.at}</span>
+                        </CxHistoryRow>
+                      ))}
+                    </CxHistory>
+                  ) : null}
                   <CancelRow>
                     <CancelK>경기 일시</CancelK>
                     <CancelV>{formatFullDateTime(room?.scheduledAt) || "일정 미정"}</CancelV>
@@ -6323,16 +6338,10 @@ export default function MatchRoomDetailPage() {
                       우리 팀 {myPlayers.length}명 · {oppName} {oppPlayers.length}명
                     </CancelV>
                   </CancelRow>
-                  {resultAuthorLabel ? (
+                  {toStr(room?.result?.authorName) ? (
                     <CancelRow>
-                      <CancelK>결과 입력</CancelK>
-                      <CancelV>{resultAuthorLabel}</CancelV>
-                    </CancelRow>
-                  ) : null}
-                  {statsAppliedLabel ? (
-                    <CancelRow>
-                      <CancelK>결과 확정</CancelK>
-                      <CancelV>{statsAppliedLabel}</CancelV>
+                      <CancelK>결과 입력자</CancelK>
+                      <CancelV>{toStr(room.result.authorName)}</CancelV>
                     </CancelRow>
                   ) : null}
                   <CancelRow>
