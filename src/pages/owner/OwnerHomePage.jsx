@@ -95,9 +95,16 @@ const ContactRow=styled.div`display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:
 const NoPhone=styled.span`font-size:12px;color:${C.slate400};`;
 const SheetTitle=styled.div`font-size:17px;font-weight:800;color:${C.slate800};display:flex;align-items:center;justify-content:space-between;`;
 const X=styled.button`border:none;background:transparent;color:${C.slate400};font-size:24px;cursor:pointer;line-height:1;`;
+/* 상태 오버라인 — 제목 위 작은 컬러 텍스트. 배지·행으로 두면 다른 항목과 같은 무게로 묻힌다. */
+const SheetHeadL=styled.div`display:flex;flex-direction:column;gap:3px;min-width:0;`;
+const StatusOverline=styled.div`
+  font-size:11.5px;font-weight:800;letter-spacing:-0.2px;
+  color:${({$tone})=>$tone==="confirmed"?C.green600:$tone==="pending"?C.amber500:C.slate500};
+`;
 const DRow=styled.div`display:flex;justify-content:space-between;gap:10px;font-size:14px;align-items:center;& > span{color:${C.slate500};} & > b{color:${C.slate800};font-weight:700;text-align:right;}`;
 // 예약번호 — 예약자·어드민과 공유하는 조회 키라 등폭으로 보여주고 바로 복사할 수 있게 한다.
 const CodeVal=styled.b`display:inline-flex;align-items:center;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;letter-spacing:-0.2px;`;
+const PriceVal=styled.b`font-size:17px;font-weight:900;letter-spacing:-0.3px;font-variant-numeric:tabular-nums;color:${C.slate800};`;
 const CopyBtn=styled.button`border:1px solid ${C.slate200};background:#fff;color:${C.slate500};border-radius:7px;padding:2px 7px;font-size:11px;font-weight:700;cursor:pointer;`;
 const Call=styled.a`display:flex;align-items:center;justify-content:center;gap:7px;height:48px;border-radius:12px;background:${C.violet600};color:#fff;font-size:15px;font-weight:800;text-decoration:none;margin-top:4px;`;
 const DoneBtn=styled.button`height:46px;border-radius:12px;border:1px solid ${C.slate200};background:#fff;color:${C.slate800};font-size:14px;font-weight:700;cursor:pointer;`;
@@ -564,10 +571,12 @@ export default function OwnerHomePage(){
           <Overlay onClick={()=>setDetailResv(null)}>
             <Sheet onClick={e=>e.stopPropagation()}>
               <SheetTitle>
-                <span style={{display:"flex",alignItems:"center",gap:8}}>예약 정보 {r.recurringId&&<RecurBadge><LuHourglass size={11}/>정기</RecurBadge>}</span>
+                <SheetHeadL>
+                  <StatusOverline $tone={tone}>{label}</StatusOverline>
+                  <span style={{display:"flex",alignItems:"center",gap:8}}>예약 정보 {r.recurringId&&<RecurBadge><LuHourglass size={11}/>정기</RecurBadge>}</span>
+                </SheetHeadL>
                 <X onClick={()=>setDetailResv(null)}>×</X>
               </SheetTitle>
-              <DRow><span>상태</span><StatBadge $tone={tone}>{label}</StatBadge></DRow>
               {r.status==="pending"&&(
                 <DRow><span>안내</span><b style={{fontWeight:600,color:C.slate500}}>
                   예약자가 결제하면 확정돼요.{r.paymentDeadline?` (${new Date(r.paymentDeadline).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}까지)`:""}
@@ -584,7 +593,7 @@ export default function OwnerHomePage(){
               {r.headcount>0&&(
                 <DRow><span>인원</span><b>{r.headcount}명{r.unitPrice?` · 1인 ${Number(r.unitPrice).toLocaleString()}원`:""}</b></DRow>
               )}
-              <DRow><span>이용료</span><b>{(r.price||r.splitTotal||0).toLocaleString()}원</b></DRow>
+              <DRow><span>이용료</span><PriceVal>{(r.price||r.splitTotal||0).toLocaleString()}원</PriceVal></DRow>
               {!isMatch&&r.memo&&<DRow><span>메모</span><b style={{fontWeight:600}}>{r.memo}</b></DRow>}
               {r.userNote&&<DRow><span>요청사항</span><b style={{fontWeight:600}}>{r.userNote}</b></DRow>}
 

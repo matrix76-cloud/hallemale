@@ -1387,15 +1387,17 @@ const CancelIcon = styled.div`
   color: ${({ theme }) => mrp(theme.mode).t2};
   margin-top: 10px;
 `;
+/* 키-값 행 — 행마다 구분선을 긋지 않고 여백으로만 나눈다.
+   선이 촘촘하면 값보다 선이 먼저 보인다(라벨 회색·값 진하게로 이미 구분된다). */
 const CancelRow = styled.div`
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 0;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
   font-size: 13px;
-  & + & {
-    border-top: 1px solid ${({ theme }) => mrp(theme.mode).line};
+  &:first-child {
+    padding-top: 13px;
   }
 `;
 const CancelK = styled.span`
@@ -1426,15 +1428,15 @@ const CxChip = styled.span`
   font-weight: 700;
   color: ${({ theme }) => mrp(theme.mode).t2};
 `;
+/* 섹션 — 테두리+그림자로 카드를 세우지 않고, 페이지 회색 배경이 만드는 갭이 구분을 맡는다.
+   카드가 여러 장 이어지는 상세 화면에서 테두리 개수만큼 화면이 시끄러워진다. */
 const CxCard = styled.section`
   width: 100%;
   max-width: 360px;
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   border-radius: 16px;
   overflow: hidden;
   background: ${({ theme }) => mrp(theme.mode).surface};
-  border: 1px solid ${({ theme }) => mrp(theme.mode).line2};
-  box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.35);
 `;
 const CxHead = styled.div`
   display: flex;
