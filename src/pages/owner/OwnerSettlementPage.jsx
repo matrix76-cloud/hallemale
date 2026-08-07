@@ -30,6 +30,27 @@ const ItemT = styled.div`font-size:13.5px;font-weight:700;color:${C.slate800};ov
 const ItemS = styled.div`font-size:11.5px;color:${C.slate500};`;
 const Amt = styled.div`font-size:14px;font-weight:800;color:${({ $off }) => ($off ? C.slate400 : C.slate800)};flex-shrink:0;text-decoration:${({ $off }) => ($off ? "line-through" : "none")};`;
 
+/* 누적 지급 요약 밴드 — 구장주가 가장 먼저 보고 싶은 숫자를 맨 위 한 줄로.
+   라벨은 평문, 금액만 컬러+굵게. */
+const TotalBand = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  background: ${C.violet50};
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 13.5px;
+  color: ${C.slate500};
+  & > b {
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: -0.4px;
+    font-variant-numeric: tabular-nums;
+    color: ${C.violet600};
+  }
+`;
+
 export default function OwnerSettlementPage() {
   const navigate = useNavigate();
   const { uid, venue, loading: ownerLoading, refresh } = useOwner();
@@ -72,6 +93,10 @@ export default function OwnerSettlementPage() {
     <Page>
       <ScreenTitle>정산</ScreenTitle>
 
+      <TotalBand>
+        지금까지 지급받은 정산금 <b>{won(all.paid)}</b>
+      </TotalBand>
+
       {!hasAcct && (
         <Card>
           <SecTitle><LuLandmark size={16} /> 정산 계좌를 등록해주세요</SecTitle>
@@ -101,7 +126,6 @@ export default function OwnerSettlementPage() {
             <Line><span>이용 예정 (아직 정산 대상 아님)</span><b>{won(all.upcoming)}</b></Line>
           </>
         )}
-        {all.paid > 0 && <Line><span>지급 완료 누적</span><b>{won(all.paid)}</b></Line>}
       </Card>
 
       <MonthNav>

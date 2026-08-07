@@ -302,25 +302,29 @@ const TabHeroDeco = styled.div`
   pointer-events: none;
 `;
 
+/* 목록 — 아이템마다 카드(테두리+그림자)를 씌우면 길어질수록 지친다.
+   흰 배경 한 장 위에 구분선으로만 나눈다. */
 const RoomList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding-top: 6px;
+  margin-top: 10px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
 const RoomCard = styled.div`
   position: relative;
   width: 100%;
-  background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
+  background: transparent;
   padding: 6px 0;
   display: flex;
   flex-direction: column;
   cursor: pointer;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  box-shadow: ${({ theme }) => theme.shadows.card};
-  overflow: hidden;
+  & + & {
+    border-top: 1px solid ${({ theme }) => theme.colors.divider};
+  }
 `;
 
 // 카드 미확인(반응 필요) 표시 — 우상단 빨간 점

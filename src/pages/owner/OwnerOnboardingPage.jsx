@@ -762,7 +762,8 @@ export default function OwnerOnboardingPage() {
                 </DocDone>
               ) : (
                 <DocUpload type="button" disabled={uploading} onClick={() => licRef.current?.click()}>
-                  {uploading ? "올리는 중…" : "＋ 파일 첨부"}
+                  <b>＋</b>
+                  {uploading ? "올리는 중…" : "파일 첨부"}
                 </DocUpload>
               )}
               <HiddenFile ref={licRef} type="file" accept="image/*"
@@ -1065,22 +1066,40 @@ const PickedMeta = styled.div`
   line-height: 1.45;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
+/* 서류 첨부 — 가로 꽉 찬 버튼이 아니라 정사각 슬롯.
+   "여기에 사진 한 장이 들어간다"가 모양만으로 읽히고, 첨부 전/후가 같은 자리에서 바뀐다. */
 const DocUpload = styled.button`
+  width: 92px;
+  height: 92px;
+  flex-shrink: 0;
   border: 1px dashed ${({ theme }) => theme.colors.primary};
   background: transparent;
   color: ${({ theme }) => theme.colors.primary};
   border-radius: 12px;
-  padding: 12px;
-  font-size: 13.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11.5px;
   font-weight: 700;
+  line-height: 1.3;
   cursor: pointer;
+  & > b { font-size: 22px; font-weight: 400; line-height: 1; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const DocDone = styled.div`
+  width: 92px;
+  height: 92px;
+  flex-shrink: 0;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  border-radius: 12px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  font-size: 13.5px;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11.5px;
   font-weight: 700;
   color: ${({ theme }) => theme.colors.primary};
 `;

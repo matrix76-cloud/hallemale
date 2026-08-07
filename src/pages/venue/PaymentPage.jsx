@@ -240,10 +240,18 @@ const Row = styled.div`
 const SplitRow = styled.div`display: flex; justify-content: space-between; font-size: 13.5px; color: ${({ theme }) => theme.colors.textWeak};`;
 const SplitNote = styled.p`margin: 0; font-size: 12.5px; line-height: 1.5; color: ${({ theme }) => theme.colors.textWeak};`;
 const Divider = styled.div`height: 1px; background: ${({ theme }) => theme.colors.border};`;
+/* 최종 결제 금액 — 라벨은 평문, 숫자만 크고 진하게(금액이 먼저 읽혀야 한다) */
 const PayRow = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   font-size: 14px;
-  strong { font-size: 18px; font-weight: 800; }
+  color: ${({ theme }) => theme.colors.textNormal};
+  strong {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+    color: ${({ theme }) => theme.colors.primary};
+  }
 `;
 const TestBadge = styled.div`
   background: ${({ theme }) => theme.colors.card};
