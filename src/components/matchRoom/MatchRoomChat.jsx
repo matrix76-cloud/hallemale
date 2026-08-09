@@ -557,10 +557,11 @@ export default function MatchRoomChat({
           ＋
         </Plus>
         <Field
-          placeholder={disabled ? "채팅을 준비하는 중…" : "메시지 입력…"}
+          placeholder="메시지 입력…"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          disabled={sending || disabled}
+          // 방을 확보하는 짧은 순간에도 입력은 막지 않는다(전송 버튼만 잠깐 비활성).
+          disabled={sending}
           onFocus={() => {
             // 키보드가 올라온 뒤(애니메이션 후) 최신 메시지가 보이도록 맨 아래로 스크롤
             setTimeout(() => {

@@ -3972,26 +3972,40 @@ export default function MatchRoomDetailPage() {
         if (myClubId !== actorId && myClubId !== targetId) return;
         const oppClubId = myClubId === actorId ? targetId : actorId;
         if (!oppClubId) return;
-        const oppClub = await getClubById(oppClubId);
+        const oppClub = await getClubById(oppClubId).catch(() => null);
         const oppOwnerUid = toStr(oppClub?.ownerUid);
-        if (!oppOwnerUid || oppOwnerUid === myUid) return;
-        // 상대 팀장 프로필(사진·이름) 조회 → 채팅 헤더/읽음표시에 사용
-        const leaderDoc = await getUserDoc(oppOwnerUid).catch(() => null);
-        if (alive) {
-          setOppLeader({
-            uid: oppOwnerUid,
-            name: toStr(leaderDoc?.nickname),
-            avatarUrl: toStr(leaderDoc?.avatarUrl),
-          });
-        }
-        // 매칭룸마다 독립 채팅 (chatId = match_{roomId})
-        const cid = await getOrCreateMatchRoomChat({
+
+        // ⚠️ 예전엔 상대 팀장 uid를 못 구하면(팀장 없음 / 양 팀 팀장이 같은 계정) 여기서 return 해버려
+        //    chatId가 영영 안 잡혔고, 채팅 입력창이 "준비하는 중…"으로 잠긴 채 끝났다.
+        //    채팅방 열람·전송 권한은 규칙상 "그 경기 참가 팀의 멤버"면 되므로(chatRoomAllows의
+        //    matchRoom 분기) 상대 팀장 정보와 무관하게 방부터 확보한다.
+        const chatPromise = getOrCreateMatchRoomChat({
           matchRoomId: toStr(roomId),
           myUid,
-          otherUid: oppOwnerUid,
+          otherUid: oppOwnerUid && oppOwnerUid !== myUid ? oppOwnerUid : "",
         });
+
+        // 상대 팀장 프로필(사진·이름)은 헤더 표시용 — 채팅 활성화를 기다리게 하지 않는다.
+        if (oppOwnerUid) {
+          getUserDoc(oppOwnerUid)
+            .then((leaderDoc) => {
+              if (!alive) return;
+              setOppLeader({
+                uid: oppOwnerUid,
+                name: toStr(leaderDoc?.nickname),
+                avatarUrl: toStr(leaderDoc?.avatarUrl),
+              });
+            })
+            .catch(() => {});
+        }
+
+        // 매칭룸마다 독립 채팅 (chatId = match_{roomId})
+        const cid = await chatPromise;
         if (alive && cid) setChatId(toStr(cid));
-      } catch (e) {}
+      } catch (e) {
+        // 조용히 삼키면 "채팅이 왜 안 되는지" 아무 단서가 안 남는다.
+        console.warn("[MatchRoomDetail] 매칭룸 채팅 확보 실패:", e?.message || e);
+      }
     })();
     return () => {
       alive = false;
@@ -4541,8 +4555,11 @@ export default function MatchRoomDetailPage() {
         fieldLatLng,
         durationMin,
         proposedByClubId: myClubId,
+        opponentClubId: oppClubId, // 이미 아는 값 → 서비스가 경기 문서를 다시 읽지 않는다
       });
-      await refresh();
+      // 재조회를 기다리지 않는다 — 실시간 구독(subscribeMatchRoom)이 어차피 바뀐 방을 다시 읽어온다.
+      // 기다리면 "제안하기" 누른 뒤 화면이 넘어가기까지 왕복이 하나 더 붙는다.
+      refresh().catch(() => {});
       setEditMode(false);
       setVenueMode("none");
       // 제안 완료 → 구장정하기 페이지(제안 대기 화면) 대신 채팅 화면으로 이동.

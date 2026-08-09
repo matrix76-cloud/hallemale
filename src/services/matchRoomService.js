@@ -26,6 +26,7 @@ import {
   addDoc,
   onSnapshot,
   increment,
+  writeBatch,
 } from "firebase/firestore";
 import { uploadCompressedImageMedia } from "./mediaService";
 import { getUserProfileByUid } from "./userService";
@@ -44,6 +45,7 @@ import { sendSystemMessage } from "./chatService";
 import { chargeFizz } from "./fizzService";
 import { releaseReservationSlot } from "./ownerVenueService";
 import { predictFromStats } from "../utils/matchAnalysis";
+import { paidByClub } from "../constants/cancelPolicy";
 import { mockOn, hasMock, mockData } from "../dev/mockBus";
 
 // 경기 취소 사유 프리셋 (상대팀에 표시)
@@ -82,8 +84,10 @@ async function releasePartnerReservationOnCancel(matchId, reasonStr, cancelledBy
   const shareA = num(data.shareA);
   const shareB = num(data.shareB);
   const breakdown = [];
-  if (data.paidByA && toStr(data.teamAPayerUid)) breakdown.push({ team: "A", uid: toStr(data.teamAPayerUid), amount: shareA });
-  if (data.paidByB && toStr(data.teamBPayerUid)) breakdown.push({ team: "B", uid: toStr(data.teamBPayerUid), amount: shareB });
+  // clubId 를 같이 남긴다 — 이게 없으면 알림·카드가 "이 팀이 낸 금액"을 못 골라
+  // 두 팀 합계(refund.amount)를 그대로 통지하게 된다.
+  if (data.paidByA && toStr(data.teamAPayerUid)) breakdown.push({ team: "A", clubId: toStr(data.teamAClubId), uid: toStr(data.teamAPayerUid), amount: shareA });
+  if (data.paidByB && toStr(data.teamBPayerUid)) breakdown.push({ team: "B", clubId: toStr(data.teamBClubId), uid: toStr(data.teamBPayerUid), amount: shareB });
   const total = breakdown.reduce((s, r) => s + r.amount, 0);
 
   // 실제 잔액 복구는 테스트 단계 보류
@@ -1272,12 +1276,23 @@ export async function loadMatchRoomDetail(matchRequestId) {
 
 /* ───── 매칭룸 이벤트 푸시 알림 (상대 팀장에게) ─────
    sendPushTick은 targetIds(uid)로 발송하므로 수신 팀의 ownerUid를 명시한다. */
+// 팀 문서에서 팀장 uid 하나 — 알림 수신자 계산용
+async function clubOwnerUid(clubId) {
+  const cid = toStr(clubId);
+  if (!cid) return "";
+  try {
+    const snap = await getDoc(doc(db, "clubs", cid));
+    return toStr(snap.exists() ? snap.data()?.ownerUid : "");
+  } catch (e) {
+    return "";
+  }
+}
+
 async function notifyMatchRoomEvent({ matchId, recipientClubId, subType, type, title, body, deepLink, actorTeamLogoUrl = "" }) {
   try {
     const rid = toStr(recipientClubId);
     if (!rid || !toStr(matchId)) return;
-    const clubSnap = await getDoc(doc(db, "clubs", rid));
-    const ownerUid = toStr(clubSnap.exists() ? clubSnap.data()?.ownerUid : "");
+    const ownerUid = await clubOwnerUid(rid);
     if (!ownerUid) return;
 
     await addDoc(collection(db, "notifications"), {
@@ -1383,6 +1398,8 @@ export async function proposeMatchSchedule({
   fieldLatLng,
   durationMin,
   proposedByClubId,
+  // ⚡ 호출부가 이미 아는 값이면 넘긴다 — match_requests 를 다시 읽는 왕복이 사라진다.
+  opponentClubId,
 } = {}) {
   const id = toStr(matchRequestId);
   const iso = toStr(scheduledAtISO);
@@ -1403,7 +1420,17 @@ export async function proposeMatchSchedule({
 
   const durMin = Number.isFinite(Number(durationMin)) ? Number(durationMin) : 120;
 
-  await updateDoc(ref, {
+  // ⚡ 예전에는 경기 업데이트 → 채팅 메시지 → 채팅방 미리보기 → 상대팀 조회 → 팀장 조회 → 알림이
+  //    전부 직렬이라 "제안하기"를 누르고 6번 왕복을 기다렸다. 지금은 읽기를 먼저 끝내고
+  //    핵심 쓰기(경기 상태 + 상대 팀장 알림)를 한 배치로 커밋한다.
+  const oppId = toStr(opponentClubId) || (await getOpponentClubId(id, proposer));
+  const ownerUid = oppId ? await clubOwnerUid(oppId) : "";
+
+  const chatId = `match_${id}`;
+  const text = "구장·일정을 제안했어요 📍";
+
+  const batch = writeBatch(db);
+  batch.update(ref, {
     status: "proposed",
     scheduledAt: iso,
 
@@ -1416,29 +1443,40 @@ export async function proposeMatchSchedule({
     ...activityPatch(),
   });
 
-  // 제안 시점을 채팅에 남긴다 → 채팅에서 이 메시지 자리에 제안 카드가 렌더된다.
-  try {
-    await sendSystemMessage({
-      chatId: `match_${id}`,
-      text: "구장·일정을 제안했어요 📍",
-      meta: { type: "schedule_proposed", clubId: proposer },
-    });
-  } catch (e) {
-    console.warn("[match] propose system message failed:", e?.message || e);
-  }
-
   // (1-13) 제의 알림 → 상대 팀장
-  const oppForPropose = await getOpponentClubId(id, proposer);
-  if (oppForPropose) {
-    await notifyMatchRoomEvent({
-      matchId: id,
-      recipientClubId: oppForPropose,
+  if (ownerUid) {
+    batch.set(doc(collection(db, "notifications")), {
+      kind: "match",
       subType: "matchProposed",
       type: "match_proposed",
       title: "구장·일정 제안 도착",
       body: "상대팀이 구장·일정을 제안했어요. 확인하고 수락해 주세요.",
+      targetType: "USER",
+      targetIds: [ownerUid],
+      linkType: "match",
+      linkTargetId: id,
+      meta: { matchId: id, deepLink: `/match-roomdetail/${id}`, actorTeamLogoUrl: "" },
+      push: { enabled: true, status: "queued", sentAt: null, failReason: null },
+      prefsCategory: "match",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      readBy: {},
     });
   }
+
+  await batch.commit();
+
+  // 제안 시점을 채팅에 남긴다 → 채팅에서 이 메시지 자리에 제안 카드가 렌더된다.
+  // ⚠️ 배치에 넣지 않는다: 규칙(canReadChatRoom)이 방 문서 존재를 요구해서, 방이 아직 없으면
+  //    이 쓰기 하나 때문에 제안 전체가 실패한다. 예전에도 실패는 무시하던 부가 기록이라
+  //    기다리지 않고 보낸다(그만큼 "제안하기"가 빨리 넘어간다).
+  sendSystemMessage({
+    chatId,
+    text,
+    meta: { type: "schedule_proposed", clubId: proposer },
+  }).catch((e) => {
+    console.warn("[match] propose system message failed:", e?.message || e);
+  });
 
   bustMatchListCaches();
   return true;
@@ -1601,11 +1639,15 @@ export async function cancelMatchRequest({
   try {
     oppClubId = await getOpponentClubId(id, by);
     if (oppClubId) {
+      // ⚠️ refund.amount 는 두 팀 결제액의 합계다. 이걸 그대로 쓰면 4만원 낸 상대팀에게
+      //    "8만원 환불 예정"이라고 알린다. 받는 팀이 낸 금액만 골라 쓴다.
+      //    상대팀은 취소 귀책이 없어 위약금 없이 전액 환불이므로 낸 금액 그대로가 환불액이다.
+      const oppPaid = paidByClub(refund?.breakdown, oppClubId);
       const refundNote =
-        refund && refund.amount > 0
-          ? refund.status === "refunded"
-            ? ` · 결제하신 ${refund.amount.toLocaleString()}원은 환불됐어요.`
-            : ` · 결제하신 ${refund.amount.toLocaleString()}원은 환불 처리될 예정이에요.`
+        oppPaid > 0
+          ? refund?.status === "refunded"
+            ? ` · 결제하신 ${oppPaid.toLocaleString()}원은 환불됐어요.`
+            : ` · 결제하신 ${oppPaid.toLocaleString()}원은 환불 처리될 예정이에요.`
           : "";
       await notifyMatchRoomEvent({
         matchId: id,

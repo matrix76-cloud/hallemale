@@ -65,6 +65,31 @@ export function refundAmount(paidAmount, date, startTime, now = new Date()) {
   return Math.floor(paid * refundRate(date, startTime, now));
 }
 
+/**
+ * 분담결제 환불 내역에서 "이 팀이 실제로 낸 금액"을 고른다.
+ *
+ * ⚠️ refund.amount 를 쓰면 안 된다 — 그건 두 팀 결제액의 합계라, 4만원 낸 팀에게
+ *    8만원이 환불된다고 알리게 된다. 팀별 금액은 breakdown 에만 있다.
+ *
+ * breakdown: [{ team:"A"|"B", clubId?, uid, amount }]
+ *   clubId 는 나중에 추가된 필드라 옛 문서엔 없다 → proposerClubId(=A팀)로 side 를 되짚는다.
+ *   둘 다 못 짚으면 0 을 돌려준다. 호출부는 이때 금액을 말하지 말 것(틀린 숫자보다 침묵이 낫다).
+ */
+export function paidByClub(breakdown, clubId, proposerClubId = "") {
+  const list = Array.isArray(breakdown) ? breakdown : [];
+  const mine = toStr(clubId);
+  if (!mine) return 0;
+
+  const byClub = list.find((b) => toStr(b?.clubId) === mine);
+  if (byClub) return Number(byClub.amount) || 0;
+
+  const prop = toStr(proposerClubId);
+  if (!prop) return 0;
+  const side = mine === prop ? "A" : "B";
+  const row = list.find((b) => toStr(b?.team) === side);
+  return Number(row?.amount) || 0;
+}
+
 /** "7월 20일 (월) 19:00" */
 export function formatStartAt(date, startTime) {
   const s = reservationStartAt(date, startTime);

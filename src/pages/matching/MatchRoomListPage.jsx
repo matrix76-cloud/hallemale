@@ -15,6 +15,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { roomNeedsAttention } from "../../utils/matchAttention";
 import EmptyState from "../../components/common/EmptyState";
 import MatchCalendar from "../../components/matchRoom/MatchCalendar";
+import { paidByClub, refundRate } from "../../constants/cancelPolicy";
 
 /* ==================== 헬퍼 ==================== */
 
@@ -74,6 +75,18 @@ const toDateAny = (v) => {
   }
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// 우리 팀이 취소한 경우의 환불율 — 상세페이지(MatchRoomDetailPage)와 같은 규정·같은 폴백을 쓴다.
+// 시각을 모르면 1(전액)로 둔다: 상세와 숫자가 갈리는 게 더 큰 사고다.
+const refundRateForRoom = (room) => {
+  const sched = toDateAny(room?.scheduledAt);
+  const cancelledAt = toDateAny(room?.cancelledAt);
+  if (!sched || !cancelledAt) return 1;
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = `${sched.getFullYear()}-${pad(sched.getMonth() + 1)}-${pad(sched.getDate())}`;
+  const hm = `${pad(sched.getHours())}:${pad(sched.getMinutes())}`;
+  return refundRate(ymd, hm, cancelledAt);
 };
 
 // 매칭 성사 시각: 오늘=오전/오후 h:mm, 어제="어제", 올해=M.D, 그 외=YYYY.M.D
@@ -1645,15 +1658,20 @@ export default function MatchRoomListPage() {
     const reasonBadge = !cancelledBy ? "경기 취소" : byMe ? "우리팀 취소" : "상대팀 취소";
     const reasonDesc = toStr(room?.cancelReason) || "사유 미입력";
 
-    // 상세페이지(취소 화면)의 "정산" 줄과 동일하게 표시 — 금액·결제유무까지 딱 보고 알 수 있게
+    // 상세페이지(취소 화면)의 "정산" 줄과 동일하게 표시 — 금액·결제유무까지 딱 보고 알 수 있게.
+    // ⚠️ refund.amount 는 두 팀 합계다. 우리가 낸 금액만 골라 쓰고, 우리 귀책 취소면
+    //    위약금까지 반영해야 상세페이지와 숫자가 맞는다.
     const refund = room?.refund;
-    const hasRefund = !!refund && Number(refund.amount) > 0;
-    const refundDone = hasRefund && toStr(refund.status) === "refunded";
+    const myPaid = paidByClub(refund?.breakdown, myClubId, room?.partnerBooking?.proposerClubId);
+    const myRate = !byMe ? 1 : refundRateForRoom(room);
+    const myRefund = Math.floor(myPaid * myRate);
+    const hasRefund = myPaid > 0;
+    const refundDone = hasRefund && toStr(refund?.status) === "refunded";
     const refundLabel = !hasRefund
       ? "결제 없음"
       : refundDone
-      ? `${Number(refund.amount).toLocaleString()}원 환불 완료`
-      : `${Number(refund.amount).toLocaleString()}원 환불 예정`;
+      ? `${myRefund.toLocaleString()}원 환불 완료`
+      : `${myRefund.toLocaleString()}원 환불 예정`;
 
     const oppName = toStr(oppTeam?.name) || "상대팀";
     const myName = toStr(myTeam?.name) || "우리팀";

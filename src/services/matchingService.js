@@ -6,29 +6,24 @@
 // ✅ 라인업 스냅샷 SSOT: actorLineup/targetLineup 자체 필드(memberIds/memberCount/previewMembers)
 
 import { db, auth } from "./firebase";
-import { addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
+import { addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
 
 import { buildNotificationDoc, buildMatchTitleBody } from "../utils/notificationDefinitions";
 import { MIN_TEAM_MEMBERS, requiredMembersForMatchSize, matchSizeLabelOf } from "../utils/constants";
 import { listClubMemberUidsExceptOwner } from "./clubManageService";
 import { getClubMemberCounts } from "./matchingHomeService";
+import { invalidateCache } from "../utils/dataCache";
 
 const toStr = (v) => String(v || "").trim();
 
-// 매칭 성사 시 한 팀의 팀원(팀장 제외)에게 "매칭 성사 → 조율 시작" 알림.
-// 팀장은 위의 createNoti(팀장 전용)로 이미 받으므로 여기선 팀원만 대상으로 한다.
-async function notifyClubMembersAccepted({ matchId, clubId, opponentName }) {
+// 매칭 성사 시 한 팀의 팀원(팀장 제외)에게 "매칭 성사 → 조율 시작" 알림 문서.
+// 팀장은 createNoti(팀장 전용)로 이미 받으므로 여기선 팀원만 대상으로 한다.
+// ⚡ 문서만 만들고 쓰기는 호출부의 writeBatch가 한다 (수락 한 번에 알림 4건 → 왕복 1회).
+function memberAcceptedNotiDoc({ matchId, uids, opponentName }) {
   const mid = toStr(matchId);
-  const cid = toStr(clubId);
-  if (!mid || !cid) return;
+  if (!mid || !uids?.length) return null;
 
-  let uids = [];
-  try {
-    uids = await listClubMemberUidsExceptOwner(cid);
-  } catch (e) {}
-  if (!uids.length) return;
-
-  await addDoc(collection(db, "notifications"), {
+  return {
     kind: "match",
     // ⚠️ "matchAccepted" 를 쓰면 안 된다 — LEADER_ONLY_MATCH_SUBTYPES 에 들어 있어서
     //    팀장이 아닌 수신자에겐 알림창·벨 배지에서 통째로 걸러진다(notificationDefinitions.js).
@@ -47,7 +42,7 @@ async function notifyClubMembersAccepted({ matchId, clubId, opponentName }) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     readBy: {},
-  });
+  };
 }
 
 const teamMemberCount = (team) =>
@@ -56,11 +51,15 @@ const teamMemberCount = (team) =>
 /**
  * ✅ 경기 형식(3v3/4v4/5v5)에 필요한 인원을 두 팀 모두 채웠는지 검증한다.
  * - 신청(createMatchRequest)·수락(acceptMatchRequest) 공용 게이트
- * - 인원은 clubs/{id}/members를 서버에서 다시 세므로 클라이언트 스냅샷을 신뢰하지 않는다
+ * - 인원은 clubs/{id}/members를 서버에서 다시 센 값(counts)이라 클라이언트 스냅샷을 신뢰하지 않는다
  * - 인원 미달이면 사람이 읽을 수 있는 메시지로 throw
+ *
+ * ⚡ 조회(getClubMemberCounts)는 호출부가 다른 읽기와 함께 병렬로 미리 받아 넘긴다.
+ *    (예전엔 이 함수가 직접 await 해서 신청/수락 경로에 왕복이 하나씩 더 붙었다)
  */
-async function assertBothTeamsCanPlay({
+function assertCountsCanPlay({
   matchSizeKey,
+  counts,
   myClubId,
   opponentClubId,
   myShortage,
@@ -70,9 +69,8 @@ async function assertBothTeamsCanPlay({
   // 형식을 알 수 없으면 최소 인원(3명)이라도 지킨다
   const required = need || MIN_TEAM_MEMBERS;
 
-  const counts = await getClubMemberCounts([myClubId, opponentClubId]);
-  const mine = counts.get(myClubId) || 0;
-  const theirs = counts.get(opponentClubId) || 0;
+  const mine = counts?.get(myClubId) || 0;
+  const theirs = counts?.get(opponentClubId) || 0;
 
   if (mine < required) throw new Error(myShortage(required, mine));
   if (theirs < required) throw new Error(opponentShortage(required, theirs));
@@ -160,26 +158,26 @@ export async function proposeMatchToLeader({ myClubId, targetClubId, targetTeamN
 
 // 팀장이 실제 신청(createMatchRequest)하면, 그 팀→상대 pending 제안을 성사 처리:
 //  제안한 팀원들에게 "제안한 매칭이 신청됐어요" 통보 + status=fulfilled 로 마킹(중복 통보 방지).
-async function fulfillMatchProposal(fromClubId, toClubId, matchId, oppName) {
-  const from = toStr(fromClubId);
-  const to = toStr(toClubId);
+// propSnap 은 createMatchRequest 가 다른 읽기와 함께 미리 받아 둔 스냅샷(왕복 재사용).
+// 원장 마킹 + 제안자 통보를 한 배치로 커밋한다. 부가 기능이라 실패는 로그만 남긴다.
+function fulfillMatchProposal(propRef, propSnap, matchId, oppName) {
   const mid = toStr(matchId);
-  if (!from || !to || !mid) return;
-  const propRef = doc(db, "match_proposals", `${from}_${to}`);
+  if (!propRef || !mid) return;
   try {
-    const ps = await getDoc(propRef);
-    if (!ps.exists() || toStr(ps.data()?.status) !== "pending") return;
+    const ps = propSnap;
+    if (!ps || !ps.exists() || toStr(ps.data()?.status) !== "pending") return;
     const uids = Array.isArray(ps.data()?.proposerUids)
       ? ps.data().proposerUids.map(toStr).filter(Boolean)
       : [];
-    await updateDoc(propRef, {
+    const batch = writeBatch(db);
+    batch.update(propRef, {
       status: "fulfilled",
       matchId: mid,
       fulfilledAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
     if (uids.length) {
-      await addDoc(collection(db, "notifications"), {
+      batch.set(doc(collection(db, "notifications")), {
         kind: "match",
         subType: "matchProposalFulfilled",
         type: "match_proposal",
@@ -197,6 +195,9 @@ async function fulfillMatchProposal(fromClubId, toClubId, matchId, oppName) {
         readBy: {},
       });
     }
+    batch.commit().catch((e) => {
+      console.warn("[fulfillMatchProposal] commit failed:", e?.message || e);
+    });
   } catch (e) {
     console.warn("[fulfillMatchProposal] failed:", e?.message || e);
   }
@@ -288,6 +289,23 @@ function buildLineupSnapshot({ lineup } = {}) {
   };
 }
 
+// 알림 문서만 만든다(쓰기 없음). 팀장 uid는 호출부가 미리 병렬로 읽어 넘긴다.
+// ⚡ 여러 알림을 한 writeBatch로 커밋하려고 createNoti에서 분리했다.
+function notiDocData({ key, payload, title, body, pushEnabled, targetIds }) {
+  const docData = buildNotificationDoc({
+    key,
+    payload: { ...payload, targetIds: targetIds || [] },
+    title,
+    body,
+    pushEnabled,
+  });
+  return {
+    ...docData,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+}
+
 async function createNoti({ key, payload, title, body, pushEnabled }) {
   // ✅ 수신 대상은 payload.clubId 팀의 팀장 1명. (앱내 알림 쿼리 + 푸시 모두 팀장에게만)
   const targetIds = await clubLeaderUids(payload?.clubId);
@@ -329,10 +347,25 @@ export async function createMatchRequest({
   if (_actorClubId === _targetClubId) throw new Error("createMatchRequest: same club is not allowed");
   if (!MATCH_SIZE_KEYS.includes(_matchSizeKey)) throw new Error("매치 사이즈(3v3/4v4/5v5)를 선택해 주세요.");
 
+  // ⚡ 신청 전에 필요한 읽기를 전부 한 번에 병렬로 받는다.
+  //    (예전엔 인원검증 → 중복검사 → 팀장조회 ×2 → 제안원장 조회가 줄줄이 직렬이라
+  //     모바일 네트워크에서 버튼 누른 뒤 눈에 띄게 오래 걸렸다)
+  const col = collection(db, "match_requests");
+  const propRef = doc(db, "match_proposals", `${_actorClubId}_${_targetClubId}`);
+  const [counts, s1, s2, actorLeaders, targetLeaders, propSnap] = await Promise.all([
+    getClubMemberCounts([_actorClubId, _targetClubId]),
+    getDocs(query(col, where("actorClubId", "==", _actorClubId), where("targetClubId", "==", _targetClubId))),
+    getDocs(query(col, where("actorClubId", "==", _targetClubId), where("targetClubId", "==", _actorClubId))),
+    clubLeaderUids(_actorClubId),
+    clubLeaderUids(_targetClubId),
+    getDoc(propRef).catch(() => null),
+  ]);
+
   // ✅ 경기 형식에 필요한 인원을 양 팀 모두 채웠는지 검증 (3명뿐인 팀의 4v4·5v5 신청 차단).
   //    클라이언트가 넘긴 스냅샷 대신 서버에서 다시 세어 우회를 막는다.
-  await assertBothTeamsCanPlay({
+  assertCountsCanPlay({
     matchSizeKey: _matchSizeKey,
+    counts,
     myClubId: _actorClubId,
     opponentClubId: _targetClubId,
     myShortage: (need, count) =>
@@ -344,11 +377,6 @@ export async function createMatchRequest({
   // ✅ 중복 매칭 요청 방지: 두 팀 사이에 이미 진행 중인 요청/경기가 있으면 차단
   {
     const activeStatuses = ["pending", "accepted", "proposed", "awaiting_venue_approval", "confirmed"];
-    const col = collection(db, "match_requests");
-    const [s1, s2] = await Promise.all([
-      getDocs(query(col, where("actorClubId", "==", _actorClubId), where("targetClubId", "==", _targetClubId))),
-      getDocs(query(col, where("actorClubId", "==", _targetClubId), where("targetClubId", "==", _actorClubId))),
-    ]);
     const dup = [...s1.docs, ...s2.docs].some((d) => activeStatuses.includes(toStr(d.data()?.status)));
     if (dup) throw new Error("이미 이 팀과 진행 중인 매칭이 있어요. 매칭룸에서 확인해 주세요.");
   }
@@ -360,7 +388,13 @@ export async function createMatchRequest({
   const fromLineupSnapshot = emptyLineupSnapshot(_matchSizeKey);
   const toLineupSnapshot = emptyLineupSnapshot(_matchSizeKey);
 
-  const matchRef = await addDoc(collection(db, "match_requests"), {
+  // ⚡ 문서 ID를 클라이언트에서 미리 만들어, 경기 문서와 알림 2건을 한 배치(왕복 1회)로 커밋한다.
+  //    중간에 실패해 "경기는 생겼는데 알림은 없는" 상태가 나던 것도 함께 막힌다.
+  const matchRef = doc(col);
+  const matchId = matchRef.id;
+
+  const batch = writeBatch(db);
+  batch.set(matchRef, {
     actorClubId: _actorClubId,
     targetClubId: _targetClubId,
     status: "pending",
@@ -372,8 +406,6 @@ export async function createMatchRequest({
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-
-  const matchId = matchRef.id;
 
   // 상대팀 알림 (푸시 ON)
   {
@@ -392,13 +424,17 @@ export async function createMatchRequest({
 
     const { title, body } = buildMatchTitleBody("MATCH_REQUEST", payload);
 
-    await createNoti({
-      key: "MATCH_REQUEST",
-      payload,
-      title,
-      body,
-      pushEnabled: true,
-    });
+    batch.set(
+      doc(collection(db, "notifications")),
+      notiDocData({
+        key: "MATCH_REQUEST",
+        payload,
+        title,
+        body,
+        pushEnabled: true,
+        targetIds: targetLeaders,
+      })
+    );
   }
 
   // 우리팀 기록용 (푸시 OFF)
@@ -419,19 +455,26 @@ export async function createMatchRequest({
     const title = "매칭 신청 완료";
     const body = `${toStr(toTeamSnapshot?.name) || "상대 팀"}에 ${matchSizeLabel(_matchSizeKey) || "매칭"}을 신청했어요`;
 
-    await createNoti({
-      key: "MATCH_REQUEST",
-      payload,
-      title,
-      body,
-      pushEnabled: false,
-    });
+    batch.set(
+      doc(collection(db, "notifications")),
+      notiDocData({
+        key: "MATCH_REQUEST",
+        payload,
+        title,
+        body,
+        pushEnabled: false,
+        targetIds: actorLeaders,
+      })
+    );
   }
 
-  // 팀원 제안으로 시작된 매칭이면 제안자들에게 성사 통보 (실패해도 매칭 생성엔 영향 없음)
-  try {
-    await fulfillMatchProposal(_actorClubId, _targetClubId, matchId, toTeamSnapshot?.name);
-  } catch (e) {}
+  await batch.commit();
+  // 매칭관리 목록 캐시를 버린다 — 안 그러면 신청 직후 이동한 목록에 방금 보낸 요청이 빠져 보인다.
+  invalidateCache("matchInbox:");
+
+  // 팀원 제안으로 시작된 매칭이면 제안자들에게 성사 통보.
+  // 부가 통보라 신청 완료를 붙잡아두지 않는다(예전에도 실패는 무시했다) — 화면은 바로 넘어간다.
+  fulfillMatchProposal(propRef, propSnap, matchId, toTeamSnapshot?.name);
 
   return matchId;
 }
@@ -456,10 +499,20 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
 
   if (myId !== targetClubId) throw new Error("수락 권한이 없습니다.");
 
+  // ⚡ 수락에 필요한 읽기를 전부 한 번에 병렬로 받는다.
+  //    (예전엔 경기조회 → 인원검증 → 팀장조회 ×2 → 팀원조회 ×2 가 직렬이라 수락 버튼이 오래 멈춰 있었다)
+  const [msnap, counts, actorLeaders, myLeaders, actorMemberUids, myMemberUids] = await Promise.all([
+    getDoc(doc(db, "match_requests", matchId)),
+    getClubMemberCounts([myId, actorClubId]),
+    clubLeaderUids(actorClubId),
+    clubLeaderUids(myId),
+    listClubMemberUidsExceptOwner(actorClubId).catch(() => []),
+    listClubMemberUidsExceptOwner(myId).catch(() => []),
+  ]);
+
   // ✅ 수락 시점에도 경기 형식에 필요한 인원을 다시 검증한다.
   //    (신청 이후 팀원이 빠졌을 수 있고, 알림 딥링크 등 UI 게이트를 우회하는 경로가 있다)
   {
-    const msnap = await getDoc(doc(db, "match_requests", matchId));
     const md = msnap.data() || {};
     const sizeKey =
       toStr(md.matchSizeKey) ||
@@ -467,8 +520,9 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
       toStr(md?.toLineupSnapshot?.matchSizeKey);
     const sizeLabel = matchSizeLabelOf(sizeKey) || "이";
 
-    await assertBothTeamsCanPlay({
+    assertCountsCanPlay({
       matchSizeKey: sizeKey,
+      counts,
       myClubId: myId,
       opponentClubId: actorClubId,
       myShortage: (need, count) =>
@@ -506,6 +560,9 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
   const fromLineupSnapshot = n?.fromLineupSnapshot || null;
   const toLineupSnapshot = n?.toLineupSnapshot || null;
 
+  // ⚡ 수락 알림 4건(양 팀 팀장 + 양 팀 팀원)을 한 배치(왕복 1회)로 커밋한다.
+  const batch = writeBatch(db);
+
   // 신청팀에게 알림(푸시 ON)
   {
     const payload = {
@@ -524,13 +581,17 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
 
     const { title, body } = buildMatchTitleBody("MATCH_ACCEPTED", payload);
 
-    await createNoti({
-      key: "MATCH_ACCEPTED",
-      payload,
-      title,
-      body,
-      pushEnabled: true,
-    });
+    batch.set(
+      doc(collection(db, "notifications")),
+      notiDocData({
+        key: "MATCH_ACCEPTED",
+        payload,
+        title,
+        body,
+        pushEnabled: true,
+        targetIds: actorLeaders,
+      })
+    );
   }
 
   // 우리팀 기록용(푸시 OFF)
@@ -550,34 +611,32 @@ export async function acceptMatchRequest({ myClubId, latestNoti } = {}) {
     const title = "매칭 수락 완료";
     const body = `${toStr(fromTeamSnapshot?.name) || "상대 팀"}의 신청을 수락했어요`;
 
-    await createNoti({
-      key: "MATCH_ACCEPTED",
-      payload,
-      title,
-      body,
-      pushEnabled: false,
-    });
+    batch.set(
+      doc(collection(db, "notifications")),
+      notiDocData({
+        key: "MATCH_ACCEPTED",
+        payload,
+        title,
+        body,
+        pushEnabled: false,
+        targetIds: myLeaders,
+      })
+    );
   }
 
   // 양 팀 팀원에게도 "매칭 성사" 알림 (팀장 제외 — 팀장은 위에서 받음)
   // - 신청팀(actorClubId) 팀원 → 상대는 수락팀(toTeamSnapshot)
   // - 수락팀(myId) 팀원 → 상대는 신청팀(fromTeamSnapshot)
-  try {
-    await Promise.all([
-      notifyClubMembersAccepted({
-        matchId,
-        clubId: actorClubId,
-        opponentName: toTeamSnapshot?.name,
-      }),
-      notifyClubMembersAccepted({
-        matchId,
-        clubId: myId,
-        opponentName: fromTeamSnapshot?.name,
-      }),
-    ]);
-  } catch (e) {
-    console.warn("[acceptMatchRequest] member notify failed:", e?.message || e);
+  for (const memberNoti of [
+    memberAcceptedNotiDoc({ matchId, uids: actorMemberUids, opponentName: toTeamSnapshot?.name }),
+    memberAcceptedNotiDoc({ matchId, uids: myMemberUids, opponentName: fromTeamSnapshot?.name }),
+  ]) {
+    if (memberNoti) batch.set(doc(collection(db, "notifications")), memberNoti);
   }
+
+  await batch.commit();
+  // 수락으로 상태가 바뀌었으니 매칭관리 목록 캐시도 버린다(대기중 → 조율중).
+  invalidateCache("matchInbox:");
 
   return true;
 }

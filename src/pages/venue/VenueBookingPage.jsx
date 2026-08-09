@@ -361,6 +361,7 @@ export default function VenueBookingPage() {
         fieldLatLng: { lat: venue.lat, lng: venue.lng },
         durationMin: toMin(selected.end) - toMin(selected.start),
         proposedByClubId: myClubId,
+        opponentClubId, // 이미 아는 값 → 서비스가 경기 문서를 다시 읽지 않는다
       });
       await writePartnerBooking({
         matchId, venue, court, date,
