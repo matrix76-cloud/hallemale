@@ -8,6 +8,7 @@
 //  - 결과 미제출(양 팀 모두) 건은 matchAutoVoid 잡이 "무효"로 처리한다(여기선 대상 아님).
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { getDb, getAdmin } = require("../firebaseAdmin");
+const { matchNotifyUids } = require("../utils/matchAudience");
 
 const DEFAULT_DUR_MIN = 120; // 일정 시간 미지정 시 기본 2시간
 const CONFIRM_AFTER_DAYS = 3;
@@ -65,15 +66,15 @@ function extractMemberIds(lineupSnap) {
   return uniqStr(legacy);
 }
 
-// 한 팀의 팀원 uid 목록 (users.activeTeamId == clubId) — 알림 수신자용
-async function clubMemberUids(db, clubId) {
+// 한 팀의 팀장 uid — 라인업에 안 뛰는 팀장도 결과 확정은 알아야 한다.
+async function clubOwnerUid(db, clubId) {
   const cid = toStr(clubId);
-  if (!cid) return [];
+  if (!cid) return "";
   try {
-    const snap = await db.collection("users").where("activeTeamId", "==", cid).limit(100).get();
-    return snap.docs.map((d) => d.id);
+    const cs = await db.collection("clubs").doc(cid).get();
+    return cs.exists ? toStr(cs.data()?.ownerUid) : "";
   } catch (e) {
-    return [];
+    return "";
   }
 }
 
@@ -256,10 +257,13 @@ const matchAutoConfirmTick = onSchedule("0 * * * *", async () => {
       const applied = await autoConfirmOne(db, FieldValue, docSnap.ref);
       if (!applied) continue;
 
-      // 참가자 알림 (양 팀 팀원)
+      // 참가자 알림 (양 팀장 + 이 경기 참가자).
+      // 라인업 확정 후엔 라인업 인원만 — 안 뛰는 팀원까지 울리던 걸 막는다.
       const recipientSet = new Set();
       for (const cid of [mr.actorClubId, mr.targetClubId]) {
-        (await clubMemberUids(db, cid)).forEach((u) => recipientSet.add(u));
+        const lead = await clubOwnerUid(db, cid);
+        if (lead) recipientSet.add(lead);
+        (await matchNotifyUids(db, mr, cid)).forEach((u) => recipientSet.add(u));
       }
       const recipients = Array.from(recipientSet);
       if (recipients.length) {

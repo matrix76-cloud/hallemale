@@ -1,6 +1,6 @@
 /* eslint-disable */
 // functions/jobs/matchAlimtalk.js
-// 경기 확정/취소 시 양 팀장에게 카카오 알림톡 발송 (직접입력 매칭 ③④).
+// 경기 확정/취소 시 그 경기에 뛰는 인원에게 카카오 알림톡 발송 (직접입력 매칭 ③④).
 //
 // 트리거: match_requests/{id} 문서의 status 전이 (onDocumentUpdated).
 //   - (accepted/proposed) → confirmed : 경기 확정 안내 (matchConfirmedDirect)
@@ -14,6 +14,7 @@
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { getDb } = require("../firebaseAdmin");
 const { sendAlimtalk, LUNA_API_KEY } = require("../alimtalk");
+const { confirmedLineupUids } = require("../utils/matchAudience");
 
 const REGION = "asia-northeast3";
 const toStr = (v) => String(v ?? "").trim();
@@ -38,16 +39,33 @@ function formatSlot(scheduledAtISO, durationMin) {
   return `${s.getMonth() + 1}/${s.getDate()}(${WD[s.getDay()]}) ${hm(s)}~${hm(e)}`;
 }
 
-// clubs/{id}.ownerUid → users/{uid}.phoneE164 (팀장 전화번호)
-async function leaderPhone(db, clubId) {
+// clubs/{id}.ownerUid (팀장 uid)
+async function leaderUid(db, clubId) {
   const cid = toStr(clubId);
   if (!cid) return "";
   const cs = await db.collection("clubs").doc(cid).get();
-  const uid = cs.exists ? toStr(cs.data()?.ownerUid) : "";
-  if (!uid) return "";
-  const us = await db.collection("users").doc(uid).get();
-  if (!us.exists) return "";
-  return toStr(us.data()?.phoneE164 || us.data()?.phone);
+  return cs.exists ? toStr(cs.data()?.ownerUid) : "";
+}
+
+// 수신 uid — 확정 라인업(주전 + 후보). 라인업이 아직 확정 전이면 팀장 1명으로만 폴백한다.
+// (미확정 상태에서 팀 전체로 뿌리면 안 뛰는 팀원에게까지 건당 과금 발송이 나간다.
+//  푸시는 matchAudience.matchNotifyUids 가 팀 전체로 폴백하지만 알림톡은 비용 때문에 좁힌다)
+async function recipientUids(db, mr, clubId) {
+  const lineup = confirmedLineupUids(mr, clubId);
+  if (lineup.length) return lineup;
+  const uid = await leaderUid(db, clubId);
+  return uid ? [uid] : [];
+}
+
+// uid 목록 → 전화번호 목록. users 문서는 한 번에 읽고, 번호 없는 uid는 조용히 빠진다.
+async function phonesOf(db, uids) {
+  const list = Array.from(new Set((uids || []).map(toStr).filter(Boolean)));
+  if (!list.length) return [];
+  const snaps = await db.getAll(...list.map((u) => db.collection("users").doc(u)));
+  const phones = snaps
+    .map((s) => (s.exists ? toStr(s.data()?.phoneE164 || s.data()?.phone) : ""))
+    .filter(Boolean);
+  return Array.from(new Set(phones));
 }
 
 exports.matchAlimtalkOnStatusChange = onDocumentUpdated(
@@ -90,28 +108,41 @@ exports.matchAlimtalkOnStatusChange = onDocumentUpdated(
     const 일시 = formatSlot(after.scheduledAt, after.durationMin) || "앱에서 확인";
     const 사유 = toStr(after.cancelReason) || "상대팀 사정";
 
-    // 수신자: 양 팀장. 각자에게 "상대팀"은 반대 팀.
+    // 수신자: 양 팀의 확정 라인업 인원(주전 + 후보). 각자에게 "상대팀"은 반대 팀.
     const recipients = [
       { clubId: actorClubId, oppName: targetName, oppCount: toCount },
       { clubId: targetClubId, oppName: actorName, oppCount: fromCount },
     ];
 
     for (const r of recipients) {
+      const vars =
+        tplKey === "matchConfirmedDirect"
+          ? { 구장명, 일시, 상대팀: r.oppName, 인원: r.oppCount || sizeN || "-" }
+          : { 구장명, 일시, 상대팀: r.oppName, 사유 };
+
+      let phones = [];
       try {
-        const phone = await leaderPhone(db, r.clubId);
-        if (!phone) {
-          console.warn(`[matchAlimtalk] no phone for club ${r.clubId} (match ${matchId})`);
-          continue;
-        }
-        const vars =
-          tplKey === "matchConfirmedDirect"
-            ? { 구장명, 일시, 상대팀: r.oppName, 인원: r.oppCount || sizeN || "-" }
-            : { 구장명, 일시, 상대팀: r.oppName, 사유 };
-        await sendAlimtalk(tplKey, phone, vars, { matchId });
-        console.log(`[matchAlimtalk] sent ${tplKey} to club ${r.clubId} (match ${matchId})`);
+        phones = await phonesOf(db, await recipientUids(db, after, r.clubId));
       } catch (e) {
-        console.error(`[matchAlimtalk] send failed (club ${r.clubId}, match ${matchId}):`, e?.message || e);
+        console.error(`[matchAlimtalk] recipient lookup failed (club ${r.clubId}, match ${matchId}):`, e?.message || e);
+        continue;
       }
+      if (!phones.length) {
+        console.warn(`[matchAlimtalk] no phone for club ${r.clubId} (match ${matchId})`);
+        continue;
+      }
+
+      // 한 명이 실패해도 나머지는 보낸다 — 번호 오류 1건에 팀 전체가 통지를 못 받으면 안 된다.
+      let sent = 0;
+      for (const phone of phones) {
+        try {
+          await sendAlimtalk(tplKey, phone, vars, { matchId });
+          sent += 1;
+        } catch (e) {
+          console.error(`[matchAlimtalk] send failed (club ${r.clubId}, match ${matchId}):`, e?.message || e);
+        }
+      }
+      console.log(`[matchAlimtalk] sent ${tplKey} to ${sent}/${phones.length} of club ${r.clubId} (match ${matchId})`);
     }
   }
 );

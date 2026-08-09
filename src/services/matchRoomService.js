@@ -29,7 +29,8 @@ import {
 } from "firebase/firestore";
 import { uploadCompressedImageMedia } from "./mediaService";
 import { getUserProfileByUid } from "./userService";
-import { listClubMembers, listClubMemberUidsExceptOwner } from "./clubManageService";
+import { listClubMembers } from "./clubManageService";
+import { listMatchNotifyUids } from "./matchAudience";
 import { fetchLineupRosterProfiles } from "./lineupRosterService";
 import { sendSystemMessage } from "./chatService";
 import { chargeFizz } from "./fizzService";
@@ -108,14 +109,15 @@ async function releasePartnerReservationOnCancel(matchId, reasonStr, cancelledBy
 
 // 한 팀의 팀원(팀장 제외)에게 매치 라이프사이클 알림 발송.
 // 팀장은 별도 알림(notifyMatchRoomEvent 등)으로 이미 받으므로 여기선 팀원만 대상으로 한다.
-async function notifyClubMembersEvent({ matchId, clubId, subType, type, title, body }) {
+// 대상은 라인업 확정 후엔 그 경기에 뛰는 인원(주전+후보)만이다 — matchAudience.js 참고.
+async function notifyClubMembersEvent({ matchId, clubId, subType, type, title, body, matchData = null }) {
   const mid = toStr(matchId);
   const cid = toStr(clubId);
   if (!mid || !cid) return;
 
   let uids = [];
   try {
-    uids = await listClubMemberUidsExceptOwner(cid);
+    uids = await listMatchNotifyUids({ matchId: mid, clubId: cid, matchData });
   } catch (e) {}
   if (!uids.length) return;
 
@@ -139,10 +141,11 @@ async function notifyClubMembersEvent({ matchId, clubId, subType, type, title, b
 }
 
 // 경기 종료(결과 입력) 후 팀원들에게 "상대 팀 리뷰 작성" 알림 (팀장 제외)
-async function notifyClubMembersToReview(matchId, clubId) {
+async function notifyClubMembersToReview(matchId, clubId, matchData = null) {
   await notifyClubMembersEvent({
     matchId,
     clubId,
+    matchData,
     subType: "matchReviewRequest",
     type: "match_review_request",
     title: "경기 후기를 남겨주세요",
@@ -2066,7 +2069,8 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
     const uidSet = new Set();
     for (const cid of clubIds) {
       try {
-        const members = await listClubMemberUidsExceptOwner(cid);
+        // 라인업 확정 후엔 경기에 뛴 인원만 (미확정이면 팀 전체 폴백)
+        const members = await listMatchNotifyUids({ matchId: id, clubId: cid, matchData: mr });
         members.forEach((u) => u && uidSet.add(toStr(u)));
       } catch {}
       try {

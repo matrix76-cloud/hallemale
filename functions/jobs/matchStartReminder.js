@@ -4,22 +4,7 @@
 // 아직 알림을 보내지 않은 건에 대해 양 팀장에게 푸시 알림 생성. (중복 방지: startNotifiedAt)
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { getDb, getAdmin } = require("../firebaseAdmin");
-
-// 한 팀의 팀원 uid 목록 (users.activeTeamId == clubId). 팀장 포함 — 호출부에서 Set으로 중복 제거.
-async function clubMemberUids(db, clubId) {
-  const cid = String(clubId || "").trim();
-  if (!cid) return [];
-  try {
-    const snap = await db
-      .collection("users")
-      .where("activeTeamId", "==", cid)
-      .limit(100)
-      .get();
-    return snap.docs.map((d) => d.id);
-  } catch (e) {
-    return [];
-  }
-}
+const { matchNotifyUids } = require("../utils/matchAudience");
 
 const matchStartReminderTick = onSchedule("*/5 * * * *", async () => {
   const db = getDb();
@@ -67,10 +52,11 @@ const matchStartReminderTick = onSchedule("*/5 * * * *", async () => {
         continue;
       }
 
-      // 팀장 + 양 팀 팀원 모두에게 발송 (Set으로 중복 제거)
+      // 팀장 + 양 팀의 "이 경기 참가자"에게 발송 (Set으로 중복 제거).
+      // 라인업 확정 후엔 라인업 인원만 — 안 뛰는 팀원까지 울리던 걸 막는다.
       const recipientSet = new Set(owners);
       for (const cid of clubIds) {
-        const us = await clubMemberUids(db, cid);
+        const us = await matchNotifyUids(db, mr, cid);
         us.forEach((u) => recipientSet.add(u));
       }
       const recipients = Array.from(recipientSet);

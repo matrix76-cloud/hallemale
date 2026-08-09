@@ -8,23 +8,9 @@
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { getDb, getAdmin } = require("../firebaseAdmin");
 
-const DEFAULT_DUR_MIN = 120; // 일정 시간 미지정 시 기본 2시간
+const { matchNotifyUids } = require("../utils/matchAudience");
 
-// 한 팀의 팀원 uid 목록 (users.activeTeamId == clubId). 팀장 포함 — 호출부에서 Set으로 중복 제거.
-async function clubMemberUids(db, clubId) {
-  const cid = String(clubId || "").trim();
-  if (!cid) return [];
-  try {
-    const snap = await db
-      .collection("users")
-      .where("activeTeamId", "==", cid)
-      .limit(100)
-      .get();
-    return snap.docs.map((d) => d.id);
-  } catch (e) {
-    return [];
-  }
-}
+const DEFAULT_DUR_MIN = 120; // 일정 시간 미지정 시 기본 2시간
 
 // 한 팀의 "팀장" uid를 견고하게 해석: clubs.ownerUid → members의 owner/captain → 첫 멤버.
 // (ownerUid가 비어 있어도 결과 입력 알림이 양 팀 모두에게 가도록 보장)
@@ -105,10 +91,11 @@ const matchEndReminderTick = onSchedule("*/5 * * * *", async () => {
 
       const baseMeta = { matchId: docSnap.id, deepLink: `/match-roomdetail/${docSnap.id}` };
 
-      // 팀장 + 양 팀 팀원 모두에게 발송 (Set으로 중복 제거)
+      // 팀장 + 양 팀의 "이 경기 참가자"에게 발송 (Set으로 중복 제거).
+      // 라인업 확정 후엔 라인업 인원만 — 안 뛰는 팀원까지 울리던 걸 막는다.
       const recipientSet = new Set(owners);
       for (const cid of clubIds) {
-        const us = await clubMemberUids(db, cid);
+        const us = await matchNotifyUids(db, mr, cid);
         us.forEach((u) => recipientSet.add(u));
       }
       const recipients = Array.from(recipientSet);
