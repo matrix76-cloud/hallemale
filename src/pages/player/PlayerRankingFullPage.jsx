@@ -93,7 +93,7 @@ const Avatar = styled.div`
     theme.mode === "dark" ? theme.colors.surface : $top ? "#ede9fe" : "#f1f2f5"};
 `;
 
-const AvatarImg = styled.img`
+const AvatarImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   display: block;
@@ -108,7 +108,7 @@ const SquareAvatarPlaceholder = styled(AvatarPlaceholder)`
 `;
 
 /* 1~3위: 아바타(프로필) 위에 살짝 겹쳐 배치(로고 PNG 하단 여백 보정) */
-const CrownOver = styled.img`
+const CrownOver = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   position: absolute;
   top: -20px;
   left: 50%;
@@ -195,7 +195,7 @@ const TeamLogoBox = styled.span`
   display: inline-flex;
 `;
 
-const TeamCrown = styled.img`
+const TeamCrown = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   position: absolute;
   top: -8px;
   left: 50%;
@@ -217,7 +217,7 @@ const TeamLogoWrap = styled.div`
     theme.mode === "dark" ? theme.colors.bg : "#e5e7eb"};
 `;
 
-const TeamLogoImg = styled.img`
+const TeamLogoImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   object-fit: cover;

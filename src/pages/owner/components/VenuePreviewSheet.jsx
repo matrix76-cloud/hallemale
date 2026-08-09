@@ -14,6 +14,7 @@ import { FacilityIcon } from "../../venue/facilityIcons";
 import { FACILITY_OPTIONS } from "../../../services/ownerVenueService";
 import VenueMiniMap from "../../../components/matchRoom/VenueMiniMap";
 import { C } from "./od";
+import { useBackInterceptor } from "../../../hooks/useBackInterceptor";
 
 /* ---------- 운영시간 요약 (VenueBookingPage와 동일 로직) ---------- */
 function hoursText(h) {
@@ -37,6 +38,8 @@ function buildHoursSummary(court) {
 export default function VenuePreviewSheet({ venue, onClose }) {
   const heroRef = useRef(null);
   const [heroIdx, setHeroIdx] = useState(0);
+  // 안드로이드 하드웨어 뒤로가기: 미리보기 시트부터 닫는다.
+  useBackInterceptor(!!venue, () => onClose && onClose());
   if (!venue) return null;
 
   const photos = (venue.photos?.length ? venue.photos : venue.imageUrl ? [venue.imageUrl] : []).filter(Boolean);

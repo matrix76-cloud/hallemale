@@ -32,6 +32,7 @@ import {
 
 import { getUserPublicMeta } from "./counterpartService";
 import { getMyBlockList } from "./userBlockService";
+import { invalidateCache } from "../utils/dataCache";
 
 function toDate(tsOrIso) {
   if (!tsOrIso) return null;
@@ -388,6 +389,9 @@ async function uploadPostImage({ authorUid, postId, file } = {}) {
 
   const snap = await uploadBytes(storageRef, file, {
     contentType: file?.type || "image/jpeg",
+    // 캐시 헤더가 없으면 Storage 기본값이라 목록을 다시 열 때마다 사진을 새로 받는다.
+    // 파일명에 타임스탬프가 들어가 덮어쓸 일이 없으므로 다른 업로드 경로와 같이 1년 고정.
+    cacheControl: "public,max-age=31536000",
   });
 
   const url = await getDownloadURL(snap.ref);
@@ -451,6 +455,9 @@ export async function createCommunityPost({
     }
   }
 
+  // 목록 캐시를 비워, 글을 쓰고 목록으로 돌아왔을 때 내 글이 빠진 화면이 먼저 뜨지 않게 한다.
+  invalidateCache("community:list:");
+
   return { postId };
 }
 
@@ -486,6 +493,7 @@ export async function updateCommunityPost({ postId, myUid, title, content, categ
   }
 
   await updateDoc(ref, patch);
+  invalidateCache("community:list:");
   return { ok: true, postId: pid };
 }
 
@@ -506,6 +514,7 @@ export async function deleteCommunityPost({ postId, myUid } = {}) {
   if (author !== uid) throw new Error("본인 글만 삭제할 수 있어요.");
 
   await deleteDoc(ref);
+  invalidateCache("community:list:");
   return { ok: true };
 }
 

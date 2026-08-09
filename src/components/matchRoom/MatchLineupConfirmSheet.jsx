@@ -12,6 +12,7 @@ import {
 } from "../../services/matchRoomService";
 import AvatarPlaceholder from "../common/AvatarPlaceholder";
 import PositionChip from "../common/PositionChip";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 const toStr = (v) => String(v || "").trim();
 const POS_KO = { guard: "가드", forward: "포워드", center: "센터" };
@@ -267,6 +268,9 @@ export default function MatchLineupConfirmSheet({
       setBusy(false);
     }
   };
+
+  // 안드로이드 하드웨어 뒤로가기: 화면을 벗어나지 말고 이 오버레이부터 닫는다.
+  useBackInterceptor(open, () => onClose && onClose());
 
   if (!open) return null;
 

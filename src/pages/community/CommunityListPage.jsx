@@ -10,6 +10,7 @@ import styled from "styled-components";
 import { showAlert } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 import { loadCommunityList } from "../../services/communityService";
+import { peekCache, loadCached } from "../../utils/dataCache";
 import { useAuth } from "../../hooks/useAuth";
 import FilterSearchBar from "../../components/common/FilterSearchBar";
 import { FiHeart, FiMessageCircle, FiEdit3 } from "react-icons/fi";
@@ -297,24 +298,32 @@ export default function CommunityListPage() {
   const { firebaseUser, userDoc } = useAuth();
   const myUid = firebaseUser?.uid || userDoc?.uid || userDoc?.id || "";
 
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // 탭을 왔다 갔다 할 때마다 30건을 다시 받느라 매번 스피너가 떴다.
+  // 캐시가 있으면 그대로 그리고(스피너 없음), 뒤에서 조용히 새로 받아 갱신한다.
+  const cacheKey = `community:list:${myUid}`;
+  const cached = peekCache(cacheKey);
+
+  const [posts, setPosts] = useState(cached?.data?.posts || []);
+  const [loading, setLoading] = useState(!cached);
   const [errText, setErrText] = useState("");
   const [q, setQ] = useState("");
   const [sortMode, setSortMode] = useState("latest"); // "latest" | "popular"
-  const [cursor, setCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
+  const [cursor, setCursor] = useState(cached?.data?.cursor || null);
+  const [hasMore, setHasMore] = useState(!!cached?.data?.hasMore);
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      setLoading(true);
+      // 캐시로 이미 그려 뒀으면 스피너로 덮지 않는다 — 갱신은 조용히.
+      if (!peekCache(cacheKey)) setLoading(true);
       setErrText("");
 
       try {
-        const data = await loadCommunityList({ myUid, limitCount: 30 });
+        const data = await loadCached(cacheKey, () =>
+          loadCommunityList({ myUid, limitCount: 30 })
+        );
         if (!alive) return;
         setPosts(data.posts || []);
         setCursor(data.cursor || null);
@@ -331,7 +340,8 @@ export default function CommunityListPage() {
             : "";
 
         setErrText([String(e?.message || "목록을 불러올 수 없습니다."), hint].filter(Boolean).join("\n"));
-        setPosts([]);
+        // 캐시로 이미 목록을 그려 뒀다면 그대로 둔다 — 갱신 실패로 화면을 비우지 않는다.
+        if (!peekCache(cacheKey)) setPosts([]);
       } finally {
         if (!alive) return;
         setLoading(false);

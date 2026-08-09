@@ -31,6 +31,14 @@ import { uploadCompressedImageMedia } from "./mediaService";
 import { getUserProfileByUid } from "./userService";
 import { listClubMembers } from "./clubManageService";
 import { listMatchNotifyUids } from "./matchAudience";
+import { invalidateCache } from "../utils/dataCache";
+
+// 경기 상태가 바뀌면 목록 캐시를 버린다 — 안 그러면 목록으로 돌아왔을 때
+// 방금 취소/확정한 경기가 잠깐 옛 탭에 그대로 남아 보인다.
+function bustMatchListCaches() {
+  invalidateCache("matchRooms:");
+  invalidateCache("myTeamMatches:");
+}
 import { fetchLineupRosterProfiles } from "./lineupRosterService";
 import { sendSystemMessage } from "./chatService";
 import { chargeFizz } from "./fizzService";
@@ -767,6 +775,9 @@ export async function loadTeamMonthlyActivity({ clubId } = {}) {
       id: toStr(mr?.id),
       scheduledAt: mr?.scheduledAt || mr?.confirmedAt || mr?.updatedAt || null,
       memberIds,
+      // 팀 관점 스코어 — 선수 출전/미출전 경기의 팀 승률 비교에 쓴다
+      myScore: iAmActor ? (mr?.myScore ?? null) : (mr?.oppScore ?? null),
+      oppScore: iAmActor ? (mr?.oppScore ?? null) : (mr?.myScore ?? null),
     };
   });
 
@@ -989,6 +1000,12 @@ export async function loadPlayerFinishedMatches({ clubId, uid } = {}) {
       scheduledAt: mr?.scheduledAt || null,
       myScore,
       oppScore,
+      // 무효 경기는 전적에서 빠져야 하고 기록 카드에선 "무효"로 보여야 한다
+      resultState: mr?.resultState ?? null,
+      matchSizeKey:
+        toStr(mr?.matchSizeKey) ||
+        toStr(mr?.fromLineupSnapshot?.matchSizeKey) ||
+        toStr(mr?.toLineupSnapshot?.matchSizeKey),
       iAmActor,
     };
   });
@@ -1423,6 +1440,7 @@ export async function proposeMatchSchedule({
     });
   }
 
+  bustMatchListCaches();
   return true;
 }
 
@@ -1471,6 +1489,7 @@ export async function cancelProposedSchedule({ matchRequestId, cancelledByClubId
       body: "상대팀이 보냈던 구장·일정 제안을 취소했어요.",
     });
   }
+  bustMatchListCaches();
   return true;
 }
 
@@ -1533,6 +1552,7 @@ export async function confirmProposedSchedule({ matchRequestId, confirmedByClubI
     console.warn("[confirmProposedSchedule] member notify failed:", e?.message || e);
   }
 
+  bustMatchListCaches();
   return true;
 }
 
@@ -1633,6 +1653,7 @@ export async function cancelMatchRequest({
     });
   } catch (e) {}
 
+  bustMatchListCaches();
   return { ok: true, refund };
 }
 
@@ -1774,6 +1795,7 @@ export async function submitMatchResultWithMedia({
     }
   }
 
+  bustMatchListCaches();
   return { ok: true, photoUrls: uploadedUrls };
 }
 
@@ -2105,6 +2127,7 @@ export async function acceptMatchResult({ matchRequestId, confirmedByClubId } = 
     console.warn("[match] result-confirmed notification failed:", e?.message || e);
   }
 
+  bustMatchListCaches();
   return true;
 }
 

@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { listVisibleEventPopups } from "../../services/eventPopupsService";
 import { useAuth } from "../../hooks/useAuth";
 import { ADMIN_BASE } from "../../config/adminPath";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 const Overlay = styled.div`
   position: fixed;
@@ -178,6 +179,10 @@ export default function EventPopupModal() {
       alive = false;
     };
   }, [blocked, pathname]);
+
+  // 안드로이드 하드웨어 뒤로가기: 팝업이 떠 있으면 홈 종료 확인 대신 팝업부터 닫는다.
+  // (early return 앞에 둬야 훅 순서가 흔들리지 않는다)
+  useBackInterceptor(!blocked && !!popup && !closed, () => setClosed(true));
 
   if (blocked) return null;
   if (!popup || closed) return null;

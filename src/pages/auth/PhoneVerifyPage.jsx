@@ -13,6 +13,7 @@ import { linkSocialToExistingUser, getUserProfileByUid } from "../../services/us
 import { db } from "../../services/firebase";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { useExitConfirm } from "../../hooks/useExitConfirm";
 import { track } from "../../utils/analytics";
 import { WizardTopProgress } from "../../components/wizard/SignupWizard";
 
@@ -47,15 +48,17 @@ export default function PhoneVerifyPage() {
 
   // 안드로이드 하드웨어 뒤로가기 처리(전화인증 게이트).
   //  - 코드 입력 단계: 전화번호 입력 단계로 되돌림
-  //  - 전화번호 단계: 뒤로가기를 '소비'만 함(게이트 위에 "앱 종료?" 모달이 뜨는 문제 방지)
+  //  - 전화번호 단계: 뒤로 갈 화면이 없으므로 앱 종료 확인 (예전엔 무동작이라 "안 먹는 화면"이었다)
+  const confirmExit = useExitConfirm();
   useBackInterceptor(true, () => {
     if (step === "code") {
       setStep("phone");
       setInput("");
       setError("");
       setNotice("");
+      return;
     }
-    // phone 단계에서는 아무것도 하지 않음(게이트 유지). '다른 계정으로 로그인'은 화면 버튼으로.
+    confirmExit();
   });
 
   // 카운트다운 타이머 (code 스텝 진입 중에만)

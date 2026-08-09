@@ -140,7 +140,7 @@ const MiniLogo = styled.div`
     theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
 `;
 
-const MiniLogoImg = styled.img`
+const MiniLogoImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   object-fit: cover;

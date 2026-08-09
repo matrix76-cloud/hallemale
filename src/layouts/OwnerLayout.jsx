@@ -16,6 +16,8 @@ import { OWNER_TYPES, resolveOwnerType } from "../constants/ownerType";
 import { C, OWNER_WIDE_MIN, OWNER_MAX_W } from "../pages/owner/components/od";
 import { useUI } from "../hooks/useUI";
 import { images } from "../utils/imageAssets";
+// 앱 내부 백스택이 없을 때 navigate(-1)은 아무 데도 못 간다 → 구장주 홈으로 폴백
+import { goBackOrHome } from "../utils/navigation";
 
 const Wrap = styled.div`
   min-height: 100vh;
@@ -205,7 +207,11 @@ function OwnerShell() {
       <Wrap>
         <Header>
           {showBack && (
-            <BackBtn type="button" onClick={() => navigate(-1)} aria-label="뒤로">
+            <BackBtn
+              type="button"
+              onClick={() => goBackOrHome(navigate, "/owner/home")}
+              aria-label="뒤로"
+            >
               ‹
             </BackBtn>
           )}

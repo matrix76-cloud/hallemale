@@ -13,6 +13,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { hasMock, mockData } from "../dev/mockBus";
+import { getOrLoad } from "../utils/dataCache";
 
 function positionLabel(pos) {
   const p = String(pos || "").trim();
@@ -182,6 +183,14 @@ export async function listPlayerRankingPage({
  */
 export async function getPlayerRankMap({ debugLog = false } = {}) {
   if (hasMock("playerRankMap")) return mockData("playerRankMap");
+  // users 컬렉션 전체를 훑는다 — 화면마다 다시 부르면 회원 수에 비례해 느려지고 비용도 든다.
+  // 등수는 경기 결과가 확정될 때만 바뀌므로 5분 캐시.
+  return getOrLoad("rank:player", () => computePlayerRankMap({ debugLog }), PLAYER_RANK_TTL_MS);
+}
+
+const PLAYER_RANK_TTL_MS = 5 * 60 * 1000;
+
+async function computePlayerRankMap({ debugLog = false } = {}) {
   const usersCol = collection(db, "users");
   const snap = await getDocs(usersCol);
 

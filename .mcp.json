@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "tosspayments-integration-guide": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@tosspayments/integration-guide-mcp@latest"
+      ],
+      "env": {}
+    }
+  }
+}

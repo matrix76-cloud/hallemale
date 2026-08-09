@@ -10,13 +10,16 @@ import { useAuth } from "../../hooks/useAuth";
 import { saveUserConsents } from "../../services/userService";
 import { images } from "../../utils/imageAssets";
 import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { useExitConfirm } from "../../hooks/useExitConfirm";
 import { track } from "../../utils/analytics";
 import { WizardTopProgress } from "../wizard/SignupWizard";
 
 export default function AgreementGate() {
   const navigate = useNavigate();
-  // 동의 게이트 표시 중엔 안드로이드 뒤로가기를 소비(게이트 위에 "앱 종료?" 모달이 뜨는 문제 방지).
-  useBackInterceptor(true, () => {});
+  // 동의 전에는 뒤로 갈 화면이 없다. 예전엔 뒤로가기를 그냥 삼켜서 "안 먹는 화면"으로 보였다
+  // → 앱 종료 확인으로 받는다(게이트는 그대로 유지).
+  const confirmExit = useExitConfirm();
+  useBackInterceptor(true, confirmExit);
   const { firebaseUser, userDoc, refreshUser, signOut } = useAuth();
   // ⚠️ 전화인증에서 같은 번호의 기존 계정과 병합되면 게이트가 읽는 실제 문서는 userDoc.id(병합된 문서)다.
   //    firebaseUser.uid(방금 삭제된 소셜 uid)에 저장하면 phoneVerified 없는 고아 문서를 재생성해

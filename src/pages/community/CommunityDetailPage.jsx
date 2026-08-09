@@ -24,6 +24,7 @@ import Spinner from "../../components/common/Spinner";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import { images } from "../../utils/imageAssets";
 import { getPlayerRankMap } from "../../services/rankingService";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 /* 실제 프로필 사진만 사용 (기본 앱 로고/defaultAvatar는 '사진 없음'으로 처리) */
 const realAvatar = (url) => {
@@ -749,6 +750,10 @@ export default function CommunityDetailPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
+
+  // 안드로이드 하드웨어 뒤로가기: 신고 모달 → 케밥 메뉴 순으로 먼저 닫고, 그 다음에야 글에서 나간다.
+  useBackInterceptor(reportOpen, () => { if (!reportBusy) setReportOpen(false); });
+  useBackInterceptor(menuOpen, () => setMenuOpen(false));
 
   const reload = async () => {
     setLoading(true);

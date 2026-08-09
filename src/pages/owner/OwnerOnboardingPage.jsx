@@ -31,6 +31,8 @@ import OwnerSpinner from "./components/OwnerSpinner";
 import CourtHoursEditor from "./components/CourtHoursEditor";
 import VenueMapPicker from "./components/VenueMapPicker";
 import { images } from "../../utils/imageAssets";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { useExitConfirm } from "../../hooks/useExitConfirm";
 
 // 환불 비율은 플랫폼 공통 기준(constants/cancelPolicy.js)이라 여기 적지 않는다.
 // 이 필드는 구장 고유 안내(우천·일정변경·노쇼 당부)만 담는다.
@@ -66,6 +68,7 @@ const CONTENT_TOTAL = STEPS.length - LEAD_STEPS;
 
 export default function OwnerOnboardingPage() {
   const navigate = useNavigate();
+  const confirmExit = useExitConfirm();
   const { uid, venue, venues, userDoc, loading: ownerLoading, refresh, setActiveVenue } = useOwner();
   const fileRef = useRef(null);
   const courtFileRef = useRef(null);
@@ -366,7 +369,16 @@ export default function OwnerOnboardingPage() {
     track("owner_onboarding_step", { step: id }); // 어느 단계에서 이탈하는지 정량화
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   };
-  const goBack = () => (step === 0 ? navigate(-1) : setStep((s) => s - 1));
+  // 첫 단계에서의 뒤로가기:
+  //  - 등록된 구장이 있으면(=구장 추가 중) 구장주 홈으로
+  //  - 없으면 OwnerGate가 다시 온보딩으로 되돌리므로(무한 반복) 앱 종료 확인으로 받는다
+  const goBack = () => {
+    if (step > 0) { setStep((s) => s - 1); return; }
+    if (venue) { navigate("/owner/home"); return; }
+    confirmExit();
+  };
+  // 안드로이드 하드웨어 뒤로가기도 화면의 ‹ 버튼과 같게 (단계별로 되돌아감)
+  useBackInterceptor(true, goBack);
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { setStep(STEPS.indexOf("name")); return showAlert("구장명을 입력해주세요."); }

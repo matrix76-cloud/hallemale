@@ -55,7 +55,24 @@ function row(d) {
     // 지급 완료 판단 — 지급대행이 채우는 payoutId 와, 그 전 수동 이체를 어드민이 체크한 settled.
     // 둘 다 인정해야 어드민 정산 화면과 이 화면의 "받은 돈"이 어긋나지 않는다.
     settled: x.settled === true || !!s(x.payoutId),
+    // 지급 이력(회차별 입금 내역)을 만들려면 "언제 지급됐는지"가 필요하다.
+    settledAt: ymdOf(x.settledAt),
   };
+}
+
+/** Firestore Timestamp | Date | ISO → KST "YYYY-MM-DD" (없으면 "") */
+function ymdOf(v) {
+  if (!v) return "";
+  let d = null;
+  try {
+    if (typeof v?.toDate === "function") d = v.toDate();
+    else d = new Date(v);
+  } catch (e) {
+    return "";
+  }
+  if (!d || Number.isNaN(d.getTime())) return "";
+  const k = new Date(d.getTime() + 9 * 3600 * 1000);
+  return `${k.getUTCFullYear()}-${pad(k.getUTCMonth() + 1)}-${pad(k.getUTCDate())}`;
 }
 
 /**
@@ -93,9 +110,27 @@ export async function listOwnerPayments(ownerUid, { venueId = "" } = {}) {
  * 취소·환불분은 netVenueAmount 가 0(또는 감액)이라 자동으로 빠진다.
  */
 export function summarize(rows = [], today = todayKst()) {
-  const out = { gross: 0, upcoming: 0, payable: 0, paid: 0, refunded: 0, count: 0 };
+  const out = {
+    // 정산 명세 원장 — 결제총액 − 이용료 = 정산기준액, − 환불 = 정산액.
+    // 전액 환불 건도 원장에는 남아야 숫자가 맞물린다(그래서 아래 continue 위에서 더한다).
+    amount: 0,        // 손님이 낸 돈 합계
+    platformFee: 0,   // 플랫폼 이용료 합계
+    venueAmount: 0,   // 환불 전 구장 몫 합계
+    refunded: 0,      // 환불로 빠진 구장 몫
+    net: 0,           // 환불 반영 후 구장 몫 (= gross + 전액환불건 0원)
+    refundCount: 0,
+
+    // 지급 단계별 — 전액 환불 건은 여기서 제외된다
+    gross: 0, upcoming: 0, payable: 0, paid: 0, count: 0,
+  };
   for (const r of rows) {
+    out.amount += r.amount;
+    out.platformFee += r.platformFee;
+    out.venueAmount += r.venueAmount;
     out.refunded += r.refundedVenueAmount;
+    out.net += r.netVenueAmount;
+    if (r.refundedVenueAmount > 0) out.refundCount += 1;
+
     if (r.netVenueAmount <= 0) continue; // 전액 환불 — 정산에서 제외
     out.gross += r.netVenueAmount;
     out.count += 1;
@@ -110,4 +145,155 @@ export function summarize(rows = [], today = todayKst()) {
 export function filterMonth(rows = [], monthKey = "") {
   if (!monthKey) return rows;
   return rows.filter((r) => (r.date || "").startsWith(monthKey));
+}
+
+/* ============================================================
+ * 기간 — 부가세 신고 단위(반기)까지 볼 수 있어야 세무에 쓸 수 있다.
+ * ========================================================== */
+
+/** period: {type:"month"|"quarter"|"half"|"year", y, m?, q?, h?} → 표시 라벨 */
+export function periodLabel(p = {}) {
+  const y = p.y;
+  if (p.type === "year") return `${y}년`;
+  if (p.type === "half") return `${y}년 ${p.h === 2 ? "하반기" : "상반기"}`;
+  if (p.type === "quarter") return `${y}년 ${p.q}분기`;
+  return `${y}년 ${p.m}월`;
+}
+
+/** 이용일이 그 기간에 드는 결제만 */
+export function filterPeriod(rows = [], p = {}) {
+  const y = Number(p.y);
+  if (!y) return rows;
+  return rows.filter((r) => {
+    const d = String(r.date || "");
+    if (d.length < 7) return false;
+    const ry = Number(d.slice(0, 4));
+    const rm = Number(d.slice(5, 7));
+    if (ry !== y) return false;
+    if (p.type === "year") return true;
+    if (p.type === "half") return p.h === 2 ? rm >= 7 : rm <= 6;
+    if (p.type === "quarter") return Math.ceil(rm / 3) === Number(p.q);
+    return rm === Number(p.m);
+  });
+}
+
+/** 기간을 앞/뒤로 한 칸 이동 */
+export function shiftPeriod(p = {}, dir = 1) {
+  const d = dir >= 0 ? 1 : -1;
+  if (p.type === "year") return { ...p, y: p.y + d };
+  if (p.type === "half") {
+    const v = (p.h || 1) + d;
+    if (v > 2) return { ...p, y: p.y + 1, h: 1 };
+    if (v < 1) return { ...p, y: p.y - 1, h: 2 };
+    return { ...p, h: v };
+  }
+  if (p.type === "quarter") {
+    const v = (p.q || 1) + d;
+    if (v > 4) return { ...p, y: p.y + 1, q: 1 };
+    if (v < 1) return { ...p, y: p.y - 1, q: 4 };
+    return { ...p, q: v };
+  }
+  const v = (p.m || 1) + d;
+  if (v > 12) return { ...p, y: p.y + 1, m: 1 };
+  if (v < 1) return { ...p, y: p.y - 1, m: 12 };
+  return { ...p, m: v };
+}
+
+/* ============================================================
+ * 부가세 — 과세유형에 따라 계산이 다르다. 틀린 숫자를 보여주느니 안 보여준다.
+ * ========================================================== */
+
+/**
+ * "general"  일반과세자 → 공급가액/부가세 분해 가능(10% 포함가)
+ * "simple"   간이과세자 → 업종별 부가율이 달라 단순 1/11 분해가 틀린다 → 총액만
+ * "other"    학교·기관  → 과세 구조가 별개 → 총액만
+ */
+export function vatMode({ ownerType = "", taxType = "" } = {}) {
+  if (ownerType !== "business") return "other";
+  return taxType === "general" ? "general" : "simple";
+}
+
+/** 부가세 포함 금액 → { supply 공급가액, vat 부가세 } (10% 포함가 기준) */
+export function splitVat(amount) {
+  const total = n(amount);
+  if (total <= 0) return { supply: 0, vat: 0 };
+  const supply = Math.round(total / 1.1);
+  return { supply, vat: total - supply };
+}
+
+/* ============================================================
+ * 지급 이력 — "언제 얼마 입금됐는지". 누적 총액만으로는 대사(對査)가 안 된다.
+ * ========================================================== */
+
+/** 지급 완료 건을 지급일(settledAt)로 묶어 최신순 회차 목록으로 */
+export function groupPayouts(rows = []) {
+  const map = new Map();
+  for (const r of rows) {
+    if (!r.settled || r.netVenueAmount <= 0) continue;
+    const key = r.settledAt || "날짜 미기록";
+    if (!map.has(key)) map.set(key, { date: key, amount: 0, count: 0 });
+    const g = map.get(key);
+    g.amount += r.netVenueAmount;
+    g.count += 1;
+  }
+  return [...map.values()].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+/* ============================================================
+ * CSV — 세무사에게 넘길 수 있어야 정산 화면이 장부 구실을 한다.
+ * ========================================================== */
+
+const csvCell = (v) => {
+  const t = String(v ?? "");
+  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+};
+
+/** 결제 내역 → CSV 문자열 (Excel 한글 깨짐 방지용 BOM 포함) */
+export function buildSettlementCsv(rows = [], { venueName = "" } = {}) {
+  const head = [
+    "이용일", "구장", "구분", "결제번호",
+    "결제액", "플랫폼이용료", "정산기준액", "환불액", "정산액",
+    "상태", "지급일",
+  ];
+  const body = rows.map((r) => [
+    r.date,
+    r.venueName || venueName,
+    r.matchId ? `매칭${r.side === "A" || r.side === "B" ? `(${r.side}팀)` : ""}` : "단독",
+    r.paymentKey,
+    r.amount,
+    r.platformFee,
+    r.venueAmount,
+    r.refundedVenueAmount,
+    r.netVenueAmount,
+    r.netVenueAmount <= 0 ? "환불" : r.settled ? "지급완료" : "정산대기",
+    r.settledAt || "",
+  ]);
+  return `﻿${[head, ...body].map((line) => line.map(csvCell).join(",")).join("\r\n")}`;
+}
+
+/**
+ * CSV 내려받기. 앱 웹뷰는 다운로드가 막혀 있는 경우가 있어 실패하면 클립보드로 폴백한다.
+ * @returns {Promise<"download"|"clipboard"|"failed">}
+ */
+export async function exportCsv(csv, filename = "settlement.csv") {
+  try {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return "download";
+  } catch (e) {
+    try {
+      await navigator.clipboard.writeText(csv);
+      return "clipboard";
+    } catch (e2) {
+      return "failed";
+    }
+  }
 }

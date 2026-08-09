@@ -15,6 +15,7 @@ import {
   startAfter,
 } from "firebase/firestore";
 import { hasMock, mockData } from "../dev/mockBus";
+import { getOrLoad } from "../utils/dataCache";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -187,6 +188,15 @@ function getRankPerfKey(t) {
  */
 export async function getTeamRankMap({ debugLog = false } = {}) {
   if (hasMock("teamRankMap")) return mockData("teamRankMap");
+  // clubs 컬렉션 전체를 훑는 호출이라 비싸다. 앱 안 28곳에서 부르고, 홈은 한 화면에서
+  // 여러 섹션이 동시에 부른다 — 그대로 두면 진입 한 번에 전체 스캔이 여러 번 나간다.
+  // 등수는 경기 결과가 확정될 때만 바뀌므로 5분 캐시로 충분하다.
+  return getOrLoad("rank:team", () => computeTeamRankMap({ debugLog }), RANK_TTL_MS);
+}
+
+const RANK_TTL_MS = 5 * 60 * 1000;
+
+async function computeTeamRankMap({ debugLog = false } = {}) {
   const { rows } = await listAllTeamsForRanking({ debugLog });
 
   const sorted = [...rows].sort((a, b) => {

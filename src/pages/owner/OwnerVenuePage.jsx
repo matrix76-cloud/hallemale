@@ -18,9 +18,8 @@ import PriceBandsEditor from "./components/PriceBandsEditor";
 import VenuePreviewSheet from "./components/VenuePreviewSheet";
 import { FacilityIcon } from "../venue/facilityIcons";
 import { payoutHint } from "../../constants/payments";
-import { useUIActions } from "../../hooks/useUI";
 import {
-  Page, Card, ScreenTitle, SecTitle, Caption, Input, Chip, PrimaryBtn, GhostBtn, DangerBtn, C,
+  Page, Card, ScreenTitle, SecTitle, Caption, Input, Chip, GhostBtn, DangerBtn, C,
 } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerSpinner from "./components/OwnerSpinner";
@@ -80,6 +79,61 @@ const RemovePhoto = styled.button`position:absolute;top:4px;right:4px;width:22px
 const AddPhoto = styled.button`flex:0 0 auto;width:110px;height:84px;border-radius:10px;border:1.5px dashed ${C.slate200};background:${C.slate100};color:${C.slate500};font-size:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;`;
 const HiddenFile = styled.input`display:none;`;
 
+/* 자동 저장 상태 — 저장 버튼이 없으니 "지금 저장됐는지"가 항상 보여야 한다.
+   긴 페이지라 스크롤해도 따라오게 상단에 고정한다. */
+const TitleRow = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: -16px -16px 0;
+  padding: 16px 16px 10px;
+  background: ${C.slate100};
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+`;
+const SaveState = styled.div`
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: ${({ $tone }) =>
+    $tone === "error" ? C.red500 : $tone === "blocked" ? C.amber500 : $tone === "saving" ? C.violet600 : C.slate400};
+`;
+const SaveDot = styled.span`
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+`;
+const SaveBar = styled.div`
+  border-radius: 12px;
+  padding: 11px 13px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid ${({ $tone }) => ($tone === "error" ? C.red200 : C.amber400)};
+  background: ${({ $tone }) => ($tone === "error" ? "#FEF2F2" : "#FFFBEB")};
+  color: ${({ $tone }) => ($tone === "error" ? C.red500 : C.slate800)};
+`;
+const RetryBtn = styled.button`
+  flex-shrink: 0;
+  border: 1px solid ${C.red200};
+  background: #fff;
+  color: ${C.red500};
+  border-radius: 9px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+`;
+
 function courtForm(c, i) {
   return {
     id: c?.id, name: c?.name || `${i + 1}코트`, type: c?.type || "indoor",
@@ -115,8 +169,6 @@ function makeCourt(i) { return courtForm({ name: `${i + 1}코트` }, i); }
 export default function OwnerVenuePage() {
   const navigate = useNavigate();
   const { venue, loading, refresh, signOut } = useOwner();
-  const { showToast } = useUIActions() || {};
-  const toast = (m) => { if (showToast) showToast({ message: m }); };
   const fileRef = useRef(null);
   const courtFileRef = useRef(null);
   const [courts, setCourts] = useState([]);
@@ -134,7 +186,6 @@ export default function OwnerVenuePage() {
   const [latLng, setLatLng] = useState({ lat: "", lng: "" });
   const [displayMode, setDisplayMode] = useState("grouped");
   const [displayName, setDisplayName] = useState("");
-  const [saving, setSaving] = useState(false);
   const [priceTab, setPriceTab] = useState("base"); // base | weekday | date
   const [dow, setDow] = useState("mon");
   const [pdate, setPdate] = useState("");
@@ -150,8 +201,24 @@ export default function OwnerVenuePage() {
   const [courtUploading, setCourtUploading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  /* ── 자동 저장 ──────────────────────────────────────────────
+   * 저장 버튼을 없앴다. 입력이 멈추면 스스로 저장한다.
+   *  · 무엇이 바뀌었는지는 "보낼 페이로드를 직렬화한 값"으로 판단한다. 상태 개수가 20개가
+   *    넘어 의존성 배열로 관리하면 하나 빠뜨리는 순간 그 항목만 조용히 저장이 안 된다.
+   *  · 화면을 처음 채울 때(하이드레이션)는 저장하지 않는다 — 기준 스냅샷만 잡는다.
+   *  · 필수값이 비면 저장을 보류하고 이유를 띄운다. 타이핑 중에 alert 를 던지면 못 쓴다.
+   */
+  const [hydratedId, setHydratedId] = useState("");
+  const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error | blocked
+  const [saveMsg, setSaveMsg] = useState("");
+  const [savedAt, setSavedAt] = useState(0);
+  const savedSnapRef = useRef(null); // 마지막으로 저장에 성공한 스냅샷 (null = 하이드레이션 전)
+  const timerRef = useRef(null);
+  const pendingRef = useRef(null);   // 아직 안 나간 저장 — 화면을 떠날 때 흘려보낸다
+
   useEffect(() => {
     if (!venue) return;
+    savedSnapRef.current = null; // 다른 구장으로 전환 → 기준 스냅샷 다시 잡기
     setCourts((venue.courts || []).map(courtForm));
     setFacilities(venue.facilities || []);
     setSportTypes(venue.sportTypes || []);
@@ -176,7 +243,77 @@ export default function OwnerVenuePage() {
     setRefundPolicy(venue.refundPolicy || "");
     setDefaultOwnerNote(venue.defaultOwnerNote || "");
     setAutoApprove(venue.autoApprove === true);
+    // 위 setState 들과 같은 배치로 반영된다 → 아래 자동저장 훅이 "채워진 상태"를 기준으로 잡는다.
+    setHydratedId(venue.id);
   }, [venue?.id]); // eslint-disable-line
+
+  // 저장에 실제로 보낼 값. 자동저장의 변경 감지 기준도 이 하나다(둘이 갈리면 안 저장되는 항목이 생긴다).
+  const payload = useMemo(() => ({
+    name, courts: courts.map(courtPayload), facilities, displayMode, displayName,
+    sportTypes, parking, directions, keywords,
+    address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
+    photos: photos.map((p) => p.url),
+    storagePaths: photos.map((p) => p.storagePath),
+    description, phone, rules, refundPolicy, defaultOwnerNote, autoApprove,
+  }), [
+    name, courts, facilities, displayMode, displayName, sportTypes, parking, directions,
+    keywords, address, addressDetail, region, latLng, photos, description, phone, rules,
+    refundPolicy, defaultOwnerNote, autoApprove,
+  ]);
+  const snap = useMemo(() => JSON.stringify(payload), [payload]);
+
+  // 저장을 막아야 하는 값 — 채워질 때까지 보류한다(막지 않으면 반쪽짜리 구장이 노출된다).
+  const blockMsg = useMemo(() => {
+    if (!name.trim()) return "구장명을 입력하면 저장돼요.";
+    const noName = courts.find((c) => !String(c.name || "").trim());
+    if (noName) return "코트 이름을 입력하면 저장돼요.";
+    // 1인 요금제는 최소 인원이 하한가 역할을 한다 — 비워두면 1명이 그 시간을 통째로 잠근다.
+    const noMin = courts.find((c) => c.priceMode === "perPerson" && !(Number(c.minHeadcount) >= 1));
+    if (noMin) return `${noMin.name || "코트"}의 최소 인원을 정하면 저장돼요. 정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓰게 돼요.`;
+    const badMax = courts.find((c) => c.priceMode === "perPerson" && Number(c.maxHeadcount) > 0 && Number(c.maxHeadcount) < Number(c.minHeadcount));
+    if (badMax) return `${badMax.name || "코트"}의 정원이 최소 인원보다 적어요.`;
+    return "";
+  }, [name, courts]);
+
+  useEffect(() => {
+    if (!venue?.id || hydratedId !== venue.id) return;
+    if (savedSnapRef.current === null) { savedSnapRef.current = snap; return; } // 하이드레이션 기준점
+    if (savedSnapRef.current === snap) return; // 바뀐 게 없다
+
+    if (blockMsg) { setSaveState("blocked"); setSaveMsg(blockMsg); return; }
+
+    setSaveState("saving");
+    setSaveMsg("");
+    pendingRef.current = { id: venue.id, data: payload, snap };
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      const p = pendingRef.current;
+      if (!p) return;
+      updateMyVenue(p.id, p.data, { asOwner: true })
+        .then(async () => {
+          // 저장이 도는 동안 또 고쳤다면 pendingRef 는 이미 다음 것이다 —
+          // 무조건 null 로 밀면 그 다음 저장이 통째로 사라진다.
+          if (pendingRef.current === p) pendingRef.current = null;
+          savedSnapRef.current = p.snap;
+          setSavedAt(Date.now());
+          setSaveState("saved");
+          await refresh();
+        })
+        .catch((e) => {
+          setSaveState("error");
+          setSaveMsg(e?.message || "저장에 실패했어요.");
+        });
+    }, 900);
+
+    return () => clearTimeout(timerRef.current);
+  }, [snap, blockMsg, hydratedId, venue?.id]); // eslint-disable-line
+
+  // 화면을 빨리 떠나도 대기 중인 저장은 나가게 한다.
+  useEffect(() => () => {
+    clearTimeout(timerRef.current);
+    const p = pendingRef.current;
+    if (p) updateMyVenue(p.id, p.data, { asOwner: true }).catch(() => {});
+  }, []);
 
   if (loading) return <OwnerSpinner label="불러오는 중…" />;
   if (!venue) return <Page><VenueGateNotice venue={null} refresh={refresh} /></Page>;
@@ -208,7 +345,7 @@ export default function OwnerVenuePage() {
   const delCaution = (i) => setCourt({ cautions: court.cautions.filter((_, idx) => idx !== i) });
 
   // 사진 업로드/삭제 (등록 페이지와 동일한 흐름 — uploadVenueImage 재사용)
-  const pickPhoto = () => { if (!uploading && !saving) fileRef.current?.click(); };
+  const pickPhoto = () => { if (!uploading) fileRef.current?.click(); };
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -227,7 +364,7 @@ export default function OwnerVenuePage() {
   // 업로드 중에 다른 코트로 넘어가도 처음 고른 코트에 붙도록 대상 인덱스를 고정한다.
   const courtPhotoIdx = useRef(0);
   const pickCourtPhoto = () => {
-    if (courtUploading || saving) return;
+    if (courtUploading) return;
     courtPhotoIdx.current = sel;
     courtFileRef.current?.click();
   };
@@ -246,42 +383,27 @@ export default function OwnerVenuePage() {
   };
   const removeCourtPhoto = (i) => setCourt({ photos: (court.photos || []).filter((_, idx) => idx !== i) });
 
-  const save = async () => {
-    if (!name.trim()) { showAlert("구장명을 입력해 주세요."); return; }
-    if (courts.some((c) => !c.name.trim())) { showAlert("코트 이름을 입력해 주세요."); return; }
-    // 1인 요금제는 최소 인원이 하한가 역할을 한다 — 비워두면 1명 예약이 그 시간을 통째로 잠근다.
-    const noMin = courts.findIndex((c) => c.priceMode === "perPerson" && !(Number(c.minHeadcount) >= 1));
-    if (noMin >= 0) {
-      setSel(noMin);
-      setPriceTab("base");
-      showAlert(`${courts[noMin].name || "코트"}는 1인 요금제예요.\n최소 인원을 정해주세요. 정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓰게 돼요.`);
-      return;
-    }
-    const badMax = courts.findIndex((c) => c.priceMode === "perPerson" && Number(c.maxHeadcount) > 0 && Number(c.maxHeadcount) < Number(c.minHeadcount));
-    if (badMax >= 0) {
-      setSel(badMax);
-      setPriceTab("base");
-      showAlert(`${courts[badMax].name || "코트"}의 정원이 최소 인원보다 적어요.`);
-      return;
-    }
-    setSaving(true);
+  // 저장 실패 시 수동 재시도 — 자동저장은 값이 또 바뀌어야 다시 돈다.
+  const retrySave = async () => {
+    const p = pendingRef.current || { id: venue.id, data: payload, snap };
+    setSaveState("saving");
+    setSaveMsg("");
     try {
-      await updateMyVenue(venue.id, {
-        name, courts: courts.map(courtPayload), facilities, displayMode, displayName,
-        sportTypes, parking, directions, keywords,
-        address, addressDetail, region, lat: latLng.lat, lng: latLng.lng,
-        photos: photos.map((p) => p.url),
-        storagePaths: photos.map((p) => p.storagePath),
-        description, phone, rules, refundPolicy, defaultOwnerNote, autoApprove,
-      }, { asOwner: true });
+      await updateMyVenue(p.id, p.data, { asOwner: true });
+      if (pendingRef.current === p) pendingRef.current = null;
+      savedSnapRef.current = p.snap;
+      setSavedAt(Date.now());
+      setSaveState("saved");
       await refresh();
-      toast("구장정보를 저장했어요.");
     } catch (e) {
-      // 조용히 넘기면 저장이 안 된 줄 모르고 화면을 떠난다.
-      showAlert(e?.message || "저장에 실패했어요. 잠시 후 다시 시도해주세요.");
-    } finally { setSaving(false); }
+      setSaveState("error");
+      setSaveMsg(e?.message || "저장에 실패했어요.");
+    }
   };
 
+  const savedAtLabel = savedAt
+    ? new Date(savedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+    : "";
 
   const configuredDates = Object.keys(court?.priceOverrides || {}).sort();
 
@@ -300,7 +422,24 @@ export default function OwnerVenuePage() {
 
   return (
     <Page>
-      <ScreenTitle>구장정보</ScreenTitle>
+      <TitleRow>
+        <ScreenTitle>구장정보</ScreenTitle>
+        <SaveState $tone={saveState}>
+          <SaveDot />
+          {saveState === "saving" ? "저장 중…"
+            : saveState === "error" ? "저장 실패"
+            : saveState === "blocked" ? "저장 보류"
+            : saveState === "saved" ? `저장됨${savedAtLabel ? ` · ${savedAtLabel}` : ""}`
+            : "자동 저장"}
+        </SaveState>
+      </TitleRow>
+
+      {(saveState === "blocked" || saveState === "error") && (
+        <SaveBar $tone={saveState}>
+          <span>{saveMsg}</span>
+          {saveState === "error" && <RetryBtn type="button" onClick={retrySave}>다시 시도</RetryBtn>}
+        </SaveBar>
+      )}
 
       <GhostBtn type="button" onClick={() => setPreviewOpen(true)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
         <LuEye size={16} /> 상세페이지 미리보기
@@ -621,7 +760,9 @@ export default function OwnerVenuePage() {
         )}
       </Card>
 
-      <PrimaryBtn type="button" onClick={save} disabled={saving}>{saving ? "저장 중…" : "구장정보 저장"}</PrimaryBtn>
+      <Caption style={{ textAlign: "center" }}>
+        입력하면 자동으로 저장돼요. 저장 상태는 화면 위에서 확인할 수 있어요.
+      </Caption>
 
       <div style={{ height: 8 }} />
 

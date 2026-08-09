@@ -10,6 +10,8 @@ import { updateUserProfile } from "../../services/userService";
 import { showAlert } from "../../utils/appDialog";
 import { track } from "../../utils/analytics";
 import { WizardTopProgress } from "../../components/wizard/SignupWizard";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { useExitConfirm } from "../../hooks/useExitConfirm";
 
 // "20030207" → "2003-02-07" (실재하지 않는 날짜·미래·1920년 이전이면 null)
 function parseBirth8(s) {
@@ -34,6 +36,10 @@ export default function SignupBasicInfoPage() {
   const [birth8, setBirth8] = useState(String(userDoc?.birthDate || "").replace(/\D/g, "").slice(0, 8));
   const [gender, setGender] = useState(String(userDoc?.gender || ""));
   const [busy, setBusy] = useState(false);
+
+  // 게이트 화면 — 뒤로 갈 곳이 없으므로 하드웨어 뒤로가기는 앱 종료 확인으로 받는다.
+  const confirmExit = useExitConfirm();
+  useBackInterceptor(true, confirmExit);
 
   const birthDate = useMemo(() => parseBirth8(birth8), [birth8]);
   const birthInvalid = birth8.length === 8 && !birthDate;

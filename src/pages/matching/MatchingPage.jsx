@@ -294,6 +294,9 @@ export default function MatchingPage() {
     <Wrap>
       <Inner>
         <QuickMatchHero
+          myTeam={effMyTeam}
+          myRank={rankMap?.get?.(String(activeTeamId)) || null}
+          opponentCount={(sourceOpponents || []).length}
           onStart={() => {
             if (!activeTeamId) {
               showToast({ message: "팀을 먼저 만들어야 매칭할 수 있어요." });

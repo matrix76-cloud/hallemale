@@ -6,7 +6,7 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiStar, FiMapPin, FiUser, FiShield, FiBarChart2, FiClock, FiImage, FiFlag, FiSlash, FiPlay, FiX } from "react-icons/fi";
+import { FiStar, FiMapPin, FiUser, FiShield, FiBarChart2, FiClock, FiImage, FiFlag, FiSlash, FiPlay, FiX, FiTrendingUp, FiAward } from "react-icons/fi";
 
 import { images } from "../../utils/imageAssets";
 import { getPlayerProfile } from "../../services/playerService";
@@ -24,7 +24,8 @@ import PlayerHealthSection from "../../components/player/PlayerHealthSection";
 import PlayerMonthlyActivitySection from "../../components/player/PlayerMonthlyActivitySection";
 import EmptyState from "../../components/common/EmptyState";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
-import TeamStatsSection from "../../components/team/TeamStatsSection";
+import TeamRecordSection from "../../components/team/TeamRecordSection";
+import PlayerImpactSection from "../../components/player/PlayerImpactSection";
 import TeamMatchHistorySection from "../../components/team/TeamMatchHistorySection";
 import { loadPlayerFinishedMatches, loadPlayerMonthlyActivity } from "../../services/matchRoomService";
 
@@ -354,28 +355,109 @@ const AboutText = styled.p`
   white-space: pre-line;
 `;
 
-const MetaGrid = styled.div`
-  margin-top: 10px;
+/* 히어로 하단 요약 지표 */
+const SummaryCard = styled.div`
+  margin-top: 4px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 12px;
-  font-size: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  padding: 13px 4px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+`;
+
+const SummaryCell = styled.div`
+  min-width: 0;
+  padding: 0 6px;
+  text-align: center;
+
+  & + & {
+    border-left: 1px solid ${({ theme }) => theme.colors.divider};
+  }
+`;
+
+const SummaryLabel = styled.div`
+  font-size: 11.5px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const MetaItem = styled.div`
+const SummaryValue = styled.div`
+  margin-top: 5px;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  & small {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.textWeak};
+  }
+`;
+
+/* 키·값 목록 (선수 상세 정보) */
+const KvList = styled.div`
+  margin-top: 2px;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
 `;
 
-const MetaLabel = styled.span`
+const KvRow = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+
+  & + & {
+    border-top: 1px solid ${({ theme }) => theme.colors.divider};
+  }
+`;
+
+const KvKey = styled.span`
+  flex-shrink: 0;
+  font-size: 13px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const MetaValue = styled.span`
+const KvVal = styled.span`
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textStrong};
+  text-align: right;
+`;
+
+/* 경력 */
+const CareerList = styled.ul`
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+`;
+
+const CareerItem = styled.li`
+  position: relative;
+  padding-left: 12px;
+  font-size: 13px;
+  line-height: 1.5;
   color: ${({ theme }) => theme.colors.textNormal};
-  font-weight: 500;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.textWeak};
+  }
 `;
 
 
@@ -1010,15 +1092,19 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
 
   const avatarSrc = player.photoUrl || player.avatarUrl || "";
 
-  // 라인업 참가 경기 기준 전적 (TeamStatsSection stats 형태로 가공)
+  // 라인업 참가 경기 기준 전적 — 무효(void) 경기는 승패에 반영하지 않는다
   // early return 이후 위치라 hook(useMemo) 대신 일반 계산
+  const ratedMatches = (playerMatches || []).filter(
+    (m) =>
+      String(m?.resultState || "") !== "void" && m?.myScore != null && m?.oppScore != null
+  );
+
   const playerStats = (() => {
     let wins = 0;
     let losses = 0;
     let draws = 0;
-    const recentResults = []; // 최신순(rooms가 이미 최신순)
-    (playerMatches || []).forEach((m) => {
-      if (m?.myScore == null || m?.oppScore == null) return;
+    const recentResults = []; // 최신순(rooms가 이미 최신순) — 전체 보관, 표시는 컴포넌트가 자름
+    ratedMatches.forEach((m) => {
       if (m.myScore > m.oppScore) {
         wins += 1;
         recentResults.push("W");
@@ -1037,9 +1123,18 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
       losses,
       draws,
       winRate: totalMatches > 0 ? wins / totalMatches : 0,
-      recentResults: recentResults.slice(0, 5),
+      recentResults,
     };
   })();
+
+  // 랭킹 승점 — rankingService.calcPoints와 같은 식(승5·무2·패1)
+  const rankPoints = playerStats.wins * 5 + playerStats.draws * 2 + playerStats.losses * 1;
+  const winRatePercent =
+    playerStats.totalMatches > 0 ? Math.round(playerStats.winRate * 100) : 0;
+
+  const careers = (Array.isArray(player.careers) ? player.careers : [])
+    .map((c) => String(c || "").trim())
+    .filter(Boolean);
 
   const teamLogoSrc = player.clubLogoUrl && player.clubLogoUrl !== images.logo ? player.clubLogoUrl : images.teamPlaceholder;
 
@@ -1094,8 +1189,8 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                 </HeroTitleBlock>
               </HeroTopBlock>
 
+              {/* 랭킹은 아래 요약 카드가 담당 — 히어로에는 포지션·실력·지역만 */}
               <HeroChipRow>
-                {playerRank ? <HeroChip>랭킹 {playerRank}위</HeroChip> : null}
                 <HeroChip>{positionLabel}</HeroChip>
                 <SkillChip $skill={player.skillLevel}>{skillLabel}</SkillChip>
                 {player.region && (
@@ -1119,6 +1214,33 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
         </HeroWrap>
 
         <ContentWrap>
+          <SummaryCard>
+            <SummaryCell>
+              <SummaryLabel>랭킹</SummaryLabel>
+              <SummaryValue>{playerRank ? <>{playerRank}<small>위</small></> : "-"}</SummaryValue>
+            </SummaryCell>
+            <SummaryCell>
+              <SummaryLabel>전적</SummaryLabel>
+              <SummaryValue>
+                {playerStats.totalMatches > 0
+                  ? <>{playerStats.wins}<small>승</small> {playerStats.losses}<small>패</small></>
+                  : "-"}
+              </SummaryValue>
+            </SummaryCell>
+            <SummaryCell>
+              <SummaryLabel>승률</SummaryLabel>
+              <SummaryValue>
+                {playerStats.totalMatches > 0 ? <>{winRatePercent}<small>%</small></> : "-"}
+              </SummaryValue>
+            </SummaryCell>
+            <SummaryCell>
+              <SummaryLabel>승점</SummaryLabel>
+              <SummaryValue>
+                {playerStats.totalMatches > 0 ? <>{rankPoints}<small>점</small></> : "-"}
+              </SummaryValue>
+            </SummaryCell>
+          </SummaryCard>
+
           <Section>
             <SectionHeaderRow>
               <SectionHeaderLeft>
@@ -1129,31 +1251,63 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
               </SectionHeaderLeft>
             </SectionHeaderRow>
 
-            <MetaGrid>
-              <MetaItem>
-                <MetaLabel>포지션</MetaLabel>
-                <MetaValue>{positionLabel}</MetaValue>
-              </MetaItem>
-              <MetaItem>
-                <MetaLabel>실력</MetaLabel>
-                <MetaValue>{skillLabel}</MetaValue>
-              </MetaItem>
-              {player.heightCm && (
-                <MetaItem>
-                  <MetaLabel>키</MetaLabel>
-                  <MetaValue>{player.heightCm}cm</MetaValue>
-                </MetaItem>
-              )}
-              {player.weightKg && (
-                <MetaItem>
-                  <MetaLabel>체중</MetaLabel>
-                  <MetaValue>{player.weightKg}kg</MetaValue>
-                </MetaItem>
-              )}
-            </MetaGrid>
-
             {player.intro && <AboutText>{player.intro}</AboutText>}
+
+            <KvList>
+              <KvRow>
+                <KvKey>포지션</KvKey>
+                <KvVal>{positionLabel}</KvVal>
+              </KvRow>
+              <KvRow>
+                <KvKey>실력</KvKey>
+                <KvVal>{skillLabel}</KvVal>
+              </KvRow>
+              {age ? (
+                <KvRow>
+                  <KvKey>나이</KvKey>
+                  <KvVal>{age}세</KvVal>
+                </KvRow>
+              ) : null}
+              {player.heightCm || player.weightKg ? (
+                <KvRow>
+                  <KvKey>피지컬</KvKey>
+                  <KvVal>
+                    {[
+                      player.heightCm ? `${player.heightCm}cm` : "",
+                      player.weightKg ? `${player.weightKg}kg` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </KvVal>
+                </KvRow>
+              ) : null}
+              {player.region ? (
+                <KvRow>
+                  <KvKey>활동 지역</KvKey>
+                  <KvVal>{player.region}</KvVal>
+                </KvRow>
+              ) : null}
+            </KvList>
           </Section>
+
+          {careers.length > 0 ? (
+            <Section>
+              <SectionHeaderRow>
+                <SectionHeaderLeft>
+                  <SectionIconCircle>
+                    <FiAward size={18} />
+                  </SectionIconCircle>
+                  <SectionTitleText>경력</SectionTitleText>
+                </SectionHeaderLeft>
+              </SectionHeaderRow>
+
+              <CareerList>
+                {careers.map((c, idx) => (
+                  <CareerItem key={`${idx}-${c}`}>{c}</CareerItem>
+                ))}
+              </CareerList>
+            </Section>
+          ) : null}
 
           {player.clubId ? (
             <Section>
@@ -1198,7 +1352,7 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
             </Section>
           ) : null}
 
-          {/* 전적 카드 (팀 프로필과 동일 — 참가 경기 기준) */}
+          {/* 전적 카드 (팀 프로필과 동일 — 라인업 참가 경기 기준) */}
           <Section>
             <SectionHeaderRow>
               <SectionHeaderLeft>
@@ -1207,10 +1361,48 @@ export default function PlayerProfilePage({ playerId: propPlayerId, embed = fals
                 </SectionIconCircle>
                 <SectionTitleText>전적</SectionTitleText>
               </SectionHeaderLeft>
+              <SectionMeta>라인업 참가 경기 기준</SectionMeta>
             </SectionHeaderRow>
 
-            <TeamStatsSection stats={playerStats} />
+            {playerMatchesLoading ? (
+              <StateWrap>불러오는 중...</StateWrap>
+            ) : (
+              <TeamRecordSection
+                stats={playerStats}
+                matches={ratedMatches}
+                recentResults={playerStats.recentResults}
+                forLabel="팀 평균 득점"
+                againstLabel="팀 평균 실점"
+                scoreNote={`출전한 ${ratedMatches.length}경기에서 팀이 기록한 평균 (무효 경기 제외)`}
+              />
+            )}
           </Section>
+
+          {/* 팀 기여도 — 출전/미출전 경기의 팀 승률 비교 */}
+          {player.clubId ? (
+            <Section>
+              <SectionHeaderRow>
+                <SectionHeaderLeft>
+                  <SectionIconCircle>
+                    <FiTrendingUp size={18} />
+                  </SectionIconCircle>
+                  <SectionTitleText>팀 기여도</SectionTitleText>
+                </SectionHeaderLeft>
+                <SectionMeta>전체 기간</SectionMeta>
+              </SectionHeaderRow>
+
+              {playerMatchesLoading ? (
+                <StateWrap>불러오는 중...</StateWrap>
+              ) : (
+                <PlayerImpactSection
+                  games={playerActivity.games}
+                  myUid={String(player?.uid || player?.userId || playerId || "").trim()}
+                  playerName={String(player?.nickname || player?.name || "").trim()}
+                  isSelf={isSelf}
+                />
+              )}
+            </Section>
+          ) : null}
 
           {/* 경기 기록 카드 (팀 프로필과 동일 — 라인업 참가 경기만) */}
           <Section>

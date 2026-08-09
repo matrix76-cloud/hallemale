@@ -132,6 +132,8 @@ export async function getPlayerProfile(playerId) {
 
     heightCm: typeof u.heightCm === "number" ? u.heightCm : null,
     weightKg: typeof u.weightKg === "number" ? u.weightKg : null,
+    // 화면에서 나이 계산에 쓴다 — 빠져 있어서 "N세"가 한 번도 표시되지 않았다
+    birthYear: typeof u.birthYear === "number" ? u.birthYear : null,
 
     intro: typeof u.intro === "string" ? u.intro : "",
     careers: Array.isArray(u.careers) ? u.careers : [],

@@ -5,6 +5,7 @@
 
 import React, { useEffect } from "react";
 import styled, { keyframes } from "styled-components";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 export default function MatchConfirmCelebration({
   open,
@@ -17,6 +18,9 @@ export default function MatchConfirmCelebration({
     const t = setTimeout(() => onClose && onClose(), 2600);
     return () => clearTimeout(t);
   }, [open, onClose]);
+
+  // 안드로이드 하드웨어 뒤로가기: 화면을 벗어나지 말고 이 오버레이부터 닫는다.
+  useBackInterceptor(open, () => onClose && onClose());
 
   if (!open) return null;
 

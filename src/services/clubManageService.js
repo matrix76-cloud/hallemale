@@ -214,6 +214,30 @@ function isTeamless(v) {
 }
 
 /**
+ * ✅ 표시 이름 (SSOT)
+ * - 닉네임은 프로필 수정에서만 채워지는 선택 필드라 대부분 비어 있다.
+ *   카카오 가입자는 카카오 프로필 이름이 displayName 에만 들어온다.
+ *   → counterpartService.pickName 과 동일한 우선순위로 실제 보이는 이름을 뽑는다.
+ * - realName(기본정보 실명)은 다른 사용자에게 노출하지 않는다.
+ */
+function pickDisplayName(v) {
+  return (
+    String(v?.nickname || "").trim() ||
+    String(v?.name || "").trim() ||
+    String(v?.displayName || "").trim()
+  );
+}
+
+/**
+ * ✅ 표시 아바타 (SSOT)
+ * - 카카오 가입자의 프로필 사진은 photoURL 로만 들어오고 avatarUrl 은 비어 있다.
+ *   (avatarUrl 은 프로필 수정에서 직접 올려야 채워지는 필드)
+ */
+function pickAvatarUrl(v) {
+  return String(v?.avatarUrl || "").trim() || String(v?.photoURL || "").trim();
+}
+
+/**
  * ✅ 팀 미소속 후보 로드 (내부 헬퍼)
  * - ⚠️ where("activeTeamId","==","") 는 activeTeamId 가 null/미설정인 유저를 놓친다.
  *   (팀에 한 번도 가입 안 한 유저는 이 필드가 아예 없는 경우가 많음)
@@ -228,7 +252,8 @@ async function loadTeamlessCandidates({ excludeUid, cap = 500 }) {
     const uid = d.id;
     if (excludeUid && uid === excludeUid) return;
     if (!isTeamless(v)) return; // ✅ 팀 있는 유저 제외 (null/미설정도 정확히 판정)
-    list.push({ uid, id: uid, ...v });
+    // nickname/avatarUrl 을 표시값으로 정규화 → 목록/검색/초대 스냅샷이 같은 값을 쓴다
+    list.push({ uid, id: uid, ...v, nickname: pickDisplayName(v), avatarUrl: pickAvatarUrl(v) });
   });
   list.sort((a, b) =>
     String(a.nickname || "").localeCompare(String(b.nickname || ""), "ko")

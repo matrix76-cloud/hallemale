@@ -10,6 +10,7 @@ import styled from "styled-components";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiChevronLeft, FiList, FiMap, FiCheckCircle, FiHeart, FiInfo } from "react-icons/fi";
 import { listBookableVenues, listReservations, listBlocks, courtUnitPrice, isPerPerson } from "../../services/ownerVenueService";
+import { peekCache, loadCached } from "../../utils/dataCache";
 import Spinner from "../../components/common/Spinner";
 import { FacilityIcon } from "./facilityIcons";
 import { track } from "../../utils/analytics";
@@ -18,6 +19,8 @@ import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { useAuth } from "../../hooks/useAuth";
 import { setFavoriteVenue } from "../../services/favoriteService";
 import { calcDisplayPrice, DISPLAY_PRICE_NOTE } from "../../constants/payments";
+
+const VENUE_LIST_CACHE_KEY = "venue:bookableList";
 
 const toStr = (v) => String(v || "").trim();
 // 가장 싼 코트의 단가. 인원제 코트는 "1인 시간당"이라 뜻이 달라져 모드도 함께 돌려준다.
@@ -116,8 +119,12 @@ export default function VenueListPage() {
   const matchId = params.get("match") || "";
   const suffix = matchId ? `?match=${matchId}` : "";
 
-  const [loading, setLoading] = useState(true);
-  const [venues, setVenues] = useState([]);
+  // 예약 가능한 구장 목록은 자주 안 바뀌는데, 지도↔목록·상세를 오갈 때마다 다시 받아
+  // 매번 스피너가 떴다. 캐시가 있으면 즉시 그리고 뒤에서 갱신한다.
+  const cachedVenues = peekCache(VENUE_LIST_CACHE_KEY);
+
+  const [loading, setLoading] = useState(!cachedVenues);
+  const [venues, setVenues] = useState(cachedVenues?.data || []);
   const [q, setQ] = useState("");
   const [view, setView] = useState("map"); // "map" | "list"
   const [selectedId, setSelectedId] = useState("");
@@ -179,10 +186,15 @@ export default function VenueListPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    listBookableVenues()
+    const hadCache = !!peekCache(VENUE_LIST_CACHE_KEY);
+    if (!hadCache) setLoading(true);
+    loadCached(VENUE_LIST_CACHE_KEY, listBookableVenues)
       .then((rows) => { if (!cancelled) setVenues(Array.isArray(rows) ? rows : []); })
-      .catch((e) => { console.warn("[VenueListPage] load failed", e); if (!cancelled) setVenues([]); })
+      .catch((e) => {
+        console.warn("[VenueListPage] load failed", e);
+        // 캐시로 이미 그려 뒀으면 갱신 실패로 목록을 비우지 않는다.
+        if (!cancelled && !hadCache) setVenues([]);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
@@ -768,7 +780,7 @@ const CardWrap = styled.div`
 const CardPhoto = styled.div`
   position: relative; width: 100%; aspect-ratio: 2 / 1; background: #1b1f27; overflow: hidden;
 `;
-const CardPhotoImg = styled.img`width: 100%; height: 100%; object-fit: cover; display: block;`;
+const CardPhotoImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`width: 100%; height: 100%; object-fit: cover; display: block;`;
 const CardNoImg = styled.div`
   width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   color: rgba(255,255,255,0.4); font-size: 12px;

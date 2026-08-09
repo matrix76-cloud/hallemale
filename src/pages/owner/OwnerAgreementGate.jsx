@@ -14,11 +14,17 @@ import { saveOwnerConsents } from "../../services/userService";
 import { ownerTypeOption } from "../../constants/ownerType";
 import { C } from "./components/od";
 import { images } from "../../utils/imageAssets";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { useExitConfirm } from "../../hooks/useExitConfirm";
 
 export default function OwnerAgreementGate({ ownerType }) {
   const navigate = useNavigate();
   const { uid, refresh, signOut } = useOwner();
   const typeOpt = ownerTypeOption(ownerType);
+
+  // 게이트 화면 — 뒤로 가도 같은 게이트가 다시 뜬다. 앱 종료 확인으로 받는다.
+  const confirmExit = useExitConfirm();
+  useBackInterceptor(true, confirmExit);
 
   const [adult, setAdult] = useState(false);
   const [terms, setTerms] = useState(false);

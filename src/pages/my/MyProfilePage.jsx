@@ -17,6 +17,7 @@ import { shareApp } from "../../utils/share";
 import InfoDialog from "../../components/common/InfoDialog";
 import Spinner from "../../components/common/Spinner";
 import { leaveClub, deleteClubAndCleanup } from "../../services/clubManageService";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 // ✅ 팀장 이임 서비스
 import {
@@ -325,6 +326,11 @@ export default function MyProfilePage() {
     setSelectedTargetUid("");
     setTransferMembers([]);
   };
+
+  // 안드로이드 하드웨어 뒤로가기: 프로필 유도 카드 / 팀장 이임 모달이 떠 있으면 그것부터 닫는다.
+  // (등록 순서가 LIFO라 나중에 등록한 이임 모달이 위 — 둘 다 떠 있으면 모달이 먼저 닫힌다)
+  useBackInterceptor(needSetup && !setupDismissed, () => setSetupDismissed(true));
+  useBackInterceptor(transferOpen, closeTransferLeader);
 
   const runTransferLeader = async () => {
     if (!uid || !teamId) return;

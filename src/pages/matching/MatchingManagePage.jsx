@@ -11,6 +11,7 @@ import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
 import { MIN_TEAM_MEMBERS, requiredMembersForMatchSize } from "../../utils/constants";
 import { listMatchInboxForClub } from "../../services/matchingInboxService";
+import { peekCache, loadCached, invalidateCache } from "../../utils/dataCache";
 import {
   acceptMatchRequest,
   rejectMatchRequest,
@@ -21,6 +22,7 @@ import { getTeamRankMap } from "../../services/teamRankingService";
 import PositionChip from "../../components/common/PositionChip";
 import EmptyState from "../../components/common/EmptyState";
 import { FiInfo } from "react-icons/fi";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 /* ========================= helpers ========================= */
 
@@ -902,8 +904,13 @@ export default function MatchingManagePage() {
   const { firebaseUser, userDoc } = useAuth();
   const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
 
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState([]);
+  // 매칭관리는 탭이라 자주 드나든다. 캐시가 있으면 스피너 없이 즉시 그리고, 아래 reload 가
+  // silent 모드로 조용히 갱신한다. (기존에는 진입할 때마다 300건 재조회 + 전체 스피너)
+  const cacheKey = myClubId ? `matchInbox:${myClubId}` : "";
+  const cachedInbox = peekCache(cacheKey);
+
+  const [loading, setLoading] = useState(!cachedInbox);
+  const [items, setItems] = useState(cachedInbox?.data || []);
   const [err, setErr] = useState("");
   const [busyKey, setBusyKey] = useState("");
 
@@ -924,7 +931,12 @@ export default function MatchingManagePage() {
     try {
       if (!silent) setLoading(true);
       setErr("");
-      const list = await listMatchInboxForClub({ clubId: myClubId, limitCount: 300 });
+      // 수락/거절/취소 직후의 reload 는 silent 가 아니다 — 그때는 진행 중이던 조회에
+      // 편승하지 않도록 캐시를 먼저 버려서 반드시 새 결과를 받는다.
+      if (!silent) invalidateCache(`matchInbox:${myClubId}`);
+      const list = await loadCached(`matchInbox:${myClubId}`, () =>
+        listMatchInboxForClub({ clubId: myClubId, limitCount: 300 })
+      );
       setItems(Array.isArray(list) ? list : []);
     } catch (e) {
       // 백그라운드(silent) 갱신 실패 시 기존 목록 유지
@@ -938,7 +950,8 @@ export default function MatchingManagePage() {
   };
 
   useEffect(() => {
-    reload();
+    // 캐시로 이미 그려 뒀으면 갱신은 조용히 — 화면을 스피너로 덮지 않는다.
+    reload({ silent: !!peekCache(`matchInbox:${myClubId}`) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myClubId]);
 
@@ -1097,6 +1110,9 @@ export default function MatchingManagePage() {
     setToRoster([]);
     setRosterLoading(false);
   };
+
+  // 안드로이드 하드웨어 뒤로가기: 라인업 모달이 떠 있으면 홈으로 나가기 전에 모달부터 닫는다.
+  useBackInterceptor(lineupModalOpen, closeLineupModal);
 
   // 매칭 신청/수락 관리는 팀장만. 팀원은 경기 종료 후 평점·리뷰만 가능.
   if (!isTeamLeader) {

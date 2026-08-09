@@ -7,17 +7,17 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiStar, FiInfo, FiBarChart2, FiClock, FiUsers, FiImage, FiFlag, FiCheck, FiMessageSquare, FiPlay, FiX } from "react-icons/fi";
+import { FiStar, FiInfo, FiBarChart2, FiClock, FiUsers, FiImage, FiFlag, FiCheck, FiMessageSquare, FiPlay, FiX, FiTarget } from "react-icons/fi";
 import { TbBallBasketball } from "react-icons/tb";
 
-import TeamStatsSection from "../../components/team/TeamStatsSection";
+import TeamRecordSection from "../../components/team/TeamRecordSection";
+import TeamScoutingSection from "../../components/team/TeamScoutingSection";
 import TeamMembersSection from "../../components/team/TeamMembersSection";
 import { getTeamProfile } from "../../services/teamService";
 import { getTeamRankMap } from "../../services/teamRankingService";
 import { getPlayerRankMap } from "../../services/rankingService";
 import { images } from "../../utils/imageAssets";
 import TeamAvatarPlaceholder from "../../components/common/TeamAvatarPlaceholder";
-import { WinChip, DrawChip, LoseChip } from "../../components/common/ResultChip";
 import Spinner from "../../components/common/Spinner";
 
 import { useAuth } from "../../hooks/useAuth";
@@ -463,60 +463,122 @@ const AboutText = styled.p`
   line-height: 1.5;
 `;
 
-const AboutMetaList = styled.div`
-  margin-top: 9px;
+/* 키·값 목록 (팀 소개 상세) */
+const KvList = styled.div`
+  margin-top: ${({ $gap }) => ($gap ? "12px" : "2px")};
   display: flex;
   flex-direction: column;
-  gap: 4px;
 `;
 
-const AboutMetaRow = styled.div`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textNormal};
-`;
-
-const RecentResultsRow = styled.div`
-  margin-top: 11px;
-  padding-top: 9px;
-  border-top: 1px dashed ${({ theme }) => theme.colors.border};
+const KvRow = styled.div`
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  padding: 9px 0;
+
+  & + & {
+    border-top: 1px solid ${({ theme }) => theme.colors.divider};
+  }
 `;
 
-const RecentResultsLabel = styled.span`
+const KvKey = styled.span`
+  flex-shrink: 0;
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.textNormal};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const RecentDots = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`;
-
-const RepValue = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`;
-
-const RepStars = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  color: ${({ theme }) => theme.colors.primary};
-`;
-
-const RepNum = styled.span`
+const KvVal = styled.span`
+  min-width: 0;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: ${({ theme }) => theme.colors.textStrong};
+  text-align: right;
 `;
 
-const RepCount = styled.span`
-  font-size: 11px;
+/* 히어로 하단 요약 지표 */
+const SummaryCard = styled.div`
+  margin-top: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 8px;
+  padding: 13px 4px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+`;
+
+const SummaryCell = styled.div`
+  min-width: 0;
+  padding: 0 6px;
+  text-align: center;
+
+  & + & {
+    border-left: 1px solid ${({ theme }) => theme.colors.divider};
+  }
+`;
+
+const SummaryLabel = styled.div`
+  font-size: 11.5px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const SummaryValue = styled.div`
+  margin-top: 5px;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: ${({ theme }) => theme.colors.textStrong};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  & small {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.textWeak};
+  }
+`;
+
+/* 리뷰 별점 분포 */
+const RatingDist = styled.div`
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid ${({ theme }) => theme.colors.divider};
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+`;
+
+const DistRow = styled.div`
+  display: grid;
+  grid-template-columns: 26px 1fr 24px;
+  align-items: center;
+  gap: 8px;
+`;
+
+const DistLabel = styled.span`
+  font-size: 11.5px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const DistTrack = styled.div`
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "#eef0f4"};
+`;
+
+const DistFill = styled.div`
+  height: 100%;
+  border-radius: 999px;
+  width: ${({ $pct }) => `${$pct}%`};
+  background: #f5a623;
+`;
+
+const DistCount = styled.span`
+  font-size: 11.5px;
+  text-align: right;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
@@ -1249,9 +1311,9 @@ useEffect(() => {
   const introUpdated = formatUpdateDate(team?.updatedAt || team?.createdAt);
   const statsUpdated = formatUpdateDate(team?.stats?.updatedAt || team?.updatedAt || team?.createdAt);
 
-  // ✅ 최근 전적/최근 상태를 "경기 기록(날짜순)"에서 산출 → 경기기록과 항상 일치.
-  //    (clubs.stats.recentResults는 '결과 반영 순서'라 날짜순과 어긋날 수 있음)
-  const recentFromMatches = (() => {
+  // ✅ 전적 산출 대상 = finished 중 무효(void) 제외. 무효 경기는 승패에 반영되지 않는다.
+  //    (경기 기록 목록은 무효도 "무효"로 보여줘야 하므로 pastMatches 원본을 그대로 쓴다)
+  const ratedMatches = useMemo(() => {
     const arr = Array.isArray(pastMatches) ? pastMatches : [];
     const ts = (m) => {
       const v = m?.scheduledAt || m?.confirmedAt || m?.finishedAt || m?.updatedAt || m?.createdAt;
@@ -1261,7 +1323,8 @@ useEffect(() => {
       const t = new Date(v).getTime();
       return Number.isFinite(t) ? t : 0;
     };
-    return [...arr]
+    return arr
+      .filter((m) => String(m?.resultState || "") !== "void")
       .filter((m) => m?.myScore != null && m?.oppScore != null)
       .sort((a, b) => {
         const d = ts(b) - ts(a);
@@ -1270,22 +1333,58 @@ useEffect(() => {
         const ai = String(a?.id || "");
         const bi = String(b?.id || "");
         return bi > ai ? 1 : bi < ai ? -1 : 0;
-      })
-      .map((m) => {
-        const my = Number(m.myScore);
-        const opp = Number(m.oppScore);
-        return my > opp ? "W" : my < opp ? "L" : "D";
-      })
-      .slice(0, 5);
+      });
+  }, [pastMatches]);
+
+  // ✅ 최근 전적/최근 상태를 "경기 기록(날짜순)"에서 산출 → 경기기록과 항상 일치.
+  //    (clubs.stats.recentResults는 '결과 반영 순서'라 날짜순과 어긋날 수 있음)
+  //    최신순 전체 결과 — 앞 5개는 최근 폼 칩, 전체는 연승/연패 계산에 쓴다.
+  const recentFromMatches = ratedMatches.map((m) => {
+    const my = Number(m.myScore);
+    const opp = Number(m.oppScore);
+    return my > opp ? "W" : my < opp ? "L" : "D";
+  });
+
+  const recentResults =
+    recentFromMatches.length > 0 ? recentFromMatches : buildRecentResults(team?.stats, 20);
+
+  // 팀 평판 = 경기 후 상대 참가자들이 남긴 리뷰 평균 (SSOT: listTeamReviews)
+  const repCount = Number(teamReviews?.count) || 0;
+  const repAvg = repCount > 0 ? Number(teamReviews?.avg) || 0 : 0;
+
+  // 리뷰 별점 분포(5★~1★)
+  const ratingDist = useMemo(() => {
+    const buckets = [0, 0, 0, 0, 0]; // index 0 = 1점
+    (Array.isArray(teamReviews?.reviews) ? teamReviews.reviews : []).forEach((r) => {
+      const v = Math.max(1, Math.min(5, Math.round(Number(r?.stars) || 0)));
+      buckets[v - 1] += 1;
+    });
+    const max = Math.max(...buckets, 1);
+    return [5, 4, 3, 2, 1].map((star) => ({
+      star,
+      count: buckets[star - 1],
+      pct: Math.round((buckets[star - 1] / max) * 100),
+    }));
+  }, [teamReviews?.reviews]);
+
+  const winRatePercent = (() => {
+    const s = team?.stats || {};
+    if (typeof s.winRate === "number" && Number.isFinite(s.winRate)) return Math.round(s.winRate * 100);
+    const total = Number(s.totalMatches) || 0;
+    return total > 0 ? Math.round(((Number(s.wins) || 0) / total) * 100) : 0;
   })();
 
-  const recentResults = recentFromMatches.length > 0 ? recentFromMatches : buildRecentResults(team?.stats);
-  // 최근 상태(연승/연패)도 같은 날짜순 결과로 계산되도록 stats.recentResults 덮어쓰기
-  const statsForDisplay = team?.stats ? { ...team.stats, recentResults } : team?.stats;
-
-  // 상대 팀들이 매긴 별점 평판 (경기 결과 확정 시 집계됨)
-  const repCount = Number(team?.reputation?.count) || 0;
-  const repAvg = repCount > 0 ? Number(team?.reputation?.avg) || 0 : 0;
+  const foundedText = (() => {
+    const v = team?.createdAt;
+    if (!v) return "";
+    let d;
+    if (typeof v?.toDate === "function") d = v.toDate();
+    else if (typeof v === "number") d = new Date(v);
+    else if (typeof v === "string") d = new Date(v);
+    else if (v instanceof Date) d = v;
+    if (!d || isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+  })();
 
   const activityLabel = resolveActivityLabel(team?.activity);
 
@@ -1517,8 +1616,8 @@ useEffect(() => {
                       </HeroTitleBlock>
                     </HeroLogoRow>
 
+                    {/* 랭킹은 아래 요약 카드가 담당 — 히어로에는 태그만 */}
                     <HeroChipRow>
-                      {teamRank ? <HeroChip>랭킹 {teamRank}위</HeroChip> : null}
                       {tags.map((tag) => (
                         <HeroChip key={tag}>#{tag}</HeroChip>
                       ))}
@@ -1540,6 +1639,33 @@ useEffect(() => {
             </HeroWrap>
 
             <ContentWrap>
+              <SummaryCard>
+                <SummaryCell>
+                  <SummaryLabel>랭킹</SummaryLabel>
+                  <SummaryValue>{teamRank ? <>{teamRank}<small>위</small></> : "-"}</SummaryValue>
+                </SummaryCell>
+                <SummaryCell>
+                  <SummaryLabel>전적</SummaryLabel>
+                  <SummaryValue>
+                    {Number(team?.stats?.totalMatches) > 0
+                      ? <>{Number(team?.stats?.wins) || 0}<small>승</small> {Number(team?.stats?.losses) || 0}<small>패</small></>
+                      : "-"}
+                  </SummaryValue>
+                </SummaryCell>
+                <SummaryCell>
+                  <SummaryLabel>승률</SummaryLabel>
+                  <SummaryValue>
+                    {Number(team?.stats?.totalMatches) > 0 ? <>{winRatePercent}<small>%</small></> : "-"}
+                  </SummaryValue>
+                </SummaryCell>
+                <SummaryCell>
+                  <SummaryLabel>평판</SummaryLabel>
+                  <SummaryValue>
+                    {repCount > 0 ? <>{repAvg.toFixed(1)}<small>({repCount})</small></> : "-"}
+                  </SummaryValue>
+                </SummaryCell>
+              </SummaryCard>
+
               <Section>
                 <SectionHeaderRow>
                   <SectionHeaderLeft>
@@ -1553,11 +1679,38 @@ useEffect(() => {
 
                 {team.description && <AboutText>{team.description}</AboutText>}
 
-                <AboutMetaList>
-                  {team.region && <AboutMetaRow>활동 지역: {team.region}</AboutMetaRow>}
-                  {activityLabel.days ? <AboutMetaRow>활동 요일: {activityLabel.days}</AboutMetaRow> : null}
-                  {activityLabel.time ? <AboutMetaRow>활동 시간: {activityLabel.time}</AboutMetaRow> : null}
-                </AboutMetaList>
+                <KvList $gap={!!team.description}>
+                  {team.region ? (
+                    <KvRow>
+                      <KvKey>활동 지역</KvKey>
+                      <KvVal>{team.region}</KvVal>
+                    </KvRow>
+                  ) : null}
+                  {activityLabel.days ? (
+                    <KvRow>
+                      <KvKey>활동 요일</KvKey>
+                      <KvVal>{activityLabel.days}</KvVal>
+                    </KvRow>
+                  ) : null}
+                  {activityLabel.time ? (
+                    <KvRow>
+                      <KvKey>활동 시간</KvKey>
+                      <KvVal>{activityLabel.time}</KvVal>
+                    </KvRow>
+                  ) : null}
+                  {targetMemberCount > 0 ? (
+                    <KvRow>
+                      <KvKey>팀 규모</KvKey>
+                      <KvVal>{targetMemberCount}명</KvVal>
+                    </KvRow>
+                  ) : null}
+                  {foundedText ? (
+                    <KvRow>
+                      <KvKey>창단</KvKey>
+                      <KvVal>{foundedText}</KvVal>
+                    </KvRow>
+                  ) : null}
+                </KvList>
               </Section>
 
               <Section>
@@ -1571,31 +1724,34 @@ useEffect(() => {
                   {statsUpdated && <SectionMeta>{statsUpdated}</SectionMeta>}
                 </SectionHeaderRow>
 
-                <TeamStatsSection stats={statsForDisplay} />
+                <TeamRecordSection
+                  stats={team?.stats}
+                  matches={ratedMatches}
+                  recentResults={recentResults}
+                />
+              </Section>
 
-                {recentResults.length > 0 && (
-                  <RecentResultsRow>
-                    <RecentResultsLabel>최근 전적</RecentResultsLabel>
-                    <RecentDots>
-                      {/* 왼쪽=오래된 경기, 오른쪽=가장 최근 (recentResults는 최신순이라 뒤집어 표시) */}
-                      {[...recentResults].reverse().map((r, idx) => {
-                        if (r === "W") return <WinChip key={`recent-${idx}`} size="sm" />;
-                        if (r === "D") return <DrawChip key={`recent-${idx}`} size="sm" />;
-                        return <LoseChip key={`recent-${idx}`} size="sm" />;
-                      })}
-                    </RecentDots>
-                  </RecentResultsRow>
-                )}
+              <Section>
+                <SectionHeaderRow>
+                  <SectionHeaderLeft>
+                    <SectionIconCircle>
+                      <FiTarget size={19} />
+                    </SectionIconCircle>
+                    <SectionTitleText>{isMyTeam ? "경기 성향" : "상대 분석"}</SectionTitleText>
+                  </SectionHeaderLeft>
+                  <SectionMeta>완료 경기 기준</SectionMeta>
+                </SectionHeaderRow>
 
-                {repCount > 0 && (
-                  <RecentResultsRow>
-                    <RecentResultsLabel>팀 평판</RecentResultsLabel>
-                    <RepValue>
-                      <RepStars><Stars n={repAvg} size={14} /></RepStars>
-                      <RepNum>{repAvg.toFixed(1)}</RepNum>
-                      <RepCount>({repCount})</RepCount>
-                    </RepValue>
-                  </RecentResultsRow>
+                {pastMatchesLoading ? (
+                  <StateWrap>
+                    <Spinner size="lg" />
+                  </StateWrap>
+                ) : (
+                  <TeamScoutingSection
+                    matches={ratedMatches}
+                    myClubId={isMyTeam ? "" : myClubId}
+                    teamName={team?.name}
+                  />
                 )}
               </Section>
 
@@ -1720,6 +1876,20 @@ useEffect(() => {
                     </ReviewSummary>
                   )}
                 </SectionHeaderRow>
+
+                {teamReviews.count > 0 && (
+                  <RatingDist>
+                    {ratingDist.map((d) => (
+                      <DistRow key={d.star}>
+                        <DistLabel>{d.star}점</DistLabel>
+                        <DistTrack>
+                          <DistFill $pct={d.pct} />
+                        </DistTrack>
+                        <DistCount>{d.count}</DistCount>
+                      </DistRow>
+                    ))}
+                  </RatingDist>
+                )}
 
                 {teamReviewsLoading ? (
                   <StateWrap>

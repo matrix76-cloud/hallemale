@@ -14,10 +14,16 @@ import { OWNER_TYPE_OPTIONS } from "../../constants/ownerType";
 import { track } from "../../utils/analytics";
 import { C } from "./components/od";
 import { images } from "../../utils/imageAssets";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { useExitConfirm } from "../../hooks/useExitConfirm";
 
 export default function OwnerTypeGate() {
   const navigate = useNavigate();
   const { uid, refresh, signOut } = useOwner();
+
+  // 게이트 화면 — 뒤로 가도 같은 게이트가 다시 뜬다. 앱 종료 확인으로 받는다.
+  const confirmExit = useExitConfirm();
+  useBackInterceptor(true, confirmExit);
 
   const [picked, setPicked] = useState("");
   const [busy, setBusy] = useState(false);

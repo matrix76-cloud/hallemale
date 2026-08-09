@@ -44,6 +44,7 @@ import Spinner from "../../components/common/Spinner";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 import EmptyState from "../../components/common/EmptyState";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 /* ====================== Render ====================== */
 
@@ -942,6 +943,12 @@ export default function TeamManagePage() {
     setCapTargetId("");
     setCapText("");
   };
+
+  // 안드로이드 하드웨어 뒤로가기: 모달이 떠 있으면 화면 이탈 대신 모달부터 닫는다.
+  useBackInterceptor(inviteOpen, closeInvite);
+  useBackInterceptor(addPickerOpen, closeAddPicker);
+  useBackInterceptor(ytOpen, closeYoutubeModal);
+  useBackInterceptor(capOpen, closeCaptionModal);
 
   const onAddMediaClick = () => {
     if (mediaBusy) return;

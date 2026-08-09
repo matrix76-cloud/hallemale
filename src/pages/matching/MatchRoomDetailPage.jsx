@@ -68,6 +68,7 @@ import { getTeamRankMap } from "../../services/teamRankingService";
 import { getPlayerRankMap } from "../../services/rankingService";
 import { createTeamReport } from "../../services/teamReportService";
 import { mrp } from "../../components/matchRoom/matchRoomPalette";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 import { hasMock, mockData } from "../../dev/mockBus";
 
 /* 기획안 색 토큰 (할래말래_직접입력.html :root) — 폴백/참조용 */
@@ -3586,6 +3587,11 @@ export default function MatchRoomDetailPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
+
+  // 안드로이드 하드웨어 뒤로가기: 이 페이지의 자체 모달이 떠 있으면 매칭룸을 나가기 전에 모달부터 닫는다.
+  // (헤더 백버튼과 같은 동작은 headerConfig.onBack 이 담당 — AppRoutes 참고)
+  useBackInterceptor(reportOpen, () => { if (!reportBusy) setReportOpen(false); });
+  useBackInterceptor(lineupViewOpen, () => setLineupViewOpen(false));
 
   const refresh = async () => {
     if (!roomId) return;

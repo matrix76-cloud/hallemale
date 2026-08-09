@@ -7,6 +7,7 @@
 import React, { useState } from "react";
 import styled from "styled-components";
 import { MATCH_CANCEL_REASONS } from "../../services/matchRoomService";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 export default function CancelReasonSheet({
   open,
@@ -18,6 +19,9 @@ export default function CancelReasonSheet({
 }) {
   const [key, setKey] = useState("");
   const [text, setText] = useState("");
+
+  // 안드로이드 하드웨어 뒤로가기: 화면을 벗어나지 말고 이 오버레이부터 닫는다.
+  useBackInterceptor(open, () => onClose && onClose());
 
   if (!open) return null;
 

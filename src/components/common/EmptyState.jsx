@@ -34,13 +34,13 @@ const LogoImg = styled.img`
   ${({ theme }) => (theme.mode === "dark" ? "filter: brightness(1.6);" : "")}
 `;
 
-/* 제목은 굵고 진하게 — 예전엔 500 굵기 + textWeak + opacity 0.85 라
-   빈 화면 전체가 흐려 보였다. 무엇이 없다는 건지가 먼저 읽혀야 한다. */
+/* 제목은 한 톤 낮춰 — 800 굵기 + textStrong 은 "없음"을 너무 강하게 외쳤다.
+   opacity 는 걸지 않는다(예전 흐림의 원인). 색·굵기만으로 눌러 둔다. */
 const Title = styled.div`
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.2px;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 const Sub = styled.div`

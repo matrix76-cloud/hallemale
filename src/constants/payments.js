@@ -85,6 +85,38 @@ export function calcVenuePayout(payTotal, rate = PLATFORM_FEE_RATE) {
   return v - calcPlatformFee(v, rate);
 }
 
+/* ── 정산 지급 주기 ──────────────────────────────────────────
+ * 월 2회(10일·25일) 지급. 이용이 끝난 예약만 대상이며, 지급일 당일 기준으로
+ * 이용 완료된 미지급분이 나간다.
+ *
+ * 여기 하나만 바꾸면 정산 화면의 "다음 지급 예정일"·안내 문구가 전부 따라온다.
+ * ⚠️ 지급일을 바꾸면 구장 관리자 이용약관의 정산 조항도 같이 고칠 것.
+ */
+export const SETTLEMENT_PAYOUT_DAYS = [10, 25];
+
+/** 화면 문구에 쓰는 주기 표기 */
+export const SETTLEMENT_CYCLE_LABEL = "매월 10일 · 25일";
+
+/**
+ * 기준일(KST "YYYY-MM-DD") 이후 첫 지급일.
+ * 지급일 당일은 아직 안 나갔을 수 있으니 당일도 포함해서 돌려준다.
+ */
+export function nextPayoutDate(todayYmd) {
+  const [y, m, d] = String(todayYmd || "")
+    .split("-")
+    .map((x) => parseInt(x, 10));
+  if (!y || !m || !d) return "";
+
+  const pad = (x) => String(x).padStart(2, "0");
+  const day = SETTLEMENT_PAYOUT_DAYS.find((x) => x >= d);
+  if (day) return `${y}-${pad(m)}-${pad(day)}`;
+
+  // 이번 달 지급일이 다 지났으면 다음 달 첫 지급일
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  return `${ny}-${pad(nm)}-${pad(SETTLEMENT_PAYOUT_DAYS[0])}`;
+}
+
 /* ── 소비자 화면 표시가 ────────────────────────────────────
  * 총액 표시 모델에서는 구장 등록가가 곧 결제액이라 가공하지 않는다.
  * 함수는 남겨 둔다 — 호출부(목록·지도·찜·코트 선택)가 "여기가 소비자 표시가"라는

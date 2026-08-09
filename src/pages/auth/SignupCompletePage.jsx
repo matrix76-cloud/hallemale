@@ -10,9 +10,14 @@ import { markWelcomeSeen, attachReferrer } from "../../services/userService";
 import { showAlert } from "../../utils/appDialog";
 import { track } from "../../utils/analytics";
 import { getStoredReferrer, clearStoredReferrer } from "../../utils/referral";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
+import { useExitConfirm } from "../../hooks/useExitConfirm";
 
 export default function SignupCompletePage() {
   const navigate = useNavigate();
+  // 게이트 화면 — 뒤로 갈 곳이 없으므로 하드웨어 뒤로가기는 앱 종료 확인으로 받는다.
+  const confirmExit = useExitConfirm();
+  useBackInterceptor(true, confirmExit);
   const { firebaseUser, userDoc, refreshUser } = useAuth();
   // ⚠️ 전화인증에서 같은 번호의 기존 계정과 병합되면 게이트가 읽는 문서는 userDoc.id(병합된 실제 문서)다.
   //    firebaseUser.uid(소셜 uid)에 쓰면 엉뚱한 문서에 저장돼 완료 화면이 안 넘어간다.

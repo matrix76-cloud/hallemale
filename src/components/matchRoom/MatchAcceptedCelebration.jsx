@@ -7,6 +7,7 @@
 import React from "react";
 import styled, { keyframes } from "styled-components";
 import { images } from "../../utils/imageAssets";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 export default function MatchAcceptedCelebration({
   open,
@@ -24,6 +25,9 @@ export default function MatchAcceptedCelebration({
   primaryLabel = "조율 시작하기  ›", // 기본 버튼 라벨
   laterLabel = "나중에 하기", // 보조 버튼 라벨
 }) {
+  // 안드로이드 하드웨어 뒤로가기: 화면을 벗어나지 말고 이 오버레이부터 닫는다.
+  useBackInterceptor(open, () => onClose && onClose());
+
   if (!open) return null;
 
   const pieces = Array.from({ length: 28 });

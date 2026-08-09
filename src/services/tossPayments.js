@@ -15,8 +15,15 @@ import { hasMock, mockData } from "../dev/mockBus";
 const CF_BASE = "https://asia-northeast3-halle-bf789.cloudfunctions.net";
 const SDK_URL = "https://js.tosspayments.com/v2/standard";
 
-export const TOSS_CLIENT_KEY =
-  process.env.REACT_APP_TOSS_CLIENT_KEY || "test_gck_oEjb0gm23PjwBOwXlXBnrpGwBJn5";
+// ⚠️ 폴백은 개발 편의용이다. 라이브 전환 때 REACT_APP_TOSS_CLIENT_KEY 를 빠뜨리면
+//    아무 경고 없이 테스트 키로 돌아 "결제된 줄 알았는데 돈이 안 들어오는" 상태가 된다
+//    → 프로덕션 빌드에서 env 가 비면 콘솔에 남겨 최소한 알아챌 수 있게 한다.
+const TOSS_CLIENT_KEY_ENV = process.env.REACT_APP_TOSS_CLIENT_KEY || "";
+if (!TOSS_CLIENT_KEY_ENV && process.env.NODE_ENV === "production") {
+  console.warn("[toss] REACT_APP_TOSS_CLIENT_KEY 미설정 — 테스트 키로 동작합니다.");
+}
+
+export const TOSS_CLIENT_KEY = TOSS_CLIENT_KEY_ENV || "test_gck_oEjb0gm23PjwBOwXlXBnrpGwBJn5";
 
 /** 테스트 키로 동작 중인지 — 화면에 "테스트 결제" 배지를 띄우는 용도 */
 export const IS_TEST_PAYMENT = TOSS_CLIENT_KEY.startsWith("test_");
@@ -25,15 +32,20 @@ let sdkPromise = null;
 
 /**
  * uid → 토스 customerKey.
- * 토스 규칙: 영문 대소문자·숫자·`- _ = . @` 만, 2~50자. 어기면 widgets() 가 예외를 던져
- * 결제 화면이 아예 안 뜬다.
+ * 토스 규칙: 영문 대소문자·숫자·`- _ = . @` 만, 2~300자, **특수문자를 최소 1개 포함**.
+ * 어기면 widgets() 가 예외를 던져 결제 화면이 아예 안 뜬다.
+ *
  * ⚠️ 카카오 로그인 uid 는 "kakao:4941828861" 처럼 콜론이 들어간다 — 그대로 넘기면
- *    카카오로 가입한 사용자 전원이 결제를 못 한다. 허용 문자만 남기고 나머지는 "_" 로 바꾼다
- *    (uid 와 1:1 이라 사용자별로 계속 같은 값이 나온다 — 토스가 이 키로 결제수단을 기억한다).
+ *    카카오로 가입한 사용자 전원이 결제를 못 한다. 허용 문자만 남기고 나머지는 "_" 로 바꾼다.
+ * ⚠️ 반대 방향의 함정: Firebase uid 는 순수 영숫자라(예: "1S4PVuF0Tweehewqrr…") 치환해도
+ *    특수문자가 하나도 안 생긴다 → 이메일·구글·전화 가입자 전원이 규칙 위반이 된다.
+ *    그래서 접미사 "_hm" 을 항상 붙여 특수문자를 보장한다.
+ *
+ * uid 와 1:1 이라 사용자별로 계속 같은 값이 나온다 — 토스가 이 키로 결제수단을 기억한다.
  */
 export function toCustomerKey(uid) {
-  const k = String(uid || "").replace(/[^A-Za-z0-9\-_=.@]/g, "_").slice(0, 50);
-  return k.length >= 2 ? k : "ANONYMOUS";
+  const k = String(uid || "").replace(/[^A-Za-z0-9\-_=.@]/g, "_").slice(0, 200);
+  return k.length >= 2 ? `${k}_hm` : "ANONYMOUS"; // 비회원 키는 토스가 예외로 허용한다
 }
 
 /** 토스 SDK 로드 (script 태그, 1회만) */

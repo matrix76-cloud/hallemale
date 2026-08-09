@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { FiMapPin, FiSearch, FiInfo, FiChevronLeft } from "react-icons/fi";
 import { mrp } from "./matchRoomPalette";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 const SEOUL = { lat: 37.5665, lng: 126.978 };
 
@@ -217,6 +218,9 @@ export default function MapLocationPicker({
       finish(pickAddr, pickName);
     }
   };
+
+  // 안드로이드 하드웨어 뒤로가기: 화면을 벗어나지 말고 이 오버레이부터 닫는다.
+  useBackInterceptor(open, () => onClose && onClose());
 
   if (!open) return null;
 

@@ -71,12 +71,18 @@ function authHeader() {
   return `Basic ${Buffer.from(`${key}:`).toString("base64")}`;
 }
 
-async function tossFetch(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+/**
+ * 토스 POST 호출.
+ *
+ * idempotencyKey: 같은 키로 다시 부르면 토스가 "첫 요청의 응답"을 그대로 돌려준다(15일간).
+ *   네트워크 타임아웃 뒤 재시도할 때 승인·취소가 두 번 나가는 걸 막는 유일한 수단이다.
+ *   ⚠️ 그래서 키는 "같은 작업이면 같은 값"이어야 한다 — 매번 새로 만들면 멱등성이 사라진다.
+ */
+async function tossFetch(url, body, idempotencyKey) {
+  const headers = { Authorization: authHeader(), "Content-Type": "application/json" };
+  if (idempotencyKey) headers["Idempotency-Key"] = s(idempotencyKey).slice(0, 300);
+
+  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(s(json.message) || `토스 API 실패(HTTP ${res.status})`);
@@ -86,6 +92,44 @@ async function tossFetch(url, body) {
   }
   return json;
 }
+
+/** 토스 결제 조회 — 승인 실패가 "진짜 실패"인지 확인하는 데 쓴다. */
+async function tossGetPayment(paymentKey) {
+  const res = await fetch(`${API_BASE}/${encodeURIComponent(paymentKey)}`, {
+    headers: { Authorization: authHeader() },
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(s(json.message) || `토스 조회 실패(HTTP ${res.status})`);
+    err.tossCode = s(json.code);
+    throw err;
+  }
+  return json;
+}
+
+/**
+ * 승인 호출이 실패했을 때 "토스에는 이미 승인이 잡혀 있는지" 확인한다.
+ *
+ * 왜 필요한가: 첫 승인 요청이 네트워크 타임아웃으로 끊기면 우리는 실패로 보지만 토스는 승인을
+ *   끝냈을 수 있다. 그 상태에서 실패로 확정해 버리면 돈은 빠졌는데 예약도 원장도 없는
+ *   "미아 결제"가 된다. 실패로 단정하기 전에 반드시 조회로 진짜 상태를 본다.
+ *
+ * @returns 승인된 결제 객체 / 승인 안 됐으면 null
+ */
+async function recoverApprovedPayment(paymentKey, orderId, amount) {
+  try {
+    const p = await tossGetPayment(paymentKey);
+    // 다른 주문/다른 금액의 결제면 이 승인 건이 아니다 — 절대 성공으로 취급하지 않는다.
+    if (s(p.orderId) !== s(orderId) || n(p.totalAmount) !== n(amount)) return null;
+    return RECOVERABLE_STATUSES.includes(s(p.status)) ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+// 조회했을 때 "결제가 살아 있다"고 볼 상태.
+// DONE=승인 완료 / WAITING_FOR_DEPOSIT=가상계좌 발급 후 입금 대기(돈은 아직 안 들어옴).
+const RECOVERABLE_STATUSES = ["DONE", "WAITING_FOR_DEPOSIT"];
 
 /** Authorization: Bearer <idToken> → uid. 실패 시 "" */
 async function callerUid(req) {
@@ -252,78 +296,71 @@ exports.confirmTossPayment = onRequest(
 
     const db = getDb();
     const orderRef = db.collection("paymentOrders").doc(orderId);
-    const orderSnap = await orderRef.get();
-    if (!orderSnap.exists) return void res.status(404).json({ error: "order_not_found" });
 
-    const order = orderSnap.data() || {};
-    if (s(order.uid) !== uid) return void res.status(403).json({ error: "not_order_owner" });
-    // 이미 승인된 주문 — 새로고침/중복 호출이므로 성공으로 되돌린다(중복 승인 방지).
-    if (s(order.status) === "paid") return void res.json({ ok: true, duplicated: true });
-    if (s(order.status) !== "created") {
-      return void res.status(409).json({ error: "order_not_payable", status: s(order.status) });
-    }
-    // 💰 금액 위변조 차단 — 서버가 저장해 둔 금액과 다르면 승인하지 않는다.
-    if (n(order.amount) !== amount) {
-      return void res.status(400).json({ error: "amount_mismatch", expected: n(order.amount) });
-    }
+    // 1) 주문 선점 — 검사와 상태 전이를 한 트랜잭션으로 묶는다.
+    //    ⚠️ 예전엔 get 으로 읽고 검사만 했다. 같은 주문에 동시 요청이 둘 들어오면 둘 다 "created" 를
+    //       보고 토스 승인을 각각 호출했다. 클라의 StrictMode 가드는 브라우저 방어라 서버엔 소용없다.
+    const lock = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(orderRef);
+      if (!snap.exists) return { deny: { code: 404, body: { error: "order_not_found" } } };
 
+      const o = snap.data() || {};
+      if (s(o.uid) !== uid) return { deny: { code: 403, body: { error: "not_order_owner" } } };
+      // 이미 승인된 주문 — 새로고침/중복 호출이므로 성공으로 되돌린다(중복 승인 방지).
+      if (s(o.status) === "paid") return { done: true };
+      // confirming = 앞선 시도가 응답을 못 받고 끊긴 상태. 멱등키가 있어 재시도해도 두 번 안 빠진다.
+      if (s(o.status) !== "created" && s(o.status) !== "confirming") {
+        return { deny: { code: 409, body: { error: "order_not_payable", status: s(o.status) } } };
+      }
+      // 💰 금액 위변조 차단 — 서버가 저장해 둔 금액과 다르면 승인하지 않는다.
+      if (n(o.amount) !== amount) {
+        return { deny: { code: 400, body: { error: "amount_mismatch", expected: n(o.amount) } } };
+      }
+      tx.update(orderRef, { status: "confirming", confirmingAt: new Date().toISOString() });
+      return { order: o };
+    });
+
+    if (lock.done) return void res.json({ ok: true, duplicated: true });
+    if (lock.deny) return void res.status(lock.deny.code).json(lock.deny.body);
+    const order = lock.order;
+
+    // 2) 승인. 멱등키는 주문당 고정 — 재시도해도 토스가 첫 응답을 그대로 돌려준다.
     let payment;
     if (testSkip) {
       // 승인 응답 자리만 채운다. method 로 원장에서 실결제와 구분된다.
-      payment = { method: "테스트건너뛰기", approvedAt: new Date().toISOString() };
+      payment = { status: "DONE", method: "테스트건너뛰기", approvedAt: new Date().toISOString() };
     } else {
       try {
-        payment = await tossFetch(`${API_BASE}/confirm`, { paymentKey, orderId, amount });
+        payment = await tossFetch(
+          `${API_BASE}/confirm`,
+          { paymentKey, orderId, amount },
+          `hm-confirm-${orderId}`
+        );
       } catch (e) {
-        await orderRef.update({
-          status: "failed",
-          failReason: s(e.message),
-          failCode: s(e.tossCode),
-          failedAt: new Date().toISOString(),
-        });
-        return void res.status(400).json({ error: "confirm_failed", code: s(e.tossCode), message: s(e.message) });
+        // 실패로 단정하기 전에 조회로 확인한다 — 이미 승인돼 있으면 그 결제를 그대로 이어받는다.
+        payment = await recoverApprovedPayment(paymentKey, orderId, amount);
+        if (!payment) {
+          await orderRef.update({
+            status: "failed",
+            failReason: s(e.message),
+            failCode: s(e.tossCode),
+            failedAt: new Date().toISOString(),
+          });
+          return void res.status(400).json({ error: "confirm_failed", code: s(e.tossCode), message: s(e.message) });
+        }
       }
     }
 
     const reservationId = s(order.reservationId);
     const side = s(order.side);
-    const resRef = db.collection("venueReservations").doc(reservationId);
+    // 가상계좌는 계좌만 발급된 채 승인이 끝난다(WAITING_FOR_DEPOSIT) — 돈은 아직 안 들어왔다.
+    // 이 상태에서 예약을 확정하면 입금 없이 코트가 잡힌다 → 확정은 입금 웹훅이 맡는다.
+    const deposited = s(payment.status || "DONE") === "DONE";
 
-    // 예약 반영은 트랜잭션 — 양 팀이 동시에 승인해도 상태가 엇갈리지 않게.
-    const result = await db.runTransaction(async (tx) => {
-      const cur = await tx.get(resRef);
-      if (!cur.exists) throw new Error("reservation_not_found");
-      const d = cur.data() || {};
-
-      const patch = { updatedAt: new Date().toISOString() };
-      if (side === "SINGLE") {
-        patch.paid = true;
-        patch.paymentMethod = "toss";
-        patch.status = "confirmed";
-        patch.paymentKey = paymentKey;
-      } else {
-        const paidA = side === "A" ? true : d.paidByA === true;
-        const paidB = side === "B" ? true : d.paidByB === true;
-        patch.paidByA = paidA;
-        patch.paidByB = paidB;
-        patch.paymentMethod = "toss";
-        patch[side === "A" ? "teamAPayerUid" : "teamBPayerUid"] = uid;
-        patch[side === "A" ? "paymentKeyA" : "paymentKeyB"] = paymentKey;
-
-        if (paidA && paidB) {
-          patch.status = "confirmed";
-          patch.paid = true;
-          patch.paymentDeadline = "";
-        } else {
-          patch.status = "pending";
-          // 먼저 낸 팀 기준으로 상대 팀 결제 마감을 건다.
-          patch.paymentDeadline = new Date(Date.now() + PARTNER_PAY_WINDOW_MS).toISOString();
-        }
-      }
-      tx.update(resRef, patch);
-      return { reservationStatus: patch.status, paidByA: patch.paidByA, paidByB: patch.paidByB };
-    });
-
+    // 3) 💾 돈이 빠진 사실을 예약 반영보다 "먼저" 남긴다.
+    //    ⚠️ 예전엔 예약 트랜잭션이 먼저였다. 그게 던지면(예약 문서 삭제·경합 등) 함수가 그대로 죽어
+    //       주문 상태도 원장도 안 남았다 — 돈은 빠졌는데 환불·정산이 찾을 수 없는 미아 결제.
+    //       순서를 뒤집어, 예약 반영이 실패해도 결제 기록은 반드시 남게 한다.
     await orderRef.update({
       status: "paid",
       paymentKey,
@@ -349,7 +386,7 @@ exports.confirmTossPayment = onRequest(
       // 정산 대상 금액. 환불이 나면 cancelTossPayment 가 깎아서 다시 쓴다.
       // 정산 집계는 venueAmount 가 아니라 항상 이 필드를 더한다.
       netVenueAmount: n(order.venueAmount),
-      status: "DONE",
+      status: s(payment.status) || "DONE",
       method: s(payment.method),
       approvedAt: s(payment.approvedAt),
       receiptUrl: s(payment.receipt?.url),
@@ -363,10 +400,80 @@ exports.confirmTossPayment = onRequest(
       payoutId: "",
     });
 
+    // 4) 예약 반영. 실패해도 결제는 이미 성립했으니 사용자에게 "결제 실패"라고 말하지 않는다.
+    //    실패 사실은 원장에 남겨 운영이 찾아갈 수 있게 한다.
+    let result = null;
+    let syncError = "";
+    if (deposited) {
+      try {
+        result = await applyPaidToReservation(db, { reservationId, side, uid, paymentKey });
+      } catch (e) {
+        syncError = s(e?.message) || "reservation_sync_failed";
+        await db.collection("payments").doc(paymentKey).set(
+          { reservationSyncFailed: true, reservationSyncError: syncError },
+          { merge: true }
+        );
+      }
+    }
+
     // reservationId/matchId 는 결제 완료 화면이 돌아갈 곳을 정하는 데 쓴다.
-    res.json({ ok: true, reservationId, matchId: s(order.matchId), amount, ...result });
+    res.json({
+      ok: true,
+      reservationId,
+      matchId: s(order.matchId),
+      amount,
+      awaitingDeposit: !deposited,
+      reservationSyncPending: !!syncError,
+      ...(result || {}),
+    });
   }
 );
+
+/**
+ * 승인된 결제를 예약에 반영한다. 승인 경로와 입금 웹훅이 같이 쓴다.
+ *
+ * 트랜잭션인 이유: 양 팀이 동시에 승인해도 상태가 엇갈리지 않게.
+ * 같은 결제로 두 번 실행해도 결과가 같다(멱등) — 웹훅 재전송에 안전하다.
+ */
+async function applyPaidToReservation(db, { reservationId, side, uid, paymentKey }) {
+  const resRef = db.collection("venueReservations").doc(reservationId);
+
+  return db.runTransaction(async (tx) => {
+    const cur = await tx.get(resRef);
+    if (!cur.exists) throw new Error("reservation_not_found");
+    const d = cur.data() || {};
+
+    const patch = { updatedAt: new Date().toISOString() };
+    if (side === "SINGLE") {
+      patch.paid = true;
+      patch.paymentMethod = "toss";
+      patch.status = "confirmed";
+      patch.paymentKey = paymentKey;
+    } else {
+      const paidA = side === "A" ? true : d.paidByA === true;
+      const paidB = side === "B" ? true : d.paidByB === true;
+      patch.paidByA = paidA;
+      patch.paidByB = paidB;
+      patch.paymentMethod = "toss";
+      patch[side === "A" ? "teamAPayerUid" : "teamBPayerUid"] = uid;
+      patch[side === "A" ? "paymentKeyA" : "paymentKeyB"] = paymentKey;
+
+      if (paidA && paidB) {
+        patch.status = "confirmed";
+        patch.paid = true;
+        patch.paymentDeadline = "";
+      } else {
+        patch.status = "pending";
+        // 먼저 낸 팀 기준으로 상대 팀 결제 마감을 건다.
+        // 이미 걸려 있으면 그대로 둔다 — 웹훅이 재전송돼도 마감이 뒤로 밀리지 않게.
+        patch.paymentDeadline =
+          s(d.paymentDeadline) || new Date(Date.now() + PARTNER_PAY_WINDOW_MS).toISOString();
+      }
+    }
+    tx.update(resRef, patch);
+    return { reservationStatus: patch.status, paidByA: patch.paidByA, paidByB: patch.paidByB };
+  });
+}
 
 /**
  * 부분취소를 여러 번 해도 장부가 맞도록 "이번 취소"를 이전 취소분에 누적한다.
@@ -440,9 +547,14 @@ async function cancelTossPayment(paymentKey, reason, amount) {
 
   // 테스트 건너뛰기로 만든 결제는 토스에 실제 승인 건이 없다 → 취소 API 를 부르면 실패한다.
   // 원장 정리(환불액·정산액 차감)는 실결제와 똑같이 진행해야 취소 이후 흐름을 확인할 수 있다.
+  // 멱등키는 "이번 취소 시도"를 가리켜야 한다 — 재시도면 같은 값, 새 부분취소면 다른 값.
+  // 직전까지 환불된 누계(prevRefunded)와 이번 금액을 섞으면 그 성질이 정확히 나온다.
+  // ⚠️ 매번 새 키를 만들면 타임아웃 재시도 때 같은 부분취소가 두 번 나간다.
+  const idemKey = `hm-cancel-${key}-${n(prev.refundedAmount)}-${led.thisRefund}`;
+
   const json = key.startsWith("TESTSKIP_")
     ? { status: led.fullyCancelled ? "CANCELED" : "PARTIAL_CANCELED" }
-    : await tossFetch(`${API_BASE}/${encodeURIComponent(key)}/cancel`, body);
+    : await tossFetch(`${API_BASE}/${encodeURIComponent(key)}/cancel`, body, idemKey);
 
   const log = {
     // ⚠️ 부분취소는 cancelled=false 로 남긴다. true 로 찍으면 남은 금액이 있는데도
@@ -463,6 +575,9 @@ async function cancelTossPayment(paymentKey, reason, amount) {
 
 module.exports.cancelTossPayment = cancelTossPayment;
 module.exports.computeRefundLedger = computeRefundLedger;
+// 입금 웹훅(payments/tossWebhook.js)이 예약 확정에 그대로 쓴다 — 확정 규칙이 두 벌이 되면 안 된다.
+module.exports.applyPaidToReservation = applyPaidToReservation;
+module.exports.tossGetPayment = tossGetPayment;
 module.exports.TOSS_SECRET_KEY = TOSS_SECRET_KEY;
 module.exports.PARTNER_PAY_WINDOW_MS = PARTNER_PAY_WINDOW_MS;
 // 결제가 아직 실사용자에게 열려 있지 않다는 표식. 만료 잡(venuePaymentJobs)이 이 값을 보고

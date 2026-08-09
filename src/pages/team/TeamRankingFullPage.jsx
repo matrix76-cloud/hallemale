@@ -93,7 +93,7 @@ const Avatar = styled.div`
     theme.mode === "dark" ? theme.colors.surface : "#ede9fe"};
 `;
 
-const AvatarImg = styled.img`
+const AvatarImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -101,7 +101,7 @@ const AvatarImg = styled.img`
 `;
 
 /* 1~3위: 아바타(프로필) 위에 살짝 겹쳐 배치(앱 전체 공통 기준) */
-const CrownOver = styled.img`
+const CrownOver = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   position: absolute;
   top: -20px;
   left: 50%;

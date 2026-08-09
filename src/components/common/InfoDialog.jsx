@@ -4,6 +4,7 @@ import React, { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import styled, { keyframes } from "styled-components";
 import Button from "./Button";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 const fadeIn = keyframes`
   from { opacity: 0; }
@@ -186,6 +187,9 @@ export default function InfoDialog({
   disablePrimary = false,
 }) {
   const root = useMemo(() => ensureModalRoot(), []);
+
+  // 안드로이드 하드웨어 뒤로가기: 화면을 벗어나지 말고 이 다이얼로그부터 닫는다.
+  useBackInterceptor(open, () => onClose?.());
 
   useEffect(() => {
     if (!open) return;

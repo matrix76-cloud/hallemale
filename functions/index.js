@@ -77,6 +77,11 @@ const { createTossOrder, confirmTossPayment } = require("./payments/toss");
 exports.createTossOrder = createTossOrder;
 exports.confirmTossPayment = confirmTossPayment;
 
+// ✅ 토스 결제 웹훅 — 가상계좌 입금 완료, 승인 후 예약 반영 실패분 복구, 외부 취소 동기화
+//    토스 개발자센터 > 웹훅에 이 함수 URL 을 등록해야 발송이 시작된다.
+const { tossWebhook } = require("./payments/tossWebhook");
+exports.tossWebhook = tossWebhook;
+
 // ✅ 결제 예약 뒤처리 — 결제완료 시 확정 동기화(트리거) + 결제마감 만료 환불(10분마다)
 const { venuePaidConfirmTrigger, venuePaymentExpireTick } = require("./jobs/venuePaymentJobs");
 exports.venuePaidConfirmTrigger = venuePaidConfirmTrigger;

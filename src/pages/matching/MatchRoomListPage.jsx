@@ -7,6 +7,7 @@ import { FiMessageSquare, FiCheckCircle, FiFlag, FiXCircle, FiFolder } from "rea
 import { images } from "../../utils/imageAssets";
 import Spinner from "../../components/common/Spinner";
 import { loadMatchRoomListPageData, listMyReviewedMatchIds } from "../../services/matchRoomService";
+import { peekCache, loadCached } from "../../utils/dataCache";
 import useMatchRoomUnread from "../../hooks/useMatchRoomUnread";
 import { listAllTeamsForRanking } from "../../services/teamRankingService";
 import { useClub } from "../../hooks/useClub";
@@ -503,7 +504,7 @@ const UnreadBadge = styled.span`
   justify-content: center;
 `;
 
-const LogoImg = styled.img`
+const LogoImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   display: block;
@@ -553,7 +554,7 @@ const ColLogo = styled.div`
 `;
 
 /* 1~3위 프로필 위에 겹쳐지는 로고 (전체보기 페이지와 동일) */
-const CrownImg = styled.img`
+const CrownImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   position: absolute;
   /* 큰 로고(46px)/작은 로고(38px) 사진 크기에 비례 */
   top: ${({ $sm }) => ($sm ? "-14px" : "-17px")};
@@ -704,7 +705,7 @@ const MiniLogo = styled.div`
     theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
 `;
 
-const MiniLogoImg = styled.img`
+const MiniLogoImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -1080,7 +1081,7 @@ const ThumbInner = styled.div`
     theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
 `;
 
-const ThumbImg = styled.img`
+const ThumbImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -1088,7 +1089,7 @@ const ThumbImg = styled.img`
 `;
 
 /* 1~3위 상대팀: 썸네일 위 왕관 */
-const ThumbCrown = styled.img`
+const ThumbCrown = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   position: absolute;
   top: -15px;
   left: 50%;
@@ -1192,8 +1193,13 @@ export default function MatchRoomListPage() {
   const { firebaseUser, userDoc } = useAuth();
   const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
 
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // 매칭룸 목록은 홈·매칭관리·알림에서 계속 되돌아오는 화면이라, 진입할 때마다 전체를
+  // 다시 받으면 스피너가 반복된다. 캐시가 있으면 즉시 그리고 뒤에서 갱신한다.
+  const roomsCacheKey = myClubId ? `matchRooms:${myClubId}` : "";
+  const cachedRooms = peekCache(roomsCacheKey);
+
+  const [rooms, setRooms] = useState(cachedRooms?.data || []);
+  const [loading, setLoading] = useState(!cachedRooms);
   const [rankMap, setRankMap] = useState({});
   // 팀원 지난경기: 내가 리뷰한 경기 id 집합 + 정렬/필터 카테고리
   const [reviewedSet, setReviewedSet] = useState(() => new Set());
@@ -1221,15 +1227,18 @@ export default function MatchRoomListPage() {
     let cancelled = false;
 
     (async () => {
+      const hadCache = !!peekCache(`matchRooms:${myClubId}`);
       try {
-        setLoading(true);
-        const data = await loadMatchRoomListPageData(myClubId);
+        if (!hadCache) setLoading(true);
+        const data = await loadCached(`matchRooms:${myClubId}`, () =>
+          loadMatchRoomListPageData(myClubId)
+        );
         if (cancelled) return;
         const nextRooms = Array.isArray(data?.rooms) ? data.rooms : [];
         setRooms(nextRooms);
       } catch (e) {
         console.error("[MatchRoomListPage] load failed", e);
-        if (!cancelled) setRooms([]);
+        if (!cancelled && !hadCache) setRooms([]);
       } finally {
         if (!cancelled) setLoading(false);
       }

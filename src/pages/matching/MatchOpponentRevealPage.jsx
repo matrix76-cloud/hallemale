@@ -5,7 +5,7 @@
 // - 사이클(재매칭) 버튼 → 새 상대 + 카드 등장 애니메이션 재생
 // - "이 팀에 매칭 요청" → 기존 분석/요청 퍼널(/matching/analysis/:clubId)로 연결
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
 import { track } from "../../utils/analytics";
@@ -19,9 +19,10 @@ import { getTeamRankMap } from "../../services/teamRankingService";
 import { getPlayerRankMap } from "../../services/rankingService";
 import { getClubMemberCounts } from "../../services/matchingHomeService";
 import { estimateWinProbability } from "../../utils/matchAnalysis";
-import { rankOpponents } from "../../utils/matchmaking";
+import { rankOpponents, WEIGHTS } from "../../utils/matchmaking";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { MIN_TEAM_MEMBERS } from "../../utils/constants";
+import FlowSteps from "./components/FlowSteps";
 import Spinner from "../../components/common/Spinner";
 import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 
@@ -35,6 +36,10 @@ const Page = styled.div`
   display: flex;
   flex-direction: column;
   background: ${({ theme }) => theme.colors.bg};
+`;
+
+const StepsBar = styled.div`
+  padding: 14px 16px 0;
 `;
 
 /* ===== 매치업 헤더 ===== */
@@ -132,7 +137,7 @@ const VsBadge = styled.div`
   font-weight: 800;
   display: grid;
   place-items: center;
-  box-shadow: 0 6px 14px rgba(79, 70, 229, 0.32);
+  box-shadow: 0 6px 14px rgba(124, 92, 201, 0.32);
 `;
 
 /* ===== 선수단 ===== */
@@ -157,6 +162,10 @@ const RosterTitle = styled.div`
   font-size: 16px;
   font-weight: 700;
   color: ${({ theme }) => theme.colors.textStrong};
+
+  svg {
+    color: ${({ theme }) => theme.colors.primary};
+  }
 `;
 
 const RosterCount = styled.span`
@@ -290,14 +299,83 @@ const WidenNote = styled.div`
   text-align: center;
 `;
 
-/* 추천 근거 칩 — "왜 이 팀인지"를 화면에서 설명한다 */
+/* ===== 추천 근거 카드 =====
+   rankOpponents 가 이미 점수(matchScore)와 항목별 값(matchParts)을 계산해 두는데
+   화면에는 칩 두 개만 나와서 "왜 이 팀인지"가 설명되지 않았다. 계산한 걸 그대로 보여준다. */
+const ReasonCard = styled.section`
+  background: ${({ theme }) => theme.colors.card};
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: ${cardIn} 0.45s ease both;
+`;
+
+const ReasonHead = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+`;
+
+const ReasonTitle = styled.div`
+  font-size: 15px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const QueuePos = styled.div`
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const ScoreRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const ScoreValue = styled.div`
+  flex-shrink: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  font-variant-numeric: tabular-nums;
+  color: ${({ theme }) => theme.colors.primary};
+
+  span {
+    font-size: 13px;
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.textWeak};
+  }
+`;
+
+const Bar = styled.div`
+  flex: 1;
+  height: ${({ $thin }) => ($thin ? 6 : 8)}px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "#eef0f4"};
+`;
+
+const BarFill = styled.div`
+  height: 100%;
+  border-radius: 999px;
+  width: ${({ $pct }) => $pct}%;
+  background: ${({ theme }) => theme.colors.primary};
+  transition: width 0.4s ease;
+`;
+
 const ReasonRow = styled.div`
-  margin-top: 14px;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 6px;
-  animation: ${cardIn} 0.45s ease both;
 `;
 
 const ReasonChip = styled.span`
@@ -307,6 +385,70 @@ const ReasonChip = styled.span`
   font-weight: 700;
   background: ${({ theme }) => theme.colors.surface};
   border: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const CardDivider = styled.div`
+  height: 1px;
+  background: ${({ theme }) => theme.colors.divider};
+`;
+
+const SubHead = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+
+  em {
+    font-style: normal;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.textWeak};
+  }
+`;
+
+/* 예상 승률 — 우리:상대 한 줄 비교 */
+const ProbRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const ProbSide = styled.div`
+  flex-shrink: 0;
+  min-width: 54px;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: ${({ $right }) => ($right ? "right" : "left")};
+  color: ${({ $mine, theme }) =>
+    $mine ? theme.colors.primary : theme.colors.textWeak};
+`;
+
+/* 항목별 점수 — 오른쪽 숫자는 가중치(합 100). 문구와 실제 계산이 같은 표를 본다. */
+const PartRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const PartLabel = styled.div`
+  flex-shrink: 0;
+  width: 62px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textNormal};
+`;
+
+const PartWeight = styled.div`
+  flex-shrink: 0;
+  width: 26px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 
@@ -386,7 +528,7 @@ const RequestBtn = styled.button`
   font-size: 17px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 8px 18px rgba(124, 92, 201, 0.3);
   transition: transform 0.12s ease;
 
   &:disabled {
@@ -419,7 +561,7 @@ const CycleBtn = styled.button`
   }
 `;
 
-function PeopleIcon({ size = 18, color = "#4f46e5" }) {
+function PeopleIcon({ size = 18, color = "currentColor" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="9" cy="8" r="3.2" stroke={color} strokeWidth="2" />
@@ -429,7 +571,16 @@ function PeopleIcon({ size = 18, color = "#4f46e5" }) {
   );
 }
 
-function CycleIcon({ size = 24, color = "#4f46e5" }) {
+/* 점수 항목 표기 — matchmaking.WEIGHTS 의 키와 1:1 로 맞춘다 */
+const PART_LABELS = [
+  ["balance", "전력 균형"],
+  ["region", "지역 근접"],
+  ["activity", "활동량"],
+  ["size", "인원 규모"],
+  ["rank", "랭킹 인접"],
+];
+
+function CycleIcon({ size = 24, color = "currentColor" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M20 11a8 8 0 0 0-14.3-4.9M4 13a8 8 0 0 0 14.3 4.9" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
@@ -451,7 +602,6 @@ export default function MatchOpponentRevealPage() {
   const [rankMap, setRankMap] = useState(null);
   const [playerRankMap, setPlayerRankMap] = useState(null);
   const [memberCounts, setMemberCounts] = useState(null); // Map | null(로딩 중)
-  const [cycle, setCycle] = useState(0);
   const [oppDetail, setOppDetail] = useState(null); // 선택 상대 멤버 조립본
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [loadError, setLoadError] = useState(false);   // 매칭 데이터 로드 실패
@@ -489,10 +639,20 @@ export default function MatchOpponentRevealPage() {
     [opponentTeams]
   );
 
+  // 탐색 화면이 이미 조회해 넘겨준 멤버 수 — 있으면 재조회하지 않는다(스피너도 안 뜬다)
+  const seededCounts = useMemo(() => {
+    const raw = location.state?.memberCounts;
+    return Array.isArray(raw) && raw.length ? new Map(raw) : null;
+  }, [location.state]);
+
   useEffect(() => {
     const ids = allIdsKey ? allIdsKey.split(",") : [];
     if (ids.length === 0) {
       setMemberCounts(new Map());
+      return;
+    }
+    if (seededCounts && ids.every((id) => seededCounts.has(id))) {
+      setMemberCounts(seededCounts);
       return;
     }
     let alive = true;
@@ -503,7 +663,7 @@ export default function MatchOpponentRevealPage() {
     return () => {
       alive = false;
     };
-  }, [allIdsKey]);
+  }, [allIdsKey, seededCounts]);
 
   // 후보 순서는 matchmaking.rankOpponents 가 정한다 —
   // 하드 필터(내 팀·인원 미달 제외) → 전력/지역/활동/인원/랭킹 점수 → 상위 풀 다양성 샘플링.
@@ -522,15 +682,64 @@ export default function MatchOpponentRevealPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myTeam, opponentTeams, memberCounts, regionGu, regionSido]);
 
-  const eligiblePool = ranked?.queue || null;
+  const rawPool = ranked?.queue || null;
   const widened = !!ranked?.widened;
 
+  // 큐는 다양성 샘플링(Math.random) 으로 매번 다르게 만들어진다. 이 화면은
+  // 상대팀 프로필을 보고 오거나(remount) 사이클(광고 화면 경유)마다 다시 마운트되므로,
+  // 큐를 매번 새로 섞으면 보던 상대가 바뀌거나 이미 본 팀이 또 나온다.
+  // → 처음 만든 순서와 현재 위치를 세션에 적어 두고, 이후에는 그 순서를 따른다.
+  const queueKey = `halle.matchQueue.${activeTeamId || ""}.${regionGu}|${regionSido}`;
+  const savedRef = useRef({ order: [], idx: 0 });
+  // 첫 렌더에는 activeTeamId 가 아직 비어 있을 수 있다(ClubContext 로딩 중).
+  // 그때 읽으면 엉뚱한 키를 보게 되므로, 키가 확정될 때 다시 읽는다.
+  const loadedKeyRef = useRef(null);
+  if (loadedKeyRef.current !== queueKey) {
+    loadedKeyRef.current = queueKey;
+    let parsed = null;
+    try {
+      parsed = JSON.parse(window.sessionStorage?.getItem(queueKey) || "null");
+    } catch (e) {}
+    savedRef.current =
+      parsed && Array.isArray(parsed.order)
+        ? { order: parsed.order, idx: Number(parsed.idx) || 0 }
+        : { order: [], idx: 0 };
+  }
+
+  // 저장된 순서를 먼저 깔고, 그 사이 새로 생긴 팀은 뒤에 붙인다
+  const eligiblePool = useMemo(() => {
+    if (!rawPool) return null;
+    const saved = savedRef.current.order;
+    if (!saved.length) return rawPool;
+    const byId = new Map(
+      rawPool.map((t) => [String(t.clubId || t.id || "").trim(), t])
+    );
+    const head = saved.map((id) => byId.get(id)).filter(Boolean);
+    const seen = new Set(head.map((t) => String(t.clubId || t.id || "").trim()));
+    const rest = rawPool.filter(
+      (t) => !seen.has(String(t.clubId || t.id || "").trim())
+    );
+    return head.concat(rest);
+    // queueKey 가 바뀌면 savedRef 를 다시 읽으므로 순서도 다시 잡아야 한다
+  }, [rawPool, queueKey]);
+
   const countsLoading = eligiblePool === null;
-  const opponent =
-    eligiblePool && eligiblePool.length
-      ? eligiblePool[cycle % eligiblePool.length]
-      : null;
+  const poolLen = eligiblePool?.length || 0;
+  const index = poolLen ? savedRef.current.idx % poolLen : 0;
+  const opponent = poolLen ? eligiblePool[index] : null;
   const oppId = opponent ? String(opponent.clubId || opponent.id || "").trim() : "";
+
+  // 순서와 위치를 적어 둔다 — 사이클로 광고 화면을 거쳐 돌아와도 이어서 보여주기 위해
+  useEffect(() => {
+    if (!poolLen) return;
+    savedRef.current = {
+      order: eligiblePool.map((t) => String(t.clubId || t.id || "").trim()),
+      idx: index,
+    };
+    try {
+      window.sessionStorage?.setItem(queueKey, JSON.stringify(savedRef.current));
+    } catch (e) {}
+  }, [eligiblePool, poolLen, index, queueKey]);
 
   // 상대 선수단 로드
   useEffect(() => {
@@ -565,11 +774,33 @@ export default function MatchOpponentRevealPage() {
 
   const members = Array.isArray(oppDetail?.members) ? oppDetail.members : [];
 
-  const eligibleCount = eligiblePool ? eligiblePool.length : 0;
+  const eligibleCount = poolLen;
 
+  // 추천 근거 카드용 파생값 — rankOpponents 가 붙여 둔 값을 그대로 읽는다
+  const queuePos = eligibleCount > 0 ? index + 1 : 0;
+  const parts = opponent?.matchParts || null;
+  const oppStats = opponent?.stats || null;
+
+  // 다른 상대 찾기 — 탐색(광고) 화면을 다시 거쳐서 다음 후보로 간다.
+  // 다음 위치를 먼저 세션에 적어 두면, 돌아온 화면이 그 자리부터 보여준다.
   const handleCycle = () => {
     if (eligibleCount <= 1) return;
-    setCycle((c) => c + 1);
+    const next = { ...savedRef.current, idx: (index + 1) % eligibleCount };
+    savedRef.current = next;
+    try {
+      window.sessionStorage?.setItem(queueKey, JSON.stringify(next));
+    } catch (e) {}
+    navigate("/matching/searching", {
+      state: {
+        region,
+        regionGu,
+        regionSido,
+        // 멤버 수를 넘겨 재조회를 막는다 — 탐색 화면은 연출과 광고만 담당
+        memberCounts: memberCounts ? Array.from(memberCounts.entries()) : null,
+        cycling: true,
+      },
+      replace: true, // 사이클을 눌러도 히스토리가 쌓이지 않게(뒤로가기 = 지역 선택)
+    });
   };
 
   const handleRequest = () => {
@@ -687,10 +918,13 @@ export default function MatchOpponentRevealPage() {
   const oppMeta = oppMetaParts.join(" · ");
 
   // 애니메이션 재생용 키(상대/사이클 바뀔 때마다 등장 애니메이션 다시)
-  const animKey = `${oppId}-${cycle}`;
+  const animKey = oppId;
 
   return (
     <Page>
+      <StepsBar>
+        <FlowSteps current={3} />
+      </StepsBar>
       {widened ? (
         <WidenNote>선택한 지역에 매칭 가능한 상대가 없어 범위를 넓혀 찾았어요.</WidenNote>
       ) : null}
@@ -727,17 +961,75 @@ export default function MatchOpponentRevealPage() {
           </TeamCol>
         </Matchup>
 
-        {/* 이 팀이 왜 먼저 떴는지 — 점수 상위 항목을 그대로 문구로 보여준다(rankOpponents). */}
-        {opponent?.matchReasons?.length ? (
-          <ReasonRow key={`${animKey}-r`}>
-            {opponent.matchReasons.map((r) => (
-              <ReasonChip key={r}>{r}</ReasonChip>
-            ))}
-          </ReasonRow>
-        ) : null}
       </MatchupBar>
 
       <Body>
+        {/* 이 팀이 왜 먼저 떴는지 — rankOpponents 가 계산한 점수를 그대로 펼친다 */}
+        <ReasonCard key={`${animKey}-r`}>
+          <ReasonHead>
+            <ReasonTitle>이 팀을 먼저 추천한 이유</ReasonTitle>
+            {eligibleCount > 0 ? (
+              <QueuePos>
+                추천 {queuePos}번째 · 후보 {eligibleCount}팀
+              </QueuePos>
+            ) : null}
+          </ReasonHead>
+
+          <ScoreRow>
+            <ScoreValue>
+              {Math.round(opponent.matchScore || 0)}
+              <span> / 100</span>
+            </ScoreValue>
+            <Bar>
+              <BarFill $pct={Math.min(100, Math.max(0, opponent.matchScore || 0))} />
+            </Bar>
+          </ScoreRow>
+
+          {opponent.matchReasons?.length ? (
+            <ReasonRow>
+              {opponent.matchReasons.map((r) => (
+                <ReasonChip key={r}>{r}</ReasonChip>
+              ))}
+            </ReasonRow>
+          ) : null}
+
+          {winProb != null ? (
+            <>
+              <CardDivider />
+              <SubHead>
+                예상 승률
+                <em>{oppStats?.totalMatches ? `상대 ${oppStats.wins}승 ${oppStats.losses}패` : "상대 전적 없음"}</em>
+              </SubHead>
+              <ProbRow>
+                <ProbSide $mine>우리 {winProb}%</ProbSide>
+                <Bar $thin>
+                  <BarFill $pct={winProb} />
+                </Bar>
+                <ProbSide $right>{100 - winProb}% 상대</ProbSide>
+              </ProbRow>
+            </>
+          ) : null}
+
+          {parts ? (
+            <>
+              <CardDivider />
+              <SubHead>
+                점수 항목
+                <em>오른쪽 숫자는 가중치(합 100)</em>
+              </SubHead>
+              {PART_LABELS.map(([key, label]) => (
+                <PartRow key={key}>
+                  <PartLabel>{label}</PartLabel>
+                  <Bar $thin>
+                    <BarFill $pct={Math.round((Number(parts[key]) || 0) * 100)} />
+                  </Bar>
+                  <PartWeight>{WEIGHTS[key]}</PartWeight>
+                </PartRow>
+              ))}
+            </>
+          ) : null}
+        </ReasonCard>
+
         <RosterHead>
           <RosterTitle>
             <PeopleIcon />

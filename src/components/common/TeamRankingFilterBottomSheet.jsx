@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo } from "react";
 import styled from "styled-components";
 import { KR_AREAS } from "../../utils/constants";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 const Overlay = styled.div`
   position: fixed;
@@ -171,6 +172,9 @@ export default function TeamRankingFilterBottomSheet({
   onReset,
   onApply,
 }) {
+  // 안드로이드 하드웨어 뒤로가기: 페이지 이탈 대신 시트부터 닫는다.
+  useBackInterceptor(open, () => onClose && onClose());
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {

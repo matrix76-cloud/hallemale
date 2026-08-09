@@ -5,6 +5,7 @@
 import React from "react";
 import styled from "styled-components";
 import { C } from "./od";
+import { useBackInterceptor } from "../../../hooks/useBackInterceptor";
 
 const Overlay = styled.div`
   position: fixed; inset: 0; z-index: 300;
@@ -31,6 +32,8 @@ const Cancel = styled(Btn)`border: 1px solid ${C.slate200}; background: #fff; co
 const Confirm = styled(Btn)`border: none; color: #fff; background: ${({ $danger }) => ($danger ? C.red500 : C.violet600)};`;
 
 export default function ConfirmDialog({ state, onConfirm, onCancel }) {
+  // 안드로이드 하드웨어 뒤로가기 = 취소. 다이얼로그가 떠 있는데 화면이 넘어가지 않게.
+  useBackInterceptor(!!state, () => onCancel && onCancel());
   if (!state) return null;
   return (
     <Overlay onClick={onCancel}>

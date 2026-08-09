@@ -4,11 +4,15 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { subscribeAppDialog, resolveAppDialog } from "../../utils/appDialog";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 export default function AppDialog() {
   const [cur, setCur] = useState(null);
 
   useEffect(() => subscribeAppDialog(setCur), []);
+
+  // 안드로이드 하드웨어 뒤로가기 = 취소(confirm) / 확인(alert). 팝업 뒤의 화면이 먼저 넘어가지 않게.
+  useBackInterceptor(!!cur, () => resolveAppDialog(cur?.kind === "confirm" ? false : true));
 
   useEffect(() => {
     if (!cur) return;

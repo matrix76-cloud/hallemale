@@ -5,15 +5,17 @@
 // - 직접 선택: 팀 생성과 동일한 RegionPickerSheet(시/도 · 구/군)
 // → "○○ 에서 상대 찾기" → 로딩 화면
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import styled from "styled-components";
 import { showAlert } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 import { FiChevronRight, FiMapPin } from "react-icons/fi";
 
+import FlowSteps from "./components/FlowSteps";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 import InfoDialog from "../../components/common/InfoDialog";
 import { useWebviewBridgeContext } from "../../context/WebviewBridgeContext";
+import { useMatchingData } from "../../hooks/useMatchingData";
 import { KR_AREAS } from "../../utils/constants";
 
 const Page = styled.div`
@@ -62,7 +64,7 @@ const MyLocBtn = styled.button`
   background: ${({ $active, theme }) =>
     $active
       ? theme.mode === "dark"
-        ? "rgba(99,102,241,0.18)"
+        ? "rgba(157,134,220,0.18)"
         : "#eef2ff"
       : theme.colors.card};
   transition: transform 0.1s ease;
@@ -158,6 +160,16 @@ const SelectBtn = styled.button`
     $muted ? theme.colors.textWeak : theme.colors.textStrong};
 `;
 
+/* 선택한 지역에 상대가 얼마나 있는지 — 고르기 전에 알 수 있어야 헛걸음이 없다 */
+const RegionHint = styled.div`
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: ${({ $none, theme }) =>
+    $none ? theme.colors.textWeak : theme.colors.primary};
+`;
+
 const Footer = styled.div`
   position: fixed;
   left: 0;
@@ -184,7 +196,7 @@ const Cta = styled.button`
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 8px 18px rgba(124, 92, 201, 0.3);
   transition: transform 0.12s ease;
 
   &:disabled {
@@ -273,6 +285,20 @@ export default function MatchRegionSelectPage() {
   const region = sido && gu ? `${sido} ${gu}` : "";
   const usingMyLocation = !!detectedLabel && region === detectedLabel;
 
+  // 고른 지역에 등록된 팀 수 — matchmaking.regionScore 의 "같은 구" 판정과 같은 규칙.
+  // (인원 미달 팀은 여기서 거르지 않는다. 정확한 후보 수는 탐색 화면이 조회해 보여준다.)
+  const { opponentTeams } = useMatchingData();
+  const regionTeamCount = useMemo(() => {
+    if (!gu) return null;
+    const list = Array.isArray(opponentTeams) ? opponentTeams : [];
+    if (list.length === 0) return null; // 목록 미로딩 — 숫자를 지어내지 않는다
+    return list.filter((t) => {
+      const tGu = String(t.regionGu || "").trim();
+      if (tGu) return tGu === gu;
+      return String(t.region || "").includes(gu);
+    }).length;
+  }, [opponentTeams, gu]);
+
   // "내 위치로 설정": 단말 GPS → 카카오 역지오코딩 → 활동 지역 자동 입력
   const useMyLocation = () => {
     if (locating) return;
@@ -348,6 +374,8 @@ export default function MatchRegionSelectPage() {
   return (
     <Page>
       <Body>
+        <FlowSteps current={1} />
+
         <Heading>
           어느 지역에서
           <br />
@@ -390,13 +418,21 @@ export default function MatchRegionSelectPage() {
             <span>{region || "지역 선택"}</span>
             <FiChevronRight size={18} />
           </SelectBtn>
+
+          {regionTeamCount != null ? (
+            <RegionHint $none={regionTeamCount === 0}>
+              {regionTeamCount > 0
+                ? `${gu}에 등록된 팀 ${regionTeamCount}팀`
+                : `${gu}에는 등록된 팀이 없어요 — 인접 지역까지 넓혀서 찾아드려요`}
+            </RegionHint>
+          ) : null}
         </div>
       </Body>
 
       <Footer>
         <Cta type="button" onClick={handleFind} disabled={!region}>
           <BoltIcon />
-          {region ? `${region} 에서 상대 찾기` : "지역을 선택해 주세요"}
+          {region ? `${region}에서 상대 찾기` : "지역을 선택해 주세요"}
         </Cta>
       </Footer>
 

@@ -13,6 +13,7 @@ import {
   listMyReviewedMatchIds,
 } from "../../services/matchRoomService";
 import { getTeamRankMap } from "../../services/teamRankingService";
+import { peekCache, loadCached } from "../../utils/dataCache";
 import { useClub } from "../../hooks/useClub";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -201,7 +202,7 @@ const Logo = styled.div`
     theme.mode === "dark" ? theme.colors.surface : "#f3f4f6"};
 `;
 
-const LogoImg = styled.img`
+const LogoImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -279,9 +280,14 @@ export default function MyTeamMatchesPage() {
   const myClubId = toStr(club?.clubId || club?.id);
   const myUid = toStr(firebaseUser?.uid || userDoc?.uid || userDoc?.id);
 
-  const [rooms, setRooms] = useState([]);
-  const [reviewedSet, setReviewedSet] = useState(() => new Set());
-  const [loading, setLoading] = useState(true);
+  // 전적 탭은 지난 경기라 거의 안 변하는데도 진입할 때마다 두 번 왕복하며 스피너를 띄웠다.
+  // 캐시가 있으면 그대로 그리고 뒤에서 갱신한다.
+  const cacheKey = `myTeamMatches:${myClubId}:${myUid}`;
+  const cached = peekCache(cacheKey);
+
+  const [rooms, setRooms] = useState(cached?.data?.finished || []);
+  const [reviewedSet, setReviewedSet] = useState(() => cached?.data?.reviewed || new Set());
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState("");
   const [rankMap, setRankMap] = useState(null);
 
@@ -290,21 +296,23 @@ export default function MyTeamMatchesPage() {
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
+    if (!peekCache(cacheKey)) setLoading(true);
     setError("");
     (async () => {
       try {
-        const res = await loadMatchRoomListPageData(myClubId);
-        const all = Array.isArray(res?.rooms) ? res.rooms : [];
-        const finished = all.filter((r) => toStr(r?.status) === "finished");
+        const { finished, reviewed } = await loadCached(cacheKey, async () => {
+          const res = await loadMatchRoomListPageData(myClubId);
+          const all = Array.isArray(res?.rooms) ? res.rooms : [];
+          const fin = all.filter((r) => toStr(r?.status) === "finished");
+          const rev = await listMyReviewedMatchIds({
+            matchIds: fin.map((r) => toStr(r.id)),
+            raterUid: myUid,
+          });
+          return { finished: fin, reviewed: rev };
+        });
         if (!alive) return;
         setRooms(finished);
-
-        const reviewed = await listMyReviewedMatchIds({
-          matchIds: finished.map((r) => toStr(r.id)),
-          raterUid: myUid,
-        });
-        if (alive) setReviewedSet(reviewed);
+        setReviewedSet(reviewed);
       } catch (e) {
         if (alive) setError(e?.message || "경기를 불러오지 못했습니다.");
       } finally {

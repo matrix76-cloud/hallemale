@@ -68,7 +68,7 @@ const AvatarWrap = styled.div`
   flex-shrink: 0;
 `;
 
-const AvatarImg = styled.img`
+const AvatarImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -116,7 +116,7 @@ const TeamPill = styled.div`
   max-width: 140px;
 `;
 
-const TeamLogoMini = styled.img`
+const TeamLogoMini = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 16px;
   height: 16px;
   border-radius: 999px;

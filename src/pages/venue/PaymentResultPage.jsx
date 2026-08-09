@@ -12,6 +12,18 @@ import { FiCheckCircle, FiXCircle } from "react-icons/fi";
 
 const won = (v) => `${Number(v || 0).toLocaleString()}원`;
 
+// failUrl 로 돌아올 때 붙는 code → 사용자가 이해할 수 있는 문구.
+// 토스가 주는 message 는 개발자용 문장이라 그대로 보여주면 무슨 일인지 알기 어렵다.
+const FAIL_TEXT = {
+  PAY_PROCESS_CANCELED: "결제를 취소하셨어요.",
+  PAY_PROCESS_ABORTED: "결제가 중간에 중단됐어요. 다시 시도해 주세요.",
+  REJECT_CARD_COMPANY: "카드사에서 결제를 거절했어요. 다른 카드로 시도해 주세요.",
+  INVALID_CARD_EXPIRATION: "카드 유효기간을 다시 확인해 주세요.",
+  EXCEED_MAX_CARD_INSTALLMENT_PLAN: "선택한 할부 개월 수를 사용할 수 없는 카드예요.",
+  NOT_SUPPORTED_INSTALLMENT_PLAN_CARD_OR_MERCHANT: "이 카드로는 할부를 쓸 수 없어요.",
+  EXCEED_MAX_PAYMENT_AMOUNT: "결제 한도를 넘었어요. 다른 결제수단을 선택해 주세요.",
+};
+
 export default function PaymentResultPage() {
   const [sp] = useSearchParams();
   const navigate = useNavigate();
@@ -19,7 +31,9 @@ export default function PaymentResultPage() {
   const isFail = pathname.endsWith("/fail");
 
   const [state, setState] = useState(isFail ? "failed" : "confirming");
-  const [message, setMessage] = useState(sp.get("message") || "");
+  const [message, setMessage] = useState(
+    FAIL_TEXT[sp.get("code")] || sp.get("message") || ""
+  );
   const [result, setResult] = useState(null);
   // StrictMode 이중 실행으로 승인이 두 번 나가지 않게 막는다.
   const ranRef = useRef(false);
@@ -79,17 +93,26 @@ export default function PaymentResultPage() {
 
   // 분담결제에서 상대 팀이 아직 안 냈으면 그 사실을 알려줘야 흐름이 안 끊긴다.
   const waiting = result?.reservationStatus === "pending";
+  // 가상계좌: 계좌만 발급된 상태. 입금이 확인돼야 예약이 잡힌다.
+  const awaitingDeposit = result?.awaitingDeposit === true;
+  // 결제는 됐는데 예약 반영이 늦어지는 경우 — 서버가 웹훅으로 따라잡는다.
+  // 여기서 "실패"라고 말하면 안 된다. 돈은 이미 빠졌다.
+  const syncPending = result?.reservationSyncPending === true;
+
+  const note = awaitingDeposit
+    ? "발급된 계좌로 입금하시면 예약이 확정돼요. 입금 전에는 예약이 잡히지 않아요."
+    : syncPending
+      ? "결제는 정상 처리됐어요. 예약 확정 반영이 잠시 지연되고 있어요 — 조금 뒤 예약 내역에서 확인해 주세요."
+      : waiting
+        ? "상대 팀이 남은 몫을 결제하면 예약이 확정돼요. 2시간 안에 결제되지 않으면 자동 취소되고 결제하신 금액은 환불됩니다."
+        : "예약이 확정됐어요.";
 
   return (
     <Center>
       <FiCheckCircle size={44} />
-      <Head>결제가 완료됐어요</Head>
+      <Head>{awaitingDeposit ? "입금을 기다리고 있어요" : "결제가 완료됐어요"}</Head>
       <Amount>{won(result?.amount)}</Amount>
-      <Note>
-        {waiting
-          ? "상대 팀이 남은 몫을 결제하면 예약이 확정돼요. 2시간 안에 결제되지 않으면 자동 취소되고 결제하신 금액은 환불됩니다."
-          : "예약이 확정됐어요."}
-      </Note>
+      <Note>{note}</Note>
       <Btn onClick={goBack}>확인</Btn>
     </Center>
   );

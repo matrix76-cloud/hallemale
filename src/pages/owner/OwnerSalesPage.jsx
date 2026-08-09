@@ -7,10 +7,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { LuChartColumn, LuTrendingUp, LuReceipt, LuChevronLeft, LuChevronRight, LuActivity, LuBan, LuWallet, LuChevronRight as LuArrowRight } from "react-icons/lu";
+import { LuChartColumn, LuTrendingUp, LuReceipt, LuChevronLeft, LuChevronRight, LuActivity, LuBan, LuWallet, LuClock, LuLayoutGrid, LuSplit, LuChevronRight as LuArrowRight } from "react-icons/lu";
 import { useOwner } from "../../context/OwnerContext";
 import { listReservations, dowToKey } from "../../services/ownerVenueService";
-import { listOwnerPayments, summarize } from "../../services/ownerSettlementService";
+import { listOwnerPayments, summarize, filterMonth, todayKst } from "../../services/ownerSettlementService";
+import { nextPayoutDate } from "../../constants/payments";
 import { Page, Card, ScreenTitle, SecTitle, Caption, Money, Chip, C } from "./components/od";
 import VenueGateNotice from "./components/VenueGateNotice";
 import OwnerSpinner from "./components/OwnerSpinner";
@@ -32,7 +33,49 @@ function courtMonthOperatingMin(court, y, m){
   return total;
 }
 
+// 전월 대비 — 오르면 보라, 내리면 빨강. 방향을 못 재면(전월 0) 아예 안 그린다.
+function Delta({ cur, prev, unit = "" }) {
+  if (!Number.isFinite(prev) || prev <= 0) return null;
+  const diff = cur - prev;
+  if (diff === 0) return <DeltaTxt $flat>전월과 같음</DeltaTxt>;
+  const pct = Math.round((diff / prev) * 100);
+  return (
+    <DeltaTxt $up={diff > 0}>
+      전월 대비 {diff > 0 ? "+" : "−"}
+      {Math.abs(pct)}% ({diff > 0 ? "+" : "−"}
+      {Math.abs(diff).toLocaleString()}
+      {unit})
+    </DeltaTxt>
+  );
+}
+
 const Row = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 10px;`;
+const DeltaTxt = styled.div`
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-top: 3px;
+  color: ${({ $up, $flat }) => ($flat ? C.slate400 : $up ? C.violet600 : C.red500)};
+`;
+// 핵심 지표 4칸 — 사업 판단에 먼저 필요한 숫자만 위로 올린다.
+const KpiGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:8px;`;
+const Kpi = styled.div`
+  background: #fff; border: 1px solid ${C.slate200}; border-radius: 14px; padding: 14px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+`;
+const KpiL = styled.div`font-size:11.5px;color:${C.slate500};font-weight:700;display:flex;align-items:center;gap:4px;& > svg{color:${C.violet600};}`;
+const KpiV = styled.div`
+  font-size: 20px; font-weight: 800; letter-spacing: -0.4px;
+  font-variant-numeric: tabular-nums; color: ${({ $c }) => $c || C.slate800};
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  & > small { font-size: 12px; font-weight: 700; color: ${C.slate500}; margin-left: 2px; }
+`;
+// 시간대별 — 공실 시간을 찾는 용도라 값이 0인 칸도 그려야 의미가 있다.
+const HourRow = styled.div`display:grid;grid-template-columns:44px 1fr 34px;align-items:center;gap:8px;font-size:12px;color:${C.slate500};`;
+const HourBar = styled.div`
+  height: 9px; border-radius: 999px; background: ${C.violet50};
+  position: relative; overflow: hidden;
+  & > i { position: absolute; inset: 0; width: ${({ $pct }) => $pct}%; background: ${({ $cold }) => ($cold ? C.slate200 : C.violet600)}; border-radius: 999px; }
+`;
 const WideBar = styled.div`height:12px;border-radius:999px;background:${C.violet50};position:relative;overflow:hidden;margin-top:6px;& > i{position:absolute;inset:0;width:${({$pct})=>$pct}%;background:${C.violet600};border-radius:999px;}`;
 const TwoCol = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:8px;`;
 const Mini = styled.div`border:1px solid ${C.slate200};border-radius:12px;padding:12px;text-align:center;`;
@@ -75,7 +118,7 @@ export default function OwnerSalesPage() {
   const navigate = useNavigate();
   const { uid, venue, loading: ownerLoading, refresh } = useOwner();
   const courts = venue?.courts || [];
-  const [payout, setPayout] = useState(null); // 정산 요약 (앱내 결제 ON 일 때만)
+  const [pays, setPays] = useState([]); // 결제 원장 — 실수령 기준 매출·정산 진입점용
   const [courtId, setCourtId] = useState("all");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,12 +142,12 @@ export default function OwnerSalesPage() {
       .finally(() => setLoading(false));
   }, [venue?.id]);
 
-  // 정산 요약 — 실패해도 통계 화면은 그대로 보여준다(정산은 부가 정보).
+  // 결제 원장 — 실패해도 통계 화면은 그대로 보여준다(정산은 부가 정보).
   useEffect(() => {
     if (!uid || !venue?.id) return;
     listOwnerPayments(uid, { venueId: venue.id })
-      .then((ps) => setPayout(summarize(ps)))
-      .catch(() => setPayout(null));
+      .then((ps) => setPays(Array.isArray(ps) ? ps : []))
+      .catch(() => setPays([]));
   }, [uid, venue?.id]);
 
   const filtered = useMemo(
@@ -150,6 +193,97 @@ export default function OwnerSalesPage() {
     [monthRows]
   );
 
+  /* ── 경영 지표 ─────────────────────────────────────────────
+   * 금액은 두 축을 구분해서 쓴다.
+   *   예약 정가(reservations.price) = 운영 규모. 환불이 안 빠져 매출로 쓰면 틀린다.
+   *   정산액(payments.netVenueAmount) = 실제로 받는 돈. 사업 판단은 이쪽이 기준.
+   */
+  const prevKey = useMemo(() => {
+    const mm = ym.m === 1 ? 12 : ym.m - 1;
+    const yy = ym.m === 1 ? ym.y - 1 : ym.y;
+    return `${yy}-${String(mm).padStart(2, "0")}`;
+  }, [ym]);
+
+  const today = todayKst();
+  const payAll = useMemo(() => summarize(pays, today), [pays, today]);
+  const payMonth = useMemo(() => summarize(filterMonth(pays, monthKey), today), [pays, monthKey, today]);
+  const payPrev = useMemo(() => summarize(filterMonth(pays, prevKey), today), [pays, prevKey, today]);
+
+  const prevRows = useMemo(
+    () => filtered.filter((r) => (r.date || "").startsWith(prevKey) && ["confirmed", "done"].includes(r.status)),
+    [filtered, prevKey]
+  );
+  const prevCount = prevRows.length;
+  const prevTotal = prevRows.reduce((s, r) => s + (r.price || 0), 0);
+
+  const avgTicket = count > 0 ? Math.round(total / count) : 0;
+
+  // 시간대별 예약 — 공실 시간을 찾는 용도. 운영 시간대만 그린다.
+  const byHour = useMemo(() => {
+    const list = courtId === "all" ? courts : courts.filter((c) => c.id === courtId);
+    let lo = 24;
+    let hi = 0;
+    list.forEach((c) => {
+      Object.values(c?.hours || {}).forEach((h) => {
+        if (!h || h.closed) return;
+        lo = Math.min(lo, Math.floor(toMin(h.open) / 60));
+        hi = Math.max(hi, Math.ceil(toMin(h.close) / 60));
+      });
+    });
+    if (lo >= hi) return [];
+
+    const buckets = [];
+    for (let h = lo; h < hi; h += 1) buckets.push({ hour: h, count: 0 });
+    monthRows.forEach((r) => {
+      const s = Math.floor(toMin(r.startTime) / 60);
+      const e = Math.ceil(toMin(r.endTime) / 60);
+      for (let h = Math.max(lo, s); h < Math.min(hi, e); h += 1) {
+        const b = buckets[h - lo];
+        if (b) b.count += 1;
+      }
+    });
+    return buckets;
+  }, [courts, courtId, monthRows]);
+  const maxHour = Math.max(1, ...byHour.map((b) => b.count));
+  // 예약이 평균의 30% 미만인 시간대 = 공실 구간
+  const hourAvg = byHour.length ? byHour.reduce((s, b) => s + b.count, 0) / byHour.length : 0;
+  const coldHours = byHour.filter((b) => hourAvg > 0 && b.count < hourAvg * 0.3);
+
+  // 코트별 — 코트 필터와 무관하게 전 코트를 비교한다
+  const byCourt = useMemo(() => {
+    if (courts.length < 2) return [];
+    const monthAllCourts = rows.filter(
+      (r) => (r.date || "").startsWith(monthKey) && ["confirmed", "done"].includes(r.status)
+    );
+    return courts
+      .map((c) => {
+        const list = monthAllCourts.filter((r) => r.courtId === c.id);
+        return {
+          id: c.id,
+          name: c.name || "코트",
+          count: list.length,
+          total: list.reduce((s, r) => s + (r.price || 0), 0),
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [courts, rows, monthKey]);
+  const maxCourt = Math.max(1, ...byCourt.map((c) => c.total));
+
+  // 예약 채널 — 돈이 어디서 오는지. match=매칭 제휴, app=사용자 직접, owner=전화·수동
+  const bySource = useMemo(() => {
+    const acc = { match: { count: 0, total: 0 }, app: { count: 0, total: 0 }, owner: { count: 0, total: 0 } };
+    monthRows.forEach((r) => {
+      const key = r.matchId ? "match" : acc[r.source] ? r.source : "owner";
+      acc[key].count += 1;
+      acc[key].total += r.price || 0;
+    });
+    return [
+      { key: "match", label: "매칭 제휴", ...acc.match },
+      { key: "app", label: "앱 직접 예약", ...acc.app },
+      { key: "owner", label: "전화·수동", ...acc.owner },
+    ].filter((x) => x.count > 0);
+  }, [monthRows]);
+
   if (ownerLoading) return <OwnerSpinner label="불러오는 중…" />;
   if (!venue || venue.status !== "approved")
     return <Page><VenueGateNotice venue={venue} refresh={refresh} /></Page>;
@@ -162,8 +296,14 @@ export default function OwnerSalesPage() {
       <PayoutCard type="button" onClick={() => navigate("/owner/settlement")}>
         <div>
           <SecTitle><LuWallet size={16} /> 받을 정산금</SecTitle>
-          <Money $lg>{(payout?.payable ?? 0).toLocaleString()}원</Money>
-          <Caption>이용이 끝난 예약의 결제분 · 자세히 보기</Caption>
+          <Money $lg>{payAll.payable.toLocaleString()}원</Money>
+          <Caption>
+            {(() => {
+              const d = nextPayoutDate(today);
+              const [, mm, dd] = String(d || "").split("-");
+              return mm && dd ? `${Number(mm)}월 ${Number(dd)}일 지급 예정 · 명세 보기` : "이용이 끝난 예약의 결제분 · 자세히 보기";
+            })()}
+          </Caption>
         </div>
         <LuArrowRight size={20} color={C.slate400} />
       </PayoutCard>
@@ -183,14 +323,31 @@ export default function OwnerSalesPage() {
         <NavBtn onClick={() => shiftMonth(1)}><LuChevronRight size={20} /></NavBtn>
       </MonthNav>
 
-      <Card>
-        <SecTitle><LuTrendingUp size={16} /> {ym.y}년 {ym.m}월 예약</SecTitle>
-        <Money $lg>{count}건</Money>
-        <Caption>
-          확정·완료 예약 · 이용료 합계 {total.toLocaleString()}원
-          {" (정가 기준 · 환불 미반영)"}
-        </Caption>
-      </Card>
+      <KpiGrid>
+        <Kpi>
+          <KpiL><LuWallet size={13} /> 정산 매출</KpiL>
+          <KpiV $c={C.violet600}>{payMonth.net.toLocaleString()}<small>원</small></KpiV>
+          <Delta cur={payMonth.net} prev={payPrev.net} unit="원" />
+          <Caption>앱 결제 {payMonth.count}건 · 이용료 뗀 실수령</Caption>
+        </Kpi>
+        <Kpi>
+          <KpiL><LuTrendingUp size={13} /> 예약</KpiL>
+          <KpiV>{count}<small>건</small></KpiV>
+          <Delta cur={count} prev={prevCount} unit="건" />
+          <Caption>정가 합계 {total.toLocaleString()}원</Caption>
+        </Kpi>
+        <Kpi>
+          <KpiL><LuActivity size={13} /> 가동률</KpiL>
+          <KpiV>{occupancy}<small>%</small></KpiV>
+          <Caption>예약 {Math.round(bookedMin / 60)}h / 운영 {Math.round(operMin / 60)}h</Caption>
+        </Kpi>
+        <Kpi>
+          <KpiL><LuReceipt size={13} /> 건당 평균</KpiL>
+          <KpiV>{avgTicket.toLocaleString()}<small>원</small></KpiV>
+          <Delta cur={avgTicket} prev={prevCount > 0 ? Math.round(prevTotal / prevCount) : 0} unit="원" />
+          <Caption>예약 정가 기준</Caption>
+        </Kpi>
+      </KpiGrid>
 
       <Card>
         <SecTitle><LuActivity size={16} /> 가동률</SecTitle>
@@ -201,6 +358,81 @@ export default function OwnerSalesPage() {
         <WideBar $pct={Math.min(100, occupancy)}><i /></WideBar>
         <Caption>운영시간 대비 실제 예약된 비율이에요. 낮으면 공실 시간대에 정기대관·할인을 유도해보세요.</Caption>
       </Card>
+
+      {/* 시간대별 — "가동률이 낮다"까지만 알려주면 손을 못 쓴다. 어느 시간이 비는지까지 짚는다. */}
+      <Card>
+        <SecTitle><LuClock size={16} /> 시간대별 예약</SecTitle>
+        {loading ? (
+          <Caption>불러오는 중…</Caption>
+        ) : byHour.length === 0 ? (
+          <Caption>운영 시간이 설정된 코트가 없어요.</Caption>
+        ) : count === 0 ? (
+          <Caption>아직 확정된 예약이 없어요.</Caption>
+        ) : (
+          <>
+            <Bars>
+              {byHour.map((b) => {
+                const cold = hourAvg > 0 && b.count < hourAvg * 0.3;
+                return (
+                  <HourRow key={b.hour}>
+                    <span style={{ fontWeight: 700, color: cold ? C.slate400 : C.slate500 }}>
+                      {String(b.hour).padStart(2, "0")}시
+                    </span>
+                    <HourBar $pct={Math.round((b.count / maxHour) * 100)} $cold={cold}><i /></HourBar>
+                    <span style={{ textAlign: "right", color: cold ? C.slate400 : C.slate800, fontWeight: 700 }}>{b.count}</span>
+                  </HourRow>
+                );
+              })}
+            </Bars>
+            {coldHours.length > 0 && (
+              <Caption>
+                회색 구간({coldHours.map((b) => `${b.hour}시`).join(", ")})이 비어 있어요.
+                이 시간대에 정기대관·시간대 할인을 걸면 가동률이 올라갑니다.
+              </Caption>
+            )}
+          </>
+        )}
+      </Card>
+
+      {byCourt.length > 0 && (
+        <Card>
+          <SecTitle><LuLayoutGrid size={16} /> 코트별 매출</SecTitle>
+          {byCourt.every((c) => c.total === 0) ? (
+            <Caption>이 달에는 확정된 예약이 없어요.</Caption>
+          ) : (
+            <Bars>
+              {byCourt.map((c) => (
+                <ListItem key={c.id} style={{ borderBottom: "none", padding: "4px 0" }}>
+                  <ItemL style={{ flex: 1 }}>
+                    <ItemT>{c.name}</ItemT>
+                    <Bar $pct={Math.round((c.total / maxCourt) * 100)} style={{ marginTop: 5 }}><i /></Bar>
+                  </ItemL>
+                  <ItemL style={{ alignItems: "flex-end", flexShrink: 0, marginLeft: 10 }}>
+                    <Amt>{c.total.toLocaleString()}원</Amt>
+                    <ItemS>{c.count}건</ItemS>
+                  </ItemL>
+                </ListItem>
+              ))}
+            </Bars>
+          )}
+        </Card>
+      )}
+
+      {bySource.length > 0 && (
+        <Card>
+          <SecTitle><LuSplit size={16} /> 예약 채널</SecTitle>
+          {bySource.map((s) => (
+            <ListItem key={s.key}>
+              <ItemL>
+                <ItemT>{s.label}</ItemT>
+                <ItemS>{s.count}건 · 전체의 {Math.round((s.count / Math.max(1, count)) * 100)}%</ItemS>
+              </ItemL>
+              <Amt>{s.total.toLocaleString()}원</Amt>
+            </ListItem>
+          ))}
+          <Caption>매칭 제휴는 두 팀이 나눠 결제한 건이에요. 채널별로 어디서 예약이 들어오는지 볼 수 있어요.</Caption>
+        </Card>
+      )}
 
       <Card>
         <SecTitle><LuBan size={16} /> 취소·노쇼</SecTitle>

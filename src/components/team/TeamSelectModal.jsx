@@ -14,6 +14,7 @@ import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useAuth } from "../../hooks/useAuth";
 import EmptyState from "../common/EmptyState";
 import { listClubsForPicker, createJoinRequestToClub } from "../../services/teamService";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 export default function TeamSelectModal({
   open,
@@ -161,6 +162,9 @@ export default function TeamSelectModal({
       setLoading(false);
     }
   };
+
+  // 안드로이드 하드웨어 뒤로가기: 화면을 벗어나지 말고 이 오버레이부터 닫는다.
+  useBackInterceptor(open, () => onClose && onClose());
 
   if (!open) return null;
 

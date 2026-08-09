@@ -9,6 +9,7 @@ import React, { useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { FiPlus, FiTrash2, FiX, FiPlay } from "react-icons/fi";
 import { uploadCompressedImageMedia, createYoutubeMediaItem, deleteMediaItem } from "../../services/mediaService";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 export default function MediaSection({
   scope = "users", // "users" | "teams" | "matches" | "posts" ...
@@ -93,6 +94,9 @@ export default function MediaSection({
   };
 
   const closeYoutubeModal = () => setYtOpen(false);
+
+  // 안드로이드 하드웨어 뒤로가기: 화면 이탈 대신 유튜브 추가 모달부터 닫는다.
+  useBackInterceptor(ytOpen, closeYoutubeModal);
 
   const addYoutube = () => {
     try {

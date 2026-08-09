@@ -5,7 +5,12 @@
 
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 let analytics = null;
@@ -40,7 +45,31 @@ requiredKeys.forEach((k) => {
 export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+/**
+ * Firestore 로컬 영속 캐시(IndexedDB).
+ *
+ * 기본값은 메모리 캐시라 앱을 껐다 켜면 캐시가 통째로 사라지고, 네트워크가 끊기면
+ * 읽기가 그냥 실패한다. 영속 캐시를 켜면 다시 켰을 때도 이전 데이터가 남아 있어
+ * 지하철·엘리베이터처럼 신호가 나쁜 곳에서 화면이 비지 않는다.
+ *
+ * ⚠️ IndexedDB 를 못 쓰는 환경(시크릿 모드, 일부 웹뷰)에서는 초기화가 실패할 수 있어
+ *    메모리 캐시로 조용히 되돌린다 — 캐시 때문에 앱이 안 뜨는 일은 없어야 한다.
+ * ⚠️ 여러 탭을 동시에 여는 경우가 있어 multi-tab 매니저를 쓴다(단일 탭 매니저는
+ *    두 번째 탭에서 영속 캐시가 아예 꺼진다).
+ */
+function createDb(targetApp) {
+  try {
+    return initializeFirestore(targetApp, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch (e) {
+    console.warn("[firebase] 영속 캐시 초기화 실패 → 메모리 캐시로 진행:", e?.message || e);
+    return getFirestore(targetApp);
+  }
+}
+
+export const db = createDb(app);
 export const storage = getStorage(app);
 
 // ✅ 구장 관리자(구장주) 전용 Auth 인스턴스.
@@ -58,7 +87,7 @@ export const ownerAuth = getAuth(ownerApp);
 //      users/{구장주uid} 쓰기와 Storage 업로드(storage.rules: request.auth != null)도 막힌다.
 //    구장주 세션으로 하는 읽기/쓰기는 반드시 아래 핸들을 쓴다.
 //    (예전엔 "보안규칙 전면허용이라 무관"이라 적혀 있었는데, 규칙을 잠근 순간 그 전제가 깨졌다)
-export const ownerDb = getFirestore(ownerApp);
+export const ownerDb = createDb(ownerApp);
 export const ownerStorage = getStorage(ownerApp);
 
 // Analytics는 브라우저에서만 + measurementId 있을 때만 안전하게 활성화

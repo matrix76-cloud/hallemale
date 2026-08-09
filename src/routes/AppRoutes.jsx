@@ -1,10 +1,12 @@
 /* eslint-disable */
 // src/routes/AppRoutes.jsx
-import React, { lazy, Suspense, useEffect, useRef } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useWebviewBridgeContext } from "../context/WebviewBridgeContext";
 import { useUI } from "../hooks/useUI";
 import { goBackOrHome } from "../utils/navigation";
+import { isRootPath, resolveBackAction } from "../utils/backPolicy";
+import { confirmAppExit } from "../utils/appExit";
 import { freezeRoute } from "../dev/mockBus";
 import { ADMIN_BASE } from "../config/adminPath";
 import { PAYMENTS_ENABLED } from "../constants/payments";
@@ -265,13 +267,10 @@ function RequireAdmin({ children }) {
   return children;
 }
 
-// ── 종료 모달이 뜨는 페이지 (백스택 없는 진입점) ──
-const ROOT_PATHS = ["/", "/welcome", "/home"];
-// ── 하단 탭바 중 홈이 아닌 탭 (뒤로가기 시 홈으로 이동) ──
-const FOOTER_NON_HOME = ["/matchingmanage", "/records", "/community", "/my"];
-
 /**
  * 라우트 변경 시 RN에 NAV_STATE 발송 + BACK_REQUEST / APP_EXIT_REQUEST 수신 처리
+ *
+ * 뒤로가기 목적지는 utils/backPolicy 한 곳에서만 정한다(사용자앱/구장주/어드민 공통).
  */
 function BridgeNavSync() {
   const { pathname } = useLocation();
@@ -282,7 +281,6 @@ function BridgeNavSync() {
     bottomSheet,
     hideModal,
     hideBottomSheet,
-    showModal,
     blockingCount,
     runTopBackInterceptor,
     headerConfig,
@@ -295,7 +293,6 @@ function BridgeNavSync() {
     bottomSheet,
     hideModal,
     hideBottomSheet,
-    showModal,
     runTopBackInterceptor,
     headerConfig,
   };
@@ -307,8 +304,7 @@ function BridgeNavSync() {
   useEffect(() => {
     if (!bridge?.isWebView) return;
 
-    const p = pathname.toLowerCase();
-    const isRoot = ROOT_PATHS.includes(p);
+    const isRoot = isRootPath(pathname);
 
     bridge.sendToApp("NAV_STATE", {
       isRoot,
@@ -318,22 +314,33 @@ function BridgeNavSync() {
     });
   }, [pathname, hasBlockingUI, bridge]);
 
+  // 열려 있는 블로킹 UI를 하나 닫는다. 닫았으면 true (= 뒤로가기 소비).
+  const closeTopBlockingUI = useCallback(() => {
+    const ui = uiRef.current;
+    if (ui.modal) { ui.hideModal(); return true; }
+    if (ui.bottomSheet) { ui.hideBottomSheet(); return true; }
+    // 자체 오버레이(지역 선택 시트, 페이지 모달 등)가 등록한 인터셉터
+    if (ui.runTopBackInterceptor && ui.runTopBackInterceptor()) return true;
+    return false;
+  }, []);
+
   // BACK_REQUEST: 모달 닫기 또는 뒤로가기
+  // 어떤 화면에서도 "아무 일도 안 일어남"이 없도록 정책상 항상 종착지가 있다.
   useEffect(() => {
     if (!bridge?.subscribe) return;
 
     return bridge.subscribe("BACK_REQUEST", () => {
       const ui = uiRef.current;
-      if (ui.modal) { ui.hideModal(); return; }
-      if (ui.bottomSheet) { ui.hideBottomSheet(); return; }
-      // ✅ 자체 오버레이(지역 선택 시트 등) 열려 있으면 먼저 닫기
-      if (ui.runTopBackInterceptor && ui.runTopBackInterceptor()) return;
-      // 푸터 탭(홈 제외)에 있을 때는 홈으로 이동
-      const p = (typeof window !== "undefined" ? window.location.pathname : "").toLowerCase();
-      if (FOOTER_NON_HOME.includes(p)) {
-        navigate("/home");
-        return;
-      }
+      if (closeTopBlockingUI()) return;
+
+      const path = typeof window !== "undefined" ? window.location.pathname : "/";
+      const { action, fallback } = resolveBackAction(path);
+
+      // 각 영역의 진입점 — RN이 NAV_STATE를 놓쳐 BACK_REQUEST로 와도 종료 확인으로 받는다.
+      if (action === "exit") { confirmAppExit(bridge); return; }
+      // 홈이 아닌 하단 탭 → 그 영역의 홈으로
+      if (action === "home") { navigate(fallback); return; }
+
       // ✅ 페이지가 지정한 뒤로가기가 있으면 그대로 사용 (헤더 백버튼과 동작 일치).
       //    없을 때만 히스토리 pop. 확정 경기·구장 정하기처럼 목적지가 정해진 화면에서
       //    HW 뒤로가기가 조율 중 히스토리로 되돌아가는 것을 막는다.
@@ -341,31 +348,21 @@ function BridgeNavSync() {
         ui.headerConfig.onBack();
         return;
       }
-      goBackOrHome(navigate);
+      // 앱 내부 백스택이 없으면 그 영역의 폴백으로 (구장주/어드민이 사용자앱으로 튕기지 않게)
+      goBackOrHome(navigate, fallback);
     });
-  }, [bridge, navigate]);
+  }, [bridge, navigate, closeTopBlockingUI]);
 
   // APP_EXIT_REQUEST: 루트에서 뒤로가기 → 종료 확인 모달
   useEffect(() => {
     if (!bridge?.subscribe) return;
 
     return bridge.subscribe("APP_EXIT_REQUEST", () => {
-      const ui = uiRef.current;
       // 이미 블로킹 UI가 떠 있으면 그것부터 닫기 (BACK_REQUEST와 동일 가드)
-      if (ui.modal) { ui.hideModal(); return; }
-      if (ui.bottomSheet) { ui.hideBottomSheet(); return; }
-      if (ui.runTopBackInterceptor && ui.runTopBackInterceptor()) return;
-      ui.showModal({
-        title: "앱 종료",
-        message: "앱을 종료하시겠습니까?",
-        onConfirm: () => {
-          ui.hideModal();
-          bridge.sendToApp("EXIT_APP");
-        },
-        onCancel: () => ui.hideModal(),
-      });
+      if (closeTopBlockingUI()) return;
+      confirmAppExit(bridge);
     });
-  }, [bridge]);
+  }, [bridge, closeTopBlockingUI]);
 
   return null;
 }
@@ -405,11 +402,21 @@ function PrefetchTabChunks() {
       window.cancelIdleCallback || window.clearTimeout;
 
     const handle = idle(() => {
+      // 하단 탭 5개
       import("../pages/home/HomePage");
       import("../pages/matching/MatchingManagePage");
       import("../pages/matching/MyTeamMatchesPage");
       import("../pages/community/CommunityListPage");
       import("../pages/my/MyProfilePage");
+      // 탭에서 한 번만 눌러 들어가는 곳들 — 여기서 안 받아두면 그 버튼마다 청크를
+      // 기다리느라 화면이 잠깐 멈춘다. 유휴 시간에 미리 받아 둔다.
+      import("../pages/matching/MatchRoomListPage");
+      import("../pages/matching/MatchRoomDetailPage");
+      import("../pages/venue/VenueListPage");
+      import("../pages/notifications/NotificationsPage");
+      import("../pages/chat/ChatListPage");
+      import("../pages/team/TeamProfilePage");
+      import("../pages/player/PlayerProfilePage");
     });
 
     return () => {

@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { FiX } from "react-icons/fi";
 import { listActiveVenues } from "../../services/venuesService";
 import EmptyState from "./EmptyState";
+import { useBackInterceptor } from "../../hooks/useBackInterceptor";
 
 export default function VenuePickerSheet({
   open,
@@ -20,6 +21,9 @@ export default function VenuePickerSheet({
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [venues, setVenues] = useState([]);
+
+  // 안드로이드 하드웨어 뒤로가기: 페이지 이탈 대신 시트부터 닫는다.
+  useBackInterceptor(open, () => onClose?.());
 
   useEffect(() => {
     if (!open) return;
