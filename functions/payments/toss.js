@@ -54,7 +54,8 @@ const n = (v) => {
  *
  * 심사 통과 후 여는 법: 라이브 키로 교체한 뒤 LOCAL_ONLY = false.
  */
-const LOCAL_ONLY = true;
+// 2026-08-08: 알림톡 실발송 테스트를 위해 배포본에서도 결제를 받는다(라이브 키 전 임시).
+const LOCAL_ONLY = false;
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 /** 심사 게이트에 걸리는 요청인가 — 걸리면 결제를 받지 않는다. */

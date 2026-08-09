@@ -25,7 +25,11 @@
  *   2) 이 상수를 true 로 고정(또는 이 블록 제거)
  *   3) functions/payments/toss.js 의 LOCAL_ONLY 게이트도 함께 해제
  */
-export const PAYMENTS_ENABLED = process.env.NODE_ENV !== "production";
+// 2026-08-08: 알림톡(경기 확정) 실발송 테스트를 위해 프로덕션까지 개방.
+// ⚠️ 토스 키가 아직 test_ 라 카드가 청구되지 않는데도 예약이 confirmed 로 넘어간다.
+//    결제 진입에는 구장주 승인이 선행되므로 노출면은 승인된 구장에 한정된다.
+//    라이브 키 교체 전까지는 이 상태를 오래 두지 말 것.
+export const PAYMENTS_ENABLED = true;
 
 /** 결제 진입이 막혀 있을 때 결제 버튼 자리에 대신 넣는 안내. */
 export const PAYMENTS_DISABLED_NOTICE =
