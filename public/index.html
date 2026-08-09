@@ -25,6 +25,11 @@
 
     <title>hallemalle</title>
 
+    <!-- 네이버 서치어드바이저 소유확인. 등록한 사이트가 "https://hallaemallae.com/" 이므로
+         검증 봇이 읽는 건 랜딩이 아니라 이 루트 셸의 원본 HTML이다(봇은 JS redirect를 타지 않는다).
+         소유확인 통과 후에도 지우면 안 된다 — 네이버가 주기적으로 재검증한다. -->
+    <meta name="naver-site-verification" content="d787172795b5f63f9c12a0fe09a2cae027c3a995" />
+
     <!-- 루트 "/" 는 PC 폭에서 /landing/ 으로 JS redirect 되는 앱 셸이다. JS 미실행 크롤러가
          앱 셸을 색인하지 않도록, 색인 신호를 정적 랜딩(/landing/)으로 모은다.
          네이버 서치어드바이저 "robots.txt / 로봇 메타 태그" 주의(JS redirect) 대응. -->

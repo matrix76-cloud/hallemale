@@ -7,6 +7,14 @@
 <meta name="description" content="우리 동네 농구팀끼리 연습경기 상대를 매칭하는 가장 쉬운 방법. 매칭·전적·랭킹·정산까지 할래말래에서.">
 <meta name="theme-color" content="#6a3df0">
 
+<!-- 네이버 웹사이트 검색결과의 사이트 아이콘. 랜딩이 /landing/ 하위라 상대경로로 새면
+     크롤러가 못 찾으므로 루트 절대경로로 고정한다. -->
+<link rel="icon" href="/favicon.ico" sizes="any">
+
+<!-- 소유확인 본체는 루트(public/index.html)에 있다. 여기 것은 /landing/ 을 별도 사이트로
+     추가 등록할 때를 위한 사본 — 루트 것과 값이 갈리지 않게 같이 고칠 것. -->
+<meta name="naver-site-verification" content="d787172795b5f63f9c12a0fe09a2cae027c3a995" />
+
 <!-- 루트 "/" 가 이 페이지로 JS redirect 되므로, 크롤러가 착지하는 실제 색인 대상 페이지에
      robot 지시를 명시한다. 네이버 서치어드바이저의 "로봇 메타 태그" 주의 대응. -->
 <meta name="robots" content="index,follow">
@@ -40,9 +48,15 @@
     {
       "@type": "Organization",
       "name": "할래말래",
+      "alternateName": "hallaemallae",
       "url": "https://hallaemallae.com/landing/",
       "logo": "https://hallaemallae.com/landing/assets/logo.png",
-      "description": "우리 동네 농구팀끼리 연습경기 상대를 매칭하는 생활스포츠 팀 매칭 플랫폼."
+      "description": "우리 동네 농구팀끼리 연습경기 상대를 매칭하는 생활스포츠 팀 매칭 플랫폼.",
+      "sameAs": [
+        "https://www.instagram.com/hallaemallae_official/",
+        "https://apps.apple.com/app/id6756939904",
+        "https://play.google.com/store/apps/details?id=com.hongcomms.hallemalle"
+      ]
     },
     {
       "@type": "WebSite",
