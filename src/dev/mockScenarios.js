@@ -485,7 +485,20 @@ const VENUE_RAW = {
   active: true,
   displayMode: "grouped",
   courts: [
-    { id: "court_a", name: "A코트", type: "indoor", surface: "우레탄", pricePerHour: 40000, slotMinutes: 60, hours: courtHours() },
+    // priceBands: 상세의 "요금·코트 정보"에서 요일별 시간대 요금표가 그려지는지 보기 위한 값
+    {
+      id: "court_a", name: "A코트", type: "indoor", surface: "우레탄",
+      pricePerHour: 40000, slotMinutes: 60, hours: courtHours(),
+      priceBands: {
+        mon: [{ start: "18:00", end: "22:00", price: 50000 }],
+        tue: [{ start: "18:00", end: "22:00", price: 50000 }],
+        wed: [{ start: "18:00", end: "22:00", price: 50000 }],
+        thu: [{ start: "18:00", end: "22:00", price: 50000 }],
+        fri: [{ start: "18:00", end: "22:00", price: 50000 }],
+        sat: [{ start: "09:00", end: "21:00", price: 55000 }],
+        sun: [{ start: "09:00", end: "21:00", price: 55000 }],
+      },
+    },
     { id: "court_b", name: "B코트", type: "indoor", surface: "마루", pricePerHour: 35000, slotMinutes: 60, hours: courtHours() },
   ],
   // 어드민 심사 화면에서 볼 값 — 사업자 인증은 끝났지만 계좌는 아직 대조 전(verified:false)이라
@@ -510,6 +523,8 @@ const VENUE2_RAW = {
   business: { ...VENUE_RAW.business, bizName: "슛포인트", bizNo: "222-33-44444", taxType: "simple" },
   settlement: { bank: "카카오뱅크", account: "3333012345678", holder: "이관장", taxEmail: "tax2@example.com", verified: true },
   salesReport: { number: "", certUrl: "", exempt: true, status: "none" },
+  // 즉시예약(승인 없이 바로 확정) 구장 — 상세의 "즉시 예약" 배지·안내문 검수용
+  autoApprove: true,
   name: "마포 슛포인트 체육관",
   displayName: "마포 슛포인트 체육관",
   address: "서울 마포구 월드컵로 200",

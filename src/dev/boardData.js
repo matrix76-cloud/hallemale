@@ -172,6 +172,8 @@ const EXTRA_FRAMES = {
   venue: [
     { key: "sc-v1-list",      forScreen: "venues",          name: "①구장 목록",        path: "/venues",                                   scenario: "venue-flow" },
     { key: "sc-v2-detail",    forScreen: "venue-book",      name: "②구장 상세",        path: "/venue-book/mock_venue",                    scenario: "venue-flow" },
+    // 승인제(위)와 즉시예약은 안내문·버튼 문구가 통째로 갈린다 — 두 상태를 나란히 본다.
+    { key: "sc-v2b-instant",  forScreen: "venue-book",      name: "②'구장 상세 · 즉시예약", path: "/venue-book/mock_venue2",              scenario: "venue-flow" },
     { key: "sc-v4-pay",       forScreen: "pay",             name: "④결제(토스 위젯)",  path: "/pay/mock_reservation",                     scenario: "venue-flow" },
     { key: "sc-v5-success",   forScreen: "pay-success",     name: "⑤결제 성공 · 확정",  path: "/pay/success?orderId=mock_order_20260802_001&paymentKey=mock_pk&amount=84000", scenario: "venue-flow" },
     // 매칭 제휴구장은 팀당 1건이라, 우리 팀이 내도 상대 팀이 안 내면 확정이 아니다.

@@ -7,6 +7,7 @@
 //   node scripts/add-ai-members.mjs --team=리바운드5 --email=appreview@hallamalle.com --pw=**** --count=6           (dry-run)
 //   node scripts/add-ai-members.mjs --team=리바운드5 --email=appreview@hallamalle.com --pw=**** --count=6 --apply    (실제 추가)
 //   (pw 는 --pw= 대신 환경변수 HALLE_PW 로도 전달 가능)
+//   동명 팀이 있으면 --team 대신 --clubId=<clubId> 로 정확히 지목한다.
 
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
@@ -29,12 +30,13 @@ const getArg = (k, d = "") => {
   return hit ? hit.split("=").slice(1).join("=") : d;
 };
 const TEAM_KEYWORD = getArg("team");
+const CLUB_ID = getArg("clubId"); // 동명 팀이 있을 때 정확히 지목 (--team 대신 사용)
 const EMAIL = getArg("email");
 const PW = getArg("pw") || process.env.HALLE_PW || "";
 const COUNT = Math.max(1, Math.min(12, parseInt(getArg("count", "6"), 10) || 6));
 const APPLY = args.includes("--apply");
 
-if (!TEAM_KEYWORD) { console.error("❌ --team=<팀이름키워드> 필요"); process.exit(1); }
+if (!TEAM_KEYWORD && !CLUB_ID) { console.error("❌ --team=<팀이름키워드> 또는 --clubId=<clubId> 필요"); process.exit(1); }
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -62,14 +64,20 @@ if (EMAIL && PW) {
   console.log("⚠️  비로그인 모드 — 조회는 되지만 --apply 시 PERMISSION_DENIED 로 실패합니다. --email/--pw 필요.\n");
 }
 
-const allSnap = await getDocs(collection(db, "clubs"));
-const matches = allSnap.docs.filter((d) => String(d.data()?.name || "").includes(TEAM_KEYWORD));
-if (matches.length === 0) { console.error(`❌ "${TEAM_KEYWORD}" 팀 없음`); process.exit(1); }
-if (matches.length > 1) {
-  console.log(`⚠️  "${TEAM_KEYWORD}" 포함 ${matches.length}개 — 첫번째 사용:`);
-  matches.forEach((d) => console.log(`     - ${d.id}  ${d.data()?.name}`));
+let clubDoc;
+if (CLUB_ID) {
+  clubDoc = await getDoc(doc(db, "clubs", CLUB_ID));
+  if (!clubDoc.exists()) { console.error(`❌ clubId="${CLUB_ID}" 팀 없음`); process.exit(1); }
+} else {
+  const allSnap = await getDocs(collection(db, "clubs"));
+  const matches = allSnap.docs.filter((d) => String(d.data()?.name || "").includes(TEAM_KEYWORD));
+  if (matches.length === 0) { console.error(`❌ "${TEAM_KEYWORD}" 팀 없음`); process.exit(1); }
+  if (matches.length > 1) {
+    console.log(`⚠️  "${TEAM_KEYWORD}" 포함 ${matches.length}개 — 첫번째 사용:`);
+    matches.forEach((d) => console.log(`     - ${d.id}  ${d.data()?.name}`));
+  }
+  clubDoc = matches[0];
 }
-const clubDoc = matches[0];
 const clubId = clubDoc.id;
 const club = clubDoc.data() || {};
 console.log(`✅ 팀: ${club.name} (clubId=${clubId})`);

@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-07T13:16:46.323Z",
+  "generatedAt": "2026-08-09T07:33:00.445Z",
   "counts": {
     "teams": 23,
-    "members": 126,
+    "members": 128,
     "regions": 7
   },
   "wall": [
@@ -233,6 +233,28 @@
       "winRate": 67
     },
     {
+      "name": "핏자피자",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeHXmDqVYHI3RIdcGjvoJ%2Flogo_1784191507145.jpg?alt=media&token=144da0af-4341-4ad1-b9a9-f563484ef820",
+      "wins": 2,
+      "draws": 0,
+      "losses": 1,
+      "total": 3,
+      "points": 11,
+      "winRate": 67
+    },
+    {
+      "name": "팀응원갈래",
+      "region": "경기 남양주시",
+      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Ff82jK32bEmbjOJeTM5Z7%2Flogo_1783507959318.jpg?alt=media&token=7dc7ae43-c438-44d9-a1a0-6d16b3ef69a5",
+      "wins": 1,
+      "draws": 0,
+      "losses": 3,
+      "total": 4,
+      "points": 8,
+      "winRate": 25
+    },
+    {
       "name": "스윗한나라",
       "region": "서울 도봉구",
       "logoUrl": "",
@@ -242,28 +264,6 @@
       "total": 3,
       "points": 7,
       "winRate": 33
-    },
-    {
-      "name": "팀응원갈래",
-      "region": "경기 남양주시",
-      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2Ff82jK32bEmbjOJeTM5Z7%2Flogo_1783507959318.jpg?alt=media&token=7dc7ae43-c438-44d9-a1a0-6d16b3ef69a5",
-      "wins": 1,
-      "draws": 0,
-      "losses": 2,
-      "total": 3,
-      "points": 7,
-      "winRate": 33
-    },
-    {
-      "name": "핏자피자",
-      "region": "경기 남양주시",
-      "logoUrl": "https://firebasestorage.googleapis.com/v0/b/halle-bf789.firebasestorage.app/o/clubs%2FeHXmDqVYHI3RIdcGjvoJ%2Flogo_1784191507145.jpg?alt=media&token=144da0af-4341-4ad1-b9a9-f563484ef820",
-      "wins": 1,
-      "draws": 0,
-      "losses": 1,
-      "total": 2,
-      "points": 6,
-      "winRate": 50
     },
     {
       "name": "청춘사자",
@@ -301,6 +301,56 @@
   ],
   "playerRanking": [
     {
+      "name": "한주성2",
+      "clubName": "",
+      "wins": 2,
+      "draws": 0,
+      "losses": 1,
+      "total": 3,
+      "points": 11,
+      "winRate": 67
+    },
+    {
+      "name": "AI 도우진",
+      "clubName": "",
+      "wins": 2,
+      "draws": 0,
+      "losses": 1,
+      "total": 3,
+      "points": 11,
+      "winRate": 67
+    },
+    {
+      "name": "AI 치즈현",
+      "clubName": "",
+      "wins": 2,
+      "draws": 0,
+      "losses": 1,
+      "total": 3,
+      "points": 11,
+      "winRate": 67
+    },
+    {
+      "name": "정민재",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 3,
+      "total": 4,
+      "points": 8,
+      "winRate": 25
+    },
+    {
+      "name": "한서준",
+      "clubName": "",
+      "wins": 1,
+      "draws": 0,
+      "losses": 3,
+      "total": 4,
+      "points": 8,
+      "winRate": 25
+    },
+    {
       "name": "나는야한로로",
       "clubName": "",
       "wins": 1,
@@ -309,56 +359,6 @@
       "total": 3,
       "points": 7,
       "winRate": 33
-    },
-    {
-      "name": "정민재",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 2,
-      "total": 3,
-      "points": 7,
-      "winRate": 33
-    },
-    {
-      "name": "한서준",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 2,
-      "total": 3,
-      "points": 7,
-      "winRate": 33
-    },
-    {
-      "name": "한주성2",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 1,
-      "total": 2,
-      "points": 6,
-      "winRate": 50
-    },
-    {
-      "name": "AI 도우진",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 1,
-      "total": 2,
-      "points": 6,
-      "winRate": 50
-    },
-    {
-      "name": "AI 치즈현",
-      "clubName": "",
-      "wins": 1,
-      "draws": 0,
-      "losses": 1,
-      "total": 2,
-      "points": 6,
-      "winRate": 50
     },
     {
       "name": "한주성",
