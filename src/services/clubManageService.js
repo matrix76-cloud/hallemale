@@ -478,13 +478,18 @@ export async function leaveClub({ clubId, uid }) {
 
   batch.delete(memberRef);
 
-  batch.update(userRef, {
-    activeTeamId: "",
-    clubId: "",           // ✅ 레거시 clubId도 정리 — 안 지우면 재가입 가드(activeTeamId||clubId)가 막아 영구 limbo
-    roleInTeam: null,
-    isTeamCaptain: null,
-    updatedAt: serverTimestamp(),
-  });
+  // ✅ 이 팀을 가리키고 있을 때만 소속을 해제한다 — 이미 다른 팀으로 옮겼다면
+  //    여기서 비우면 새 소속이 날아가 무소속 limbo 가 된다(kickClubMember 와 같은 규칙).
+  const meSnap = await getDoc(userRef);
+  const me = meSnap.exists() ? meSnap.data() || {} : {};
+  const userPatch = { updatedAt: serverTimestamp() };
+  if (norm(me.activeTeamId) === _clubId) userPatch.activeTeamId = "";
+  if (norm(me.clubId) === _clubId) userPatch.clubId = "";  // ✅ 레거시 clubId도 정리 — 안 지우면 재가입 가드(activeTeamId||clubId)가 막아 영구 limbo
+  if (Object.keys(userPatch).length > 1) {
+    userPatch.roleInTeam = null;
+    userPatch.isTeamCaptain = null;
+  }
+  batch.update(userRef, userPatch);
 
   await batch.commit();
 
@@ -583,9 +588,10 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
   const s3 = await getDocs(q3);
 
   const uniq = new Map();
-  s1.docs.forEach((d) => uniq.set(d.id, d.ref));
-  s2.docs.forEach((d) => uniq.set(d.id, d.ref));
-  s3.docs.forEach((d) => uniq.set(d.id, d.ref));
+  const collectUser = (d) => uniq.set(d.id, { ref: d.ref, data: d.data() || {} });
+  s1.docs.forEach(collectUser);
+  s2.docs.forEach(collectUser);
+  s3.docs.forEach(collectUser);
 
   // ✅ 알림용 메타를 먼저 읽고, 클럽 문서를 "먼저" 삭제한다.
   //    (ClubContext.ensureActiveTeamId 의 findOwnedClubId 재치유가 삭제 중인 팀을
@@ -593,15 +599,22 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
   const clubMeta = await resolveClubMetaSafe(_clubId);
   await deleteDoc(clubRef);
 
-  const userUpdates = Array.from(uniq.values()).map((ref) => ({
-    ref,
-    data: {
-      activeTeamId: "",
-      clubId: "",
-      "careers.clubId": "",
-      updatedAt: serverTimestamp(),
-    },
-  }));
+  // ✅ "지금도 이 팀을 가리키는" 필드만 지운다.
+  //    예전엔 세 필드를 무조건 비웠다. 그런데 위 쿼리 결과와 이 쓰기 사이에 다른 팀으로 옮긴
+  //    사람이 있으면 그 새 소속까지 날아가, users 는 무소속인데 새 팀 members 엔 남아 있는
+  //    limbo 가 된다(초대 수락 직후 해체가 겹치면 실제로 발생).
+  const userUpdates = [];
+  const affectedUids = [];
+  for (const [uidKey, { ref, data }] of uniq.entries()) {
+    const patch = { updatedAt: serverTimestamp() };
+    if (norm(data.activeTeamId) === _clubId) patch.activeTeamId = "";
+    if (norm(data.clubId) === _clubId) patch.clubId = "";
+    if (norm(data?.careers?.clubId) === _clubId) patch["careers.clubId"] = "";
+
+    if (Object.keys(patch).length === 1) continue; // 이미 다른 팀 소속 → 건드리지 않음
+    userUpdates.push({ ref, data: patch });
+    if (uidKey && uidKey !== _uid) affectedUids.push(uidKey);
+  }
 
   const updatedUsers = await commitUpdateChunks(userUpdates);
 
@@ -615,9 +628,7 @@ export async function deleteClubAndCleanup({ clubId, uid }) {
     }
   }
 
-  // ✅ 해체 알림 (영향 받은 멤버 전원) — 클럽/메타는 위에서 이미 처리됨
-  const affectedUids = Array.from(uniq.keys()).filter((x) => x && x !== _uid);
-
+  // ✅ 해체 알림 — 실제로 소속이 해제된 멤버에게만 (이미 다른 팀으로 옮긴 사람은 제외)
   if (affectedUids.length) {
     await notifyTeamEvent({
       clubId: _clubId,

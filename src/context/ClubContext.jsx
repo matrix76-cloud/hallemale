@@ -163,6 +163,22 @@ export function ClubProvider({ children }) {
       if (!c) {
         // 참조하던 팀이 존재하지 않음(탈퇴/해체로 삭제) → 댕글링 activeTeamId 정리.
         // 안 하면 hasTeam=true 인데 club=null 이라 "팀 불러오는중"에서 영구히 멈춘다.
+        //
+        // ⚠️ 지우기 전에 users 문서를 다시 읽는다. teamId 는 화면 상태에서 온 값이라
+        //    낡을 수 있는데, 그 사이 다른 팀에 가입했다면 이 정리가 새 소속까지 날려
+        //    "users 는 무소속인데 그 팀 members 엔 남아 있는" limbo 를 만든다(실제 발생).
+        //    소속이 바뀌었으면 users 구독이 곧 새 activeTeamId 로 다시 돌린다 — 여기선 아무것도 안 한다.
+        let stillDangling = true;
+        try {
+          const fresh = await getDoc(doc(db, "users", uid));
+          stillDangling = String(fresh.data()?.activeTeamId || "").trim() === teamId;
+        } catch (e) {}
+
+        if (!stillDangling) {
+          logGroup("[ClubContext] refreshClub: 소속이 바뀜 → 정리 건너뜀", { teamId });
+          return;
+        }
+
         logGroup("[ClubContext] refreshClub: club doc missing → clear activeTeamId", { teamId });
         setClub(null);
         setMembers([]);
