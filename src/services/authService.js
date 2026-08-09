@@ -21,6 +21,7 @@ import {
   ensureUserDoc,
   updateUserProfile,
   upsertUserPhoneIndex,
+  mergeSocialProfile,
 } from "./userService";
 import { linkPhoneToUid } from "./phoneService";
 import {
@@ -277,11 +278,36 @@ const KAKAO_CUSTOM_TOKEN_URL =
   "https://asia-northeast3-halle-bf789.cloudfunctions.net/kakaoCustomToken";
 const LS_KAKAO_KEEP = "hm.kakaoWebKeepLogin";
 
+/**
+ * 커스텀 토큰 함수를 미리 깨워 둔다(콜드스타트 흡수).
+ * 사용자가 카카오 동의 화면에 머무는 몇 초가 공짜 예열 시간이다 — 그동안 인스턴스가 뜨면
+ * 콜백에서 토큰을 교환할 땐 이미 warm 이다. 실패해도 로그인에는 아무 영향이 없다.
+ */
+export function warmUpKakaoLogin() {
+  try {
+    fetch(KAKAO_CUSTOM_TOKEN_URL, { method: "GET", mode: "cors", cache: "no-store" }).catch(() => {});
+  } catch {}
+}
+
+/** 카카오 프로필 보조 필드는 화면 전환을 막지 않고 뒤에서 채운다. */
+function seedKakaoProfile(uid, profile) {
+  if (!profile) return;
+  mergeSocialProfile({
+    uid,
+    provider: "kakao",
+    kakaoId: safeTrim(profile.kakaoId || ""),
+    displayName: safeTrim(profile.nickname || ""),
+    photoURL: safeTrim(profile.photoURL || ""),
+  }).catch((e) => console.warn("[authService] kakao profile merge failed:", e?.message || e));
+}
+
 /** 웹: 카카오 인가 페이지로 리다이렉트 (복귀는 /oauth/kakao 콜백) */
 async function webSignInWithKakao({ keepLogin }) {
   try {
     window.localStorage.setItem(LS_KAKAO_KEEP, keepLogin ? "1" : "0");
   } catch {}
+
+  warmUpKakaoLogin();
 
   const redirectUri = `${window.location.origin}/oauth/kakao`;
   // scope 를 명시해야 최초 가입(미동의) 사용자에게 카카오 동의화면이 뜬다.
@@ -307,14 +333,16 @@ export async function completeWebKakaoLogin(code) {
     keepLogin = window.localStorage.getItem(LS_KAKAO_KEEP) !== "0";
   } catch {}
 
-  await setPersistence(
-    auth,
-    keepLogin ? browserLocalPersistence : browserSessionPersistence
-  );
-
   const redirectUri = `${window.location.origin}/oauth/kakao`;
 
   try {
+    // 지속성 설정과 토큰 교환은 서로 의존하지 않는다 — 직렬로 기다릴 이유가 없다.
+    // (signInWithCustomToken 전에만 끝나 있으면 된다)
+    const persistPromise = setPersistence(
+      auth,
+      keepLogin ? browserLocalPersistence : browserSessionPersistence
+    ).catch(() => {});
+
     const fnRes = await fetch(KAKAO_CUSTOM_TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -331,11 +359,19 @@ export async function completeWebKakaoLogin(code) {
       };
     }
 
+    await persistPromise;
     const userCred = await signInWithCustomToken(auth, data.customToken);
     const uid = safeTrim(userCred?.user?.uid);
     if (!uid) return { success: false, provider: "kakao", error_code: "no_uid" };
 
-    await ensureUserDoc({ uid, email: "", provider: "kakao" });
+    // 카카오 프로필(닉네임·사진)은 함수가 응답에 실어 준다 — 서버가 users 문서를 미리
+    // 만들지 않으므로, 신규 가입자도 여기서 기본 필드가 모두 갖춰진 문서로 생성된다.
+    await ensureUserDoc({
+      uid,
+      email: safeTrim(data?.profile?.email || ""),
+      provider: "kakao",
+    });
+    seedKakaoProfile(uid, data?.profile);
     return { success: true, provider: "kakao", uid, user: userCred.user };
   } catch (e) {
     return {
@@ -388,6 +424,9 @@ export async function signInWithSocial({ provider, keepLogin = true }) {
 
   // RN WebView: 네이티브에 위임
   await setPersistence(auth, keepLogin ? browserLocalPersistence : browserSessionPersistence);
+
+  // 네이티브 로그인이 끝나면 곧바로 커스텀 토큰 함수를 때린다 — 지금 깨워 두면 그때 warm 이다.
+  if (p === "kakao") warmUpKakaoLogin();
 
   const sent = postToApp("START_SIGNIN", { provider: p });
   if (!sent) {
@@ -447,12 +486,13 @@ export async function signInWithSocial({ provider, keepLogin = true }) {
         };
       }
 
-      const { customToken } = await fnRes.json();
+      const { customToken, profile } = await fnRes.json();
       const userCred = await signInWithCustomToken(auth, customToken);
       const uid = safeTrim(userCred?.user?.uid);
 
       if (!uid) return { success: false, provider: "kakao", error_code: "no_uid" };
-      await ensureUserDoc({ uid, email: "", provider: "kakao" });
+      await ensureUserDoc({ uid, email: safeTrim(profile?.email || ""), provider: "kakao" });
+      seedKakaoProfile(uid, profile);
       return { success: true, provider: "kakao", uid, user: userCred.user };
     } catch (e) {
       return {

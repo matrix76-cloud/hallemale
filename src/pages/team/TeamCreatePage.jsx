@@ -18,6 +18,7 @@ import { createClub, isClubNameTaken } from "../../services/teamService";
 import { track } from "../../utils/analytics";
 import RegionPickerSheet from "../../components/common/RegionPickerSheet";
 import { TEAM_TAG_PRESETS } from "../../utils/constants";
+import { compressImageFile } from "../../utils/imageCompress";
 
 /* ===== 레이아웃 ===== */
 
@@ -599,6 +600,25 @@ export default function TeamCreatePage() {
     const reader = new FileReader();
     reader.onload = (ev) => setLogoPreview(ev.target.result);
     reader.readAsDataURL(file);
+
+    // 압축을 생성 버튼까지 미루지 않는다. 폰 사진 한 장 압축에 0.5~2초가 걸리는데,
+    // 그 시간이 예전엔 통째로 "팀 생성하기" 대기 시간에 얹혀 있었다.
+    // 사용자가 이름·지역을 채우는 동안 미리 끝내 둔다. 실패하면 원본을 그대로 쓴다.
+    compressImageFile(file, {
+      maxWidth: 1080,
+      maxHeight: 1080,
+      quality: 0.78,
+      mimeType: "image/jpeg",
+      preferSquare: false,
+      background: "#ffffff",
+    })
+      .then((c) => {
+        if (!c?.file) return;
+        try { c.file._hmCompressed = true; } catch {}
+        // 그 사이 사용자가 다른 사진으로 바꿨으면 버린다.
+        setLogoFile((cur) => (cur === file ? c.file : cur));
+      })
+      .catch(() => {});
   };
 
   const canGoNextStep2 =

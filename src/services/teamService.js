@@ -638,22 +638,27 @@ export async function createClub({
 
   const normalizedName = String(name || "").trim().replace(/\s+/g, " ");
 
+  // 두 가드는 서로 의존하지 않는다 — 직렬로 왕복하면 생성 버튼이 그만큼 늦게 반응한다.
+  const [usnapRes, takenRes] = await Promise.allSettled([
+    getDoc(doc(db, "users", ownerUid)),
+    isClubNameTaken(normalizedName),
+  ]);
+
   // ✅ 이미 팀이 있으면 생성 차단 — 안 그러면 기존 팀이 무주공산(팀장 부재)이 되어 고아화된다.
-  try {
-    const usnap = await getDoc(doc(db, "users", ownerUid));
+  //    (users 읽기 실패는 통과 — 생성 자체를 막지 않는다)
+  if (usnapRes.status === "fulfilled") {
+    const usnap = usnapRes.value;
     const u = usnap.exists() ? usnap.data() || {} : {};
     if (String(u.activeTeamId || "").trim() || String(u.clubId || "").trim()) {
       const err = new Error("이미 소속된 팀이 있어요. 새 팀을 만들려면 먼저 현재 팀을 탈퇴해 주세요.");
       err.code = "already-in-team";
       throw err;
     }
-  } catch (e) {
-    if (e?.code === "already-in-team") throw e;
-    // users 읽기 실패는 통과(생성 자체를 막지 않음)
   }
 
   // ✅ 서버측 중복 가드 (최종 방어)
-  if (await isClubNameTaken(normalizedName)) {
+  if (takenRes.status === "rejected") throw takenRes.reason;
+  if (takenRes.value) {
     throw new Error("이미 사용 중인 팀 이름이에요. 다른 이름을 입력해 주세요.");
   }
 
@@ -697,23 +702,48 @@ export async function createClub({
   const createdRef = await addDoc(collection(db, "clubs"), basePayload);
   const clubId = createdRef.id;
 
-  await setDoc(
-    doc(db, "clubs", clubId, "members", ownerUid),
-    {
-      uid: ownerUid,
-      role: "owner",
-      status: "active",
-      isCaptain: true,
-      joinedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  // 멤버 등록 · 소속 반영 · 로고 업로드는 서로 의존하지 않는다(모두 clubId 만 필요).
+  // 예전엔 셋을 차례로 기다려서, 로고가 있으면 업로드가 끝날 때까지 소속 반영조차 시작되지 않았다.
+  await Promise.all([
+    setDoc(
+      doc(db, "clubs", clubId, "members", ownerUid),
+      {
+        uid: ownerUid,
+        role: "owner",
+        status: "active",
+        isCaptain: true,
+        joinedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    ),
+    setDoc(
+      doc(db, "users", ownerUid),
+      {
+        clubId,
+        activeTeamId: clubId,
+        roleInTeam: "owner",
+        isTeamCaptain: true,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    ),
+    logoFile ? uploadClubLogo(clubId, logoFile) : null,
+  ]);
 
-  if (logoFile) {
-    // ✅ 로고 압축 후 업로드 (팀 로고 '변경' 경로와 동일 정책: 1080px, JPEG q0.78)
-    //    - 기존엔 생성 시 원본을 그대로 올려 변경 경로와 압축 여부가 달랐음
-    let upLogo = logoFile;
+  return { clubId };
+}
+
+/**
+ * 팀 로고 업로드 + clubs 문서 반영.
+ * 압축 정책은 팀 로고 '변경' 경로와 동일(1080px, JPEG q0.78).
+ * 화면이 파일을 고르는 순간 미리 압축해 두면(compressImageFile 결과를 그대로 넘기면)
+ * 여기서는 압축이 한 번 더 돌지 않는다 — 이미 jpeg 이면 건너뛴다.
+ */
+async function uploadClubLogo(clubId, logoFile) {
+  let upLogo = logoFile;
+  // 미리 압축해 둔 파일(_hmCompressed)은 다시 압축하지 않는다.
+  if (!logoFile?._hmCompressed) {
     try {
       const c = await compressImageFile(logoFile, {
         maxWidth: 1080,
@@ -727,36 +757,21 @@ export async function createClub({
     } catch (e) {
       console.warn("[teamService] logo compress failed, use original:", e?.message || e);
     }
-
-    const storagePath = `clubs/${clubId}/logo_${Date.now()}.jpg`;
-
-    const storageRef = ref(storage, storagePath);
-    await uploadBytes(storageRef, upLogo, {
-      contentType: upLogo?.type || "image/jpeg",
-      cacheControl: "public,max-age=31536000",
-    });
-    const url = await getDownloadURL(storageRef);
-
-    await updateDoc(doc(db, "clubs", clubId), {
-      logoUrl: url,
-      logoPath: storagePath,
-      updatedAt: serverTimestamp(),
-    });
   }
 
-  await setDoc(
-    doc(db, "users", ownerUid),
-    {
-      clubId,
-      activeTeamId: clubId,
-      roleInTeam: "owner",
-      isTeamCaptain: true,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const storagePath = `clubs/${clubId}/logo_${Date.now()}.jpg`;
+  const storageRef = ref(storage, storagePath);
+  await uploadBytes(storageRef, upLogo, {
+    contentType: upLogo?.type || "image/jpeg",
+    cacheControl: "public,max-age=31536000",
+  });
+  const url = await getDownloadURL(storageRef);
 
-  return { clubId };
+  await updateDoc(doc(db, "clubs", clubId), {
+    logoUrl: url,
+    logoPath: storagePath,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /* ===========================

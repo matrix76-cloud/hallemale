@@ -57,6 +57,13 @@ async function exchangeCodeForToken({ code, redirectUri }) {
 exports.kakaoCustomToken = onRequest(
   { region: "asia-northeast3", cors: true },
   async (req, res) => {
+    // 워밍업 — 클라이언트가 "카카오로 로그인"을 누르는 순간 GET 을 한 번 쏜다.
+    // 사용자가 카카오 동의 화면에 머무는 몇 초 동안 인스턴스가 떠 있게 되어,
+    // 콜백에서 실제 토큰 교환을 할 때는 콜드스타트가 끝나 있다.
+    if (req.method === "GET") {
+      res.status(204).send("");
+      return;
+    }
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed" });
       return;
@@ -103,34 +110,35 @@ exports.kakaoCustomToken = onRequest(
       // 2) Firebase uid 생성
       const uid = `kakao:${kakaoId}`;
 
-      // 3) (선택) Firestore에 사용자 정보 저장/업데이트
+      // 3) Firebase Custom Token 생성
+      //
+      // ⚠️ 예전에는 여기서 users/{uid} 문서를 먼저 merge 로 썼다. 두 가지 문제가 있었다.
+      //    · 로그인 임계경로에 Firestore 쓰기 1회가 통째로 들어가 응답이 그만큼 늦어졌다.
+      //    · 클라이언트 ensureUserDoc 이 "문서가 이미 있다"고 판단해 신규 카카오 가입자에게
+      //      기본 필드(activeTeamId·onboardingDone·region…)와 재가입 알림 정리를 건너뛰었다.
+      //    → users 문서 생성은 클라이언트(ensureUserDoc) 한 곳으로 모으고, 여기서는
+      //      카카오가 준 프로필만 응답에 실어 보낸다.
       const admin = getAdmin();
-      const db = admin.firestore();
       const kakaoAccount = kakaoUser.kakao_account || {};
       const profile = kakaoAccount.profile || {};
 
-      const userDoc = {
-        provider: "kakao",
-        kakaoId,
-        displayName: profile.nickname || "",
-        photoURL: profile.profile_image_url || "",
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      };
-      // 이메일은 선택 동의 항목이라 미동의 시 응답에서 빠진다.
-      // 그때 ""로 merge 하면 기존에 저장된 이메일이 지워지므로, 값이 있을 때만 쓴다.
-      if (kakaoAccount.email) {
-        userDoc.email = kakaoAccount.email;
-      }
-
-      await db.collection("users").doc(uid).set(userDoc, { merge: true });
-
-      // 4) Firebase Custom Token 생성
       const customToken = await admin.auth().createCustomToken(uid, {
         provider: "kakao",
         kakaoId,
       });
 
-      res.status(200).json({ customToken, uid });
+      res.status(200).json({
+        customToken,
+        uid,
+        profile: {
+          kakaoId,
+          nickname: profile.nickname || "",
+          photoURL: profile.profile_image_url || "",
+          // 이메일은 선택 동의 항목이라 미동의면 빠진다. 없으면 빈 값으로 내려보내고,
+          // 클라이언트가 빈 값으로 기존 이메일을 덮지 않도록 한다.
+          email: kakaoAccount.email || "",
+        },
+      });
     } catch (err) {
       console.error("kakaoCustomToken error:", err);
       res.status(500).json({ error: err.message || "Internal server error" });

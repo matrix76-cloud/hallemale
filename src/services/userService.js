@@ -138,6 +138,24 @@ export const ensureUserDoc = async (
   return { uid, created: false };
 };
 
+/**
+ * 소셜(카카오) 프로필 보조 필드 병합.
+ * 예전엔 kakaoCustomToken 함수가 로그인 임계경로에서 이 쓰기를 했는데, 응답을 늦추고
+ * ensureUserDoc 의 신규 문서 생성까지 건너뛰게 만들었다. 이제 로그인이 끝난 뒤
+ * 화면 전환을 막지 않고 뒤에서 갱신한다 — 실패해도 로그인에는 영향이 없다.
+ * ⚠️ 사용자가 직접 고친 nickname·avatarUrl 은 건드리지 않는다(보조 필드만).
+ */
+export const mergeSocialProfile = async ({ uid, provider = "", kakaoId = "", displayName = "", photoURL = "" }) => {
+  const id = String(uid || "").trim();
+  if (!id) return;
+  const patch = { updatedAt: serverTimestamp() };
+  if (provider) patch.provider = provider;
+  if (kakaoId) patch.kakaoId = String(kakaoId);
+  if (displayName) patch.displayName = displayName;
+  if (photoURL) patch.photoURL = photoURL;
+  await setDoc(doc(db, "users", id), patch, { merge: true });
+};
+
 export const getUserDoc = async (uid) => {
   if (!uid) return null;
   if (hasMock("userDocs")) return mockData("userDocs")[uid] || null;
