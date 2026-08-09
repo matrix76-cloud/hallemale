@@ -8,7 +8,7 @@
 export const OWNER_TYPE_OPTIONS = [
   {
     key: "business",
-    label: "개인 · 사업자",
+    label: "개인사업자 · 법인",
     desc: "사업자등록증이 있는 민간 체육관·코트",
 
     // 온보딩 연락처 단계

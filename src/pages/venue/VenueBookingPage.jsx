@@ -22,15 +22,17 @@ import {
   dowToKey,
   isPerPerson,
   clampHeadcount,
+  courtUnitPrice,
   FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
+import { setFavoriteVenue } from "../../services/favoriteService";
 import { BOOKING_WINDOW_DAYS } from "../../constants/booking";
 import { CANCEL_POLICY_TIERS, CANCEL_POLICY_NOTE } from "../../constants/cancelPolicy";
-import { calcDisplayPrice } from "../../constants/payments";
+import { calcDisplayPrice, PAYMENTS_ENABLED } from "../../constants/payments";
 import { openDirections, openMapView, copyText, fullAddress } from "../../utils/venueLink";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
-import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome, FiMap, FiNavigation, FiUsers } from "react-icons/fi";
+import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome, FiMap, FiNavigation, FiUsers, FiHeart, FiZap, FiTag } from "react-icons/fi";
 import { FacilityIcon } from "./facilityIcons";
 import CourtNotices from "./CourtNotices";
 import { listVenueReviews } from "../../services/venueReviewService";
@@ -58,6 +60,14 @@ function ymd(d) {
 }
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 
+/* 리뷰 작성일 — Firestore Timestamp(초)만 들어온다. 없으면 표시하지 않는다. */
+function reviewDate(rv) {
+  const sec = rv?.createdAt?.seconds;
+  if (!sec) return "";
+  const d = new Date(sec * 1000);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /* 운영 시간 요약: 코트 hours(mon~sun)를 평일/토/일로 묶어서 표시 */
 function hoursText(h) {
   return !h || h.closed ? "휴무" : `${h.open} ~ ${h.close}`;
@@ -76,6 +86,35 @@ function buildHoursSummary(court) {
   else {
     rows.push(["토", sat]);
     rows.push(["일", sun]);
+  }
+  return rows;
+}
+
+/* 요금 요약: 코트가 등록한 요일별 시간대 요금(priceBands)을 운영시간과 같은 방식으로
+   평일/토/일로 묶는다. 구간이 없는 코트는 기본 단가 한 줄만 보여주면 된다. */
+function bandsText(bands) {
+  return (bands || [])
+    .map((b) => `${b.start}~${b.end} ${Number(b.price || 0).toLocaleString()}원`)
+    .join("\n");
+}
+function buildPriceSummary(court) {
+  const b = court?.priceBands;
+  if (!b) return [];
+  const wk = ["mon", "tue", "wed", "thu", "fri"].map((k) => bandsText(b[k]));
+  const allWeekdaySame = wk.every((x) => x === wk[0]);
+  const sat = bandsText(b.sat);
+  const sun = bandsText(b.sun);
+  const rows = [];
+  if (allWeekdaySame) {
+    if (wk[0]) rows.push(["평일", wk[0]]);
+  } else {
+    ["월", "화", "수", "목", "금"].forEach((d, i) => { if (wk[i]) rows.push([d, wk[i]]); });
+  }
+  if (sat === sun) {
+    if (sat) rows.push(["주말", sat]);
+  } else {
+    if (sat) rows.push(["토", sat]);
+    if (sun) rows.push(["일", sun]);
   }
   return rows;
 }
@@ -109,6 +148,24 @@ export default function VenueBookingPage() {
   useBackInterceptor(payOpen, () => setPayOpen(false)); // 예약 확정 시트: HW 뒤로 시 시트 닫기
   const heroRef = useRef(null);
   const [heroIdx, setHeroIdx] = useState(0); // 상단 구장 사진 캐러셀 현재 인덱스
+
+  // 찜 — 목록(VenueListPage)과 같은 users.favVenueIds 를 쓴다. 상세에서도 바로 담을 수 있게.
+  const [fav, setFav] = useState(false);
+  useEffect(() => {
+    setFav((userDoc?.favVenueIds || []).map((x) => String(x)).includes(String(id)));
+  }, [userDoc?.favVenueIds, id]);
+  const toggleFav = async () => {
+    if (!uid) return toast("로그인이 필요해요.");
+    const next = !fav;
+    setFav(next);
+    try {
+      await setFavoriteVenue({ uid, venueId: id, isFavorite: next });
+      toast(next ? "찜한 구장에 담았어요." : "찜을 해제했어요.");
+    } catch (e) {
+      setFav(!next);
+      toast("찜 처리에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    }
+  };
   const onHeroScroll = (e) => {
     const el = e.currentTarget;
     const w = el.clientWidth || 1;
@@ -260,7 +317,14 @@ export default function VenueBookingPage() {
       setUserNote("");
       setSelected(null);
       await loadSlots();
-      toast("예약 요청을 보냈어요! 구장 승인 후 확정돼요.");
+      // 즉시예약 구장은 승인 단계가 없다(bookVenue 가 pending/confirmed 로 바로 만든다).
+      toast(
+        venue?.autoApprove !== true
+          ? "예약 요청을 보냈어요! 구장 승인 후 확정돼요."
+          : PAYMENTS_ENABLED
+            ? "예약이 잡혔어요! 결제를 마치면 확정돼요."
+            : "예약이 확정됐어요!"
+      );
     } catch (e) {
       if (e?.code === "slot_taken") { await loadSlots(); }
       toast(e?.message || "예약 요청에 실패했어요.");
@@ -319,6 +383,14 @@ export default function VenueBookingPage() {
   const courtPhotos = (court?.photos || []).filter(Boolean); // 선택한 코트의 사진
   const hasLatLng = venue.lat != null && venue.lng != null;
   const hoursSummary = buildHoursSummary(court);
+  const priceSummary = buildPriceSummary(court);
+  // 즉시예약 구장은 구장주 승인 단계가 없다 — 안내문·버튼 문구가 흐름과 어긋나면 안 된다.
+  const autoApprove = venue.autoApprove === true;
+  const unitPrice = calcDisplayPrice(courtUnitPrice(court));
+  const unitLabel = perPerson ? "1인 · 시간당" : "시간당";
+  const parkLabel = !venue.parking?.available
+    ? "불가"
+    : venue.parking.fee === "paid" ? "유료" : "무료";
   // contactPhone(담당자 개인 휴대폰)은 "비공개"로 받은 값이라 폴백으로도 쓰지 않는다.
   const venuePhone = venue.phone || "";
   const place = {
@@ -342,8 +414,18 @@ export default function VenueBookingPage() {
       )}
 
       <Head>
-        <VName>{venue.name}</VName>
+        <TitleRow>
+          <VName>{venue.name}</VName>
+          <FavBtn type="button" onClick={toggleFav} $on={fav} aria-label={fav ? "찜 해제" : "찜하기"}>
+            <FiHeart size={19} fill={fav ? "#ef4444" : "none"} />
+          </FavBtn>
+        </TitleRow>
         <MetaRow>
+          {autoApprove ? (
+            <InstantChip><FiZap size={12} /> 즉시 예약</InstantChip>
+          ) : (
+            <TagChip>승인 후 확정</TagChip>
+          )}
           {venue.business?.status === "verified" ? (
             <VerifiedChip><FiCheckCircle size={12} /> 국세청 인증</VerifiedChip>
           ) : null}
@@ -364,19 +446,52 @@ export default function VenueBookingPage() {
         )}
       </Head>
 
+      {/* 핵심 정보 한 줄 요약 — 스크롤하지 않고도 요금·예약 단위·확정 방식·주차를 판단할 수 있게. */}
+      {court ? (
+        <KeyFacts>
+          <KfCell>
+            <KfLabel>요금</KfLabel>
+            <KfValue>{unitPrice > 0 ? `${unitPrice.toLocaleString()}원` : "문의"}</KfValue>
+            <KfSub>{unitPrice > 0 ? unitLabel : "구장에 확인"}</KfSub>
+          </KfCell>
+          <KfCell>
+            <KfLabel>예약 단위</KfLabel>
+            <KfValue>{court.slotMinutes || 60}분</KfValue>
+            <KfSub>연속 선택 가능</KfSub>
+          </KfCell>
+          <KfCell>
+            <KfLabel>확정 방식</KfLabel>
+            <KfValue>{autoApprove ? "즉시" : "승인 후"}</KfValue>
+            <KfSub>{autoApprove ? "승인 없이 확정" : "구장주 승인"}</KfSub>
+          </KfCell>
+          <KfCell>
+            <KfLabel>주차</KfLabel>
+            <KfValue>{parkLabel}</KfValue>
+            <KfSub>{venue.parking?.available ? (venue.parking.info || "이용 가능") : "인근 주차장 이용"}</KfSub>
+          </KfCell>
+        </KeyFacts>
+      ) : null}
+
       <CourtNotices court={court} />
 
       <Notice>
         <FiInfo size={15} />
         <span>
-          예약 전 <b>운영 시간·이용 안내</b>를 확인해주세요. 예약을 요청하면 구장주가
-          승인하고, 안내에 따라 앱에서 결제하면 예약이 확정돼요.
+          예약 전 <b>운영 시간·이용 안내</b>를 확인해 주세요.{" "}
+          {!autoApprove ? (
+            <>예약을 요청하면 구장주가 승인하고, 안내에 따라 앱에서 결제하면 예약이 확정돼요.</>
+          ) : PAYMENTS_ENABLED ? (
+            <>이 구장은 <b>즉시 예약</b>이라 승인 절차 없이 시간이 바로 잡히고, 결제를 마치면 확정돼요.</>
+          ) : (
+            <>이 구장은 <b>즉시 예약</b>이라 승인 절차 없이 예약이 바로 확정돼요.</>
+          )}
         </span>
       </Notice>
 
       {venue.description && (
         <Section>
-          <SecTitle><FiInfo size={17} />코트 소개</SecTitle>
+          {/* venue.description(구장 단위 소개)을 그리는 자리다 — 코트별 설명이 아니다. */}
+          <SecTitle><FiInfo size={17} />구장 소개</SecTitle>
           <InfoPre>{venue.description}</InfoPre>
         </Section>
       )}
@@ -395,6 +510,48 @@ export default function VenueBookingPage() {
           })}
         </FacGrid>
       </Section>
+
+      {/* 요금·코트 스펙 — 슬롯을 눌러보기 전에 "얼마짜리 어떤 코트인지"가 먼저 보여야 한다. */}
+      {court && (
+        <Section>
+          <SecTitle>
+            <FiTag size={17} />요금·코트 정보
+            {venue.courts?.length > 1 && court.name ? <SecSub>· {court.name}</SecSub> : null}
+          </SecTitle>
+          <HoursTable>
+            <HoursRow>
+              <span>기본 요금</span>
+              <b>{unitPrice > 0 ? `${unitPrice.toLocaleString()}원 / ${perPerson ? "1인 1시간" : "1시간"}` : "구장 문의"}</b>
+            </HoursRow>
+            {priceSummary.map(([label, val]) => (
+              <HoursRow key={label}>
+                <span>{label}</span>
+                <BandVal>{val}</BandVal>
+              </HoursRow>
+            ))}
+          </HoursTable>
+          <PolicyNote>
+            표시 금액이 곧 결제 금액이에요. 추가 수수료는 붙지 않아요.
+            {priceSummary.length ? " 시간대별 요금이 정해진 구간은 위 금액이 먼저 적용돼요." : ""}
+            {perPerson ? " 인원제 코트라 총액은 1인 요금 × 시간 × 인원으로 계산돼요." : ""}
+          </PolicyNote>
+          <SpecGrid>
+            {[
+              ["코트 유형", court.type === "outdoor" ? "실외" : "실내"],
+              ["바닥재", court.surface || "미등록"],
+              ["과금 방식", perPerson ? "1인 요금제" : "코트 대관"],
+              perPerson
+                ? ["이용 인원", `최소 ${minHeads}명${maxHeads > 0 ? ` · 최대 ${maxHeads}명` : ""}`]
+                : ["예약 단위", `${court.slotMinutes || 60}분`],
+            ].map(([k, v]) => (
+              <SpecCell key={k}>
+                <SpecK>{k}</SpecK>
+                <SpecV>{v}</SpecV>
+              </SpecCell>
+            ))}
+          </SpecGrid>
+        </Section>
+      )}
 
       <Section>
         <SecTitle><FiGrid size={17} />{viewOnly ? "예약 현황" : "예약"}</SecTitle>
@@ -458,11 +615,15 @@ export default function VenueBookingPage() {
               ))}
             </DateStrip>
 
-            <Legend>
-              <span className="open">예약 가능</span>
-              <span className="reserved">예약완료</span>
-              <span className="blocked">사용 불가</span>
-            </Legend>
+            <LegendRow>
+              <Legend>
+                <span className="open">예약 가능</span>
+                <span className="reserved">예약완료</span>
+                <span className="blocked">사용 불가</span>
+              </Legend>
+              {/* 날짜 스트립이 3주에서 끊기는 이유를 화면에서 알려준다(BOOKING_WINDOW_DAYS). */}
+              <LegendNote>오늘부터 {BOOKING_WINDOW_DAYS}일 이내 예약 가능</LegendNote>
+            </LegendRow>
 
             {isClosed ? (
               <Empty>이 요일은 휴무예요.</Empty>
@@ -615,7 +776,10 @@ export default function VenueBookingPage() {
             {reviews.map((rv) => (
               <RvItem key={rv.id}>
                 <RvItemTop>
-                  <RvName>{rv.userName || "회원"}</RvName>
+                  <RvName>
+                    {rv.userName || "회원"}
+                    {reviewDate(rv) ? <RvDate>{reviewDate(rv)}</RvDate> : null}
+                  </RvName>
                   <RvItemStars>{"★".repeat(Math.max(1, Math.min(5, Number(rv.rating) || 0)))}</RvItemStars>
                 </RvItemTop>
                 {rv.text ? <RvItemText>{rv.text}</RvItemText> : null}
@@ -685,7 +849,7 @@ export default function VenueBookingPage() {
           {matchId ? (
             <BookBtn onClick={handlePropose} disabled={paying}>구장·일정 제안하기</BookBtn>
           ) : (
-            <BookBtn onClick={() => setPayOpen(true)}>예약 요청</BookBtn>
+            <BookBtn onClick={() => setPayOpen(true)}>{autoApprove ? "바로 예약" : "예약 요청"}</BookBtn>
           )}
         </BottomBar>
       )}
@@ -693,10 +857,14 @@ export default function VenueBookingPage() {
       {payOpen && selected && court && (
         <Sheet onClick={(e) => { if (e.target === e.currentTarget) setPayOpen(false); }}>
           <SheetCard onClick={(e) => e.stopPropagation()}>
-            <SheetTitle>예약 요청</SheetTitle>
+            <SheetTitle>{autoApprove ? "예약 확인" : "예약 요청"}</SheetTitle>
             <SheetLead>아래 내용이 맞는지 확인해 주세요.</SheetLead>
             <PayRow><span>{venue.name} · {court.name}</span></PayRow>
             <PayRow><span>{date} {selected.start}~{selected.end}</span></PayRow>
+            <PayRow>
+              <span>이용 시간</span>
+              <b>{Math.round(((toMin(selected.end) - toMin(selected.start)) / 60) * 10) / 10}시간</b>
+            </PayRow>
             {perPerson && (
               <>
                 <PayRow>
@@ -710,7 +878,7 @@ export default function VenueBookingPage() {
             )}
             <Divider />
             <PayRow $big><span>결제 금액</span><b>{payTotal.toLocaleString()} 원</b></PayRow>
-            <PayRow><span>결제 방식</span><b>앱에서 결제</b></PayRow>
+            <PayRow><span>결제 방식</span><b>{PAYMENTS_ENABLED ? "앱에서 결제" : "준비 중"}</b></PayRow>
 
             <NoteLabel htmlFor="venue-user-note">요청사항 <span>(선택)</span></NoteLabel>
             <NoteInput
@@ -723,18 +891,22 @@ export default function VenueBookingPage() {
 
             <ChargeBox>
               <small>
-                지금은 결제되지 않아요. 구장주가 승인하면 결제 안내를 보내드리고, 결제가 끝나야 예약이 확정돼요.
+                {!autoApprove
+                  ? "지금은 결제되지 않아요. 구장주가 승인하면 결제 안내를 보내드리고, 결제가 끝나야 예약이 확정돼요."
+                  : PAYMENTS_ENABLED
+                    ? "승인 절차 없이 이 시간이 바로 잡혀요. 이어서 안내되는 결제를 마쳐야 예약이 유지돼요."
+                    : "승인 절차 없이 이 시간이 바로 잡히고, 예약이 곧바로 확정돼요."}
               </small>
             </ChargeBox>
             <ChargeBox>
               <small>
                 예약 취소는 마이페이지 &gt; 내 구장 예약에서 이용 시작 전까지 할 수 있어요.
-                당일 취소·노쇼가 반복되면 예약이 제한될 수 있어요.
+                취소 시점에 따라 위 <b>취소·환불 규정</b>이 적용되고, 당일 취소·노쇼가 반복되면 예약이 제한될 수 있어요.
                 {venue.refundPolicy ? ` 구장 안내: ${venue.refundPolicy}` : ""}
               </small>
             </ChargeBox>
             <PayBtn disabled={paying} onClick={handleRequest}>
-              {paying ? "요청 중…" : "예약 요청하기"}
+              {paying ? "처리 중…" : autoApprove ? "예약하기" : "예약 요청하기"}
             </PayBtn>
             <CancelBtn onClick={() => setPayOpen(false)} disabled={paying}>취소</CancelBtn>
           </SheetCard>
@@ -860,8 +1032,52 @@ const InfoPre = styled.div`
   color: ${({ theme }) => theme.colors.textNormal};
 `;
 const Head = styled.div`display: flex; flex-direction: column; gap: 7px;`;
+const TitleRow = styled.div`display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;`;
 const VName = styled.div`font-size: 19px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
 const VAddr = styled.div`font-size: 13px; color: ${({ theme }) => theme.colors.textWeak};`;
+const FavBtn = styled.button`
+  flex-shrink: 0; width: 38px; height: 38px; margin: -6px -6px 0 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer;
+  color: ${({ $on, theme }) => ($on ? "#ef4444" : theme.colors.textWeak)};
+  &:active { transform: scale(0.92); }
+`;
+
+/* 핵심 정보 요약 스트립 (요금·예약 단위·확정 방식·주차) */
+const KeyFacts = styled.div`
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px; overflow: hidden;
+`;
+const KfCell = styled.div`
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 12px 4px; min-width: 0;
+  & + & { border-left: 1px solid ${({ theme }) => theme.colors.border}; }
+`;
+const KfLabel = styled.div`font-size: 11px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak};`;
+const KfValue = styled.div`
+  font-size: 14px; font-weight: 800; line-height: 1.25; text-align: center;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+const KfSub = styled.div`
+  font-size: 10.5px; line-height: 1.3; text-align: center;
+  color: ${({ theme }) => theme.colors.textWeak};
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+`;
+
+/* 요금 구간(여러 줄) · 코트 스펙 그리드 */
+const BandVal = styled.b`
+  white-space: pre-line; text-align: right; line-height: 1.45;
+  font-weight: 700; color: ${({ theme }) => theme.colors.textStrong};
+`;
+const SpecGrid = styled.div`display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;`;
+const SpecCell = styled.div`
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 12px; border-radius: 10px;
+  background: ${({ theme }) => theme.colors.surface};
+`;
+const SpecK = styled.div`font-size: 11.5px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak};`;
+const SpecV = styled.div`font-size: 13.5px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong};`;
 
 const MetaRow = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 const RatingChip = styled.span`
@@ -875,6 +1091,14 @@ const TagChip = styled.span`
   background: ${({ theme }) => theme.colors.surface};
   border: 1px solid ${({ theme }) => theme.colors.border};
   color: ${({ $muted, theme }) => ($muted ? theme.colors.textWeak : theme.colors.textNormal)};
+`;
+/* 즉시예약(autoApprove) 구장 표식 — 승인 대기 없이 확정된다는 뜻이라 눈에 띄어야 한다. */
+const InstantChip = styled.span`
+  display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 800;
+  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff")};
+  border: 1px solid ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.4)" : "#ddd0ff")};
+  color: ${({ theme }) => theme.colors.primary};
 `;
 const VerifiedChip = styled.span`
   display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px; border-radius: 999px;
@@ -1006,7 +1230,11 @@ const RvItem = styled.div`
   display: flex; flex-direction: column; gap: 5px;
 `;
 const RvItemTop = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px;`;
-const RvName = styled.div`font-size: 13px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong};`;
+const RvName = styled.div`
+  display: flex; align-items: baseline; gap: 7px; min-width: 0;
+  font-size: 13px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong};
+`;
+const RvDate = styled.span`font-size: 11.5px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak};`;
 const RvItemStars = styled.div`font-size: 13px; color: #f59e0b; letter-spacing: 1px;`;
 const RvItemText = styled.div`font-size: 13px; line-height: 1.5; color: ${({ theme }) => theme.colors.textNormal}; white-space: pre-wrap; word-break: break-word;`;
 const SecTitle = styled.div`
@@ -1147,6 +1375,10 @@ const StepNum = styled.div`
   font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};
 `;
 const HeadHint = styled.div`font-size: 12px; color: ${({ theme }) => theme.colors.textWeak};`;
+const LegendRow = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+`;
+const LegendNote = styled.div`font-size: 11.5px; color: ${({ theme }) => theme.colors.textWeak};`;
 const Legend = styled.div`
   display: flex; gap: 14px; font-size: 11.5px; color: ${({ theme }) => theme.colors.textWeak};
   & span { display: inline-flex; align-items: center; }

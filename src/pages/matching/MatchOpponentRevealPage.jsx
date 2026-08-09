@@ -19,6 +19,7 @@ import { getTeamRankMap } from "../../services/teamRankingService";
 import { getPlayerRankMap } from "../../services/rankingService";
 import { getClubMemberCounts } from "../../services/matchingHomeService";
 import { estimateWinProbability } from "../../utils/matchAnalysis";
+import { rankOpponents } from "../../utils/matchmaking";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { MIN_TEAM_MEMBERS } from "../../utils/constants";
 import Spinner from "../../components/common/Spinner";
@@ -289,6 +290,26 @@ const WidenNote = styled.div`
   text-align: center;
 `;
 
+/* 추천 근거 칩 — "왜 이 팀인지"를 화면에서 설명한다 */
+const ReasonRow = styled.div`
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  animation: ${cardIn} 0.45s ease both;
+`;
+
+const ReasonChip = styled.span`
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
 const EmptyWrap = styled.div`
   min-height: calc(100dvh - 120px);
   display: flex;
@@ -458,29 +479,6 @@ export default function MatchOpponentRevealPage() {
     };
   }, []);
 
-  // 선택 지역 정확 매칭 후보 (폴백 상위 티어)
-  const poolExact = useMemo(() => {
-    const all = Array.isArray(opponentTeams) ? opponentTeams : [];
-    if (!regionGu && !regionSido) return all;
-    return all.filter((t) => {
-      const tGu = String(t.regionGu || "").trim();
-      const tSido = String(t.regionSido || "").trim();
-      const tRegion = String(t.region || "").trim();
-
-      // 1) 구조화된 지역(regionSido/regionGu)이 정확히 일치
-      const structuredMatch =
-        (!regionGu || tGu === regionGu) && (!regionSido || tSido === regionSido);
-      if ((tGu || tSido) && structuredMatch) return true;
-
-      // 2) 구조화된 지역이 없는 팀은 자유 텍스트 region 문자열로 폴백 매칭
-      if (!tGu && !tSido && tRegion) {
-        if (regionGu && tRegion.includes(regionGu)) return true;
-        if (regionSido && tRegion.includes(regionSido)) return true;
-      }
-      return false;
-    });
-  }, [opponentTeams, regionGu, regionSido]);
-
   // 멤버 수는 전체 후보에 대해 조회(지역 폴백 대비 — 정확 지역에 상대가 없을 때 전체로 넓힘)
   const allIdsKey = useMemo(
     () =>
@@ -507,23 +505,25 @@ export default function MatchOpponentRevealPage() {
     };
   }, [allIdsKey]);
 
-  // 팀원 3명 이상인 팀만 매칭 대상 — 정확 지역 우선, 없으면 전체로 넓힘(데드엔드 방지)
-  const eligiblePool = useMemo(() => {
+  // 후보 순서는 matchmaking.rankOpponents 가 정한다 —
+  // 하드 필터(내 팀·인원 미달 제외) → 전력/지역/활동/인원/랭킹 점수 → 상위 풀 다양성 샘플링.
+  // 이 큐는 한 번만 만들고(사이클 의존 없음) 화면이 순서대로 소비한다.
+  const ranked = useMemo(() => {
     if (!memberCounts) return null; // 멤버 수 로딩 중
-    const ok = (t) =>
-      (memberCounts.get(String(t.clubId || t.id || "").trim()) || 0) >= MIN_TEAM_MEMBERS;
-    const exact = poolExact.filter(ok);
-    if (exact.length) return exact;
-    return (Array.isArray(opponentTeams) ? opponentTeams : []).filter(ok);
-  }, [poolExact, opponentTeams, memberCounts]);
+    return rankOpponents({
+      myTeam,
+      candidates: opponentTeams,
+      memberCounts,
+      regionGu,
+      regionSido,
+      rankMap,
+    });
+    // rankMap 은 늦게 도착해도 순서만 바뀌므로 의존성에 넣지 않는다(큐가 흔들리면 사이클이 튄다).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTeam, opponentTeams, memberCounts, regionGu, regionSido]);
 
-  // 지역을 넓혀서 찾았는지(안내용)
-  const widened = useMemo(() => {
-    if (!memberCounts || (!regionGu && !regionSido)) return false;
-    const ok = (t) =>
-      (memberCounts.get(String(t.clubId || t.id || "").trim()) || 0) >= MIN_TEAM_MEMBERS;
-    return poolExact.filter(ok).length === 0 && (eligiblePool?.length || 0) > 0;
-  }, [poolExact, memberCounts, regionGu, regionSido, eligiblePool]);
+  const eligiblePool = ranked?.queue || null;
+  const widened = !!ranked?.widened;
 
   const countsLoading = eligiblePool === null;
   const opponent =
@@ -692,7 +692,7 @@ export default function MatchOpponentRevealPage() {
   return (
     <Page>
       {widened ? (
-        <WidenNote>선택한 지역엔 매칭 가능한 상대가 없어 전체에서 찾았어요.</WidenNote>
+        <WidenNote>선택한 지역에 매칭 가능한 상대가 없어 범위를 넓혀 찾았어요.</WidenNote>
       ) : null}
       <MatchupBar>
         <Matchup key={animKey}>
@@ -726,6 +726,15 @@ export default function MatchOpponentRevealPage() {
             <TeamMeta>{oppMeta || "상대팀"}</TeamMeta>
           </TeamCol>
         </Matchup>
+
+        {/* 이 팀이 왜 먼저 떴는지 — 점수 상위 항목을 그대로 문구로 보여준다(rankOpponents). */}
+        {opponent?.matchReasons?.length ? (
+          <ReasonRow key={`${animKey}-r`}>
+            {opponent.matchReasons.map((r) => (
+              <ReasonChip key={r}>{r}</ReasonChip>
+            ))}
+          </ReasonRow>
+        ) : null}
       </MatchupBar>
 
       <Body>

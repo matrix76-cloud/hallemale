@@ -220,10 +220,21 @@ const MemberGateWrap = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* 라인업 목록이 함께 붙어 화면이 길어질 수 있다 → 세로 중앙정렬 대신 위에서부터 쌓는다 */
+  justify-content: flex-start;
   text-align: center;
-  padding: 40px 28px;
+  padding: 32px 20px;
   gap: 12px;
+`;
+
+/* 조율중 화면에서 팀원에게 열어주는 양 팀 라인업 블록 — 안내문과 달리 좌측 정렬 */
+const MemberLineupSection = styled.div`
+  width: 100%;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: left;
 `;
 
 const MemberGateIcon = styled.div`
@@ -4234,10 +4245,74 @@ export default function MatchRoomDetailPage() {
   const isCancelled = status === "cancelled";
   const isVoided = toStr(room?.resultState) === "void"; // 결과 미입력 무효 종결
 
-  // 팀원(비팀장)은 "조율중"(pending/accepted/proposed/awaiting) 경기의 상세를 볼 수 없음 → 안내 화면으로 대체.
+  const goPlayerDetail = (p) => {
+    if (!p) return;
+    navigate(`/player/${p.userId}`);
+  };
+
+  const renderPlayerRow = (p, fallbackText) => {
+    const avatar = playerAvatars?.[p.userId] || p.photoUrl || "";
+    const posKo = POSITION_LABEL[p.mainPosition] || "포지션";
+
+    const height = p.heightCm ? `${p.heightCm}cm` : null;
+    const weight = p.weightKg ? `${p.weightKg}kg` : null;
+    const bodyText = [height, weight].filter(Boolean).join(" / ");
+
+    // ✅ 실력(개인 프로필) 표시 — 승패 대신
+    const skillLabel = SKILL_LABEL[toStr(p.skillLevel)] || "";
+
+    // 선수 전체 랭킹 1~3위면 프로필 사진 위 왕관
+    const pRank = playerRankMap?.get(p.userId) || null;
+    const showPlayerCrown = !!pRank && pRank <= 3;
+
+    // 내 이름 줄 강조
+    const isMe = !!myUid && toStr(p.userId) === myUid;
+
+    return (
+      <PlayerRow key={p.userId} $me={isMe}>
+        <PlayerLeft onClick={() => goPlayerDetail(p)}>
+          <PlayerAvatarWrap>
+            {showPlayerCrown ? (
+              <PlayerCrown src={images.logo} alt={`${pRank}위`} />
+            ) : null}
+            {avatar ? (
+              <PlayerAvatar src={avatar} alt={p.nickname} />
+            ) : (
+              <AvatarPlaceholder size={34} />
+            )}
+          </PlayerAvatarWrap>
+          <PlayerText>
+            <PlayerTopRow>
+              <PositionText>{formatPositionKo(posKo)}</PositionText>
+              <PlayerName>{p.nickname}{isMe ? " (나)" : ""}</PlayerName>
+            </PlayerTopRow>
+          </PlayerText>
+        </PlayerLeft>
+        {skillLabel ? (
+          <SkillBadge>{skillLabel}</SkillBadge>
+        ) : (
+          <PlayerBodyMeta>{bodyText || "실력 미입력"}</PlayerBodyMeta>
+        )}
+      </PlayerRow>
+    );
+  };
+
+  // 팀원(비팀장)은 "조율중"(pending/accepted/proposed/awaiting) 경기의 일정·구장·채팅은 볼 수 없음
   // (pending 포함: 제안 성사 알림으로 진입한 팀원이 상대 팀장과의 팬텀 채팅에 들어가 메시지를 치던 불일치 차단)
-  // 확정/지난경기(finished)/취소는 팀원도 열람 가능.
+  // → 대신 양 팀 라인업만 보여준다. 팀원이 "내가 이번 경기에 편성됐는지"를 확인할 유일한 화면이라
+  //   조율 단계에서도 라인업은 열어둔다. 확정/지난경기(finished)/취소는 팀원도 상세 전체 열람 가능.
   if ((isAdjusting || status === "pending") && !isTeamLeader) {
+    const starterIds = (myLineupSnap?.memberIds || []).map(toStr);
+    const subIds = (myLineupSnap?.subMemberIds || []).map(toStr);
+    const myRole = myLineupConfirmed
+      ? starterIds.includes(myUid)
+        ? "주전"
+        : subIds.includes(myUid)
+        ? "후보"
+        : ""
+      : "";
+    const oppTeamName = toStr(oppTeamView?.name) || "상대팀";
+
     return (
       <PageWrap>
         <MemberGateWrap>
@@ -4247,19 +4322,72 @@ export default function MatchRoomDetailPage() {
             팀장이 상대 팀과 일정·구장을 조율하고 있어요.{"\n"}
             경기가 확정되면 팀원도 상세 내용을 확인할 수 있어요.
           </MemberGateText>
-          {(() => {
-            // 라인업이 확정됐다면 "내가 이번 경기에 편성됐는지"만이라도 알려준다.
-            const starters = (myLineupSnap?.memberIds || []).map(toStr);
-            const subs = (myLineupSnap?.subMemberIds || []).map(toStr);
-            const role = myLineupSnap?.confirmed
-              ? (starters.includes(myUid) ? "주전" : subs.includes(myUid) ? "후보" : "")
-              : "";
-            return role ? (
-              <MemberGateText style={{ marginTop: 6, fontWeight: 700, color: "#7C5CC9" }}>
-                ✅ 이번 경기 {role} 라인업에 편성됐어요
-              </MemberGateText>
-            ) : null;
-          })()}
+          {myRole ? (
+            <MemberGateText style={{ marginTop: 6, fontWeight: 700, color: "#7C5CC9" }}>
+              ✅ 이번 경기 {myRole} 라인업에 편성됐어요
+            </MemberGateText>
+          ) : null}
+
+          <MemberLineupSection>
+            {/* 우리팀 */}
+            <div>
+              <LineupTeamName>
+                {toStr(myTeamView?.name) || "우리팀"}
+                {myLineupConfirmed ? ` · 주전 ${myPlayers.length}명` : ""}
+              </LineupTeamName>
+              {myLineupConfirmed ? (
+                <LineupBox>
+                  <LineupList>
+                    {myPlayers.length > 0 ? (
+                      myPlayers.map((p) => renderPlayerRow(p, myRecord))
+                    ) : (
+                      <LineupTitle>선수 정보가 없어요.</LineupTitle>
+                    )}
+                  </LineupList>
+                  {mySubPlayers.length > 0 && (
+                    <>
+                      <LineupTitle style={{ marginTop: 8 }}>후보 {mySubPlayers.length}명</LineupTitle>
+                      <LineupList>{mySubPlayers.map((p) => renderPlayerRow(p, myRecord))}</LineupList>
+                    </>
+                  )}
+                </LineupBox>
+              ) : (
+                <WaitBox>
+                  <div>팀장이 아직 우리 팀 라인업을 확정하지 않았어요.</div>
+                </WaitBox>
+              )}
+            </div>
+
+            {/* 상대팀 */}
+            <div>
+              <LineupTeamName>
+                {oppTeamName}
+                {oppLineupConfirmed ? ` · 주전 ${oppPlayers.length}명` : ""}
+              </LineupTeamName>
+              {oppLineupConfirmed ? (
+                <LineupBox>
+                  <LineupList>
+                    {oppPlayers.length > 0 ? (
+                      oppPlayers.map((p) => renderPlayerRow(p, oppRecord))
+                    ) : (
+                      <LineupTitle>선수 정보가 없어요.</LineupTitle>
+                    )}
+                  </LineupList>
+                  {oppSubPlayers.length > 0 && (
+                    <>
+                      <LineupTitle style={{ marginTop: 8 }}>후보 {oppSubPlayers.length}명</LineupTitle>
+                      <LineupList>{oppSubPlayers.map((p) => renderPlayerRow(p, oppRecord))}</LineupList>
+                    </>
+                  )}
+                </LineupBox>
+              ) : (
+                <WaitBox>
+                  <div>{oppTeamName}이(가) 아직 라인업을 확정하지 않았어요.</div>
+                </WaitBox>
+              )}
+            </div>
+          </MemberLineupSection>
+
           <MemberGateBtn type="button" onClick={() => goBackOrHome(navigate)}>
             돌아가기
           </MemberGateBtn>
@@ -4643,58 +4771,6 @@ export default function MatchRoomDetailPage() {
     if (!team) return;
     const slug = team.id || team.clubId || encodeURIComponent(team.name || "");
     navigate(`/team/${slug}`);
-  };
-
-  const goPlayerDetail = (p) => {
-    if (!p) return;
-    navigate(`/player/${p.userId}`);
-  };
-
-  const renderPlayerRow = (p, fallbackText) => {
-    const avatar = playerAvatars?.[p.userId] || p.photoUrl || "";
-    const posKo = POSITION_LABEL[p.mainPosition] || "포지션";
-
-    const height = p.heightCm ? `${p.heightCm}cm` : null;
-    const weight = p.weightKg ? `${p.weightKg}kg` : null;
-    const bodyText = [height, weight].filter(Boolean).join(" / ");
-
-    // ✅ 실력(개인 프로필) 표시 — 승패 대신
-    const skillLabel = SKILL_LABEL[toStr(p.skillLevel)] || "";
-
-    // 선수 전체 랭킹 1~3위면 프로필 사진 위 왕관
-    const pRank = playerRankMap?.get(p.userId) || null;
-    const showPlayerCrown = !!pRank && pRank <= 3;
-
-    // 내 이름 줄 강조
-    const isMe = !!myUid && toStr(p.userId) === myUid;
-
-    return (
-      <PlayerRow key={p.userId} $me={isMe}>
-        <PlayerLeft onClick={() => goPlayerDetail(p)}>
-          <PlayerAvatarWrap>
-            {showPlayerCrown ? (
-              <PlayerCrown src={images.logo} alt={`${pRank}위`} />
-            ) : null}
-            {avatar ? (
-              <PlayerAvatar src={avatar} alt={p.nickname} />
-            ) : (
-              <AvatarPlaceholder size={34} />
-            )}
-          </PlayerAvatarWrap>
-          <PlayerText>
-            <PlayerTopRow>
-              <PositionText>{formatPositionKo(posKo)}</PositionText>
-              <PlayerName>{p.nickname}{isMe ? " (나)" : ""}</PlayerName>
-            </PlayerTopRow>
-          </PlayerText>
-        </PlayerLeft>
-        {skillLabel ? (
-          <SkillBadge>{skillLabel}</SkillBadge>
-        ) : (
-          <PlayerBodyMeta>{bodyText || "실력 미입력"}</PlayerBodyMeta>
-        )}
-      </PlayerRow>
-    );
   };
 
   const firstDay = new Date(calYear, calMonth, 1).getDay();
@@ -6708,7 +6784,7 @@ export default function MatchRoomDetailPage() {
                   <AskLabel>
                     어떻게 구장을<br />정할까요?
                   </AskLabel>
-                  <GateSub>경기를 진행할 구장 방식을 선택해요.</GateSub>
+                  <GateSub>예약·결제까지 앱에서 진행할지, 두 팀이 직접 정할지 선택해 주세요.</GateSub>
 
                   {/* 제휴구장 예약 — 선택 후 하단 버튼으로 진행 */}
                   <OptCard
@@ -6720,10 +6796,10 @@ export default function MatchRoomDetailPage() {
                     <Oic $primary={gateChoice === "partner"}><FiHome size={26} /></Oic>
                     <Ob>
                       <OptT>제휴구장 예약</OptT>
-                      <OptD>앱에서 예약 · 팀별 분담결제</OptD>
+                      <OptD>앱에서 코트·시간 예약 · 두 팀이 반씩 결제</OptD>
                       <Chips>
-                        <Pill $tone="p">앱 결제</Pill>
-                        <Pill $tone="n">구장주 승인 필요</Pill>
+                        <Pill $tone="p">반반 결제</Pill>
+                        <Pill $tone="n">구장 승인 필요</Pill>
                       </Chips>
                     </Ob>
                     <SelDot $on={gateChoice === "partner"}>{gateChoice === "partner" ? <FiCheck size={13} /> : ""}</SelDot>
@@ -6739,9 +6815,9 @@ export default function MatchRoomDetailPage() {
                     <Oic $primary={gateChoice === "direct"}><FiMapPin size={26} /></Oic>
                     <Ob>
                       <OptT>직접 입력</OptT>
-                      <OptD>앱 결제 없음 · 팀끼리 직접</OptD>
+                      <OptD>두 팀이 정한 장소·시간으로 진행</OptD>
                       <Chips>
-                        <Pill $tone="n">팀끼리 직접 합의</Pill>
+                        <Pill $tone="n">예약·결제 직접</Pill>
                       </Chips>
                     </Ob>
                     <SelDot $on={gateChoice === "direct"}>{gateChoice === "direct" ? <FiCheck size={13} /> : ""}</SelDot>
@@ -6750,17 +6826,18 @@ export default function MatchRoomDetailPage() {
                   <GateNote>
                     <FiInfo size={13} />
                     <div>
-                      <b>제휴구장 예약</b>은 앱에서 코트·시간을 골라 상대팀에 제안해요.
-                      상대팀이 수락하고 구장주가 승인하면, 양 팀이 각자 몫을 결제해야
-                      <b> 경기가 확정</b>돼요.
+                      <b>제휴구장 예약</b> — 제휴구장에서 코트·시간을 골라 상대팀에 제안해요.
+                      상대팀이 수락하고 구장이 예약을 승인하면, 두 팀 팀장이 각자 반씩 결제해야
+                      <b> 경기가 확정</b>돼요. 결제 안내 후 2시간 안에 결제되지 않으면 예약이
+                      자동 취소되고, 먼저 낸 금액은 전액 환불돼요.
                     </div>
                   </GateNote>
 
                   <GateNote>
                     <FiInfo size={13} />
                     <div>
-                      <b>직접 입력</b>은 매칭(상대·일정)만 도와드려요. 구장 예약과 결제는
-                      <b> 각 팀이 따로</b> 진행해야 합니다.
+                      <b>직접 입력</b> — 앱은 상대·일정만 맞춰 드려요. 구장 대관·결제·환불은
+                      <b> 두 팀이 직접</b> 진행해야 하고, 앱에서 예약이 잡히지는 않아요.
                     </div>
                   </GateNote>
                 </>
@@ -6802,9 +6879,9 @@ export default function MatchRoomDetailPage() {
                 <NoticeInfo>
                   <FiInfo size={12} />
                   <div>
-                    할래말래 <b>제휴 구장만</b> 앱에서 예약·결제가 가능합니다. 직접 입력
-                    구장은 <b>매칭 전용</b>이며, 실제 이용 가능 여부·예약·문의는 이용자가
-                    직접 진행해야 합니다.
+                    여기서 고른 위치는 <b>두 팀에게 보여줄 경기 장소</b>예요. 앱에서 예약이
+                    잡히는 건 아니라서, 대관 가능 여부와 예약·문의는 두 팀이 직접 확인해
+                    주세요.
                   </div>
                 </NoticeInfo>
               </BareSection>
@@ -6945,8 +7022,9 @@ export default function MatchRoomDetailPage() {
                   <NoticeInfo style={{ marginTop: 10 }}>
                     <FiInfo size={12} />
                     <div>
-                      직접 입력 구장은 <b>앱 결제·자동 확정이 없어요.</b> 가용 여부·대관·정산은
-                      두 팀이 직접 확인·진행해요.
+                      시작 시각을 누르면 1시간, 뒤쪽 시각을 누르면 그 시각까지 늘어나요.
+                      마지막 시각을 다시 누르면 한 시간씩 줄어들고,
+                      <b> 선택한 시간이 그대로 경기 시간</b>으로 상대팀에 전달돼요.
                     </div>
                   </NoticeInfo>
                 </SectionCard>
@@ -7119,7 +7197,7 @@ export default function MatchRoomDetailPage() {
 
         {status === "accepted" && venueMode === "direct" && (
           <>
-            <NoticeText>제안하면 상대팀이 확인 후 확정할 수 있어요. (직접 입력 · 앱 결제 없음)</NoticeText>
+            <NoticeText>제안을 보내면 상대팀이 확인 후 확정해요. 앱 결제 없이 일정만 확정돼요.</NoticeText>
 
             {/* (2-3) 구장 예약 직접 확인 체크박스 */}
             <CheckRow>
@@ -7128,7 +7206,7 @@ export default function MatchRoomDetailPage() {
                 checked={venueConfirmChecked}
                 onChange={(e) => setVenueConfirmChecked(e.target.checked)}
               />
-              <span>구장 예약은 직접 해야 함을 확인했습니다.</span>
+              <span>구장 대관·결제는 두 팀이 직접 진행해야 한다는 점을 확인했습니다.</span>
             </CheckRow>
 
             <ActionsWrap>

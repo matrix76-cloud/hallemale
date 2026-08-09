@@ -105,9 +105,7 @@ const Item = styled(Card)`
 `;
 const IconWrap = styled.div`
   width: 38px; height: 38px; flex-shrink: 0;
-  border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff")};
   color: ${({ theme }) => theme.colors.primary};
 `;
 const Body = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;`;

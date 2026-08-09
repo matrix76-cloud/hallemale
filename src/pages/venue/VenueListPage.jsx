@@ -8,7 +8,7 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiChevronLeft, FiList, FiMap, FiCheckCircle, FiHeart } from "react-icons/fi";
+import { FiMapPin, FiSearch, FiStar, FiCrosshair, FiCalendar, FiChevronDown, FiChevronLeft, FiList, FiMap, FiCheckCircle, FiHeart, FiInfo } from "react-icons/fi";
 import { listBookableVenues, listReservations, listBlocks, courtUnitPrice, isPerPerson } from "../../services/ownerVenueService";
 import Spinner from "../../components/common/Spinner";
 import { FacilityIcon } from "./facilityIcons";
@@ -491,6 +491,17 @@ export default function VenueListPage() {
         </HeaderSchedBtn>
       </TopRow>
 
+      {/* 매칭룸에서 넘어온 경우 — 여기서 고르는 구장이 "상대팀에 보낼 제안"이라는 맥락을 짚어준다. */}
+      {matchId && (
+        <MatchBar>
+          <FiInfo size={13} />
+          <span>
+            상대팀에 제안할 <b>제휴구장</b>을 골라주세요. 코트·시간을 고른 뒤 제안하면,
+            상대팀 수락·구장 승인 후 두 팀이 반씩 결제해요.
+          </span>
+        </MatchBar>
+      )}
+
       {loading ? (
         <Center><Spinner size="lg" /></Center>
       ) : view === "map" ? (
@@ -693,6 +704,16 @@ const HeaderSchedBtn = styled.button`
   color: ${({ theme, $on }) => ($on ? "#7c5cc9" : theme.colors.textStrong)};
 `;
 
+/* 매칭 제안용 진입 안내 바 (?match= 로 들어왔을 때만) */
+const MatchBar = styled.div`
+  flex-shrink: 0; display: flex; align-items: flex-start; gap: 7px;
+  margin: 0 12px 8px; padding: 9px 11px; border-radius: 10px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  font-size: 12px; line-height: 1.5; color: ${({ theme }) => theme.colors.textNormal};
+  & > svg { color: ${({ theme }) => theme.colors.primary}; flex-shrink: 0; margin-top: 2px; }
+  & b { font-weight: 700; color: ${({ theme }) => theme.colors.textStrong}; }
+`;
 const MapArea = styled.div`
   position: relative; flex: 1; min-height: 0; overflow: hidden;
 `;

@@ -1,6 +1,6 @@
 /* eslint-disable */
 // src/components/home/TeamProfileSection.jsx
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { images, teamLogoSrc } from "../../utils/imageAssets";
 import { useNavigate } from "react-router-dom";
@@ -66,8 +66,9 @@ const ProfileDeco = styled.div`
   right: 10px;
   bottom: 8px;
   display: flex;
-  color: ${({ theme }) => theme.colors.textWeak};
-  opacity: 0.22;
+  /* 흰 카드라 회색 데코는 먼지처럼 보였다. 트로피는 금색 계열이 성격에 맞는다. */
+  color: #F5B301;
+  opacity: 0.85;
   pointer-events: none;
 `;
 
@@ -176,14 +177,14 @@ const BigActionCard = styled.button`
   }
 `;
 
-/* 매칭하기 카드 우하단 아이콘 (채움 카드 위라 흰색 저투명) */
+/* 매칭하기 카드 우하단 아이콘 — 보라 채움 위라 흰색 대신 밝은 라일락(톤온톤)으로 색을 준다 */
 const BigIcon = styled.div`
   position: absolute;
   right: 12px;
   bottom: 10px;
   display: flex;
-  color: #ffffff;
-  opacity: 0.3;
+  color: #E9D5FF;
+  opacity: 0.55;
   pointer-events: none;
 `;
 
@@ -209,16 +210,17 @@ const BigSubtitle = styled.div`
   letter-spacing: -0.3px;
 `;
 
-/* 구장 예약 바로가기 — 매칭하기 카드와 같은 형태, 색만 주황(매칭=보라와 역할 구분) */
+/* 구장 예약 바로가기 — 매칭하기 카드와 같은 형태, 흰 카드 채움(주황은 아이콘에만) */
 const WideActionCard = styled.button`
   position: relative;
   overflow: hidden;
   width: 100%;
   min-height: 84px;
-  border: none;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
   border-radius: 18px;
-  background: linear-gradient(135deg, #FB923C 0%, #F97316 100%);
-  box-shadow: 0 14px 26px -10px rgba(234, 88, 12, 0.6);
+  background: ${({ theme }) => theme.colors.card};
+  box-shadow: ${({ theme }) => theme.shadows.card};
   padding: 16px 16px 14px;
   cursor: pointer;
   display: flex;
@@ -233,15 +235,23 @@ const WideActionCard = styled.button`
   }
 `;
 
-/* 구장 예약 카드 우측 아이콘 — 매칭하기와 동일 규격 */
+/* 흰 카드 위 텍스트 — 채움 카드용 BigTitle/BigSubtitle(흰 글씨) 대체 */
+const WideTitle = styled(BigTitle)`
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const WideSubtitle = styled(BigSubtitle)`
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+/* 구장 예약 카드 우측 아이콘 — 매칭하기와 동일 규격, 카드가 흰색이라 아이콘이 색을 맡는다 */
 const WideIcon = styled.div`
   position: absolute;
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
-  color: #ffffff;
-  opacity: 0.3;
+  color: #F97316;
   pointer-events: none;
 `;
 
@@ -384,14 +394,19 @@ const CardsWrap = styled.div`
   gap: 12px;
 `;
 
-/* 팀 미가입 시 카드들을 대신하는 안내 + CTA (겹치지 않게 흐름 안에 그대로 배치) */
+/* 팀 미가입 시 팀 프로필 카드 자리를 대신하는 안내 + CTA.
+   매칭하기·매칭룸을 누르면 이 카드로 스크롤하며 $flash 로 잠깐 테두리를 세운다. */
 const LockCard = styled.div`
   width: 100%;
   background: ${({ theme }) => theme.colors.card};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${({ $flash, theme }) =>
+    $flash ? theme.colors.primary : theme.colors.border};
   border-radius: 16px;
   padding: 24px 18px;
   text-align: center;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+  box-shadow: ${({ $flash, theme }) =>
+    $flash ? `0 0 0 3px ${theme.colors.primary}26` : "none"};
 `;
 
 const LockTitle = styled.div`
@@ -505,6 +520,22 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
 
 
 
+  // 팀 미가입자도 매칭하기·매칭룸 카드를 그대로 보되, 누르면 팀 프로필 카드로 유도한다.
+  // (팀이 없으면 매칭/매칭룸은 clubId 기준이라 열어봐야 빈 화면이다)
+  const lockRef = useRef(null);
+  const [flash, setFlash] = useState(false);
+  const flashTimerRef = useRef(null);
+  useEffect(() => () => window.clearTimeout(flashTimerRef.current), []);
+
+  const guideToTeamCard = () => {
+    try {
+      lockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (e) {}
+    setFlash(true);
+    window.clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = window.setTimeout(() => setFlash(false), 1400);
+  };
+
   const handleGoMyTeamDetail = () => {
     const teamId = team?.clubId || team?.id;
     if (!teamId) return;
@@ -512,10 +543,12 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
   };
 
   const handleGoMatching = () => {
+    if (locked) return guideToTeamCard();
     navigate("/matching");
   };
 
   const goMatchRoomList = (tab) => {
+    if (locked) return guideToTeamCard();
     const t = String(tab || "").trim();
     if (!t) {
       navigate("/match-roomlist");
@@ -524,67 +557,74 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
     navigate(`/match-roomlist?tab=${encodeURIComponent(t)}`);
   };
 
-  // 팀 미가입: 빈 카드(0명·0·0·0·0)를 흐리게 깔지 않고 안내 카드 하나로 대체한다
-  if (locked) {
-    return (
-      <SectionWrap>
-        <SectionTitle>팀 프로필</SectionTitle>
+  const goFinishedMatches = () => {
+    if (locked) return guideToTeamCard();
+    navigate("/matches/finished");
+  };
 
-        <LockCard>
-          <LockTitle>아직 소속된 팀이 없어요</LockTitle>
-          <LockMsg>
-            팀을 만들거나 받은 초대를 수락하면<br />
-            매칭·랭킹을 이용할 수 있어요.
-          </LockMsg>
-          <LockBtnRow>
-            <LockPrimary type="button" onClick={() => navigate("/team/create")}>
-              팀 만들기
-            </LockPrimary>
-            <LockGhost type="button" onClick={() => navigate("/my/team-invites")}>
-              받은 초대
-            </LockGhost>
-          </LockBtnRow>
-        </LockCard>
-      </SectionWrap>
-    );
-  }
+  // 매칭하기 카드 — 팀 유무에 따라 배치만 달라지고 카드 자체는 동일하다
+  const matchingCard = (
+    <BigActionCard type="button" onClick={handleGoMatching}>
+      <BigTitle>매칭하기</BigTitle>
+      <BigSubtitle>원하는 팀과 경기 잡기</BigSubtitle>
+      <BigIcon><FiZap size={46} /></BigIcon>
+    </BigActionCard>
+  );
 
   return (
     <SectionWrap>
       <SectionTitle>팀 프로필</SectionTitle>
 
       <CardsWrap>
-      <ProfileRow>
-      <ProfileCard onClick={handleGoMyTeamDetail}>
-        <ProfileDeco><FiAward size={44} /></ProfileDeco>
-        <TopRow>
-          <LogoOuter>
-            <LogoBase>
-              <LogoImg src={logoSrc} alt={`${safeTeam.name} 로고`} />
-            </LogoBase>
-          </LogoOuter>
+      {/* 팀 미가입: 팀 프로필 카드 자리만 안내 카드로 바뀌고, 아래 액션 카드들은 그대로 나온다 */}
+      {locked ? (
+        <>
+          <LockCard ref={lockRef} $flash={flash}>
+            <LockTitle>아직 소속된 팀이 없어요</LockTitle>
+            <LockMsg>
+              팀을 만들거나 받은 초대를 수락하면<br />
+              매칭·랭킹을 이용할 수 있어요.
+            </LockMsg>
+            <LockBtnRow>
+              <LockPrimary type="button" onClick={() => navigate("/team/create")}>
+                팀 만들기
+              </LockPrimary>
+              <LockGhost type="button" onClick={() => navigate("/my/team-invites")}>
+                받은 초대
+              </LockGhost>
+            </LockBtnRow>
+          </LockCard>
+          <ProfileRow>{matchingCard}</ProfileRow>
+        </>
+      ) : (
+        <ProfileRow>
+          <ProfileCard onClick={handleGoMyTeamDetail}>
+            <ProfileDeco><FiAward size={44} /></ProfileDeco>
+            <TopRow>
+              <LogoOuter>
+                <LogoBase>
+                  <LogoImg src={logoSrc} alt={`${safeTeam.name} 로고`} />
+                </LogoBase>
+              </LogoOuter>
 
-          <TeamMeta>
-            <TeamName>{safeTeam.name}</TeamName>
+              <TeamMeta>
+                <TeamName>{safeTeam.name}</TeamName>
 
-            <MemberBadge>
-              <MemberIcon><FiUsers size={12} /></MemberIcon>
-              <span>{memberCountLabel}</span>
-            </MemberBadge>
-          </TeamMeta>
-        </TopRow>
-      </ProfileCard>
+                <MemberBadge>
+                  <MemberIcon><FiUsers size={12} /></MemberIcon>
+                  <span>{memberCountLabel}</span>
+                </MemberBadge>
+              </TeamMeta>
+            </TopRow>
+          </ProfileCard>
 
-        <BigActionCard type="button" onClick={handleGoMatching}>
-          <BigTitle>매칭하기</BigTitle>
-          <BigSubtitle>원하는 팀과 경기 잡기</BigSubtitle>
-          <BigIcon><FiZap size={46} /></BigIcon>
-        </BigActionCard>
-      </ProfileRow>
+          {matchingCard}
+        </ProfileRow>
+      )}
 
       <WideActionCard type="button" onClick={() => navigate("/venues")}>
-        <BigTitle>구장 예약 바로가기</BigTitle>
-        <BigSubtitle>제휴 구장 코트·시간 예약하기</BigSubtitle>
+        <WideTitle>구장 예약 바로가기</WideTitle>
+        <WideSubtitle>제휴 구장 코트·시간 예약하기</WideSubtitle>
         <WideIcon><FiCalendar size={40} /></WideIcon>
       </WideActionCard>
 
@@ -595,7 +635,7 @@ export default function TeamProfileSection({ team, rank = 1, matchRoomCounts, ma
               <span>매칭룸</span>
             </MatchRoomTitle>
 
-            <MatchRoomLinkText onClick={() => navigate("/matches/finished")}>
+            <MatchRoomLinkText onClick={goFinishedMatches}>
               내 팀 경기 기록 보기
             </MatchRoomLinkText>
           </MatchRoomHeader>
