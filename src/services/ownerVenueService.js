@@ -391,6 +391,12 @@ export function venueRow(d) {
     refundPolicy: safeStr(data.refundPolicy),
     defaultOwnerNote: safeStr(data.defaultOwnerNote), // 예약 승인 시 자동으로 채워지는 기본 안내문
 
+    // 리뷰 집계 — venueReviewService 가 venues 문서에 써 두는 값이다.
+    // 여기서 안 내려주면 목록의 별점(VenueListPage.ratingNode)·상세의 평점 배지가
+    // 값이 있어도 영영 안 뜬다.
+    rating: toNum(data.rating) ?? 0,
+    reviewCount: toNum(data.reviewCount) ?? 0,
+
     // 예약 승인 방식 — true 면 구장주 승인 단계를 건너뛰고 요청 즉시 잡힌다(즉시예약).
     // 기본은 false(승인제): 기존 구장은 전부 승인제로 운영 중이라, 필드가 없다고 갑자기
     // 자동승인으로 바뀌면 구장주가 모르는 예약이 확정된다.

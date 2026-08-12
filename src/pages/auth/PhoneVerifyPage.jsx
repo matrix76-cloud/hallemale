@@ -133,7 +133,14 @@ export default function PhoneVerifyPage() {
         await linkSocialToExistingUser({ existingUid, socialUid: uid, provider });
       } else if (uid) {
         // 신규: 이 번호를 현재 계정에 연결(primaryUid) + phoneVerified=true
-        await linkPhoneToUid({ uid, phoneE164: e164, provider });
+        // email 을 같이 넘겨야 users_by_phone 인덱스에 이메일이 남는다 —
+        // 계정 찾기(/find-account)가 "이 번호의 가입 이메일"을 여기서 읽는다.
+        await linkPhoneToUid({
+          uid,
+          phoneE164: e164,
+          provider,
+          email: firebaseUser?.email || "",
+        });
       }
     } catch (e) {
       console.warn("[PhoneVerify] account link failed (non-critical):", e?.message);

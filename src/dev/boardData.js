@@ -71,6 +71,16 @@ const EXTRA_FRAMES = {
     { key: "sc-gate-phone",     forScreen: "phone-verify", name: "②전화인증 게이트",   path: "/home", scenario: "gate-phone" },
     { key: "sc-gate-basicinfo", forScreen: "basic-info",  name: "③기본정보 게이트",   path: "/home", scenario: "gate-basicinfo" },
     { key: "sc-gate-welcome",   forScreen: "signup-done", name: "④가입완료 게이트",   path: "/home", scenario: "gate-welcome" },
+
+    // 계정 찾기 — 3단계짜리 한 화면이라 ?step= 으로 한 장씩 본다(구장주 가입과 같은 방식).
+    // 결과 화면은 실제로 문자를 보내야 나오므로 이 파라미터 없이는 리뷰가 불가능하다.
+    { key: "sc-find-phone",  forScreen: "find-account", name: "계정찾기①전화번호",       path: "/find-account",             scenario: "" },
+    { key: "sc-find-code",   forScreen: "find-account", name: "계정찾기②인증번호",       path: "/find-account?step=code",   scenario: "" },
+    { key: "sc-find-email",  forScreen: "find-account", name: "계정찾기③임시비번 발송",  path: "/find-account?step=done",   scenario: "" },
+    { key: "sc-find-social", forScreen: "find-account", name: "계정찾기③소셜 계정 안내", path: "/find-account?step=social", scenario: "" },
+
+    // 임시 비밀번호로 로그인한 상태 — /home 으로 들어가도 비밀번호 변경 화면이 대신 뜬다.
+    { key: "sc-gate-password", forScreen: "change-password", name: "임시비번 · 변경 강제 게이트", path: "/home", scenario: "gate-password" },
   ],
 
   home: [
@@ -174,13 +184,21 @@ const EXTRA_FRAMES = {
     { key: "sc-v2-detail",    forScreen: "venue-book",      name: "②구장 상세",        path: "/venue-book/mock_venue",                    scenario: "venue-flow" },
     // 승인제(위)와 즉시예약은 안내문·버튼 문구가 통째로 갈린다 — 두 상태를 나란히 본다.
     { key: "sc-v2b-instant",  forScreen: "venue-book",      name: "②'구장 상세 · 즉시예약", path: "/venue-book/mock_venue2",              scenario: "venue-flow" },
+    // 코트가 여러 개인 구장은 구장 페이지가 "코트 목록"이라 예약칸이 없다 —
+    // 실제로 시간을 고르는 화면은 코트 상세다. 두 화면을 따로 봐야 상세가 검수된다.
+    { key: "sc-v2c-court",    forScreen: "venue-book",      name: "②\"코트 상세 · 예약",  path: "/venue-book/mock_venue/court/court_a",  scenario: "venue-flow" },
+    // 1인 요금제 코트 — 인원 스테퍼·최소 인원 안내가 붙는 유일한 경우의 수
+    { key: "sc-v2d-perperson", forScreen: "venue-book",     name: "②‴코트 상세 · 1인요금", path: "/venue-book/mock_venue2/court/court_c", scenario: "venue-flow" },
     { key: "sc-v4-pay",       forScreen: "pay",             name: "④결제(토스 위젯)",  path: "/pay/mock_reservation",                     scenario: "venue-flow" },
-    { key: "sc-v5-success",   forScreen: "pay-success",     name: "⑤결제 성공 · 확정",  path: "/pay/success?orderId=mock_order_20260802_001&paymentKey=mock_pk&amount=84000", scenario: "venue-flow" },
+    // 매칭 제휴구장은 팀장이 총 대관료가 아니라 "우리 팀 몫"만 낸다 — 금액이 갈리는 화면이라 따로 본다.
+    { key: "sc-v4b-pay-split", forScreen: "pay",            name: "④'결제 · 분담(우리 팀 몫)", path: "/pay/mock_reservation",             scenario: "pay-share-waiting" },
+    { key: "sc-v5-success",   forScreen: "pay-success",     name: "⑤결제 성공 · 확정",  path: "/pay/success?orderId=mock_order_20260802_001&paymentKey=mock_pk&amount=80000", scenario: "venue-flow" },
     // 매칭 제휴구장은 팀당 1건이라, 우리 팀이 내도 상대 팀이 안 내면 확정이 아니다.
-    { key: "sc-v5b-success-wait", forScreen: "pay-success", name: "⑤'결제 성공 · 상대팀 대기", path: "/pay/success?orderId=mock_order_20260802_001&paymentKey=mock_pk&amount=42000", scenario: "pay-share-waiting" },
+    { key: "sc-v5b-success-wait", forScreen: "pay-success", name: "⑤'결제 성공 · 상대팀 대기", path: "/pay/success?orderId=mock_order_20260802_001&paymentKey=mock_pk&amount=40000", scenario: "pay-share-waiting" },
     { key: "sc-v6-fail",      forScreen: "pay-fail",        name: "⑤'결제 실패",       path: "/pay/fail?message=%EA%B2%B0%EC%A0%9C%EB%A5%BC%20%EC%B7%A8%EC%86%8C%ED%96%88%EC%96%B4%EC%9A%94", scenario: "venue-flow" },
     { key: "sc-v7-resv-req",  forScreen: "my-reservations", name: "⑥내 예약 · 승인대기", path: "/my/reservations",                        scenario: "resv-requested" },
     { key: "sc-v8-resv-conf", forScreen: "my-reservations", name: "⑥'내 예약 · 확정",   path: "/my/reservations",                         scenario: "resv-confirmed" },
+    { key: "sc-v8b-resv-split", forScreen: "my-reservations", name: "⑥\"내 예약 · 매칭 분담", path: "/my/reservations",                    scenario: "resv-match-pending" },
     { key: "sc-v9-resv-none", forScreen: "my-reservations", name: "내 예약 · 비어있음",  path: "/my/reservations",                         scenario: "resv-empty" },
     { key: "sc-v10-none",     forScreen: "venues",          name: "구장 목록 · 비어있음", path: "/venues",                                 scenario: "venues-empty" },
   ],

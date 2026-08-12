@@ -61,6 +61,29 @@ function needsPayment(r) {
   return toStr(r.status) === "pending" && isFuture(r);
 }
 
+/**
+ * 매칭 제휴구장 예약에서 "내가 낼 금액". 두 팀장이 절반씩 내므로 총 대관료와 다르다.
+ * 여기서 총액만 보여주면 팀장은 8만원을 결제하는 줄 알고 결제 화면에서 4만원을 본다.
+ * 분담 예약이 아니거나 내 편을 못 가리면 null → 기존대로 총액을 그대로 쓴다.
+ */
+function mySplitShare(r, uid) {
+  if (!toStr(r.matchId) || !uid) return null;
+  const side =
+    toStr(r.teamALeaderUid) === uid ? "A"
+      : toStr(r.teamBLeaderUid) === uid ? "B"
+        // 팀장 스냅샷이 없는 구버전 예약 — 예약을 만든 쪽이 A팀이다(requestVenueReservationForMatch)
+        : toStr(r.userId) === uid ? "A"
+          : "";
+  if (!side) return null;
+  const amount = Number(side === "A" ? r.shareA : r.shareB) || 0;
+  if (!amount) return null;
+  return {
+    amount,
+    total: Number(r.splitTotal) || Number(r.price) || 0,
+    paid: side === "A" ? r.paidByA === true : r.paidByB === true,
+  };
+}
+
 export default function MyReservationsPage() {
   const navigate = useNavigate();
   const { firebaseUser, userDoc } = useAuth();
@@ -225,6 +248,8 @@ export default function MyReservationsPage() {
           const place = { name: r.venueName || v?.name, address: addr, lat: v?.lat, lng: v?.lng };
           // 확정 + 아직 안 지난 예약에만 "언제부터 이용" / 액션 버튼을 붙인다.
           const live = r.status === "confirmed" && isFuture(r);
+          // 매칭 분담 예약이면 총액이 아니라 내가 낼 몫을 금액 자리에 세운다.
+          const share = mySplitShare(r, myUid);
           return (
             <Card key={r.id}>
               <TopRow>
@@ -285,7 +310,14 @@ export default function MyReservationsPage() {
 
               <BottomRow>
                 <Price>
-                  {(Number(r.price) || 0).toLocaleString()}원
+                  {share ? (
+                    <>
+                      {share.amount.toLocaleString()}원
+                      <small> 우리 팀 몫 · 총 {share.total.toLocaleString()}원</small>
+                    </>
+                  ) : (
+                    `${(Number(r.price) || 0).toLocaleString()}원`
+                  )}
                 </Price>
                 {canCancel(r) ? (
                   <CancelBtn type="button" disabled={busyId === r.id} onClick={() => handleCancel(r)}>
@@ -299,7 +331,9 @@ export default function MyReservationsPage() {
               {needsPayment(r) ? (
                 PAYMENTS_ENABLED ? (
                   <PayBtn type="button" onClick={() => navigate(`/pay/${r.id}`)}>
-                    결제하고 예약 확정하기
+                    {share
+                      ? `우리 팀 몫 ${share.amount.toLocaleString()}원 결제하기`
+                      : "결제하고 예약 확정하기"}
                   </PayBtn>
                 ) : (
                   <ClosedHint>{PAYMENTS_DISABLED_NOTICE}</ClosedHint>

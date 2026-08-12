@@ -49,16 +49,24 @@ const F_INVITE = "mock_invite";       // 받은 팀 초대
 const F_JOINREQ = "mock_joinreq";     // 팀에 온 가입 신청
 
 // ── 1. 인증·가입 ─────────────────────────────────────────────
-// 평소 게이트로만 뜨는 약관동의·전화인증·기본정보·가입완료는 /review-auth/* 로 직접 렌더한다.
+// 평소 게이트로만 뜨는 약관동의·전화인증·기본정보·가입완료·비밀번호변경은 /review-auth/* 로 직접 렌더한다.
+// 순서 = 실제 여정(로그인 수단 고르기 → 이메일 갈래 → 가입 게이트 4단계).
+// ⚠️ id 는 기록 스레드 키라 고정. no 는 표시용이라 이메일 화면을 끼워 넣으며 다시 매겼다.
 export const AUTH_REVIEW = [
   { id: "splash",         no: "1-01", name: "스플래시",       path: "/",                            raw: true, spec: [] },
   { id: "welcome",        no: "1-02", name: "웰컴",           path: "/welcome",                     raw: true, spec: [] },
   { id: "login",          no: "1-03", name: "로그인",         path: "/login",                       raw: true, spec: [] },
-  { id: "kakao-callback", no: "1-04", name: "카카오 콜백",     path: "/oauth/kakao",                 raw: true, spec: [] },
-  { id: "agreement",      no: "1-05", name: "약관 동의",       path: "/review-auth/agreement",       raw: true, spec: [] },
-  { id: "phone-verify",   no: "1-06", name: "전화번호 인증",   path: "/review-auth/phone",           raw: true, spec: [] },
-  { id: "basic-info",     no: "1-07", name: "기본정보 입력",   path: "/review-auth/basic-info",      raw: true, spec: [] },
-  { id: "signup-done",    no: "1-08", name: "회원가입 완료",   path: "/review-auth/signup-complete", raw: true, spec: [] },
+  // 이메일 로그인 갈래 — 소셜과 달리 입력 화면이 필요해 페이지가 따로 있다.
+  { id: "email-login",    no: "1-04", name: "이메일 로그인",   path: "/login/email",                 raw: true, spec: [] },
+  { id: "email-signup",   no: "1-05", name: "이메일 가입",     path: "/signup/email",                raw: true, spec: [] },
+  { id: "find-account",   no: "1-06", name: "계정 찾기",       path: "/find-account",                raw: true, spec: [] },
+  { id: "kakao-callback", no: "1-07", name: "카카오 콜백",     path: "/oauth/kakao",                 raw: true, spec: [] },
+  { id: "agreement",      no: "1-08", name: "약관 동의",       path: "/review-auth/agreement",       raw: true, spec: [] },
+  { id: "phone-verify",   no: "1-09", name: "전화번호 인증",   path: "/review-auth/phone",           raw: true, spec: [] },
+  { id: "basic-info",     no: "1-10", name: "기본정보 입력",   path: "/review-auth/basic-info",      raw: true, spec: [] },
+  { id: "signup-done",    no: "1-11", name: "회원가입 완료",   path: "/review-auth/signup-complete", raw: true, spec: [] },
+  // 임시 비밀번호로 로그인하면 뜨는 강제 변경 게이트 (RequireAuth 안, 다른 게이트보다 앞)
+  { id: "change-password",no: "1-12", name: "비밀번호 변경",   path: "/review-auth/change-password", raw: true, spec: [] },
   // /invites 제외 — InvitesPage 는 <Navigate to="/my/team-invites"> 뿐이라 화면이 없다(5-05 와 같은 화면).
 ];
 
@@ -100,7 +108,7 @@ export const VENUE_REVIEW = [
   { id: "pay",             no: "4-04", name: "결제(토스 위젯)", path: `/pay/${F_RESERVATION}`,         spec: [] },
   // 성공 화면은 토스 승인 파라미터(paymentKey·orderId·amount)가 다 있어야 뜬다. 없으면 실패 화면과
   // 같은 모습이라 리뷰가 안 된다 → 목업 주문 id 를 붙여 띄운다(승인 호출은 목업이라 돈이 안 빠진다).
-  { id: "pay-success",     no: "4-05", name: "결제 결과(성공·확정)", path: "/pay/success?orderId=mock_order_20260802_001&paymentKey=mock_pk&amount=84000", spec: [] },
+  { id: "pay-success",     no: "4-05", name: "결제 결과(성공·확정)", path: "/pay/success?orderId=mock_order_20260802_001&paymentKey=mock_pk&amount=80000", spec: [] },
   { id: "pay-fail",        no: "4-06", name: "결제 결과(실패)", path: "/pay/fail?message=%EA%B2%B0%EC%A0%9C%EB%A5%BC%20%EC%B7%A8%EC%86%8C%ED%96%88%EC%96%B4%EC%9A%94", spec: [] },
   { id: "my-reservations", no: "4-07", name: "내 구장 예약", path: "/my/reservations",                 spec: [] },
   { id: "fav-venues",      no: "4-08", name: "찜한 구장",    path: "/my/fav-venues",                   spec: [] },

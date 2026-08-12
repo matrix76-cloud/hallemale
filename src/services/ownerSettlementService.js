@@ -20,6 +20,7 @@
 // resource.data.ownerUid == request.auth.uid 라, 기본 db 로 읽으면 항상 거부된다.
 import { ownerDb as db } from "./firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
 
 const n = (v) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
 const s = (v) => String(v ?? "").trim();
@@ -91,7 +92,15 @@ export async function listOwnerPayments(ownerUid, { venueId = "" } = {}) {
   const uid = s(ownerUid);
   if (!uid) return [];
 
-  const snap = await getDocs(query(collection(db, "payments"), where("ownerUid", "==", uid)));
+  // 목업 주입 — 이게 없으면 /review 의 구장주 매출·정산 화면이 결제 원장을 못 읽어
+  // 예약 건수는 나오는데 "정산 매출 0원 · 앱 결제 0건"으로 뜬다(어드민 쪽은 이미 주입돼 있다).
+  const snap = hasMock("paymentDocs")
+    ? mockQuerySnap(
+        Object.fromEntries(
+          Object.entries(mockData("paymentDocs") || {}).filter(([, p]) => s(p?.ownerUid) === uid)
+        )
+      )
+    : await getDocs(query(collection(db, "payments"), where("ownerUid", "==", uid)));
   let rows = [];
   snap.forEach((d) => rows.push(row(d)));
 

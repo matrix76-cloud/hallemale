@@ -78,3 +78,31 @@ export async function verifyPhoneOtp(phone, code) {
   }
   return data;
 }
+
+/**
+ * 계정 찾기 + 임시 비밀번호 발급 (미로그인 상태에서 호출)
+ *
+ * 인증번호 검증과 계정 조회를 서버가 한 번에 처리한다. verifyPhoneOtp 를 먼저 부르면
+ * 그 인증번호가 소비돼 버려서 여기서 다시 못 쓴다 — 이 흐름에서는 이 함수만 부를 것.
+ *
+ * @returns { ok, tempIssued, provider, maskedEmail, tempPassword? }
+ *   - tempIssued=true  : 이메일 계정 → 임시 비밀번호를 문자로 발송함
+ *   - tempIssued=false : 카카오/구글 계정 → 비밀번호가 없으니 소셜로 로그인해야 함(provider 참고)
+ */
+export async function recoverAccountByPhone(phone, code) {
+  const normPhone = String(phone || "").replace(/\D/g, "");
+  const normCode = String(code || "").replace(/\D/g, "");
+  const res = await fetch(`${CF_BASE}/recoverAccountByPhone`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone: normPhone, code: normCode }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.ok) {
+    const err = new Error(data?.error || "계정을 찾지 못했습니다.");
+    err.code = data?.code;
+    err.attemptsLeft = data?.attemptsLeft;
+    throw err;
+  }
+  return data;
+}

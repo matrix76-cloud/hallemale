@@ -35,6 +35,21 @@ const PARTNER_PAY_WINDOW_MS = 2 * 60 * 60 * 1000;
 // PG 수수료는 이 안에서 회사가 흡수한다(별도 항목으로 전가 금지 — 여전법 제19조).
 const PLATFORM_FEE_RATE = 0.05;
 
+/* 부가가치세 — 여기서 확정해 원장에 남기는 건 "우리 몫"인 플랫폼 이용료의 부가세뿐이다.
+ * 구장 이용료의 부가세는 공급자인 구장 사업자가 신고·납부하고, 과세유형(일반/간이/면세)에
+ * 따라 세액이 갈리므로 결제 시점에 단정해 박지 않는다(정산 명세에서 참고값으로만 계산).
+ * 플랫폼 이용료는 부가세 **포함가**다 — venueAmount = amount - platformFee 로 4,000 만
+ * 떼고 있으므로 구현이 곧 그 전제다.
+ * ⚠️ src/constants/payments.js 의 VAT_RATE·splitVat 과 같은 값·같은 식을 유지할 것. */
+const VAT_RATE = 0.1;
+/** 부가세 포함가 → { supply, vat }. 부가세를 반올림하고 공급가액은 뺄셈 — supply+vat 이 원가와 안 어긋나게. */
+function splitVat(taxIncluded) {
+  const v = Number(taxIncluded);
+  if (!Number.isFinite(v) || v <= 0) return { supply: 0, vat: 0 };
+  const vat = Math.round((v * VAT_RATE) / (1 + VAT_RATE));
+  return { supply: v - vat, vat };
+}
+
 const s = (v) => String(v ?? "").trim();
 const n = (v) => {
   const x = Number(v);
@@ -166,7 +181,13 @@ function resolveShare(data, uid) {
   const withFee = (side, payAmount) => {
     const total = n(payAmount);
     const fee = total > 0 ? Math.round(total * rate) : 0;
-    return { side, venueAmount: total - fee, platformFee: fee, amount: total, feeRate: rate };
+    // 이용료의 공급가액·부가세 — 우리 매출이라 결제 시점에 확정해 원장까지 들고 간다.
+    // (세율이 바뀌어도 과거 결제건이 흔들리지 않게 vatRate 도 같이 스냅샷)
+    const { supply, vat } = splitVat(fee);
+    return {
+      side, amount: total, venueAmount: total - fee, platformFee: fee, feeRate: rate,
+      feeSupply: supply, feeVat: vat, vatRate: VAT_RATE,
+    };
   };
 
   if (s(data.source) === "match") {
@@ -237,8 +258,12 @@ exports.createTossOrder = onRequest(
       uid,
       amount: share.amount,           // 실제 결제액(= 구장몫 + 이용료)
       venueAmount: share.venueAmount, // 구장 정산 대상 — 수수료 0%, 전액 지급
-      platformFee: share.platformFee, // 플랫폼 이용료(사용자 부담)
+      platformFee: share.platformFee, // 플랫폼 이용료(부가세 포함)
       feeRate: share.feeRate,
+      // 이용료의 공급가액·부가세 — 우리 매출분. 수수료 세금계산서 발행의 근거가 된다.
+      feeSupply: share.feeSupply,
+      feeVat: share.feeVat,
+      vatRate: share.vatRate,
       orderName,
       status: "created",
       matchId: s(data.matchId),
@@ -417,11 +442,14 @@ exports.confirmTossPayment = onRequest(
     }
 
     // reservationId/matchId 는 결제 완료 화면이 돌아갈 곳을 정하는 데 쓴다.
+    // method/approvedAt 은 완료 화면의 영수증(결제 수단·결제 일시)에 그대로 찍힌다.
     res.json({
       ok: true,
       reservationId,
       matchId: s(order.matchId),
       amount,
+      method: s(payment.method),
+      approvedAt: s(payment.approvedAt),
       awaitingDeposit: !deposited,
       reservationSyncPending: !!syncError,
       ...(result || {}),

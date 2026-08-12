@@ -124,6 +124,7 @@ export function confirmPayment({ paymentKey, orderId, amount, testSkip }) {
   // "확정" 과 "상대 팀 결제 대기" 를 가른다.
   if (hasMock("tossOrder")) {
     const o = mockData("tossOrder");
+    const isSplit = o.side === "A" || o.side === "B";
     return Promise.resolve({
       ok: true,
       orderId: orderId || o.orderId,
@@ -131,7 +132,12 @@ export function confirmPayment({ paymentKey, orderId, amount, testSkip }) {
       reservationId: "mock_reservation",
       reservationStatus: o.reservationStatus || "confirmed",
       matchId: o.matchId || "",
-      approvedAt: "2026-07-28T19:00:00+09:00",
+      // 영수증 표기용. 승인 시각은 "방금"이어야 한다 — 고정 날짜를 박아두면
+      // 결제 결과 화면이 어느 날부터 몇 달 전에 결제한 것처럼 보인다.
+      method: o.method || "카드",
+      approvedAt: new Date().toISOString(),
+      // 분담결제면 어느 팀이 냈는지까지 서버와 같은 모양으로 준다.
+      ...(isSplit ? { paidByA: o.side === "A", paidByB: o.side === "B" } : {}),
     });
   }
   return authedPost("confirmTossPayment", { paymentKey, orderId, amount, testSkip: !!testSkip });

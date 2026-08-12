@@ -35,6 +35,11 @@ const AgreementGate = lazy(() => import("../components/auth/AgreementGate"));
 const PhoneVerifyPage = lazy(() => import("../pages/auth/PhoneVerifyPage"));
 const SignupCompletePage = lazy(() => import("../pages/auth/SignupCompletePage"));
 const SignupBasicInfoPage = lazy(() => import("../pages/auth/SignupBasicInfoPage"));
+// 이메일 로그인 경로 — 소셜과 달리 입력 화면이 필요해서 페이지가 따로 있다.
+const EmailLoginPage = lazy(() => import("../pages/auth/EmailLoginPage"));
+const EmailSignupPage = lazy(() => import("../pages/auth/EmailSignupPage"));
+const FindAccountPage = lazy(() => import("../pages/auth/FindAccountPage"));
+const ChangePasswordPage = lazy(() => import("../pages/auth/ChangePasswordPage"));
 const MatchRoomListPage = lazy(() => import("../pages/matching/MatchRoomListPage"));
 const MatchRoomDetailPage = lazy(() => import("../pages/matching/MatchRoomDetailPage"));
 const MyProfilePage = lazy(() => import("../pages/my/MyProfilePage"));
@@ -185,7 +190,18 @@ function RequireAuth({ children }) {
   const { isLoggedIn, loading } = useAuth();
   if (loading) return <AppLoadingPage />;
   if (!isLoggedIn) return <Navigate to="/login" replace />;
-  return children;
+  // 임시 비밀번호 상태면 다른 게이트를 보기 전에 비밀번호부터 바꾼다.
+  return <RequirePasswordChange>{children}</RequirePasswordChange>;
+}
+
+// 계정 찾기로 임시 비밀번호를 받은 사용자 게이트.
+// 서버(recoverAccountByPhone)가 users.mustChangePassword=true 를 세우고, 실제로 비밀번호를
+// 바꿔야 내려간다. 임시 비밀번호는 평문으로 문자에 남아 있어서 그대로 두면 계정이 열려 있는 셈이다.
+function RequirePasswordChange({ children }) {
+  const { userDoc, loading } = useAuth();
+  if (loading) return <AppLoadingPage />;
+  if (userDoc?.mustChangePassword !== true) return children;
+  return <ChangePasswordPage />;
 }
 
 // 소셜(카카오/구글) 최초 로그인 후 1회: 전화번호 SMS 인증 게이트 (2026-07-06 재도입).
@@ -450,6 +466,10 @@ export default function AppRoutes() {
         <Route element={<AuthLayout />}>
           <Route path="/welcome" element={<WelcomePage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/login/email" element={<EmailLoginPage />} />
+          <Route path="/signup/email" element={<EmailSignupPage />} />
+          {/* 계정 찾기 = 비밀번호 재설정. 전화번호 인증 한 번으로 둘 다 처리한다. */}
+          <Route path="/find-account" element={<FindAccountPage />} />
           <Route path="/onboarding/club" element={<ClubOnboardingPage />} />
         </Route>
 
@@ -708,6 +728,7 @@ export default function AppRoutes() {
             <Route path="/review-auth/phone" element={<PhoneVerifyPage />} />
             <Route path="/review-auth/signup-complete" element={<SignupCompletePage />} />
             <Route path="/review-auth/basic-info" element={<SignupBasicInfoPage />} />
+            <Route path="/review-auth/change-password" element={<ChangePasswordPage />} />
 
             {/* useOwner() 를 쓰므로 OwnerProvider 로 감싼다. */}
             <Route

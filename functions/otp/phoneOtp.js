@@ -156,6 +156,72 @@ function proofId(uid, phoneE164) {
 }
 
 /**
+ * 대기 중인 OTP 하나를 찾아 코드를 대조하고, 맞으면 소비(verified=true)한다.
+ * 전화인증 게이트(verifyPhoneOtp)와 계정 찾기(recoverAccountByPhone)가 같은 규칙
+ * (유효 3분·5회 제한·최신 건 우선)을 쓰도록 검증 로직을 한 곳에 둔다.
+ *
+ * @returns {{ ok: true }} | {{ ok: false, status, error, code, attemptsLeft? }}
+ */
+async function consumePendingOtp(db, admin, normPhone, normCode) {
+  // 동일 번호의 미검증 OTP 중 가장 최근 것 하나 사용 (단일 필드 쿼리 + 메모리 정렬 — 복합 인덱스 불필요)
+  const snap = await db
+    .collection("phone_verifications")
+    .where("phone", "==", normPhone)
+    .get();
+
+  const pending = snap.docs
+    .filter((d) => d.data()?.verified === false)
+    .sort((a, b) => {
+      const ta = a.data()?.createdAt?.toDate?.()?.getTime?.() || 0;
+      const tb = b.data()?.createdAt?.toDate?.()?.getTime?.() || 0;
+      return tb - ta;
+    });
+
+  if (pending.length === 0) {
+    return { ok: false, status: 404, error: "인증번호를 먼저 요청해 주세요.", code: "otp/not-found" };
+  }
+
+  const doc = pending[0];
+  const data = doc.data();
+  const expiresAt = data.expiresAt?.toDate?.() || new Date(data.expiresAt);
+
+  if (Date.now() > expiresAt.getTime()) {
+    return { ok: false, status: 410, error: "인증번호가 만료되었습니다. 재전송해 주세요.", code: "otp/expired" };
+  }
+
+  const attempts = (data.attempts || 0) + 1;
+  if (attempts > OTP_MAX_ATTEMPTS) {
+    return { ok: false, status: 429, error: "시도 횟수를 초과했습니다. 재전송해 주세요.", code: "otp/too-many-attempts" };
+  }
+
+  if (data.code !== normCode) {
+    await doc.ref.update({ attempts });
+    return {
+      ok: false,
+      status: 400,
+      error: "인증번호가 올바르지 않습니다.",
+      code: "otp/mismatch",
+      attemptsLeft: OTP_MAX_ATTEMPTS - attempts,
+    };
+  }
+
+  await doc.ref.update({
+    verified: true,
+    verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    attempts,
+  });
+
+  return { ok: true };
+}
+
+/** consumePendingOtp 실패 결과를 그대로 HTTP 응답으로 옮긴다. */
+function sendOtpError(res, r) {
+  const body = { ok: false, error: r.error, code: r.code };
+  if (r.attemptsLeft != null) body.attemptsLeft = r.attemptsLeft;
+  res.status(r.status).json(body);
+}
+
+/**
  * 인증번호 검증
  * body: { phone, code }
  * header: Authorization: Bearer <ID 토큰> (선택)
@@ -181,56 +247,11 @@ exports.verifyPhoneOtp = onRequest({ region: REGION, cors: true }, async (req, r
     const db = getDb();
     const admin = getAdmin();
 
-    // 동일 번호의 미검증 OTP 중 가장 최근 것 하나 사용 (단일 필드 쿼리 + 메모리 정렬 — 복합 인덱스 불필요)
-    const snap = await db
-      .collection("phone_verifications")
-      .where("phone", "==", normPhone)
-      .get();
-
-    const pending = snap.docs
-      .filter((d) => d.data()?.verified === false)
-      .sort((a, b) => {
-        const ta = a.data()?.createdAt?.toDate?.()?.getTime?.() || 0;
-        const tb = b.data()?.createdAt?.toDate?.()?.getTime?.() || 0;
-        return tb - ta;
-      });
-
-    if (pending.length === 0) {
-      res.status(404).json({ ok: false, error: "인증번호를 먼저 요청해 주세요.", code: "otp/not-found" });
+    const otp = await consumePendingOtp(db, admin, normPhone, normCode);
+    if (!otp.ok) {
+      sendOtpError(res, otp);
       return;
     }
-
-    const doc = pending[0];
-    const data = doc.data();
-    const expiresAt = data.expiresAt?.toDate?.() || new Date(data.expiresAt);
-
-    if (Date.now() > expiresAt.getTime()) {
-      res.status(410).json({ ok: false, error: "인증번호가 만료되었습니다. 재전송해 주세요.", code: "otp/expired" });
-      return;
-    }
-
-    const attempts = (data.attempts || 0) + 1;
-    if (attempts > OTP_MAX_ATTEMPTS) {
-      res.status(429).json({ ok: false, error: "시도 횟수를 초과했습니다. 재전송해 주세요.", code: "otp/too-many-attempts" });
-      return;
-    }
-
-    if (data.code !== normCode) {
-      await doc.ref.update({ attempts });
-      res.status(400).json({
-        ok: false,
-        error: "인증번호가 올바르지 않습니다.",
-        code: "otp/mismatch",
-        attemptsLeft: OTP_MAX_ATTEMPTS - attempts,
-      });
-      return;
-    }
-
-    await doc.ref.update({
-      verified: true,
-      verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-      attempts,
-    });
 
     // 인증 증빙 — 호출자가 로그인 상태면(사용자앱 전화인증 게이트) 남긴다.
     // 구장주 가입은 로그인 전에 인증하므로 토큰이 없다 → 증빙 없이도 검증 자체는 성공한다.
@@ -258,6 +279,164 @@ exports.verifyPhoneOtp = onRequest({ region: REGION, cors: true }, async (req, r
     res.status(500).json({ ok: false, error: "서버 오류가 발생했습니다." });
   }
 });
+
+/* ===================== 계정 찾기 · 임시 비밀번호 발급 ===================== */
+
+// 임시 비밀번호는 사람이 문자로 받아 옮겨 적는 값이다.
+// 헷갈리는 글자(0·O·1·l·I)를 빼야 "왜 로그인이 안 되지" 문의가 줄어든다.
+const TEMP_PW_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+const TEMP_PW_LEN = 10;
+
+/** 임시 비밀번호 생성 — 클라이언트 비밀번호 정책(영문+숫자 포함)을 만족할 때까지 뽑는다. */
+function genTempPassword() {
+  const { randomBytes } = require("crypto");
+  for (;;) {
+    const bytes = randomBytes(TEMP_PW_LEN);
+    let s = "";
+    for (let i = 0; i < TEMP_PW_LEN; i++) s += TEMP_PW_ALPHABET[bytes[i] % TEMP_PW_ALPHABET.length];
+    if (/[A-Za-z]/.test(s) && /\d/.test(s)) return s;
+  }
+}
+
+/** "hallaemallae@gmail.com" → "ha**********@gmail.com" (아이디 찾기 결과 표시용) */
+function maskEmail(email) {
+  const [id, domain] = String(email || "").split("@");
+  if (!id || !domain) return "";
+  const head = id.slice(0, 2);
+  return `${head}${"*".repeat(Math.max(id.length - head.length, 2))}@${domain}`;
+}
+
+/**
+ * 계정 찾기 + 임시 비밀번호 발급 (전화번호 인증 기반)
+ * body: { phone, code }
+ * res : { ok, tempIssued, provider, maskedEmail, tempPassword? }
+ *
+ * 이메일 로그인은 비밀번호를 잃으면 계정이 통째로 잠긴다. 이메일 인증 메일을 쓰지 않기로 했으므로
+ * 복구 경로는 "이미 인증된 전화번호" 하나뿐이다 — 그래서 이 함수가 유일한 복구 창구다.
+ *
+ * ⚠️ 순서가 중요하다: SMS 를 먼저 보내고 그 다음에 비밀번호를 바꾼다.
+ *    반대로 하면 SMS 발송이 실패했을 때 사용자는 바뀐 비밀번호를 영영 알 수 없어 계정이 잠긴다.
+ *    이 순서면 최악의 경우가 "문자는 받았는데 비번은 안 바뀜"(= 기존 비번으로 그대로 로그인, 재시도 가능)이다.
+ */
+exports.recoverAccountByPhone = onRequest(
+  { region: REGION, cors: true, secrets: [SOLAPI_API_KEY, SOLAPI_API_SECRET] },
+  async (req, res) => {
+    try {
+      const { phone, code } = req.body || {};
+      if (!phone || !code) {
+        res.status(400).json({ ok: false, error: "phone, code 필수" });
+        return;
+      }
+
+      const normPhone = String(phone).replace(/\D/g, "");
+      const normCode = String(code).replace(/\D/g, "");
+
+      const db = getDb();
+      const admin = getAdmin();
+
+      const otp = await consumePendingOtp(db, admin, normPhone, normCode);
+      if (!otp.ok) {
+        sendOtpError(res, otp);
+        return;
+      }
+
+      // 이 번호의 주인 — phones/{e164}.primaryUid 가 단일 출처, users_by_phone 은 구버전 폴백.
+      const e164 = toE164Kr(normPhone);
+      let uid = "";
+      const phoneSnap = await db.collection("phones").doc(e164).get();
+      if (phoneSnap.exists) uid = phoneSnap.data()?.primaryUid || "";
+      if (!uid) {
+        const idxSnap = await db.collection("users_by_phone").doc(e164).get();
+        if (idxSnap.exists) uid = idxSnap.data()?.uid || "";
+      }
+      if (!uid) {
+        res.status(404).json({
+          ok: false,
+          code: "account/not-found",
+          error: "이 번호로 가입된 계정이 없습니다.",
+        });
+        return;
+      }
+
+      let userRecord = null;
+      try {
+        userRecord = await admin.auth().getUser(uid);
+      } catch (e) {
+        res.status(404).json({
+          ok: false,
+          code: "account/not-found",
+          error: "이 번호로 가입된 계정이 없습니다.",
+        });
+        return;
+      }
+
+      const maskedEmail = maskEmail(userRecord.email || "");
+      const hasPassword = (userRecord.providerData || []).some((p) => p.providerId === "password");
+
+      // 카카오/구글로 가입한 계정은 비밀번호 자체가 없다 — 발급할 게 없으니 어느 쪽으로
+      // 로그인하면 되는지만 알려준다.
+      if (!hasPassword) {
+        const userSnap = await db.collection("users").doc(uid).get();
+        res.json({
+          ok: true,
+          tempIssued: false,
+          provider: userSnap.data()?.provider || "social",
+          maskedEmail,
+        });
+        return;
+      }
+
+      const tempPw = genTempPassword();
+      const smsText = `[할래말래] 임시 비밀번호는 ${tempPw} 입니다. 로그인 후 비밀번호를 변경해 주세요.`;
+
+      // 테스트 번호(앱 심사용): 발송을 건너뛰고 응답에 임시 비밀번호를 실어 준다 — requestPhoneOtp 의 testCode 와 같은 취급.
+      const isTest = isTestPhone(normPhone);
+      if (!isTest) {
+        const apiKey = SOLAPI_API_KEY.value();
+        const apiSecret = SOLAPI_API_SECRET.value();
+        // 키가 없으면 문자가 안 나간다 = 사용자가 임시 비밀번호를 못 받는다.
+        // 여기서 그냥 진행하면 비밀번호만 바뀌고 계정이 잠기므로 반드시 중단한다.
+        if (!apiKey || !apiSecret) {
+          console.error("[recoverAccountByPhone] Solapi 키 없음 — 임시 비밀번호 발급 중단");
+          res.status(500).json({ ok: false, error: "임시 비밀번호 발송에 실패했습니다. 고객센터로 문의해 주세요." });
+          return;
+        }
+        try {
+          const { SolapiMessageService } = require("solapi");
+          const solapi = new SolapiMessageService(apiKey, apiSecret);
+          await solapi.sendOne({ to: normPhone, from: SENDER, text: smsText });
+        } catch (smsErr) {
+          console.error("[recoverAccountByPhone] Solapi send error:", smsErr?.message);
+          res.status(502).json({ ok: false, error: "임시 비밀번호 발송에 실패했습니다. 잠시 후 다시 시도해 주세요." });
+          return;
+        }
+      }
+
+      await admin.auth().updateUser(uid, { password: tempPw });
+      // 임시 비밀번호가 문자로 나간 이상 기존 세션은 더 이상 신뢰할 수 없다 — 전부 끊는다.
+      await admin.auth().revokeRefreshTokens(uid);
+      await db.collection("users").doc(uid).set(
+        {
+          mustChangePassword: true,
+          tempPasswordAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      res.json({
+        ok: true,
+        tempIssued: true,
+        provider: "email",
+        maskedEmail,
+        ...(isTest ? { tempPassword: tempPw } : {}),
+      });
+    } catch (e) {
+      console.error("[recoverAccountByPhone] error:", e?.message);
+      res.status(500).json({ ok: false, error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
 
 /**
  * 휴대폰 인증 기록 파기 (매일 04:00 KST)

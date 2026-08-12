@@ -294,8 +294,6 @@ export default function MatchingPage() {
     <Wrap>
       <Inner>
         <QuickMatchHero
-          myTeam={effMyTeam}
-          myRank={rankMap?.get?.(String(activeTeamId)) || null}
           opponentCount={(sourceOpponents || []).length}
           onStart={() => {
             if (!activeTeamId) {

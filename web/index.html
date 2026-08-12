@@ -458,6 +458,58 @@ section[id]{scroll-margin-top:88px}
   .foot-cols,.site-footer{display:none}
   .app-footer{display:block}
   .cta-inner{flex-direction:column;align-items:flex-start;text-align:left}
+
+  /* --- 폰에서 보는 랜딩 (명함 QR 유입) ---
+     로고+버튼만 남는 폰 헤더는 68px가 남는다 — 줄여서 본문에 자리를 넘긴다.
+     스크롤 배경도 .85로는 뒤 글자가 비쳐 제목 위에 겹쳐 읽힌다. */
+  nav{height:56px}
+  header.scrolled{background:rgba(255,255,255,.96)}
+  section[id]{scroll-margin-top:64px}
+
+  /* 스토어 버튼 두 개는 글자 길이가 달라 폭이 제각각으로 쌓인다 — 한 폭으로 맞춘다. */
+  .store-row{gap:10px}
+  .hero .store{flex:1 1 100%;justify-content:center}
+
+  /* 팀은 위 마퀴가 전부(23팀) 흘려 보여준다. 그리드까지 23칸을 다 깔면
+     같은 목록을 두 번 읽히면서 화면 두 장을 더 쓴다 → 4줄에서 끊는다. */
+  .tw-cell:nth-child(n+13){display:none}
+
+  /* 목업이 288px면 세로 623px — 헤더를 빼면 설명 문장과 절대 같이 안 보인다.
+     무엇을 설명하는 그림인지 붙어 보이게 폭을 줄인다. */
+  .feat .device{width:224px}
+  .ven-media{margin-bottom:22px}
+  /* max-width만 줄이면 안 된다 — .ven-card가 align-items:center라 .ven-media 폭이 shrink-to-fit이고,
+     그 안의 width:100%가 기댈 곳을 잃어 목업이 통째로 찌그러진다. 폭을 직접 준다. */
+  .ven-media .device{width:224px}
+  .sports-media .device{width:224px}
+
+  /* 양옆 페이드 80px는 390px 화면에서 로고월 글자를 먹는다. */
+  .mq-wrap::before,.mq-wrap::after{width:36px}
+
+  /* 폰에서 세로로 쌓아야 할 것들을 손가락으로 넘기게 한다.
+     스냅이 있어야 카드가 늘 같은 자리에 서고, 다음 카드가 살짝 보여야 넘길 수 있다는 게 읽힌다. */
+  .swipe{display:flex;overflow-x:auto;overscroll-behavior-x:contain;
+    scroll-snap-type:x mandatory;scroll-padding-left:24px;
+    padding-left:24px;padding-right:24px;gap:12px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .swipe::-webkit-scrollbar{display:none}
+  .swipe>*{flex:0 0 82%;scroll-snap-align:start}
+
+  /* 구장 3카드 — 세로로 쌓으면 그것만 화면 두 장 반이다. */
+  .ven-grid{margin-top:36px}
+
+  /* 후기는 카드(320px)가 화면(390px)과 맞먹어, 마퀴가 흐르는 어느 순간에도 온전히 보이는
+     카드가 한 장도 없었다 — 문장이 늘 중간에서 잘린 채로 읽혔다. 흘리지 말고 넘기게 한다. */
+  .rev-mq::before,.rev-mq::after{display:none}
+  .rev-track{animation:none;width:auto;margin-top:36px}
+  .rev-card{padding:18px 20px}
+  .rev-card .qp-body{min-height:0}
+  /* 트랙은 무한 스크롤용으로 6개를 두 번 깔아 둔 것 — 넘겨 볼 땐 앞 6개만 쓴다. */
+  .rev-card:nth-child(n+7){display:none}
+
+  /* 폰에서는 헤더가 늘 떠 있고 거기 '앱 다운로드'가 있다.
+     to-top은 효용이 낮은 대신 본문 마지막 글자를 덮는다. */
+  .to-top{display:none}
 }
 </style>
 </head>
@@ -605,7 +657,7 @@ section[id]{scroll-margin-top:88px}
     <p class="sec-p">제휴 구장은 앱에서 바로, 쓰던 구장은 그대로.</p>
   </div>
 
-  <div class="wrap ven-grid">
+  <div class="wrap ven-grid swipe">
     <article class="ven-card reveal">
       <div class="ven-media"><div class="device"><img src="assets/shots/app-venues.png" alt="제휴 구장 지도·목록 화면" loading="lazy" width="780" height="1688"></div></div>
       <div class="ven-txt">
@@ -694,7 +746,7 @@ section[id]{scroll-margin-top:88px}
     <p class="sec-p">실제 이용자의 후기가 아니라, 서비스 이용 상황을 가정해 만든 예시입니다. <span class="ex-tag">가상 예시</span></p>
   </div>
   <div class="mq-wrap rev-mq">
-    <div class="rev-track" id="revTrack"></div>
+    <div class="rev-track swipe" id="revTrack"></div>
   </div>
 </section>
 
@@ -1176,6 +1228,35 @@ document.querySelectorAll('.store-android').forEach(a=>a.href=PLAY_STORE_URL);
       + '<div class="qp-name">'+r[0]+'</div></div>';
   }
   t.innerHTML = (revs.concat(revs)).map(card).join('');
+})();
+
+// 폰의 가로 스와이프 줄(이용 예시·구장)을 오른쪽 → 왼쪽으로 한 칸씩 자동으로 넘긴다.
+// 예전 마퀴처럼 끊임없이 흘리지 않는 이유: 그러면 어느 순간에도 온전히 보이는 카드가 없어
+// 문장이 늘 중간에서 잘린 채 읽힌다(이 섹션을 스와이프로 바꾼 이유가 그것이다).
+// 스냅 한 칸씩 넘기면 카드는 늘 제자리에 서고, 손을 대면 그 줄은 멈춘다.
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  document.querySelectorAll('.swipe').forEach(function(el){
+    var held = false, seen = false;
+    // .swipe 는 760px 이하에서만 스크롤러다 — PC 에서는 아무것도 하지 않는다.
+    function isScroller(){ return getComputedStyle(el).overflowX === 'auto'; }
+    function pitch(){
+      var a = el.children[0], b = el.children[1];
+      return (a && b) ? b.offsetLeft - a.offsetLeft : 0;
+    }
+    var timer = setInterval(function(){
+      if (held || !seen || reduce.matches || !isScroller()) return;
+      var p = pitch(); if (!p) return;
+      var end = el.scrollWidth - el.clientWidth;
+      // 끝에 닿으면 처음으로 되감는다.
+      el.scrollTo({ left: el.scrollLeft >= end - 2 ? 0 : Math.min(el.scrollLeft + p, end), behavior: 'smooth' });
+    }, 3200);
+    ['pointerdown','touchstart','wheel','keydown'].forEach(function(ev){
+      el.addEventListener(ev, function(){ held = true; clearInterval(timer); }, { passive: true, once: true });
+    });
+    // 화면 밖에 있을 땐 넘기지 않는다 — 스크롤해 내려왔을 때 첫 장부터 보이게.
+    new IntersectionObserver(function(es){ seen = es[0].isIntersecting; }, { threshold: .3 }).observe(el);
+  });
 })();
 
 const hd=document.getElementById('hd');

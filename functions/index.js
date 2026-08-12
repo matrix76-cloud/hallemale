@@ -59,9 +59,16 @@ const { searchSchool } = require("./business/searchSchool");
 exports.searchSchool = searchSchool;
 
 // ✅ 전화번호 SMS 인증 (Solapi) — 소셜 계정 전화번호 통합용
-const { requestPhoneOtp, verifyPhoneOtp, purgePhoneVerificationsDaily } = require("./otp/phoneOtp");
+const {
+  requestPhoneOtp,
+  verifyPhoneOtp,
+  recoverAccountByPhone,
+  purgePhoneVerificationsDaily,
+} = require("./otp/phoneOtp");
 exports.requestPhoneOtp = requestPhoneOtp;
 exports.verifyPhoneOtp = verifyPhoneOtp;
+// 계정 찾기 · 임시 비밀번호 문자 발급 (이메일 로그인의 유일한 복구 경로)
+exports.recoverAccountByPhone = recoverAccountByPhone;
 exports.purgePhoneVerificationsDaily = purgePhoneVerificationsDaily;
 
 // ✅ 경기 확정/취소 카카오 알림톡 (직접입력 매칭 ③④) — match_requests status 전이 트리거

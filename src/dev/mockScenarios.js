@@ -29,16 +29,44 @@ const MY_CLUB = "mock_club_me";
 const OPP_CLUB = "mock_club_opp";
 const OPP_LEADER_UID = "mock_uid_opp_leader";
 
+/* ── 날짜 축 ────────────────────────────────────────────────────────
+ * 픽스처에 날짜를 박아 두면 그 날이 지나는 순간 화면이 조용히 틀어진다.
+ * (확정 경기가 "지난 경기"로, 다가오는 예약이 목록에서 사라지고, 결제 화면의 취소 규정이
+ *  늘 "환불 불가" 단계로 굳는다 — 실제로 그렇게 썩어 있었다.)
+ * 그래서 날짜를 세 축으로 나눠 전부 오늘 기준으로 잡는다.
+ *
+ *  1) GAME_*        — 이야기의 중심인 "확정된 다음 경기". 매치룸·채팅·알림·예약·결제가 모두 이 날을 가리킨다.
+ *  2) monthPastYmd  — 구장주 매출·정산 화면이 "이번 달"로 집계한다. 끝난 예약은 이번 달의 지난 날이어야 한다.
+ *  3) STORY_SHIFT   — 커뮤니티 글·채팅 이력처럼 "며칠 전"으로만 읽히는 시각. 원래 기준일과의
+ *                     간격만큼 통째로 당긴다. 7의 배수로 당겨 요일은 보존한다
+ *                     (요일이 바뀌면 요일별 요금·주말 슬롯·본문의 "(일)" 표기가 어긋난다).
+ */
+const DAY_MS = 86400000;
+const WEEK_KO = ["일", "월", "화", "수", "목", "금", "토"];
+const pad2 = (n) => String(n).padStart(2, "0");
+const ymdOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+// 이 파일의 날짜 리터럴은 이 날을 "오늘"이라 보고 쓰였다.
+const STORY_ANCHOR_MS = new Date("2026-07-28T00:00:00+09:00").getTime();
+const STORY_SHIFT_DAYS = Math.max(0, Math.floor(Math.floor((Date.now() - STORY_ANCHOR_MS) / DAY_MS) / 7) * 7);
+/** 리터럴 날짜를 오늘 근처로 당긴 Date */
+const shifted = (v) => new Date(new Date(v).getTime() + STORY_SHIFT_DAYS * DAY_MS);
+
 // Firestore Timestamp 대신 Date 를 쓴다. 앱의 tsMs/fmtDate 유틸이 Date 도 처리하도록
 // toDate() 를 흉내 내는 얇은 래퍼를 준다(실제 Timestamp 와 같은 인터페이스).
-function ts(iso) {
-  const d = new Date(iso);
+// ⚠️ ts() 는 리터럴 전용이다(자동으로 당겨진다). 이미 오늘 기준으로 계산한 값
+//    (dayOffsetAt 등)에 쓰면 두 번 당겨진다 — 그때는 tsAbs() 를 쓸 것.
+function tsAbs(v) {
+  const d = new Date(v);
   return { toDate: () => d, seconds: Math.floor(d.getTime() / 1000), nanoseconds: 0 };
+}
+function ts(iso) {
+  return tsAbs(shifted(iso));
 }
 
 // scheduledAt 은 실데이터에서 ISO 문자열이다(matchRoomService.proposeMatchSchedule).
 // Timestamp 흉내 객체로 주면 `new Date(v)` 를 쓰는 화면에서 Invalid Date 가 된다.
-const iso = (v) => new Date(v).toISOString();
+const iso = (v) => shifted(v).toISOString();
 
 // 경기 일시만은 고정값으로 박을 수 없다 — 화면이 "확정(경기 전)"인지 "지난 경기"인지를
 // scheduledAt 과 현재 시각의 비교로 가르기 때문에, 박아둔 날짜가 지나면 "일정 확정" 시나리오가
@@ -57,15 +85,36 @@ function dayOffsetAt(days, hour) {
 function dayOffsetYmd(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return ymdOf(d);
 }
+
+/**
+ * 이번 달의 지난 날 — 구장주 매출·가동률은 "이번 달"(now 기준)만 집계하므로 끝난 예약이
+ * 지난달로 넘어가면 매출이 0으로 보인다. 원하는 일자를 주되 달을 넘기지 않고 오늘 이전으로 눌러 담는다.
+ */
+function monthPastYmd(day) {
+  const now = new Date();
+  const latest = Math.max(1, now.getDate() - 1);
+  return ymdOf(new Date(now.getFullYear(), now.getMonth(), Math.min(Math.max(1, day), latest)));
+}
+
+/* 이야기의 중심 — 조율이 끝나 확정된 다음 경기(닷새 뒤 19:00).
+   매치룸 일정·채팅 본문·알림 문구·구장 예약·결제가 전부 이 하나를 가리켜야 앞뒤가 맞는다. */
+const GAME_AHEAD = 5;
+const GAME_YMD = dayOffsetYmd(GAME_AHEAD);
+const GAME_ISO = dayOffsetAt(GAME_AHEAD, 19);
+const GAME_AT = new Date(GAME_ISO);
+const GAME_SHORT = `${GAME_AT.getMonth() + 1}/${GAME_AT.getDate()}`;                              // "8/17"
+const GAME_LONG = `${GAME_AT.getMonth() + 1}월 ${GAME_AT.getDate()}일 (${WEEK_KO[GAME_AT.getDay()]})`; // "8월 17일 (월)"
+/** 예약번호는 예약일에서 뽑힌다(genReservationCode) — 날짜가 바뀌면 번호도 같이 바뀌어야 한다. */
+const resvCode = (ymd, seq) => `HM-${String(ymd).slice(2).replace(/-/g, "")}-${seq}`;
 
 const T = {
   createdAt: ts("2026-07-20T10:00:00+09:00"),
   acceptedAt: ts("2026-07-21T14:30:00+09:00"),
   proposedAt: ts("2026-07-22T09:10:00+09:00"),
   confirmedAt: ts("2026-07-22T18:40:00+09:00"),
-  scheduledAt: dayOffsetAt(5, 19), // 확정(경기 전) 시나리오용 — 닷새 뒤 19:00
+  scheduledAt: GAME_ISO, // 확정(경기 전) 시나리오용 — 닷새 뒤 19:00
   pastScheduledAt: dayOffsetAt(-5, 19), // 지난 경기 시나리오용 — 닷새 전 19:00
   cancelledAt: ts("2026-07-23T11:05:00+09:00"),
   updatedAt: ts("2026-07-23T11:05:00+09:00"),
@@ -447,13 +496,14 @@ const MOCK_INVITES = [
 // 이벤트 팝업 (event_popups/{id})
 const MOCK_EVENT = {
   id: "mock_event",
-  title: "여름 3x3 토너먼트",
-  body: "8월 한 달간 열리는 길거리 3x3 토너먼트에 참가하세요. 우승팀에게는 유니폼 풀세트를 드립니다.",
+  title: "3x3 토너먼트",
+  // 진행 중인 이벤트로 보여야 하므로 기간을 달 이름으로 못 박지 않는다(달이 바뀌면 지난 이벤트가 된다).
+  body: "이번 달 열리는 길거리 3x3 토너먼트에 참가하세요. 우승팀에게는 유니폼 풀세트를 드립니다.",
   imageUrl: "",
   linkUrl: "",
   active: true,
   startAt: T.createdAt,
-  endAt: ts("2026-08-31T23:59:00+09:00"),
+  endAt: tsAbs(dayOffsetAt(19, 23)),
 };
 
 /* ── 구장 예약 흐름 ────────────────────────────────────────
@@ -488,11 +538,16 @@ const VENUE_RAW = {
   cost: "paid",
   active: true,
   displayMode: "grouped",
+  // 구장주가 코트에 등록할 수 있는 항목을 빠짐없이 채운 코트다 —
+  // 소개·사진·바닥재·요일별 시간대 요금·고정 공지·주의사항까지.
+  // (운영 DB 의 코트는 대부분 이름·요금만 채워져 있어, 다 채웠을 때의 상세를 여기서만 볼 수 있다)
   courts: [
     // priceBands: 상세의 "요금·코트 정보"에서 요일별 시간대 요금표가 그려지는지 보기 위한 값
     {
       id: "court_a", name: "A코트", type: "indoor", surface: "우레탄",
+      description: "정규 규격 풀코트. 우레탄 바닥에 백보드 유리판, 전광판까지 있어 시합용으로 씁니다.",
       pricePerHour: 40000, slotMinutes: 60, hours: courtHours(),
+      photos: ["/landing/assets/story-venue.jpg", "/landing/assets/story-match.jpg"],
       priceBands: {
         mon: [{ start: "18:00", end: "22:00", price: 50000 }],
         tue: [{ start: "18:00", end: "22:00", price: 50000 }],
@@ -502,9 +557,33 @@ const VENUE_RAW = {
         sat: [{ start: "09:00", end: "21:00", price: 55000 }],
         sun: [{ start: "09:00", end: "21:00", price: 55000 }],
       },
+      notices: [
+        // 공지 본문에도 날짜를 박지 않는다 — 픽스처가 썩는 자리는 예약일만이 아니다.
+        { id: "nt_a1", pinned: true, title: "정기 휴관일 안내", body: "매월 첫째 주 월요일은 시설 점검으로 종일 휴관합니다. 해당일 예약은 받지 않습니다." },
+        { id: "nt_a2", title: "샤워실 온수 사용 시간", body: "온수는 오전 9시부터 오후 10시까지 나옵니다. 그 외 시간에는 냉수만 사용할 수 있어요." },
+        { id: "nt_a3", title: "전광판·조끼 대여", body: "전광판과 팀 조끼(10벌)는 무료로 빌려드립니다. 입장 시 데스크에 말씀해 주세요." },
+      ],
+      cautions: [
+        "실내 전용 농구화만 착용할 수 있습니다. 외부용 신발은 입장이 제한돼요.",
+        "코트 안에서는 물 외의 음료·음식을 드실 수 없습니다.",
+        "예약 시간 10분 전부터 입장할 수 있고, 종료 시간까지 정리를 마쳐주세요.",
+      ],
     },
-    { id: "court_b", name: "B코트", type: "indoor", surface: "마루", pricePerHour: 35000, slotMinutes: 60, hours: courtHours() },
+    {
+      id: "court_b", name: "B코트", type: "indoor", surface: "마루",
+      description: "3대3 하프코트 2면. 마루 바닥이라 무릎 부담이 적고, 소규모 연습에 알맞습니다.",
+      pricePerHour: 35000, slotMinutes: 60, hours: courtHours(),
+      photos: ["/landing/assets/story-level.jpg"],
+      notices: [
+        { id: "nt_b1", title: "하프코트 분할 대관", body: "2면을 나눠 쓰는 코트라 같은 시간대에 다른 팀이 옆면을 사용할 수 있습니다." },
+      ],
+      cautions: ["덩크·림 매달리기는 금지입니다. 백보드 파손 시 수리비가 청구돼요."],
+    },
   ],
+  // 리뷰 집계값 — 상세 상단 평점 배지와 리뷰 섹션 요약이 이 값을 읽는다.
+  // 아래 MOCK_VENUE_REVIEWS 의 이 구장 리뷰(3건)와 평균·개수를 맞춰 둔다.
+  rating: 4.7,
+  reviewCount: 3,
   // 어드민 심사 화면에서 볼 값 — 사업자 인증은 끝났지만 계좌는 아직 대조 전(verified:false)이라
   // "계좌 확인 처리" 버튼이 뜬다. 확인완료 쪽은 VENUE2_RAW 에서 본다.
   // 번호·계좌는 형식만 맞춘 가짜값 — 실존 사업자 정보를 넣지 말 것.
@@ -532,11 +611,20 @@ const VENUE2_RAW = {
   name: "마포 슛포인트 체육관",
   displayName: "마포 슛포인트 체육관",
   address: "서울 마포구 월드컵로 200",
+  // VENUE_RAW 를 펼쳐 만든 구장이라, 덮어쓰지 않으면 용산 구장의 상세주소·찾아오는 길·
+  // 대표키워드가 그대로 따라온다(마포 구장인데 "신용산역에서 도보 5분"이 붙는다).
+  addressDetail: "",
   region: "서울 마포구",
   lat: 37.5563,
   lng: 126.9236,
   type: "outdoor",
   description: "야외 하프코트 2면. 무료 개방 시간대 있음.",
+  directions: "6호선 월드컵경기장역 1번 출구에서 도보 8분",
+  keywords: ["마포", "야외농구장", "즉시예약"],
+  facilities: ["주차장", "화장실", "정수기"],
+  parking: { available: true, fee: "paid", info: "구장 앞 공영주차장 · 시간당 1,000원" },
+  rules: "야외 코트 · 우천 시 이용 불가 · 쓰레기 되가져가기",
+  refundPolicy: "우천 예보 시 시작 2시간 전까지 연락 주시면 전액 환불",
   // 코트마다 사진·소개가 다른 구장 — 사용자 상세에서 "A와 B가 뭐가 다른지" 카드로 비교되는지 본다.
   // (운영 DB의 코트 26개는 전부 사진 0장이라, 이 경우의 수는 목업으로만 볼 수 있다)
   courts: [
@@ -545,17 +633,48 @@ const VENUE2_RAW = {
       description: "정규 코트 1면. 야간 조명이 밝아 밤 경기에 좋아요.",
       pricePerHour: 25000, slotMinutes: 60, openTime: "06:00", closeTime: "22:00",
       photos: ["/landing/assets/story-match.jpg", "/landing/assets/story-level.jpg"],
+      notices: [
+        { id: "nt_v2a1", pinned: true, title: "우천 시 취소 안내", body: "야외 코트라 비가 오면 이용이 어렵습니다. 강우 예보 시 시작 2시간 전까지 연락 주시면 전액 환불해 드려요." },
+        { id: "nt_v2a2", title: "야간 조명", body: "일몰 후에는 조명이 자동으로 켜집니다. 별도 요금은 없어요." },
+      ],
+      cautions: ["코트 옆이 주택가입니다. 오후 10시 이후 큰 소리는 삼가주세요."],
     },
     {
       id: "court_b", name: "2번 코트", type: "outdoor", surface: "우레탄",
       description: "3대3 하프코트. 바닥이 새로 깔려 무릎 부담이 적어요.",
       pricePerHour: 18000, slotMinutes: 60, openTime: "06:00", closeTime: "22:00",
       photos: ["/landing/assets/story-record.jpg"],
+      cautions: ["하프코트라 5대5 경기는 어렵습니다."],
+    },
+    // 1인 요금제 코트 — 인원 스테퍼·"최소 인원" 안내처럼 코트 대관에는 없는 화면이 나온다.
+    {
+      id: "court_c", name: "3번 코트 (개인 참가)", type: "outdoor", surface: "우레탄",
+      description: "혼자 와도 뛸 수 있는 개방 코트. 인원수만큼만 내고 참여합니다.",
+      priceMode: "perPerson", pricePerPerson: 6000, minHeadcount: 4, maxHeadcount: 12,
+      slotMinutes: 60, openTime: "06:00", closeTime: "22:00",
+      photos: ["/landing/assets/story-venue.jpg"],
+      notices: [{ id: "nt_v2c1", title: "개인 참가 방식", body: "현장에서 팀을 나눠 진행합니다. 최소 4명이 모여야 진행돼요." }],
+      cautions: ["최소 인원(4명)에 미달해도 4명 요금이 부과됩니다."],
     },
   ],
+  rating: 4.0,
+  reviewCount: 1,
 };
 
 const MOCK_VENUE_DOCS = { mock_venue: VENUE_RAW, mock_venue2: VENUE2_RAW };
+
+// 구장 리뷰(venueReviews) — 상세 하단 리뷰 섹션이 비어 보이면 "리뷰가 붙는 자리"를 검수할 수 없다.
+// listVenueReviews 가 venueId 로 거르므로 두 구장 것을 한 배열에 같이 둔다.
+const MOCK_VENUE_REVIEWS = [
+  { id: "rv1", venueId: "mock_venue", uid: "mock_uid_1", userName: "한강슬램 김민준", rating: 5,
+    text: "바닥이랑 조명 상태가 정말 좋아요. 전광판까지 빌려줘서 시합처럼 뛰었습니다. 주차도 편했어요.", createdAt: ts("2026-07-25T21:10:00+09:00") },
+  { id: "rv2", venueId: "mock_venue", uid: "mock_uid_2", userName: "이도현", rating: 4,
+    text: "샤워실이 깨끗합니다. 다만 주말 저녁은 예약이 금방 차서 일찍 잡아야 해요.", createdAt: ts("2026-07-28T20:02:00+09:00") },
+  { id: "rv3", venueId: "mock_venue", uid: "mock_uid_3", userName: "회원", rating: 5,
+    text: "사장님이 친절하시고 시간 여유 있게 쓰게 해주셨어요.", createdAt: ts("2026-07-19T19:40:00+09:00") },
+  { id: "rv4", venueId: "mock_venue2", uid: "mock_uid_4", userName: "박서준", rating: 4,
+    text: "야외라 날씨 영향은 있지만 조명이 밝아서 밤에도 잘 보입니다.", createdAt: ts("2026-07-22T22:15:00+09:00") },
+];
 
 const resvRaw = (over) => ({
   venueId: "mock_venue",
@@ -564,8 +683,8 @@ const resvRaw = (over) => ({
   courtName: "A코트",
   venueName: "용산 더베이스 농구장",
   venuePhone: "02-1234-5678",
-  reservationCode: "HM-260802-001",
-  date: "2026-08-02",
+  reservationCode: resvCode(GAME_YMD, "001"),
+  date: GAME_YMD,
   startTime: "19:00",
   endTime: "21:00",
   userId: MY_UID,
@@ -573,6 +692,10 @@ const resvRaw = (over) => ({
   teamName: "팀청춘",
   phone: "010-1234-5678",
   price: 80000,
+  // 결제 화면이 "40,000원 × 2시간" 내역을 그리는 근거 — 예약 시 실제로 저장하는 필드다(bookVenue).
+  unitPrice: 40000,
+  priceMode: "hourly",
+  headcount: 0,
   status: "requested",
   source: "app",
   userNote: "농구공 2개 대여 가능할까요?",
@@ -581,30 +704,50 @@ const resvRaw = (over) => ({
 });
 
 // 사용자 관점(내 구장 예약) + 구장주 관점(예약관리·매출) 공용.
-// 구장주 매출/가동률 화면은 "이번 달" 확정·완료 예약을 집계하므로 이번 달(7월) 건을 충분히 넣는다.
+// 끝난 예약은 monthPastYmd 로 "이번 달의 지난 날"에 둔다 — 구장주 매출/가동률이 이번 달만 집계한다.
+// 앞으로의 예약은 오늘 기준 상대일이다(고정 날짜는 그 날이 지나면 목록에서 사라진다).
+const R_DONE = [2, 4, 6, 8, 10].map(monthPastYmd);
+const R_CANCELLED = monthPastYmd(9);
+const R_NOSHOW = monthPastYmd(3);
+const R_UPCOMING = dayOffsetYmd(2);
 const MOCK_RESERVATION_DOCS = {
-  // 다가오는 예약 (승인 대기 / 확정)
+  // 다가오는 예약 (승인 대기 / 확정) — 확정된 그 경기와 같은 날이다
   mock_reservation: resvRaw({ status: "requested" }),
-  mock_resv_confirmed: resvRaw({ reservationCode: "HM-260802-002", status: "confirmed", startTime: "21:00", endTime: "23:00", ownerNote: "주차는 지하 1층을 이용해 주세요." }),
+  mock_resv_confirmed: resvRaw({ reservationCode: resvCode(GAME_YMD, "002"), status: "confirmed", startTime: "21:00", endTime: "23:00", ownerNote: "주차는 지하 1층을 이용해 주세요." }),
   // 이번 달 이용 완료 — 매출·가동률 집계 대상
-  mock_resv_done1: resvRaw({ reservationCode: "HM-260705-011", status: "done", date: "2026-07-05", startTime: "19:00", endTime: "21:00" }),
-  mock_resv_done2: resvRaw({ reservationCode: "HM-260708-012", status: "done", date: "2026-07-08", startTime: "20:00", endTime: "22:00", courtId: "court_b", courtName: "B코트", price: 70000 }),
-  mock_resv_done3: resvRaw({ reservationCode: "HM-260712-013", status: "done", date: "2026-07-12", startTime: "19:00", endTime: "21:00" }),
-  mock_resv_done4: resvRaw({ reservationCode: "HM-260718-014", status: "done", date: "2026-07-18", startTime: "18:00", endTime: "20:00", userName: "이준서", teamName: "팀청춘" }),
-  mock_resv_done5: resvRaw({ reservationCode: "HM-260722-015", status: "done", date: "2026-07-22", startTime: "21:00", endTime: "23:00", courtId: "court_b", courtName: "B코트", price: 70000 }),
-  mock_resv_conf6: resvRaw({ reservationCode: "HM-260729-016", status: "confirmed", date: "2026-07-29", startTime: "20:00", endTime: "22:00" }),
+  mock_resv_done1: resvRaw({ reservationCode: resvCode(R_DONE[0], "011"), status: "done", date: R_DONE[0], startTime: "19:00", endTime: "21:00" }),
+  mock_resv_done2: resvRaw({ reservationCode: resvCode(R_DONE[1], "012"), status: "done", date: R_DONE[1], startTime: "20:00", endTime: "22:00", courtId: "court_b", courtName: "B코트", price: 70000 }),
+  mock_resv_done3: resvRaw({ reservationCode: resvCode(R_DONE[2], "013"), status: "done", date: R_DONE[2], startTime: "19:00", endTime: "21:00" }),
+  mock_resv_done4: resvRaw({ reservationCode: resvCode(R_DONE[3], "014"), status: "done", date: R_DONE[3], startTime: "18:00", endTime: "20:00", userName: "이준서", teamName: "팀청춘" }),
+  mock_resv_done5: resvRaw({ reservationCode: resvCode(R_DONE[4], "015"), status: "done", date: R_DONE[4], startTime: "21:00", endTime: "23:00", courtId: "court_b", courtName: "B코트", price: 70000 }),
+  mock_resv_conf6: resvRaw({ reservationCode: resvCode(R_UPCOMING, "016"), status: "confirmed", date: R_UPCOMING, startTime: "20:00", endTime: "22:00" }),
   // 취소 / 노쇼 — 취소·노쇼 카운터 확인용
-  mock_resv_cancelled: resvRaw({ reservationCode: "HM-260726-003", status: "cancelled", date: "2026-07-26" }),
-  mock_resv_noshow: resvRaw({ reservationCode: "HM-260715-017", status: "noshow", date: "2026-07-15", startTime: "19:00", endTime: "21:00" }),
+  mock_resv_cancelled: resvRaw({ reservationCode: resvCode(R_CANCELLED, "003"), status: "cancelled", date: R_CANCELLED }),
+  mock_resv_noshow: resvRaw({ reservationCode: resvCode(R_NOSHOW, "017"), status: "noshow", date: R_NOSHOW, startTime: "19:00", endTime: "21:00" }),
 };
 
 // 결제 원장(payments) — 어드민 정산·구장주 매출 화면이 집계하는 단일 진실.
-// functions/payments/toss.js 가 쓰는 필드 그대로. 규약: amount = venueAmount + platformFee,
-// netVenueAmount = 환불하고 남은 구장 몫(정산은 항상 이 값을 더한다).
+// functions/payments/toss.js 의 resolveShare()·computeRefundLedger() 와 같은 식이어야 한다.
+//   amount(결제액) = 예약가 그대로 · platformFee = round(amount × 요율) · venueAmount = amount - platformFee
+//   refundedVenueAmount = 구장 몫을 환불 비율만큼 깎은 값 (전액취소면 구장 몫 전부)
+//   netVenueAmount = venueAmount - refundedVenueAmount ← 정산은 항상 이 값을 더한다
+//
+// ⚠️ 예전 픽스처는 venueAmount 를 기준으로 잡고 amount = venueAmount + fee 로 얹었다
+//    (2026-08-02 이전의 "사용자 가산" 모델). 그대로 두면 매출·정산 화면의 결제액이
+//    실제보다 5% 부풀고, venueAmount + platformFee = amount 항등식도 깨진다.
+const PLATFORM_FEE_RATE = 0.05;
 const payRaw = (over = {}) => {
-  const venueAmount = over.venueAmount ?? 80000;
-  const platformFee = Math.round(venueAmount * 0.05);
-  const refundedVenueAmount = over.refundedVenueAmount ?? 0;
+  const { amount: amt, refundedAmount: refunded, ...rest } = over;
+  const amount = amt ?? 80000; // 실제 결제액 = 예약 문서의 price(또는 분담결제의 shareA/B)
+  const platformFee = amount > 0 ? Math.round(amount * PLATFORM_FEE_RATE) : 0;
+  const venueAmount = amount - platformFee; // 뺄셈으로 구한다 — 항등식이 1원도 안 어긋나게
+  const refundedAmount = refunded ?? 0;     // 사용자에게 돌려준 결제액
+  const fullyCancelled = amount > 0 && refundedAmount >= amount;
+  const refundedVenueAmount = refundedAmount <= 0
+    ? 0
+    : fullyCancelled
+      ? venueAmount
+      : Math.round((venueAmount * refundedAmount) / amount);
   return {
     venueId: "mock_venue",
     venueName: "용산 더베이스 농구장",
@@ -614,50 +757,55 @@ const payRaw = (over = {}) => {
     matchId: "",
     status: "DONE",
     method: "카드",
-    feeRate: 0.05,
-    venueAmount,
+    feeRate: PLATFORM_FEE_RATE,
+    amount,
     platformFee,
-    amount: venueAmount + platformFee,
-    netVenueAmount: Math.max(0, venueAmount - refundedVenueAmount),
+    venueAmount,
+    refundedAmount,
     refundedVenueAmount,
-    cancelled: false,
+    netVenueAmount: Math.max(0, venueAmount - refundedVenueAmount),
+    cancelled: fullyCancelled,
     payoutId: "",
     settled: false,
-    ...over,
+    ...rest,
   };
 };
 
 const MOCK_PAYMENT_DOCS = {
   // 이용 완료 · 미지급 — "미지급액"에 잡힌다
-  mock_pay_1: payRaw({ reservationId: "mock_resv_done1", reservationDate: "2026-07-05" }),
-  mock_pay_2: payRaw({ reservationId: "mock_resv_done2", reservationDate: "2026-07-08", venueAmount: 70000 }),
-  // 부분환불 — 정가 80,000 중 30,000 환불 → 지급액은 50,000 이어야 한다(예전 집계는 80,000 이었다)
-  mock_pay_3: payRaw({ reservationId: "mock_resv_done3", reservationDate: "2026-07-12", refundedVenueAmount: 30000 }),
-  // 분담결제 — 한 예약에 결제 2건(A/B)
-  mock_pay_4a: payRaw({ reservationId: "mock_resv_done4", reservationDate: "2026-07-18", side: "A", matchId: "mock_room", venueAmount: 40000 }),
-  mock_pay_4b: payRaw({ reservationId: "mock_resv_done4", reservationDate: "2026-07-18", side: "B", matchId: "mock_room", venueAmount: 40000 }),
+  mock_pay_1: payRaw({ reservationId: "mock_resv_done1", reservationDate: R_DONE[0] }),
+  mock_pay_2: payRaw({ reservationId: "mock_resv_done2", reservationDate: R_DONE[1], amount: 70000 }),
+  // 부분환불 — 결제 80,000 중 30,000 환불 → 구장 몫도 같은 비율로 깎여 정산은 47,500
+  mock_pay_3: payRaw({ reservationId: "mock_resv_done3", reservationDate: R_DONE[2], refundedAmount: 30000 }),
+  // 분담결제 — 한 예약에 결제 2건(A/B). 각자 총액의 절반을 낸다
+  mock_pay_4a: payRaw({ reservationId: "mock_resv_done4", reservationDate: R_DONE[3], side: "A", matchId: "mock_room", amount: 40000 }),
+  mock_pay_4b: payRaw({ reservationId: "mock_resv_done4", reservationDate: R_DONE[3], side: "B", matchId: "mock_room", amount: 40000 }),
   // 지급 완료
-  mock_pay_5: payRaw({ reservationId: "mock_resv_done5", reservationDate: "2026-07-22", venueAmount: 70000, settled: true }),
-  // 전액 환불 — 지급 대상에서 아예 빠진다
-  mock_pay_6: payRaw({ reservationId: "mock_resv_cancelled", reservationDate: "2026-07-26", refundedVenueAmount: 80000, cancelled: true }),
+  mock_pay_5: payRaw({ reservationId: "mock_resv_done5", reservationDate: R_DONE[4], amount: 70000, settled: true }),
+  // 전액 환불 — 구장 몫이 0 이 되어 지급 대상에서 아예 빠진다
+  mock_pay_6: payRaw({ reservationId: "mock_resv_cancelled", reservationDate: R_CANCELLED, refundedAmount: 80000 }),
   // 아직 이용 전 — 구장주 화면에서 "정산 예정"
-  mock_pay_7: payRaw({ reservationId: "mock_resv_confirmed", reservationDate: "2026-08-02" }),
+  mock_pay_7: payRaw({ reservationId: "mock_resv_confirmed", reservationDate: GAME_YMD }),
 };
 
 // 토스 위젯 주문 — 서버(createTossOrder)가 확정하는 값을 그 형태 그대로 준다.
 // 규약: amount = venueAmount + platformFee (platformFee = venueAmount * PLATFORM_FEE_RATE 0.05)
 // 이 필드를 안 채우면 결제화면 내역이 "구장 이용료 0원 / 플랫폼 이용료 0원 / 결제 80,000원" 으로 어긋난다.
+// 서버(functions/payments/toss.js)의 계산과 같은 식이어야 한다:
+//   amount(결제액) = 예약가 그대로 · platformFee = 결제액 × 요율 · venueAmount = amount - platformFee
+// 예전 픽스처는 amount 를 venueAmount + platformFee 로 잡아, 예약가 80,000원짜리 예약의
+// 결제 화면에 84,000원이 찍혔다(사용자에게 수수료를 얹어 받는 것처럼 보인다).
 const MOCK_TOSS_ORDER = (() => {
-  const venueAmount = 80000;
+  const amount = 80000; // 예약 문서의 price 와 같아야 한다
   const feeRate = 0.05;
-  const platformFee = Math.round(venueAmount * feeRate);
+  const platformFee = Math.round(amount * feeRate);
   return {
     orderId: "mock_order_20260802_001",
-    orderName: "용산 더베이스 농구장 A코트 (8/2 19:00~21:00)",
+    orderName: `용산 더베이스 농구장 A코트 (${GAME_SHORT} 19:00~21:00)`,
     side: "SINGLE",
-    venueAmount,
+    venueAmount: amount - platformFee,
     platformFee,
-    amount: venueAmount + platformFee,
+    amount,
     feeRate,
     customerName: "리뷰데모",
   };
@@ -666,12 +814,12 @@ const MOCK_TOSS_ORDER = (() => {
 /* ── 커뮤니티 ──────────────────────────────────────────────
  * loadCommunityList / loadCommunityPostDetail 은 작성자 메타·차단목록까지 조립하므로
  * 최종 뷰모델을 그대로 준다(형태는 위 서비스 반환부와 1:1). */
+// 커뮤니티 뷰모델의 표시용 시각 — ts()/iso() 와 같은 축으로 당겨야 글 목록만 과거에 남지 않는다.
 const kst = (iso) => {
-  const d = new Date(iso);
-  const z = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+  const d = shifted(iso);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
-const kstMs = (iso) => new Date(iso).getTime();
+const kstMs = (iso) => shifted(iso).getTime();
 
 const postRow = (o) => ({
   id: o.id,
@@ -785,7 +933,7 @@ const notiDoc = (o) => ({
 
 const MOCK_NOTIFICATIONS = [
   notiDoc({ id: "mock_noti", kind: "match", subType: "schedule_proposed", title: "구장·일정 제안 도착",
-    body: "한강 슬램이 8월 2일 (토) 오후 7:00 · 용산 더베이스 농구장을 제안했어요. 확인하고 수락해 주세요.",
+    body: `한강 슬램이 ${GAME_LONG} 오후 7:00 · 용산 더베이스 농구장을 제안했어요. 확인하고 수락해 주세요.`,
     linkType: "match", linkTargetId: "mock_room", meta: { matchId: "mock_room", deepLink: "/match-roomdetail/mock_room" },
     at: "2026-07-22T09:10:00+09:00", read: false }),
   notiDoc({ id: "mock_noti_2", kind: "match", subType: "match_accepted", title: "매칭이 성사됐어요",
@@ -793,7 +941,7 @@ const MOCK_NOTIFICATIONS = [
     linkType: "match", linkTargetId: "mock_room", meta: { matchId: "mock_room" },
     at: "2026-07-21T14:30:00+09:00", read: false }),
   notiDoc({ id: "mock_noti_3", kind: "reservation", subType: "reservation_requested", title: "예약 신청이 접수됐어요",
-    body: "용산 더베이스 농구장 A코트 · 8/2 19:00~21:00 · 구장 승인을 기다리고 있어요.",
+    body: `용산 더베이스 농구장 A코트 · ${GAME_SHORT} 19:00~21:00 · 구장 승인을 기다리고 있어요.`,
     linkType: "reservation", linkTargetId: "mock_reservation",
     at: "2026-07-21T11:02:00+09:00", read: true }),
   notiDoc({ id: "mock_noti_4", kind: "team", subType: "team_invite", title: "팀 초대가 도착했어요",
@@ -944,7 +1092,7 @@ const ROOMLIST_DOCS = [
   { id: "mock_r4", ...matchDoc({
       status: "confirmed", targetClubId: "mock_club_e", toTeamSnapshot: otherSnap("mock_club_e"),
       proposedByClubId: MY_CLUB, confirmedByClubId: "mock_club_e",
-      confirmedAt: T.confirmedAt, scheduledAt: iso("2026-08-09T20:00:00+09:00"), field: FIELD,
+      confirmedAt: T.confirmedAt, scheduledAt: dayOffsetAt(12, 20), field: FIELD,
       partnerBooking: {
         accepted: true, approvalState: "approved", payState: "waiting", finalized: false,
         paidByA: true, paidByB: false, venueName: "용산 더베이스 농구장", courtName: "A코트", totalPrice: 80000,
@@ -961,7 +1109,7 @@ const ROOMLIST_DOCS = [
   // 취소 ②: 우리 팀이 취소 (환불 부분)
   { id: "mock_r8", ...matchDoc({
       status: "cancelled", targetClubId: "mock_club_c", toTeamSnapshot: otherSnap("mock_club_c"),
-      scheduledAt: iso("2026-07-30T19:00:00+09:00"), field: FIELD,
+      scheduledAt: dayOffsetAt(-9, 19), field: FIELD,
       cancelledByClubId: MY_CLUB, cancelReasonKey: "weather",
       cancelReason: "우천으로 경기를 진행할 수 없었습니다.", cancelledAt: ts("2026-07-27T09:00:00+09:00"),
       refund: { amount: 20000, rate: 50, state: "done" },
@@ -1026,8 +1174,8 @@ const CHAT_COORDINATING = [
   msg("c1", "system", "매칭이 성사되었어요! 구장과 일정을 정해보세요.", "2026-07-21T14:30:00+09:00", { kind: "system" }),
   msg("c2", OPP_LEADER_UID, "안녕하세요! 한강 슬램입니다. 잘 부탁드려요 🙌", "2026-07-21T14:33:00+09:00"),
   msg("c3", MY_UID, "안녕하세요! 저희도 기대하고 있습니다.", "2026-07-21T14:35:00+09:00"),
-  msg("c4", OPP_LEADER_UID, "혹시 8월 초 주말 저녁 가능하실까요?", "2026-07-21T14:36:00+09:00"),
-  msg("c5", MY_UID, "8/2 토요일 저녁 7시 어떠세요? 용산 더베이스 잡아볼게요.", "2026-07-21T14:40:00+09:00"),
+  msg("c4", OPP_LEADER_UID, "혹시 편하신 날짜 있으실까요?", "2026-07-21T14:36:00+09:00"),
+  msg("c5", MY_UID, `${GAME_LONG} 저녁 7시 어떠세요? 용산 더베이스 잡아볼게요.`, "2026-07-21T14:40:00+09:00"),
   msg("c6", OPP_LEADER_UID, "좋습니다! 제안 주시면 바로 확인할게요.", "2026-07-21T14:41:00+09:00"),
 ];
 
@@ -1042,7 +1190,7 @@ const CHAT_PROPOSED = [
 
 const CHAT_CONFIRMED = [
   ...CHAT_PROPOSED,
-  msg("c8", "system", "경기 일정이 확정되었어요. 8월 2일 (토) 오후 7:00 · 용산 더베이스 농구장", "2026-07-22T18:40:00+09:00", { kind: "system" }),
+  msg("c8", "system", `경기 일정이 확정되었어요. ${GAME_LONG} 오후 7:00 · 용산 더베이스 농구장`, "2026-07-22T18:40:00+09:00", { kind: "system" }),
   msg("c9", OPP_LEADER_UID, "확정했습니다! 그날 뵐게요 💪", "2026-07-22T18:42:00+09:00"),
   msg("c10", MY_UID, "네 조심히 오세요. 주차는 건물 지하 1층입니다.", "2026-07-22T18:45:00+09:00"),
 ];
@@ -1062,13 +1210,13 @@ const CHAT_ROOM = {
 /* ── 내 신고내역 / 차단 관리 ────────────────────────────── */
 const MOCK_MY_REPORTS = [
   { id: "mock_rep_1", type: "player", targetId: "mock_p_o2", targetName: "임재현",
-    reason: "경기 중 욕설", status: "reviewing", createdAt: new Date("2026-07-24T20:10:00+09:00") },
+    reason: "경기 중 욕설", status: "reviewing", createdAt: shifted("2026-07-24T20:10:00+09:00") },
   { id: "mock_rep_2", type: "player", targetId: "mock_p_o4", targetName: "한동윤",
-    reason: "노쇼", status: "resolved", createdAt: new Date("2026-07-14T09:00:00+09:00") },
+    reason: "노쇼", status: "resolved", createdAt: shifted("2026-07-14T09:00:00+09:00") },
 ];
 const MOCK_MY_TEAM_REPORTS = [
   { id: "mock_trep_1", type: "team", targetId: "mock_club_d", targetName: "노원 덩커스",
-    reason: "확정 경기 반복 취소", status: "pending", createdAt: new Date("2026-07-26T13:20:00+09:00") },
+    reason: "확정 경기 반복 취소", status: "pending", createdAt: shifted("2026-07-26T13:20:00+09:00") },
 ];
 
 const MOCK_BLOCK_LIST = {
@@ -1144,7 +1292,7 @@ const MOCK_ADMIN_CHAT_MESSAGES = {
   m1: { chatId: "match_mock_room", fromUid: "system", kind: "system", text: "매칭이 성사되었어요! 구장과 일정을 정해보세요.", images: [], createdAt: ts("2026-07-21T14:30:00+09:00") },
   m2: { chatId: "match_mock_room", fromUid: OPP_LEADER_UID, kind: "text", text: "안녕하세요! 한강 슬램입니다. 잘 부탁드려요 🙌", images: [], createdAt: ts("2026-07-21T14:33:00+09:00") },
   m3: { chatId: "match_mock_room", fromUid: MY_UID, kind: "text", text: "안녕하세요! 저희도 기대하고 있습니다.", images: [], createdAt: ts("2026-07-21T14:35:00+09:00") },
-  m4: { chatId: "match_mock_room", fromUid: MY_UID, kind: "text", text: "8/2 토요일 저녁 7시 어떠세요?", images: [], createdAt: ts("2026-07-21T14:40:00+09:00") },
+  m4: { chatId: "match_mock_room", fromUid: MY_UID, kind: "text", text: `${GAME_LONG} 저녁 7시 어떠세요?`, images: [], createdAt: ts("2026-07-21T14:40:00+09:00") },
   m5: { chatId: "match_mock_room", fromUid: OPP_LEADER_UID, kind: "text", text: "좋습니다! 제안 주시면 바로 확인할게요.", images: [], createdAt: ts("2026-07-21T14:41:00+09:00") },
 };
 
@@ -1230,6 +1378,7 @@ const DB_FIXTURES = {
   chatRooms: [], // 실제 앱 상태 — DM 을 만드는 진입점이 없어 항상 빈 목록
   playerRankRows: MOCK_PLAYER_RANK_ROWS,
   venueDocs: MOCK_VENUE_DOCS,
+  venueReviewDocs: MOCK_VENUE_REVIEWS,
   venueReservationDocs: MOCK_RESERVATION_DOCS,
   paymentDocs: MOCK_PAYMENT_DOCS,
   venueBlocks: [],
@@ -1491,6 +1640,20 @@ const RAW = {
       },
     },
   },
+  // 계정 찾기로 임시 비밀번호를 받은 상태 — 서버가 mustChangePassword 를 세운다.
+  // 다른 게이트보다 앞이라(RequireAuth 안) /home 으로 들어가면 비밀번호 변경 화면이 뜬다.
+  "gate-password": {
+    label: "게이트 · 임시 비밀번호(변경 강제)",
+    extends: "base-leader",
+    data: {
+      auth: {
+        firebaseUser: { uid: MY_UID, email: MOCK_USER_DOC.email, displayName: "신규" },
+        userDoc: { ...MOCK_USER_DOC, mustChangePassword: true },
+        loading: false,
+        isLoggedIn: true,
+      },
+    },
+  },
   "gate-welcome": {
     label: "게이트 · 가입완료 안내",
     extends: "base-leader",
@@ -1631,8 +1794,8 @@ const RAW = {
     data: {
       venueReservationDocs: {
         ...MOCK_RESERVATION_DOCS,
-        mock_resv_req2: resvRaw({ reservationCode: "HM-260801-021", status: "requested", date: "2026-08-01", startTime: "18:00", endTime: "20:00", userName: "이준서", userNote: "" }),
-        mock_resv_req3: resvRaw({ reservationCode: "HM-260803-022", status: "requested", date: "2026-08-03", startTime: "20:00", endTime: "22:00", courtId: "court_b", courtName: "B코트", price: 70000, userName: "송지호", userNote: "샤워실 이용 가능한가요?" }),
+        mock_resv_req2: resvRaw({ reservationCode: resvCode(dayOffsetYmd(1), "021"), status: "requested", date: dayOffsetYmd(1), startTime: "18:00", endTime: "20:00", userName: "이준서", userNote: "" }),
+        mock_resv_req3: resvRaw({ reservationCode: resvCode(dayOffsetYmd(3), "022"), status: "requested", date: dayOffsetYmd(3), startTime: "20:00", endTime: "22:00", courtId: "court_b", courtName: "B코트", price: 70000, userName: "송지호", userNote: "샤워실 이용 가능한가요?" }),
       },
     },
   },
@@ -1921,7 +2084,7 @@ const RAW = {
           authorRole: "owner",
           comment: "",
           photoUrls: [],
-          submittedAt: ts(dayOffsetAt(-4, 22)),
+          submittedAt: tsAbs(dayOffsetAt(-4, 22)),
         },
       }),
       matchReviews: [],
@@ -1944,7 +2107,7 @@ const RAW = {
         myScore: 68,
         oppScore: 61,
         resultState: "confirmed",
-        statsAppliedAt: ts(dayOffsetAt(-4, 10)),
+        statsAppliedAt: tsAbs(dayOffsetAt(-4, 10)),
         result: {
           submittedByClubId: MY_CLUB,
           authorUid: MY_UID,
@@ -1952,7 +2115,7 @@ const RAW = {
           authorRole: "owner",
           comment: "좋은 경기였습니다!",
           photoUrls: [],
-          submittedAt: ts(dayOffsetAt(-5, 21)),
+          submittedAt: tsAbs(dayOffsetAt(-5, 21)),
         },
       }),
       matchReviews: [
@@ -1983,7 +2146,7 @@ const RAW = {
         cancelReasonKey: "shortage",
         cancelReasonText: "부상자가 겹쳐 5명을 못 채웠어요. 다음에 꼭 다시 붙어요!",
         cancelReason: "팀원이 부족해요 · 부상자가 겹쳐 5명을 못 채웠어요. 다음에 꼭 다시 붙어요!",
-        cancelledAt: ts(dayOffsetAt(-1, 11)), // 경기 6일 전에 취소 → 전액 환불 구간
+        cancelledAt: tsAbs(dayOffsetAt(-1, 11)), // 경기 6일 전에 취소 → 전액 환불 구간
 
         // releasePartnerReservationOnCancel 이 남기는 실제 모양
         refund: {
@@ -1998,7 +2161,7 @@ const RAW = {
           venueId: "mock_venue_1",
           venueName: "용산 더베이스 농구장",
           courtName: "A코트",
-          date: "2026-08-02",
+          date: GAME_YMD,
           startTime: "19:00",
           endTime: "21:00",
           totalPrice: 80000,
@@ -2037,7 +2200,7 @@ const RAW = {
         cancelReasonKey: "etc",
         cancelReasonText: "주장이 갑자기 출장을 가게 됐어요. 죄송합니다.",
         cancelReason: "기타(직접 입력) · 주장이 갑자기 출장을 가게 됐어요. 죄송합니다.",
-        cancelledAt: ts(dayOffsetAt(-3, 20)), // 경기 하루 전 취소 → 50% 환불 구간
+        cancelledAt: tsAbs(dayOffsetAt(-3, 20)), // 경기 하루 전 취소 → 50% 환불 구간
         refund: {
           status: "pending",
           amount: 80000,
@@ -2050,7 +2213,7 @@ const RAW = {
           venueId: "mock_venue_1",
           venueName: "용산 더베이스 농구장",
           courtName: "A코트",
-          date: "2026-08-02",
+          date: GAME_YMD,
           startTime: "19:00",
           endTime: "21:00",
           totalPrice: 80000,
@@ -2126,13 +2289,51 @@ const RAW = {
     data: {
       tossOrder: {
         ...MOCK_TOSS_ORDER,
-        orderName: "용산 더베이스 농구장 A코트 (8/2 19:00~21:00) · 우리 팀 몫",
+        orderName: `용산 더베이스 농구장 A코트 (${GAME_SHORT} 19:00~21:00) · 우리 팀 몫`,
         side: "A",
-        venueAmount: 40000,
+        // 총액 80,000원의 절반이 우리 팀 몫 → 결제액 40,000원, 이용료는 그 안에서 뗀다
+        amount: 40000,
         platformFee: 2000,
-        amount: 42000,
+        venueAmount: 38000,
         reservationStatus: "pending",
         matchId: "mock_room",
+      },
+      // 분담결제 화면은 예약 문서에서 총액·두 팀 이름을 읽는다 — 없으면 "구장 총 이용료 0원"·"vs" 만 남는다.
+      venueReservationDocs: {
+        ...MOCK_RESERVATION_DOCS,
+        mock_reservation: {
+          ...MOCK_RESERVATION_DOCS.mock_reservation,
+          matchId: "mock_room",
+          splitTotal: 80000,
+          teamAName: "팀청춘",
+          teamBName: "한강슬램",
+          // 결제 결과 화면이 "상대 팀 결제 마감 · 8월 12일 (수) 19:29" 로 읽어간다.
+          // 서버가 먼저 낸 팀 기준으로 2시간을 거는 값(PARTNER_PAY_WINDOW_MS)과 같은 성격이라
+          // 고정 날짜가 아니라 지금 기준이어야 한다.
+          paymentDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        },
+      },
+    },
+  },
+  // 매칭 제휴구장 예약이 승인돼 결제만 남은 상태. 팀장이 내는 돈은 총 대관료(8만)가 아니라
+  // 우리 팀 몫(4만)이다 — 목록이 총액만 보여주면 결제 화면에서 금액이 달라져 보인다.
+  "resv-match-pending": {
+    label: "내 예약 · 매칭 분담(결제 대기)",
+    extends: "base-leader",
+    data: {
+      venueReservationDocs: {
+        mock_resv_match: {
+          ...MOCK_RESERVATION_DOCS.mock_reservation,
+          status: "pending",
+          matchId: "mock_room",
+          splitTotal: 80000,
+          shareA: 40000,
+          shareB: 40000,
+          teamAName: "팀청춘",
+          teamBName: "한강슬램",
+          teamALeaderUid: MY_UID,
+          teamBLeaderUid: "mock_u_opp_leader",
+        },
       },
     },
   },

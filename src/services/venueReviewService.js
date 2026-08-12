@@ -9,6 +9,7 @@ import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc,
   query, where, orderBy, limit, serverTimestamp,
 } from "firebase/firestore";
+import { hasMock, mockData } from "../dev/mockBus";
 
 const toStr = (v) => String(v || "").trim();
 
@@ -70,6 +71,9 @@ export async function listVenueReviews(venueId, max = 20) {
   if (!vid) return [];
   const sortDesc = (rows) =>
     rows.sort((a, b) => (b?.createdAt?.seconds || 0) - (a?.createdAt?.seconds || 0));
+  if (hasMock("venueReviewDocs")) {
+    return sortDesc((mockData("venueReviewDocs") || []).filter((r) => r.venueId === vid)).slice(0, max);
+  }
   try {
     const snap = await getDocs(
       query(collection(db, "venueReviews"), where("venueId", "==", vid), orderBy("createdAt", "desc"), limit(max))

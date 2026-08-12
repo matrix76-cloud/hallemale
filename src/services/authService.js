@@ -5,6 +5,9 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  reauthenticateWithCredential,
+  updatePassword,
+  EmailAuthProvider,
   signOut,
   onAuthStateChanged,
   setPersistence,
@@ -22,6 +25,7 @@ import {
   updateUserProfile,
   upsertUserPhoneIndex,
   mergeSocialProfile,
+  clearMustChangePassword,
 } from "./userService";
 import { linkPhoneToUid } from "./phoneService";
 import {
@@ -43,10 +47,18 @@ export const signUpWithEmail = async ({
   consents, // { privacy, terms, marketing }
   phoneE164 = "",
   phoneVerified = false,
+  keepLogin = true,
 }) => {
   const safeEmail = safeTrim(email);
   if (!safeEmail) throw new Error("email is required");
   if (!password) throw new Error("password is required");
+
+  // 가입 직후 곧바로 동의·전화인증 게이트를 지나야 한다. 앞선 로그인이 세션 지속성을
+  // 남겨 뒀으면 앱을 껐다 켜는 순간 게이트 중간에서 튕기므로 여기서 명시적으로 정한다.
+  await setPersistence(
+    auth,
+    keepLogin ? browserLocalPersistence : browserSessionPersistence
+  );
 
   const cred = await createUserWithEmailAndPassword(auth, safeEmail, password);
   const uid = cred?.user?.uid;
@@ -127,6 +139,36 @@ export const sendPasswordReset = async ({ email }) => {
   const safeEmail = safeTrim(email);
   if (!safeEmail) throw new Error("email is required");
   await sendPasswordResetEmail(auth, safeEmail);
+  return true;
+};
+
+/**
+ * 비밀번호 변경 (이메일 계정)
+ * 임시 비밀번호를 문자로 받은 사용자가 강제 변경 게이트에서 호출한다.
+ *
+ * 현재 비밀번호로 재인증부터 하는 이유: updatePassword 는 "최근 로그인"을 요구해서
+ * 앱을 껐다 켠 뒤 게이트에 걸리면 auth/requires-recent-login 으로 실패한다.
+ * 재인증을 먼저 하면 그 경로가 아예 없어진다.
+ */
+export const changePassword = async ({ currentPassword, newPassword }) => {
+  const user = auth.currentUser;
+  if (!user?.email) throw new Error("로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.");
+  if (!currentPassword) throw new Error("현재 비밀번호를 입력해 주세요.");
+  if (!newPassword) throw new Error("새 비밀번호를 입력해 주세요.");
+
+  await reauthenticateWithCredential(
+    user,
+    EmailAuthProvider.credential(user.email, currentPassword)
+  );
+  await updatePassword(user, newPassword);
+
+  // 게이트 해제. 실패해도 비밀번호는 이미 바뀌었으니 로그인 자체는 문제없다.
+  try {
+    await clearMustChangePassword({ uid: user.uid });
+  } catch (e) {
+    console.warn("[authService] clearMustChangePassword failed:", e?.message || e);
+  }
+
   return true;
 };
 

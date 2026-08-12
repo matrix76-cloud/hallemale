@@ -23,6 +23,7 @@ import {
   isPerPerson,
   clampHeadcount,
   courtUnitPrice,
+  resolveSlotPrice,
   FACILITY_OPTIONS,
 } from "../../services/ownerVenueService";
 import { setFavoriteVenue } from "../../services/favoriteService";
@@ -46,6 +47,14 @@ function toHHMM(min) {
   return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
 function overlap(aS, aE, bS, bE) { return toMin(aS) < toMin(bE) && toMin(aE) > toMin(bS); }
+
+/* 인원제 코트의 "1인 얼마" — calcSlotPrice 에 headcount=1 을 넘겨도 clampHeadcount 가
+   최소 인원까지 올려 잡아 총액이 돌아온다(최소 4명 코트면 4명분). 1인 단가를 그렇게 구하면
+   "1인 24,000원" 처럼 4배로 적히므로, 인원을 곱하기 전 단계에서 따로 계산한다. */
+function onePersonPrice(court, date, start, end) {
+  const per = resolveSlotPrice(court, date, start);
+  return Math.round((per * Math.max(0, toMin(end) - toMin(start))) / 60);
+}
 function buildSlots(court, dayKey) {
   if (!court) return [];
   const h = court.hours?.[dayKey];
@@ -59,6 +68,38 @@ function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
+
+/* 상단 고정 섹션 탭 — 숙박앱(여기어때)식. 페이지가 길어서 "어디에 뭐가 있는지"를
+   스크롤로만 알아내야 했고, 예약·리뷰처럼 바로 가고 싶은 곳이 화면 밖에 있었다.
+   실제로 그려진 섹션만 탭이 된다(secRefs 에 등록된 것만). */
+const TAB_ORDER = [
+  { key: "court", label: "코트·요금" },
+  { key: "book", label: "예약" },
+  { key: "location", label: "위치" },
+  { key: "review", label: "리뷰" },
+  { key: "info", label: "안내" },
+];
+const TAB_OFFSET = 52; // 스티키 탭 자체 높이 — 이만큼 덜 내려야 섹션 제목이 탭에 안 가린다
+
+/* 긴 소개·안내문은 4줄에서 자르고 "더보기"로 편다. 접힌 높이가 실제 높이보다
+   작을 때만 버튼을 띄운다(짧은 글에 더보기가 붙으면 누를 게 없다). */
+function LongText({ children }) {
+  const [open, setOpen] = useState(false);
+  const [clipped, setClipped] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) setClipped(el.scrollHeight > el.clientHeight + 2);
+  }, [children]);
+  return (
+    <>
+      <InfoPre ref={ref} $clamp={!open}>{children}</InfoPre>
+      {(clipped || open) && (
+        <MoreBtn type="button" onClick={() => setOpen((v) => !v)}>{open ? "접기" : "더보기"}</MoreBtn>
+      )}
+    </>
+  );
+}
 
 /* 리뷰 작성일 — Firestore Timestamp(초)만 들어온다. 없으면 표시하지 않는다. */
 function reviewDate(rv) {
@@ -136,6 +177,7 @@ export default function VenueBookingPage() {
 
   const [venue, setVenue] = useState(null);
   const [reviews, setReviews] = useState([]);
+  const [reviewsOpen, setReviewsOpen] = useState(false); // 리뷰 전체 보기(기본 3개)
   const [loading, setLoading] = useState(true);
   const [courtId, setCourtId] = useState("");
   const [date, setDate] = useState("");
@@ -151,8 +193,51 @@ export default function VenueBookingPage() {
   useBackInterceptor(!!viewer, () => setViewer(null)); // 사진 모달: HW 뒤로 시 페이지 이탈 대신 모달 닫기
   useBackInterceptor(payOpen, () => setPayOpen(false)); // 예약 확정 시트: HW 뒤로 시 시트 닫기
   const heroRef = useRef(null);
-  const bookRef = useRef(null); // 하단 바 "시간 고르기" 가 예약 섹션으로 스크롤할 대상
   const [heroIdx, setHeroIdx] = useState(0); // 상단 구장 사진 캐러셀 현재 인덱스
+
+  // 섹션 탭 — 그려진 섹션의 DOM 을 모아 두고(secRefs), 스크롤 위치로 현재 탭을 정한다.
+  // 스크롤 주체는 window 가 아니라 MainLayout 의 <main> 이라 그 컨테이너를 찾아 붙인다.
+  const secRefs = useRef({});
+  const setSec = (key) => (el) => {
+    if (el) secRefs.current[key] = el;
+    else delete secRefs.current[key];
+  };
+  const tabBarRef = useRef(null);
+  const scrollerRef = useRef(null);
+  const [activeTab, setActiveTab] = useState("");
+
+  useEffect(() => {
+    let el = tabBarRef.current?.parentElement;
+    while (el) {
+      const ov = window.getComputedStyle(el).overflowY;
+      if (ov === "auto" || ov === "scroll") break;
+      el = el.parentElement;
+    }
+    const sc = el || null;
+    scrollerRef.current = sc;
+    if (!sc) return;
+    const onScroll = () => {
+      const base = sc.getBoundingClientRect().top + TAB_OFFSET + 8;
+      let cur = "";
+      for (const t of TAB_ORDER) {
+        const node = secRefs.current[t.key];
+        if (node && node.getBoundingClientRect().top <= base) cur = t.key;
+      }
+      setActiveTab(cur);
+    };
+    onScroll();
+    sc.addEventListener("scroll", onScroll, { passive: true });
+    return () => sc.removeEventListener("scroll", onScroll);
+  }, [id, courtParam, loading]);
+
+  const goSec = (key) => {
+    const node = secRefs.current[key];
+    if (!node) return;
+    const sc = scrollerRef.current;
+    if (!sc) return node.scrollIntoView({ behavior: "smooth", block: "start" });
+    const top = node.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - TAB_OFFSET;
+    sc.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  };
 
   // 찜 — 목록(VenueListPage)과 같은 users.favVenueIds 를 쓴다. 상세에서도 바로 담을 수 있게.
   const [fav, setFav] = useState(false);
@@ -402,12 +487,14 @@ export default function VenueBookingPage() {
   // 구장 페이지인데 코트가 여러 개인 상태 = "코트 목록" 모드.
   // 이때는 특정 코트의 요금·운영시간·예약을 그리지 않는다(어느 코트 것인지 알 수 없으므로).
   const multiCourtIndex = !courtView && (venue.courts || []).length > 1;
+  // 실제로 그려지는 섹션만 탭에 세운다 — 없는 곳으로 가는 탭은 눌러도 아무 일이 안 일어난다.
+  const tabKeys = [court ? "court" : "", multiCourtIndex ? "" : "book", "location", "review", "info"].filter(Boolean);
   // 코트 페이지는 그 코트 사진을 머리에 세운다(없으면 구장 사진).
   const heroPhotos = courtView && courtPhotos.length > 0 ? courtPhotos : photos;
   const heroLabel = courtView && courtPhotos.length > 0 ? `${court?.name} 사진` : "구장 사진";
   // 코트 목록 모드의 하단 바에 쓸 "얼마부터" — 목록·지도와 같은 기준(가장 싼 코트 단가).
   const minCourtPrice = (venue.courts || [])
-    .map((c) => courtUnitPrice(c))
+    .map((c) => calcDisplayPrice(courtUnitPrice(c)))
     .filter((p) => p > 0)
     .reduce((m, p) => (m === 0 || p < m ? p : m), 0);
   const hoursSummary = buildHoursSummary(court);
@@ -469,10 +556,11 @@ export default function VenueBookingPage() {
           {venue.business?.status === "verified" ? (
             <VerifiedChip><FiCheckCircle size={12} /> 국세청 인증</VerifiedChip>
           ) : null}
-          {venue.rating ? (
-            <RatingChip>
+          {Number(venue.rating) > 0 ? (
+            // 평점은 리뷰로 가는 입구다 — 눌러서 리뷰 섹션으로 내려간다.
+            <RatingChip type="button" onClick={() => goSec("review")}>
               <FiStar size={12} /> {Number(venue.rating).toFixed(1)}
-              {venue.reviewCount ? <em> ({venue.reviewCount})</em> : null}
+              {venue.reviewCount ? <em>({venue.reviewCount})</em> : null}
             </RatingChip>
           ) : null}
           {(venue.sportTypes || []).map((s) => <SportChip key={s}>{s}</SportChip>)}
@@ -485,6 +573,15 @@ export default function VenueBookingPage() {
           <KeywordRow>{venue.keywords.map((k) => <Kw key={k}>#{k}</Kw>)}</KeywordRow>
         )}
       </Head>
+
+      {/* 섹션 탭 — 스크롤하면 상단에 붙는다. 현재 보고 있는 섹션이 밑줄로 표시된다. */}
+      <TabBar ref={tabBarRef}>
+        {TAB_ORDER.filter((t) => tabKeys.includes(t.key)).map((t) => (
+          <Tab key={t.key} type="button" $on={activeTab === t.key} onClick={() => goSec(t.key)}>
+            {t.key === "review" && Number(venue.reviewCount) > 0 ? `${t.label} ${venue.reviewCount}` : t.label}
+          </Tab>
+        ))}
+      </TabBar>
 
       {/* 핵심 정보 한 줄 요약 — 스크롤하지 않고도 요금·예약 단위·확정 방식·주차를 판단할 수 있게. */}
       {court ? (
@@ -530,7 +627,7 @@ export default function VenueBookingPage() {
         <Section>
           {/* venue.description(구장 단위 소개)을 그리는 자리다 — 코트별 설명이 아니다. */}
           <SecTitle><FiInfo size={17} />구장 소개</SecTitle>
-          <InfoPre>{venue.description}</InfoPre>
+          <LongText>{venue.description}</LongText>
         </Section>
       )}
 
@@ -559,7 +656,7 @@ export default function VenueBookingPage() {
           코트를 바꾸면 화면 곳곳이 같이 바뀌는데 사용자는 그걸 볼 수 없었다.
           슬롯을 눌러보기 전에 "얼마짜리 어떤 코트인지"가 먼저 보여야 하므로 예약 섹션보다 앞에 둔다. */}
       {court && (
-        <Section ref={multiCourtIndex ? bookRef : undefined}>
+        <Section ref={setSec("court")}>
           <SecTitle>
             <FiTag size={17} />
             {multiCourtIndex ? `코트 ${venue.courts.length}개` : "코트·요금"}
@@ -569,55 +666,48 @@ export default function VenueBookingPage() {
             <SecLead>코트마다 사진·요금·운영시간이 달라요. 눌러서 코트 상세를 보고 예약하세요.</SecLead>
           ) : null}
 
-          {/* 코트 카드는 "고르는 버튼"이 아니라 "비교표"다 — 코트마다 제 사진을 카드 안에 깔아,
-              A를 눌러 A를 보고 B를 눌러 B를 보는 왕복 없이 한 화면에서 차이를 본다.
-              사진이 없으면 구장 대표 사진으로 때우지 않는다: 그러면 모든 코트가 같은 그림이 돼
-              "차이가 없다"고 잘못 알려주게 된다. 없으면 없다고 적는다. */}
+          {/* 코트 카드 = 숙박앱의 "객실 카드". 썸네일 · 스펙 · 요금 · 예약 버튼이 한 줄에 있어
+              카드 하나만 봐도 그 코트를 예약할지 말지 판단된다.
+              썸네일은 그 코트가 등록한 사진이다 — 없으면 구장 대표 사진으로 때우지 않는다:
+              그러면 모든 코트가 같은 그림이 돼 "차이가 없다"고 잘못 알려주게 된다.
+              썸네일을 누르면 그 코트 사진만 전체보기로 열린다(카드 이동과 구분). */}
           {multiCourtIndex && (
             <CourtList>
               {venue.courts.map((c) => {
                 const cp = (c.photos || []).filter(Boolean);
-                const cUnit = courtUnitPrice(c);
+                const cUnit = calcDisplayPrice(courtUnitPrice(c));
                 return (
                   <CourtCard
                     key={c.id}
                     type="button"
                     onClick={() => navigate(`/venue-book/${id}/court/${c.id}${window.location.search}`)}
                   >
-                    <CourtHeadRow>
-                      <CourtBody>
-                        <CourtCName>{c.name}</CourtCName>
-                        <CourtCSub>
-                          {c.type === "outdoor" ? "실외" : "실내"}
-                          {c.surface ? ` · ${c.surface}` : ""}
-                          {` · ${c.slotMinutes || 60}분 단위`}
-                        </CourtCSub>
-                      </CourtBody>
-                      <CourtRight>
+                    {cp.length > 0 ? (
+                      <CourtThumbWrap
+                        onClick={(e) => { e.stopPropagation(); setViewer({ title: `${c.name} 사진`, photos: cp }); }}
+                      >
+                        <CourtThumb src={cp[0]} alt={`${c.name} 사진`} />
+                        {cp.length > 1 ? <ThumbCount>+{cp.length - 1}</ThumbCount> : null}
+                      </CourtThumbWrap>
+                    ) : (
+                      <CourtThumbEmpty><FiImage size={17} /><span>사진 없음</span></CourtThumbEmpty>
+                    )}
+                    <CourtInfo>
+                      <CourtCName>{c.name}</CourtCName>
+                      <CourtCSub>
+                        {c.type === "outdoor" ? "실외" : "실내"}
+                        {c.surface ? ` · ${c.surface}` : ""}
+                        {` · ${c.slotMinutes || 60}분 단위`}
+                      </CourtCSub>
+                      {c.description ? <CourtCDesc>{c.description}</CourtCDesc> : null}
+                      <CourtPriceRow>
                         <CourtCPrice>
                           {cUnit > 0 ? `${cUnit.toLocaleString()}원` : "문의"}
                           <small>{isPerPerson(c) ? " /1인·시간" : " /시간"}</small>
                         </CourtCPrice>
-                        <CourtGo>상세·예약 <FiChevronRight size={14} /></CourtGo>
-                      </CourtRight>
-                    </CourtHeadRow>
-
-                    {c.description ? <CourtCDesc>{c.description}</CourtCDesc> : null}
-
-                    {cp.length > 0 ? (
-                      <CourtCardStrip>
-                        {cp.map((u, i) => (
-                          <CourtCardImg
-                            key={i}
-                            src={u}
-                            alt={`${c.name} 사진 ${i + 1}`}
-                            onClick={(e) => { e.stopPropagation(); setViewer({ title: `${c.name} 사진`, photos: cp }); }}
-                          />
-                        ))}
-                      </CourtCardStrip>
-                    ) : (
-                      <CourtNoPhoto><FiImage size={14} /> 코트 사진 미등록</CourtNoPhoto>
-                    )}
+                        <CourtGo>예약하기 <FiChevronRight size={14} /></CourtGo>
+                      </CourtPriceRow>
+                    </CourtInfo>
                   </CourtCard>
                 );
               })}
@@ -709,7 +799,7 @@ export default function VenueBookingPage() {
 
       {/* 코트 목록을 보여주는 구장 페이지에서는 예약을 받지 않는다 — 코트를 고른 뒤 코트 페이지에서 잡는다. */}
       {!multiCourtIndex && (
-      <Section ref={bookRef}>
+      <Section ref={setSec("book")}>
         <SecTitle><FiGrid size={17} />{viewOnly ? "예약 현황" : "예약"}</SecTitle>
         {(venue.courts || []).length === 0 ? (
           <CourtEmpty>아직 등록된 코트가 없어요. 구장에 문의해 주세요.</CourtEmpty>
@@ -750,7 +840,9 @@ export default function VenueBookingPage() {
                         {/* 슬롯 금액도 목록과 같은 기준(결제 총액)으로 보여준다 — 고르는 동안 금액이 커지면 순차공개 가격책정이 된다.
                             인원제 코트는 인원에 따라 총액이 달라지므로 슬롯에는 1인 단가를 적는다. */}
                         {st === "reserved" ? "예약완료" : st === "blocked" ? "사용 불가" : st === "past" ? "마감"
-                          : `${perPerson ? "1인 " : ""}${calcDisplayPrice(calcSlotPrice(court, s.start, s.end, date, 1)).toLocaleString()}원`}
+                          : `${perPerson ? "1인 " : ""}${calcDisplayPrice(
+                              perPerson ? onePersonPrice(court, date, s.start, s.end) : calcSlotPrice(court, s.start, s.end, date, 1)
+                            ).toLocaleString()}원`}
                       </span>
                     </Slot>
                   );
@@ -770,7 +862,7 @@ export default function VenueBookingPage() {
                   </Stepper>
                 </HeadTop>
                 <HeadHint>
-                  1인 {calcDisplayPrice(calcSlotPrice(court, selected.start, selected.end, date, 1)).toLocaleString()}원 × {heads}명
+                  1인 {calcDisplayPrice(onePersonPrice(court, date, selected.start, selected.end)).toLocaleString()}원 × {heads}명
                   {maxHeads > 0 ? ` · 최대 ${maxHeads}명` : ""}
                 </HeadHint>
                 {/* 최소 인원은 구장이 정한 하한이다 — 적게 와도 이 인원 요금을 낸다는 걸 결제 전에 못 박는다. */}
@@ -786,7 +878,7 @@ export default function VenueBookingPage() {
       </Section>
       )}
 
-      <Section>
+      <Section ref={setSec("location")}>
         <SecTitle><FiMapPin size={17} />위치·교통</SecTitle>
         {hasLatLng && <VenueMiniMap latLng={{ lat: venue.lat, lng: venue.lng }} height={170} />}
         <AddrRow>
@@ -819,12 +911,12 @@ export default function VenueBookingPage() {
       </Section>
 
       {venue.rules && (
-        <Section>
+        <Section ref={setSec("info")}>
           <SecTitle><FiFileText size={17} />이용 안내</SecTitle>
-          <InfoPre>{venue.rules}</InfoPre>
+          <LongText>{venue.rules}</LongText>
         </Section>
       )}
-      <Section>
+      <Section ref={venue.rules ? undefined : setSec("info")}>
         <SecTitle><FiCreditCard size={17} />취소·환불 규정</SecTitle>
         <PolicyTable>
           {CANCEL_POLICY_TIERS.map((t) => (
@@ -840,7 +932,7 @@ export default function VenueBookingPage() {
         ) : null}
       </Section>
 
-      <Section>
+      <Section ref={setSec("review")}>
         <SecTitle><FiStar size={17} />리뷰{reviews.length > 0 ? ` (${reviews.length})` : ""}</SecTitle>
         {Number(venue.rating) > 0 ? (
           <RvSummary>
@@ -852,7 +944,8 @@ export default function VenueBookingPage() {
           <InfoPre>아직 등록된 리뷰가 없어요. 이용 후 첫 리뷰를 남겨보세요.</InfoPre>
         ) : (
           <RvList>
-            {reviews.map((rv) => (
+            {/* 처음엔 3개만 — 리뷰가 20개면 그 아래 안내·사업자 정보가 화면 밖으로 밀린다. */}
+            {(reviewsOpen ? reviews : reviews.slice(0, 3)).map((rv) => (
               <RvItem key={rv.id}>
                 <RvItemTop>
                   <RvName>
@@ -864,6 +957,11 @@ export default function VenueBookingPage() {
                 {rv.text ? <RvItemText>{rv.text}</RvItemText> : null}
               </RvItem>
             ))}
+            {reviews.length > 3 && (
+              <MoreWide type="button" onClick={() => setReviewsOpen((v) => !v)}>
+                {reviewsOpen ? "리뷰 접기" : `리뷰 ${reviews.length}개 모두 보기`}
+              </MoreWide>
+            )}
           </RvList>
         )}
       </Section>
@@ -930,7 +1028,7 @@ export default function VenueBookingPage() {
               </span>
             </BbPrice>
           </div>
-          <BookBtn type="button" onClick={() => bookRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+          <BookBtn type="button" onClick={() => goSec(multiCourtIndex ? "court" : "book")}>
             {multiCourtIndex ? "코트 고르기" : "시간 고르기"}
           </BookBtn>
         </BottomBar>
@@ -970,7 +1068,7 @@ export default function VenueBookingPage() {
               <>
                 <PayRow>
                   <span>이용 인원</span>
-                  <b>{heads}명 · 1인 {calcDisplayPrice(calcSlotPrice(court, selected.start, selected.end, date, 1)).toLocaleString()}원</b>
+                  <b>{heads}명 · 1인 {calcDisplayPrice(onePersonPrice(court, date, selected.start, selected.end)).toLocaleString()}원</b>
                 </PayRow>
                 {minHeads > 1 && (
                   <PayRow><span>최소 인원</span><b>{minHeads}명 (미달해도 {minHeads}명 요금)</b></PayRow>
@@ -1134,6 +1232,46 @@ const FacNone = styled.div`
 const InfoPre = styled.div`
   font-size: 13.5px; line-height: 1.65; white-space: pre-wrap;
   color: ${({ theme }) => theme.colors.textNormal};
+  ${({ $clamp }) => $clamp && `
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+    overflow: hidden;
+  `}
+`;
+/* 더보기/접기 — 글 아래 왼쪽에 붙는 텍스트 버튼 */
+const MoreBtn = styled.button`
+  align-self: flex-start; margin-top: -6px;
+  border: none; background: transparent; padding: 0; cursor: pointer;
+  font-size: 12.5px; font-weight: 700;
+  color: ${({ theme }) => theme.colors.primary};
+`;
+/* 리뷰 더 보기 — 목록 끝에 붙는 가로 꽉 찬 버튼 */
+const MoreWide = styled.button`
+  height: 44px; border-radius: 11px; cursor: pointer;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 13.5px; font-weight: 700;
+  &:active { transform: translateY(1px); }
+`;
+
+/* 상단 고정 섹션 탭 — 스크롤 컨테이너(<main>) 기준으로 붙는다.
+   풀블리드(좌우 -16px)로 깔되 안쪽 패딩으로 본문과 줄을 맞춘다. */
+const TabBar = styled.div`
+  position: sticky; top: 0; z-index: 30;
+  margin: -6px -16px 0; padding: 0 16px;
+  display: flex; gap: 20px; overflow-x: auto;
+  background: ${({ theme }) => theme.colors.bg};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  scrollbar-width: none; -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+`;
+const Tab = styled.button`
+  flex: 0 0 auto; padding: 14px 1px 12px; cursor: pointer;
+  border: none; border-bottom: 2px solid ${({ $on, theme }) => ($on ? theme.colors.textStrong : "transparent")};
+  background: transparent; white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: ${({ $on }) => ($on ? 800 : 600)};
+  color: ${({ $on, theme }) => ($on ? theme.colors.textStrong : theme.colors.textWeak)};
 `;
 const Head = styled.div`display: flex; flex-direction: column; gap: 7px;`;
 const TitleRow = styled.div`display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;`;
@@ -1184,10 +1322,11 @@ const SpecK = styled.div`font-size: 11.5px; font-weight: 600; color: ${({ theme 
 const SpecV = styled.div`font-size: 13.5px; font-weight: 700; color: ${({ theme }) => theme.colors.textStrong};`;
 
 const MetaRow = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
-const RatingChip = styled.span`
+const RatingChip = styled.button`
   display: inline-flex; align-items: center; gap: 3px;
+  border: none; background: transparent; padding: 0; cursor: pointer;
   font-size: 12.5px; font-weight: 800; color: #f59e0b;
-  & em { font-style: normal; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; }
+  & em { font-style: normal; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; text-decoration: underline; }
 `;
 const TagChip = styled.span`
   display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px;
@@ -1371,14 +1510,38 @@ const CourtEmpty = styled.div`
 `;
 const CourtCard = styled.button`
   width: 100%; text-align: left; cursor: pointer;
-  display: flex; flex-direction: column; gap: 9px; padding: 12px;
+  display: flex; align-items: stretch; gap: 12px; padding: 12px;
   border-radius: 14px;
   border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) => theme.colors.card};
   &:active { transform: translateY(1px); }
 `;
-const CourtHeadRow = styled.div`display: flex; align-items: flex-start; gap: 10px; width: 100%;`;
-const CourtRight = styled.div`display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0;`;
+/* 좌측 썸네일 — 그 코트가 등록한 첫 사진. 여러 장이면 우측 하단에 +N */
+const CourtThumbWrap = styled.div`
+  position: relative; flex: 0 0 96px; width: 96px; align-self: flex-start;
+`;
+const CourtThumb = styled.img`
+  width: 96px; height: 96px; object-fit: cover; border-radius: 10px; display: block;
+  background: ${({ theme }) => theme.colors.surface};
+`;
+const ThumbCount = styled.span`
+  position: absolute; right: 5px; bottom: 5px;
+  background: rgba(0, 0, 0, 0.6); color: #fff;
+  font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+`;
+const CourtThumbEmpty = styled.div`
+  flex: 0 0 96px; width: 96px; height: 96px; border-radius: 10px; align-self: flex-start;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.textWeak};
+  & span { font-size: 11px; font-weight: 600; }
+`;
+const CourtInfo = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
+/* 요금 + 예약 버튼 — 카드 오른쪽 아래에 붙여 "이 코트는 얼마"가 마지막에 남게 한다 */
+const CourtPriceRow = styled.div`
+  margin-top: auto; padding-top: 8px;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 8px;
+`;
 /* 코트 페이지 상단 — 어느 구장의 코트인지, 눌러서 구장으로 */
 const CourtCrumb = styled.button`
   align-self: flex-start;
@@ -1388,32 +1551,18 @@ const CourtCrumb = styled.button`
   color: ${({ theme }) => theme.colors.textWeak};
 `;
 const CourtGo = styled.span`
-  display: inline-flex; align-items: center; gap: 2px;
-  font-size: 12px; font-weight: 700; white-space: nowrap;
-  color: ${({ theme }) => theme.colors.primary};
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 1px;
+  height: 32px; padding: 0 10px 0 12px; border-radius: 9px;
+  font-size: 12.5px; font-weight: 800; white-space: nowrap;
+  background: ${({ theme }) => theme.colors.primary}; color: #fff;
 `;
+/* 코트 소개 — 카드 안에서는 2줄까지만. 전문은 코트 상세에서 본다. */
 const CourtCDesc = styled.div`
-  font-size: 12.5px; line-height: 1.5; white-space: pre-wrap;
-  color: ${({ theme }) => theme.colors.textNormal};
+  font-size: 12.5px; line-height: 1.5; margin-top: 2px;
+  color: ${({ theme }) => theme.colors.textWeak};
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 `;
-/* 카드 안 사진 스트립 — 코트끼리 나란히 놓고 비교하는 자리 */
-const CourtCardStrip = styled.div`
-  display: flex; gap: 6px; overflow-x: auto; width: 100%;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; -ms-overflow-style: none;
-  &::-webkit-scrollbar { display: none; }
-`;
-const CourtCardImg = styled.img`
-  flex: 0 0 auto; width: 38%; aspect-ratio: 4 / 3; object-fit: cover;
-  border-radius: 9px; background: ${({ theme }) => theme.colors.surface};
-`;
-const CourtNoPhoto = styled.div`
-  display: flex; align-items: center; gap: 6px;
-  padding: 9px 11px; border-radius: 9px;
-  border: 1px dashed ${({ theme }) => theme.colors.border};
-  font-size: 12px; color: ${({ theme }) => theme.colors.textWeak};
-`;
-const CourtBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
 const CourtCName = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
 const CourtCSub = styled.div`font-size: 12px; color: ${({ theme }) => theme.colors.textWeak};`;
 const CourtCPrice = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.primary}; & small { font-size: 11.5px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; }`;

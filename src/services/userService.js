@@ -509,6 +509,22 @@ export async function linkSocialToExistingUser({ existingUid, socialUid, provide
   return { ok: true };
 }
 
+/**
+ * ✅ 임시 비밀번호 강제 변경 게이트 해제
+ * recoverAccountByPhone(서버)이 mustChangePassword=true 를 세우고, 사용자가 실제로
+ * 비밀번호를 바꾼 뒤 여기서 내린다.
+ */
+export async function clearMustChangePassword({ uid }) {
+  const u = safeTrim(uid);
+  if (!u) return false;
+  await setDoc(
+    doc(db, "users", u),
+    { mustChangePassword: false, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+  return true;
+}
+
 export async function upsertUserPhoneIndex({ phoneE164, uid, email, phoneVerified = false }) {
   const p = safeTrim(phoneE164);
   const u = safeTrim(uid);

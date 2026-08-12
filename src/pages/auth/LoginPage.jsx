@@ -128,6 +128,18 @@ export default function LoginPage() {
           </GoogleIcon>
           구글로 시작하기
         </GoogleBtn>
+
+        {/* 이메일 로그인 — 소셜 계정이 없거나 쓰기 싫은 사람을 위한 경로 */}
+        <EmailBtn type="button" onClick={() => navigate("/login/email")} disabled={busy}>
+          이메일로 시작하기
+        </EmailBtn>
+
+        <SignupRow>
+          <SignupText>아직 계정이 없나요?</SignupText>
+          <SignupLink type="button" onClick={() => navigate("/signup/email")} disabled={busy}>
+            이메일로 가입
+          </SignupLink>
+        </SignupRow>
       </BottomArea>
     </Wrap>
   );
@@ -259,6 +271,50 @@ const GoogleBtn = styled.button`
 const GoogleIcon = styled.svg`
   width: 18px;
   height: 18px;
+`;
+
+/* 이메일 로그인 — 소셜 버튼(브랜드색)과 나란히 두되 무채색으로 눌러 둔다 */
+const EmailBtn = styled.button`
+  width: 100%;
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s;
+
+  &:active { transform: translateY(1px); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+const SignupRow = styled.div`
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+`;
+
+const SignupText = styled.span`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const SignupLink = styled.button`
+  border: none;
+  background: transparent;
+  padding: 6px 2px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  color: ${({ theme }) => theme.colors.textStrong};
+  cursor: pointer;
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
 const WebNotice = styled.div`

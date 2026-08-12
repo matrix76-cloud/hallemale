@@ -1,8 +1,11 @@
 /* eslint-disable */
 // src/pages/auth/SignupBasicInfoPage.jsx
 // 전화번호 인증까지 마친 신규 가입자에게 1회 노출되는 "기본 정보 입력" 화면.
-// 이름·생년월일·성별을 받아 users 문서에 저장하고 basicInfoDone=true 로 게이트를 통과시킨다.
+// 닉네임·이름·생년월일·성별을 받아 users 문서에 저장하고 basicInfoDone=true 로 게이트를 통과시킨다.
 // (RequirePhone 통과 후 진입 · RequireWelcome 완료 화면 앞 단계)
+//
+// 닉네임을 여기서 받는 이유: 이메일 가입자는 소셜 프로필(displayName)이 없어 닉네임이 빈 값으로
+// 남는다. 카카오 가입자도 nickname 필드는 어차피 비어 있으므로 두 경로를 한 화면에서 채운다.
 import React, { useMemo, useState } from "react";
 import styled from "styled-components";
 import { useAuth } from "../../hooks/useAuth";
@@ -31,6 +34,10 @@ export default function SignupBasicInfoPage() {
   // 전화인증에서 기존 계정과 병합되면 게이트가 읽는 문서는 userDoc.id(병합된 실제 문서)다.
   const uid = userDoc?.id || userDoc?.uid || firebaseUser?.uid || "";
 
+  // 카카오 가입자는 소셜 프로필(displayName)을 기본값으로 깔아 주고, 이메일 가입자는 빈칸에서 시작한다.
+  const [nickname, setNickname] = useState(
+    String(userDoc?.nickname || userDoc?.displayName || "").trim()
+  );
   const [realName, setRealName] = useState(String(userDoc?.realName || "").trim());
   // 화면 입력값은 숫자 8자리("20030207"), 저장은 기존과 동일한 YYYY-MM-DD
   const [birth8, setBirth8] = useState(String(userDoc?.birthDate || "").replace(/\D/g, "").slice(0, 8));
@@ -46,6 +53,7 @@ export default function SignupBasicInfoPage() {
 
   const canSubmit =
     !!uid &&
+    nickname.trim().length >= 2 &&
     realName.trim().length >= 2 &&
     !!birthDate &&
     (gender === "male" || gender === "female") &&
@@ -56,8 +64,10 @@ export default function SignupBasicInfoPage() {
     setBusy(true);
     try {
       const birthYear = Number(birthDate.slice(0, 4)) || null;
+      // 닉네임 중복·쿨다운 검사는 updateUserProfile 안에 있다 — 중복이면 여기서 예외로 올라온다.
       await updateUserProfile({
         uid,
+        nickname: nickname.trim(),
         realName: realName.trim(),
         birthDate,
         birthYear,
@@ -89,6 +99,19 @@ export default function SignupBasicInfoPage() {
           </Title>
           <Sub>이름·생년월일·성별은 매칭과 랭킹에 쓰여요.</Sub>
         </Head>
+
+        <FieldGroup>
+          <Label htmlFor="nickname">닉네임<Req>*</Req></Label>
+          <Input
+            id="nickname"
+            placeholder="앱에서 보일 이름"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            disabled={busy}
+            maxLength={12}
+          />
+          <Hint>팀·커뮤니티에 표시돼요. 한번 정하면 90일 후 변경할 수 있어요.</Hint>
+        </FieldGroup>
 
         <FieldGroup>
           <Label htmlFor="realName">이름<Req>*</Req></Label>
