@@ -8,7 +8,7 @@ import styled from "styled-components";
 import { showAlert } from "../../utils/appDialog";
 import { useNavigate } from "react-router-dom";
 
-import { images, playerAvatars } from "../../utils/imageAssets";
+import { playerAvatars } from "../../utils/imageAssets";
 import { KR_AREAS } from "../../utils/constants";
 import { useAuth } from "../../hooks/useAuth";
 import { updateUserProfile, isNicknameTaken } from "../../services/userService";
@@ -248,18 +248,16 @@ export default function MyProfileEditPage() {
     { key: "media", label: "경기 소개 · 사진/동영상", value: mediaPreview, to: "/my/profile/edit/media" },
   ];
 
+  const filledCount = detailMenus.filter((m) => !isEmptyValue(m.value)).length;
+
   return (
     <Page>
       {/* ── 기본 정보 ── */}
-      <Card>
-        <SectionHead>
-          <SectionIcon src={images.emoji3dIdCard} alt="" />
-          <SectionHeadText>
-            <SectionTitle>기본 정보</SectionTitle>
-            <SectionSub>매칭·팀 가입 신청에 쓰이는 기본 정보예요.</SectionSub>
-          </SectionHeadText>
-        </SectionHead>
+      <SectionLabelRow>
+        <SectionLabel>기본 정보</SectionLabel>
+      </SectionLabelRow>
 
+      <Card>
         <AvatarBlock>
           <AvatarCircle type="button" onClick={handleAvatarClick} disabled={isSaving}>
             {avatarPreview ? (
@@ -312,26 +310,21 @@ export default function MyProfileEditPage() {
             </CheckButton>
           </InputRow>
 
+          {/* 안내는 항상 한 줄만 — 상황에 맞는 것 하나 */}
           {nickLock.locked ? (
             <NameStatus>
               닉네임은 {nickLock.remainingDays}일 후에 변경할 수 있어요.
             </NameStatus>
+          ) : nickStatus === "available" ? (
+            <NameStatus $tone="ok">사용할 수 있는 닉네임이에요.</NameStatus>
+          ) : nickStatus === "taken" ? (
+            <NameStatus $tone="error">이미 사용 중인 닉네임이에요.</NameStatus>
+          ) : nickStatus === "error" ? (
+            <NameStatus $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatus>
+          ) : nickChanged ? (
+            <NameStatus>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatus>
           ) : (
-            <>
-              {nickChanged && nickStatus === "idle" && (
-                <NameStatus>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatus>
-              )}
-              {nickStatus === "available" && (
-                <NameStatus $tone="ok">사용할 수 있는 닉네임이에요.</NameStatus>
-              )}
-              {nickStatus === "taken" && (
-                <NameStatus $tone="error">이미 사용 중인 닉네임이에요.</NameStatus>
-              )}
-              {nickStatus === "error" && (
-                <NameStatus $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatus>
-              )}
-              <NameStatus>닉네임은 한번 정하면 90일 후에 변경할 수 있어요.</NameStatus>
-            </>
+            <NameStatus>닉네임은 한번 정하면 90일 후에 변경할 수 있어요.</NameStatus>
           )}
         </FieldGroup>
 
@@ -356,15 +349,14 @@ export default function MyProfileEditPage() {
       </Card>
 
       {/* ── 상세 프로필 ── */}
-      <Card>
-        <SectionHead>
-          <SectionIcon src={images.emoji3dBasketball} alt="" />
-          <SectionHeadText>
-            <SectionTitle>상세 프로필</SectionTitle>
-            <SectionSub>항목을 눌러 채울수록 매칭이 잘 돼요.</SectionSub>
-          </SectionHeadText>
-        </SectionHead>
+      <SectionLabelRow>
+        <SectionLabel>상세 프로필</SectionLabel>
+        <SectionCount>
+          {filledCount}/{detailMenus.length} 작성
+        </SectionCount>
+      </SectionLabelRow>
 
+      <Card>
         <MenuList>
           {detailMenus.map((m) => (
             <MenuRow key={m.key} type="button" onClick={() => nav(m.to)}>
@@ -380,12 +372,9 @@ export default function MyProfileEditPage() {
 
       {/* ── 미리보기 (전체 화면으로 이동) ── */}
       {uid ? (
-        <Card>
-          <PreviewButton type="button" onClick={() => nav(`/player/${uid}`)}>
-            <FiEye aria-hidden /> 내 프로필 미리보기
-          </PreviewButton>
-          <PreviewHint>다른 사람에게 보이는 내 프로필을 전체 화면으로 볼 수 있어요. (저장된 정보 기준)</PreviewHint>
-        </Card>
+        <PreviewButton type="button" onClick={() => nav(`/player/${uid}`)}>
+          <FiEye aria-hidden /> 다른 사람에게 보이는 내 프로필 보기
+        </PreviewButton>
       ) : null}
 
       {/* ── 하단 고정 저장 바 ── */}
@@ -422,37 +411,23 @@ const Card = styled.section`
   gap: 18px;
 `;
 
-/* 섹션 헤더: 3D 아이콘 + 타이틀 (앱 공통 신스킨) */
-const SectionHead = styled.div`
+/* 섹션 라벨: 카드 밖 작은 제목 (마이페이지와 동일 규칙) */
+const SectionLabelRow = styled.div`
+  margin: 2px 4px -4px;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 `;
 
-const SectionIcon = styled.img`
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-  flex-shrink: 0;
-  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.16));
-`;
-
-const SectionHeadText = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-`;
-
-const SectionTitle = styled.h2`
+const SectionLabel = styled.h2`
   margin: 0;
-  font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
-  font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 13px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
-const SectionSub = styled.p`
-  margin: 0;
+const SectionCount = styled.span`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textWeak};
 `;
@@ -557,12 +532,13 @@ const InputRow = styled.div`
   align-items: stretch;
 `;
 
+/* 저장(주요 액션)과 경쟁하지 않도록 보조 버튼은 아웃라인 — 팀 생성 화면과 동일 */
 const CheckButton = styled.button`
   flex-shrink: 0;
   border-radius: 12px;
-  border: 1px solid ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) => theme.colors.primary};
-  color: #ffffff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   padding: 0 14px;
   font-size: 12.5px;
   font-weight: 700;
@@ -723,13 +699,6 @@ const PreviewButton = styled.button`
     background: ${({ theme }) =>
       theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
   }
-`;
-
-const PreviewHint = styled.p`
-  margin: 0;
-  text-align: center;
-  font-size: 11.5px;
-  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 /* ── 하단 고정 저장 바 ── */

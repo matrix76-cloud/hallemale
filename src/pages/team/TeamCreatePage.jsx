@@ -34,7 +34,9 @@ const Card = styled.div`
   width: 100%;
   max-width: 480px;
   background: ${({ theme }) => theme.colors.card};
-  border-radius: 8px;
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 18px;
   box-shadow: ${({ theme }) => theme.shadows.card};
   padding: 20px 18px 22px;
   display: flex;
@@ -57,24 +59,38 @@ const Title = styled.h1`
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
-const Subtitle = styled.p`
-  margin: 0;
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.textWeak};
-`;
-
 const StepIndicatorRow = styled.div`
   display: flex;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 6px;
+`;
+
+const StepItem = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 `;
 
 const StepDot = styled.div`
-  flex: 1;
-  height: 4px;
+  height: 3px;
   border-radius: 999px;
   background: ${({ $active, theme }) =>
     $active ? theme.colors.primary : theme.colors.border};
+`;
+
+const StepName = styled.div`
+  font-size: 11.5px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.textStrong : theme.colors.textWeak};
+`;
+
+/* 단계별 한 줄 안내 */
+const StepHint = styled.div`
+  font-size: 12px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 
 /* ===== 개인 프로필 유도 배너 ===== */
@@ -83,30 +99,30 @@ const NudgeCard = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-radius: 10px;
-  border: 1px solid ${({ theme }) => theme.colors.primary};
+  border-radius: 12px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.14)" : "#eef2ff"};
+    theme.mode === "dark" ? theme.colors.surface : "#f8f9fb"};
   padding: 12px 14px;
 `;
 
 const NudgeText = styled.div`
   font-size: 12.5px;
   line-height: 1.5;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${({ theme }) => theme.colors.textNormal};
 
   b {
     font-weight: 700;
-    color: ${({ theme }) => (theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary)};
+    color: ${({ theme }) => theme.colors.textStrong};
   }
 `;
 
 const NudgeBtn = styled.button`
   align-self: flex-start;
   border-radius: 999px;
-  border: none;
-  background: ${({ theme }) => theme.colors.primary};
-  color: #ffffff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   font-size: 12px;
   font-weight: 700;
   padding: 8px 14px;
@@ -133,13 +149,6 @@ const FieldGroup = styled.div`
 const LabelRow = styled.div`
   display: flex;
   align-items: baseline;
-  gap: 6px;
-`;
-
-const LabelColumn = styled.div`
-  display: flex;
-  align-items: baseline;
-  flex-direction: column;
   gap: 6px;
 `;
 
@@ -174,11 +183,9 @@ const InputRow = styled.div`
 const CheckButton = styled.button`
   flex-shrink: 0;
   border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
-  color: ${({ theme }) =>
-    theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   padding: 0 12px;
   font-size: 12px;
   font-weight: 600;
@@ -306,17 +313,14 @@ const TagChip = styled.button`
   background: ${({ $selected, theme }) =>
     $selected
       ? theme.mode === "dark"
-        ? "rgba(99,102,241,0.18)"
-        : "#eef2ff"
+        ? "rgba(157,134,220,0.16)"
+        : "#f4efff"
       : theme.colors.card};
-  padding: 4px 9px;
-  font-size: 11px;
+  padding: 6px 11px;
+  font-size: 12px;
+  font-weight: ${({ $selected }) => ($selected ? 700 : 500)};
   color: ${({ $selected, theme }) =>
-    $selected
-      ? theme.mode === "dark"
-        ? "#a5b4fc"
-        : theme.colors.primary
-      : theme.colors.textNormal};
+    $selected ? theme.colors.primary : theme.colors.textNormal};
   cursor: pointer;
 
   &:disabled {
@@ -361,10 +365,10 @@ const LogoPlaceholderFill = styled(TeamAvatarPlaceholder)`
   border-radius: 0;
 `;
 
-const LogoHelpText = styled.div`
+const LogoCaption = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.colors.textWeak};
-  text-align: left;
+  text-align: center;
   line-height: 1.5;
 `;
 
@@ -496,6 +500,8 @@ const SummaryText = styled.div`
 
 const TAG_PRESETS = TEAM_TAG_PRESETS;
 
+const STEP_NAMES = ["기본 정보", "팀 소개", "확인"];
+
 const ACTIVITY_DAYS_LABEL = {
   ANY: "요일 상관없음",
   WEEKDAY: "평일 위주",
@@ -621,27 +627,28 @@ export default function TeamCreatePage() {
       .catch(() => {});
   };
 
-  const canGoNextStep2 =
+  // STEP 1 = 필수 항목 전부(로고·이름·지역), STEP 2 = 선택 항목이라 검증 없음
+  const canGoNextStep1 =
+    !!logoFile &&
     teamName.trim().length > 0 &&
     teamName.trim().length <= 6 &&
     region.trim().length > 0 &&
     nameStatus === "available";
-  const canSubmit = canGoNextStep2 && !!uid;
+  const canSubmit = canGoNextStep1 && !!uid;
 
   const handleNext = () => {
     if (isSubmitting) return;
 
     if (step === 1) {
-      // ✅ 로고(팀 프로필 사진) 필수
       if (!logoFile) {
         showAlert("팀 로고 이미지를 등록해 주세요. (필수)");
         return;
       }
+      if (!canGoNextStep1) return;
       setStep(2);
       return;
     }
     if (step === 2) {
-      if (!canGoNextStep2) return;
       setStep(3);
     }
   };
@@ -706,11 +713,13 @@ export default function TeamCreatePage() {
       <Card>
         <Header>
           <Title>팀 구성하기</Title>
-          <Subtitle>팀을 만들고 매칭에 사용할 팀 프로필을 설정할 수 있어요.</Subtitle>
           <StepIndicatorRow>
-            <StepDot $active={step >= 1} />
-            <StepDot $active={step >= 2} />
-            <StepDot $active={step >= 3} />
+            {STEP_NAMES.map((name, i) => (
+              <StepItem key={name}>
+                <StepDot $active={step >= i + 1} />
+                <StepName $active={step === i + 1}>{name}</StepName>
+              </StepItem>
+            ))}
           </StepIndicatorRow>
         </Header>
 
@@ -727,21 +736,10 @@ export default function TeamCreatePage() {
           </NudgeCard>
         )}
 
-        {/* STEP 1: 팀 로고 이미지 */}
+        {/* STEP 1: 필수 항목 — 로고 · 팀 이름 · 활동 지역 */}
         {step === 1 && (
           <Section>
-            <LabelColumn>
-              <Label>팀 로고 이미지 <span style={{ color: "#ef4444" }}>*</span></Label>
-              <LabelSub>팀 리스트와 매칭 카드에 가장 크게 노출되는 대표 이미지예요. (필수)</LabelSub>
-            </LabelColumn>
-
-            <LogoHelpText>
-              팀을 상징하는 엠블럼, 팀복 사진, 팀 마크
-              <br />
-              등을 등록해 주세요. 정사각형 이미지를 권장하며,
-              <br />
-              추후 팀 관리에서 언제든 변경할 수 있어요.
-            </LogoHelpText>
+            <StepHint>매칭과 팀 리스트에 바로 노출되는 항목이에요. 세 가지 모두 입력해 주세요.</StepHint>
 
             <LogoStepWrap>
               <LogoBigPreview>
@@ -753,8 +751,14 @@ export default function TeamCreatePage() {
               </LogoBigPreview>
 
               <LogoButton type="button" onClick={handleLogoClick} disabled={isSubmitting}>
-                로고 이미지 선택
+                {logoPreview ? "로고 이미지 변경" : "로고 이미지 선택"}
               </LogoButton>
+
+              <LogoCaption>
+                엠블럼·팀복·팀 마크 등 정사각형 이미지를 권장해요.
+                <br />
+                팀 관리에서 언제든 바꿀 수 있어요.
+              </LogoCaption>
 
               <input
                 ref={fileInputRef}
@@ -764,12 +768,7 @@ export default function TeamCreatePage() {
                 onChange={handleLogoChange}
               />
             </LogoStepWrap>
-          </Section>
-        )}
 
-        {/* STEP 2: 팀 기본 정보 + 홍보 문구 */}
-        {step === 2 && (
-          <Section>
             <FieldGroup>
               <LabelRow>
                 <Label htmlFor="teamName">팀 이름</Label>
@@ -813,7 +812,7 @@ export default function TeamCreatePage() {
             <FieldGroup>
               <LabelRow>
                 <Label>활동 지역</Label>
-                <LabelSub>구 단위까지 적어주면 좋아요.</LabelSub>
+                <LabelSub>구 단위까지 골라주세요.</LabelSub>
               </LabelRow>
 
               <SelectBtn type="button" onClick={() => setRegionOpen(true)} $muted={!region} disabled={isSubmitting}>
@@ -832,6 +831,13 @@ export default function TeamCreatePage() {
                 title="활동 지역 선택"
               />
             </FieldGroup>
+          </Section>
+        )}
+
+        {/* STEP 2: 선택 항목 — 활동 패턴 · 태그 · 소개 · 홍보 */}
+        {step === 2 && (
+          <Section>
+            <StepHint>여기부터는 선택이에요. 비워두고 넘어가도 팀 관리에서 언제든 채울 수 있어요.</StepHint>
 
             <FieldGroup>
               <LabelRow>
@@ -1004,10 +1010,7 @@ export default function TeamCreatePage() {
           {step < 3 && (
             <PrimaryButton
               type="button"
-              disabled={
-                isSubmitting ||
-                (step === 1 ? !logoFile : step === 2 ? !canGoNextStep2 : false)
-              }
+              disabled={isSubmitting || (step === 1 && !canGoNextStep1)}
               onClick={handleNext}
             >
               다음

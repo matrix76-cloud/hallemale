@@ -4,8 +4,17 @@ import { showAlert, showConfirm } from "../../utils/appDialog";
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
-import { FiChevronRight, FiCheck, FiUsers, FiUser, FiSettings, FiShield, FiX } from "react-icons/fi";
+import {
+  FiChevronRight,
+  FiCheck,
+  FiX,
+  FiCalendar,
+  FiHeart,
+  FiActivity,
+  FiEdit3,
+} from "react-icons/fi";
 import { playerAvatars } from "../../utils/imageAssets";
+import { hasKakaoChannel, openKakaoChannelChat } from "../../constants/kakaoChannel";
 import { useAuth } from "../../hooks/useAuth";
 import { useClub } from "../../hooks/useClub";
 import { useThemeMode } from "../../context/ThemeContext";
@@ -583,238 +592,199 @@ export default function MyProfilePage() {
           </ProfileHeaderInner>
         </ProfileHeader>
 
-        <Section>
-          <SectionInner>
-            <SectionIcon><FiUsers size={19} /></SectionIcon>
-            <SectionTitle>팀 정보 설정</SectionTitle>
-          </SectionInner>
+        {/* 자주 쓰는 활동 — 나열 대신 타일로 */}
+        <QuickGrid>
+          <QuickTile type="button" onClick={() => handleMainMenuClick("reservations")}>
+            <QuickIcon><FiCalendar size={19} /></QuickIcon>
+            <QuickLabel>예약 내역</QuickLabel>
+          </QuickTile>
 
-          <SectionBody>
-            <MenuList>
-              {!hasTeam ? (
-                <MenuItemButton onClick={() => handleTeamMenuClick("create")}>
-                  <MenuTextWrap>
-                    <MenuTitle>팀 생성</MenuTitle>
-                  </MenuTextWrap>
-                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-                </MenuItemButton>
-              ) : null}
+          <QuickTile type="button" onClick={() => handleMainMenuClick("fav-venues")}>
+            <QuickIcon><FiHeart size={19} /></QuickIcon>
+            <QuickLabel>찜한 구장</QuickLabel>
+          </QuickTile>
 
-   
-              {hasTeam && isTeamLeader ? (
-                <MenuItemButton onClick={() => handleTeamMenuClick("invite")}>
-                  <MenuTextWrap>
-                    <MenuTitle>팀원 초대</MenuTitle>
-                  </MenuTextWrap>
-                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-                </MenuItemButton>
-              ) : null}
+          <QuickTile type="button" onClick={() => handleMainMenuClick("personal-matches")}>
+            <QuickIcon><FiActivity size={19} /></QuickIcon>
+            <QuickLabel>내 경기</QuickLabel>
+          </QuickTile>
 
-              {hasTeam && isTeamLeader ? (
-                <MenuItemButton onClick={() => handleTeamMenuClick("manage")}>
-                  <MenuTextWrap>
-                    <MenuTitle>팀 관리</MenuTitle>
-                  </MenuTextWrap>
-                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-                </MenuItemButton>
-              ) : null}
+          <QuickTile type="button" onClick={() => handleMainMenuClick("posts")}>
+            <QuickIcon><FiEdit3 size={19} /></QuickIcon>
+            <QuickLabel>내 게시글</QuickLabel>
+          </QuickTile>
+        </QuickGrid>
 
-              <MenuItemButton
-                onClick={() => handleMainMenuClick(isTeamLeader ? "join-requests" : "team-invites")}
-              >
-                <MenuTextWrap>
-                  <MenuTitleRow>
-                    <MenuTitle>{isTeamLeader ? "참여요청" : "받은 초대"}</MenuTitle>
-                    {pendingCount > 0 ? (
-                      <NewBadge aria-label="new">
-                        {pendingCount > 99 ? "99+" : String(pendingCount)}
-                      </NewBadge>
-                    ) : null}
-                  </MenuTitleRow>
-                </MenuTextWrap>
+        <InviteRow type="button" onClick={handleInviteFriends}>
+          <InviteTextWrap>
+            <InviteTitle>친구 초대하고 같이 뛰기</InviteTitle>
+            <InviteSub>초대 링크를 보내 함께 뛸 사람을 모아보세요.</InviteSub>
+          </InviteTextWrap>
+          <InviteCta>공유</InviteCta>
+        </InviteRow>
+
+        <SectionLabel>팀</SectionLabel>
+        <Card>
+          <MenuList>
+            {!hasTeam ? (
+              <MenuItemButton onClick={() => handleTeamMenuClick("create")}>
+                <MenuTitle>팀 생성</MenuTitle>
                 <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
+            ) : null}
 
-              <MenuItemButton onClick={() => handleMainMenuClick("team-join")}>
-                <MenuTextWrap>
-                  <MenuTitle>팀 가입 신청</MenuTitle>
-                </MenuTextWrap>
+            {hasTeam && isTeamLeader ? (
+              <MenuItemButton onClick={() => handleTeamMenuClick("manage")}>
+                <MenuTitle>팀 관리</MenuTitle>
                 <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
+            ) : null}
 
-              {/* ✅ 팀장만: 팀장 권한 이임 */}
-              {hasTeam && isTeamLeader ? (
+            {hasTeam && isTeamLeader ? (
+              <MenuItemButton onClick={() => handleTeamMenuClick("invite")}>
+                <MenuTitle>팀원 초대</MenuTitle>
+                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+              </MenuItemButton>
+            ) : null}
+
+            <MenuItemButton
+              onClick={() => handleMainMenuClick(isTeamLeader ? "join-requests" : "team-invites")}
+            >
+              <MenuTitleRow>
+                <MenuTitle>{isTeamLeader ? "참여요청" : "받은 초대"}</MenuTitle>
+                {pendingCount > 0 ? (
+                  <NewBadge aria-label="new">
+                    {pendingCount > 99 ? "99+" : String(pendingCount)}
+                  </NewBadge>
+                ) : null}
+              </MenuTitleRow>
+              <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+            </MenuItemButton>
+
+            <MenuItemButton onClick={() => handleMainMenuClick("team-join")}>
+              <MenuTitle>팀 가입 신청</MenuTitle>
+              <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+            </MenuItemButton>
+          </MenuList>
+
+          {/* 되돌리기 어려운 동작은 아래로 분리 */}
+          {hasTeam ? (
+            <DangerList>
+              {isTeamLeader ? (
                 <MenuItemButton onClick={() => handleTeamMenuClick("transfer-leader")}>
-                  <MenuTextWrap>
-                    <MenuTitle>팀장 권한 이임</MenuTitle>
-                  </MenuTextWrap>
+                  <MenuTitle $muted>팀장 권한 이임</MenuTitle>
                   <MenuArrow><FiChevronRight size={18} /></MenuArrow>
                 </MenuItemButton>
               ) : null}
 
-              {hasTeam ? (
-                <MenuItemButton onClick={() => handleTeamMenuClick("leave")}>
-                  <MenuTextWrap>
-                    <MenuTitle>{clubLoading ? "팀 불러오는 중..." : "팀 탈퇴"}</MenuTitle>
-                  </MenuTextWrap>
-                  <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-                </MenuItemButton>
-              ) : null}
-            </MenuList>
-          </SectionBody>
-        </Section>
-
-        <Section>
-          <SectionInner>
-            <SectionIcon><FiUser size={19} /></SectionIcon>
-            <SectionTitle>내 정보</SectionTitle>
-          </SectionInner>
-          <SectionBody>
-            <MenuList>
-              <MenuItemButton onClick={handleInviteFriends}>
-                <MenuTextWrap>
-                  <MenuTitle>친구 초대하고 같이 뛰기</MenuTitle>
-                </MenuTextWrap>
+              <MenuItemButton onClick={() => handleTeamMenuClick("leave")}>
+                <MenuTitle $muted>{clubLoading ? "팀 불러오는 중..." : "팀 탈퇴"}</MenuTitle>
                 <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
+            </DangerList>
+          ) : null}
+        </Card>
 
-              <MenuItemButton onClick={() => handleMainMenuClick("reservations")}>
-                <MenuTextWrap>
-                  <MenuTitle>내 구장 예약</MenuTitle>
-                </MenuTextWrap>
+        <SectionLabel>설정</SectionLabel>
+        <Card>
+          <MenuList>
+            <MenuStaticRow>
+              <MenuTitle>화면 모드</MenuTitle>
+              <Segmented role="group" aria-label="화면 모드">
+                <SegBtn
+                  type="button"
+                  $active={themeMode !== "dark"}
+                  aria-pressed={themeMode !== "dark"}
+                  onClick={() => {
+                    if (themeMode === "dark") toggleThemeMode();
+                  }}
+                >
+                  라이트
+                </SegBtn>
+                <SegBtn
+                  type="button"
+                  $active={themeMode === "dark"}
+                  aria-pressed={themeMode === "dark"}
+                  onClick={() => {
+                    if (themeMode !== "dark") toggleThemeMode();
+                  }}
+                >
+                  다크
+                </SegBtn>
+              </Segmented>
+            </MenuStaticRow>
+
+            <MenuItemButton onClick={() => handleSettingMenuClick("alarm")}>
+              <MenuTitle>알림 설정</MenuTitle>
+              <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+            </MenuItemButton>
+
+            <MenuItemButton onClick={() => handleSettingMenuClick("reportBlock")}>
+              <MenuTitle>차단 관리</MenuTitle>
+              <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+            </MenuItemButton>
+
+            <MenuItemButton onClick={() => handleMainMenuClick("my-reports")}>
+              <MenuTitle>내가 신고한 내역</MenuTitle>
+              <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+            </MenuItemButton>
+          </MenuList>
+        </Card>
+
+        <SectionLabel>고객센터</SectionLabel>
+        <Card>
+          <MenuList>
+            {/* 챗봇이 1차로 걸러주는 창구라 맨 위에 둔다. 아래에 있으면 여기까지 내려온 사람이
+                바로 옆의 1:1 문의를 써버려서 챗봇이 사실상 안 불린다. */}
+            {hasKakaoChannel() && (
+              <MenuItemButton onClick={openKakaoChannelChat}>
+                <MenuTitle>카카오톡 문의</MenuTitle>
                 <MenuArrow><FiChevronRight size={18} /></MenuArrow>
               </MenuItemButton>
+            )}
 
-              <MenuItemButton onClick={() => handleMainMenuClick("fav-venues")}>
-                <MenuTextWrap>
-                  <MenuTitle>찜한 구장</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
+            <MenuItemButton onClick={() => handleSettingMenuClick("faq")}>
+              <MenuTitle>FAQ</MenuTitle>
+              <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+            </MenuItemButton>
 
-              <MenuItemButton onClick={() => handleMainMenuClick("posts")}>
-                <MenuTextWrap>
-                  <MenuTitle>내가 쓴 게시글</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
+            <MenuItemButton onClick={() => handleSettingMenuClick("cs")}>
+              <MenuTitle>1:1 문의</MenuTitle>
+              <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+            </MenuItemButton>
 
-              <MenuItemButton onClick={() => handleMainMenuClick("personal-matches")}>
-                <MenuTextWrap>
-                  <MenuTitle>개인 활동 경기</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
+            <MenuItemButton onClick={() => handleSettingMenuClick("notice")}>
+              <MenuTitle>공지사항</MenuTitle>
+              <MenuArrow><FiChevronRight size={18} /></MenuArrow>
+            </MenuItemButton>
+          </MenuList>
+        </Card>
 
-              <MenuItemButton onClick={() => handleMainMenuClick("my-reports")}>
-                <MenuTextWrap>
-                  <MenuTitle>내가 신고한 내역</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-            </MenuList>
-          </SectionBody>
-        </Section>
+        <FooterArea>
+          <FooterRow>
+            <FooterLink type="button" onClick={() => handleSettingMenuClick("terms")}>
+              이용약관
+            </FooterLink>
+            <FooterDot>·</FooterDot>
+            <FooterLink type="button" onClick={() => handleSettingMenuClick("privacy")}>
+              개인정보처리방침
+            </FooterLink>
+            <FooterDot>·</FooterDot>
+            <FooterLink type="button" onClick={() => handleSettingMenuClick("operation")}>
+              운영정책
+            </FooterLink>
+          </FooterRow>
 
-        <Section>
-          <SectionInner>
-            <SectionIcon><FiSettings size={19} /></SectionIcon>
-            <SectionTitle>계정 · 앱 설정</SectionTitle>
-          </SectionInner>
-          <SectionBody>
-            <MenuList>
-              <MenuItemButton onClick={toggleThemeMode}>
-                <MenuTextWrap>
-                  <MenuTitle>화면 모드</MenuTitle>
-                </MenuTextWrap>
-                <ThemeModeText>
-                  {themeMode === "dark" ? "다크" : "라이트"}
-                </ThemeModeText>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("alarm")}>
-                <MenuTextWrap>
-                  <MenuTitle>알림 설정</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("notice")}>
-                <MenuTextWrap>
-                  <MenuTitle>공지사항</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("faq")}>
-                <MenuTextWrap>
-                  <MenuTitle>FAQ</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("cs")}>
-                <MenuTextWrap>
-                  <MenuTitle>1:1 문의</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("reportBlock")}>
-                <MenuTextWrap>
-                  <MenuTitle>차단 관리</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-            </MenuList>
-          </SectionBody>
-        </Section>
-
-        <Section>
-          <SectionInner>
-            <SectionIcon><FiShield size={19} /></SectionIcon>
-            <SectionTitle>약관 · 계정 관리</SectionTitle>
-          </SectionInner>
-          <SectionBody>
-            <MenuList>
-              <MenuItemButton onClick={() => handleSettingMenuClick("privacy")}>
-                <MenuTextWrap>
-                  <MenuTitle>개인정보처리방침</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("terms")}>
-                <MenuTextWrap>
-                  <MenuTitle>이용약관</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("operation")}>
-                <MenuTextWrap>
-                  <MenuTitle>운영정책</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("logout")}>
-                <MenuTextWrap>
-                  <MenuTitle>로그아웃</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-
-              <MenuItemButton onClick={() => handleSettingMenuClick("withdraw")}>
-                <MenuTextWrap>
-                  <MenuTitle>회원탈퇴</MenuTitle>
-                </MenuTextWrap>
-                <MenuArrow><FiChevronRight size={18} /></MenuArrow>
-              </MenuItemButton>
-            </MenuList>
-          </SectionBody>
-        </Section>
+          <FooterRow>
+            <FooterLink type="button" onClick={() => handleSettingMenuClick("logout")}>
+              로그아웃
+            </FooterLink>
+            <FooterDot>·</FooterDot>
+            <FooterLink type="button" onClick={() => handleSettingMenuClick("withdraw")}>
+              회원탈퇴
+            </FooterLink>
+          </FooterRow>
+        </FooterArea>
       </PageWrap>
 
       {/* 프로필 미완성(닉네임만/전부 빈값) 유도 — 탭 아웃으로 닫힘(트랩 방지) */}
@@ -1235,8 +1205,11 @@ const SetupCta = styled.div`
   font-weight: 800;
 `;
 
-const Section = styled.section`
-  margin-top: 14px;
+/* ===== 활동 타일 ===== */
+const QuickGrid = styled.div`
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   background: ${({ theme }) => theme.colors.card};
   border: 1px solid ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.border : "transparent"};
@@ -1245,34 +1218,101 @@ const Section = styled.section`
   overflow: hidden;
 `;
 
-const SectionInner = styled.div`
+const QuickTile = styled.button`
+  border: none;
+  background: transparent;
+  padding: 14px 4px 13px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 13px 14px 8px;
+  gap: 7px;
+  cursor: pointer;
+
+  &:active {
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? "rgba(255,255,255,0.04)" : "rgba(15,23,42,0.03)"};
+  }
 `;
 
-/* 섹션 헤더 아이콘 */
-const SectionIcon = styled.span`
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
+const QuickIcon = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
-const SectionTitle = styled.h2`
-  margin: 0;
-  font-size: ${({ theme }) => theme.fontSizes.titleSm || 16}px;
-  font-weight: 700;
+const QuickLabel = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.textNormal};
+  white-space: nowrap;
+`;
+
+/* ===== 친구 초대 ===== */
+const InviteRow = styled.button`
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+
+  &:active {
+    background: ${({ theme }) =>
+      theme.mode === "dark" ? theme.colors.surface : "#f9fafb"};
+  }
+`;
+
+const InviteTextWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+`;
+
+const InviteTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
   color: ${({ theme }) => theme.colors.textStrong};
 `;
 
-const SectionBody = styled.div`
-  display: flex;
-  padding: 0 14px 4px;
+const InviteSub = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const InviteCta = styled.span`
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  font-size: 12px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+/* ===== 섹션 ===== */
+const SectionLabel = styled.h2`
+  margin: 22px 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const Card = styled.section`
+  background: ${({ theme }) => theme.colors.card};
+  border: 1px solid ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.border : "transparent"};
+  border-radius: 16px;
+  box-shadow: ${({ theme }) => theme.shadows.card};
+  overflow: hidden;
+  padding: 2px 14px;
 `;
 
 const MenuList = styled.div`
@@ -1281,14 +1321,24 @@ const MenuList = styled.div`
   flex-direction: column;
 `;
 
-const MenuItemButton = styled.button`
+/* 팀 탈퇴 등 되돌리기 어려운 동작 — 구분선으로 분리 */
+const DangerList = styled(MenuList)`
+  border-top: 1px solid ${({ theme }) => theme.colors.divider};
+`;
+
+const rowStyle = `
   width: 100%;
-  border: none;
-  padding: 13px 4px;
-  background: transparent;
+  padding: 13px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+`;
+
+const MenuItemButton = styled.button`
+  ${rowStyle}
+  border: none;
+  background: transparent;
   cursor: pointer;
   border-bottom: 1px solid ${({ theme }) => theme.colors.divider};
 
@@ -1301,17 +1351,71 @@ const MenuItemButton = styled.button`
   }
 `;
 
-const MenuTextWrap = styled.div`
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-  gap: 2px;
+/* 이동하지 않는 행(화면 모드) — 화살표 없이 컨트롤만 */
+const MenuStaticRow = styled.div`
+  ${rowStyle}
+  border-bottom: 1px solid ${({ theme }) => theme.colors.divider};
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const Segmented = styled.div`
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: ${({ theme }) =>
+    theme.mode === "dark" ? theme.colors.surface : "#f1f5f9"};
+`;
+
+const SegBtn = styled.button`
+  border: none;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: ${({ $active, theme }) => ($active ? theme.colors.card : "transparent")};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.textStrong : theme.colors.textWeak};
+  box-shadow: ${({ $active, theme }) =>
+    $active && theme.mode !== "dark" ? "0 1px 2px rgba(15,23,42,0.10)" : "none"};
 `;
 
 const MenuTitleRow = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 8px;
+`;
+
+/* ===== 하단 약관 · 계정 ===== */
+const FooterArea = styled.div`
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+`;
+
+const FooterRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+`;
+
+const FooterLink = styled.button`
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 7px 6px;
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const FooterDot = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.border};
 `;
 
 const NewBadge = styled.span`
@@ -1331,18 +1435,13 @@ const NewBadge = styled.span`
 const MenuTitle = styled.div`
   font-size: 15px;
   font-weight: 500;
-  color: ${({ theme }) => theme.colors.textStrong};
+  text-align: left;
+  color: ${({ $muted, theme }) =>
+    $muted ? theme.colors.textWeak : theme.colors.textStrong};
 `;
 
 const MenuArrow = styled.div`
   display: inline-flex;
   align-items: center;
   color: ${({ theme }) => theme.colors.textWeak};
-`;
-
-const ThemeModeText = styled.span`
-  font-size: 13px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.textWeak};
-  margin-right: 8px;
 `;

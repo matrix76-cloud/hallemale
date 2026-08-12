@@ -69,8 +69,8 @@ const ItemCard = styled.button`
   border-radius: 8px;
   padding: 11px 13px;
   text-align: left;
-  background: ${({ read, theme }) =>
-    read
+  background: ${({ $read, theme }) =>
+    $read
       ? theme.colors.card
       : theme.mode === "dark"
       ? "rgba(99, 102, 241, 0.12)"
@@ -101,7 +101,7 @@ const ItemTitle = styled.div`
   flex: 1;
   min-width: 0;
   font-size: 14px;
-  font-weight: ${({ read }) => (read ? 500 : 700)};
+  font-weight: ${({ $read }) => ($read ? 500 : 700)};
   color: ${({ theme }) => theme.colors.textStrong};
   white-space: nowrap;
   overflow: hidden;
@@ -317,10 +317,10 @@ export default function NotificationsPage() {
                 {unreadList.map((n) => {
                   const cat = getNotiCategory(n.kind);
                   return (
-                  <ItemCard key={n.id} type="button" read={n.read} onClick={() => handleClickItem(n)}>
+                  <ItemCard key={n.id} type="button" $read={n.read} onClick={() => handleClickItem(n)}>
                     <ItemTopRow>
                       <KindBadge $color={cat.color}>{cat.label}</KindBadge>
-                      <ItemTitle read={n.read}>{n.title}</ItemTitle>
+                      <ItemTitle $read={n.read}>{n.title}</ItemTitle>
                       {!n.read && <NewDot />}
                     </ItemTopRow>
                     <ItemBody>{n.body}</ItemBody>
@@ -342,10 +342,10 @@ export default function NotificationsPage() {
                 {readList.map((n) => {
                   const cat = getNotiCategory(n.kind);
                   return (
-                  <ItemCard key={n.id} type="button" read={n.read} onClick={() => handleClickItem(n)}>
+                  <ItemCard key={n.id} type="button" $read={n.read} onClick={() => handleClickItem(n)}>
                     <ItemTopRow>
                       <KindBadge $color={cat.color}>{cat.label}</KindBadge>
-                      <ItemTitle read={n.read}>{n.title}</ItemTitle>
+                      <ItemTitle $read={n.read}>{n.title}</ItemTitle>
                     </ItemTopRow>
                     <ItemBody>{n.body}</ItemBody>
                     <ItemMetaRow>

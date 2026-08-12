@@ -2907,8 +2907,8 @@ const ResultButton = styled.button`
   font-size: 13px;
   cursor: pointer;
 
-  ${({ variant, theme }) =>
-    variant === "primary"
+  ${({ $variant, theme }) =>
+    $variant === "primary"
       ? `
     background:${theme.colors.primary};
     color:#ffffff;
@@ -5640,10 +5640,10 @@ export default function MatchRoomDetailPage() {
             <>
               <ScoreHeroHint>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ScoreHeroHint>
               <ResultActionsRow>
-                <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
+                <ResultButton type="button" $variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
                   {resultBusy ? "처리중..." : "결과 인정"}
                 </ResultButton>
-                <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
+                <ResultButton type="button" $variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
                   이의 제기
                 </ResultButton>
               </ResultActionsRow>
@@ -7160,10 +7160,10 @@ export default function MatchRoomDetailPage() {
                         <>
                           <ResultStatusText>상대팀이 제출한 결과입니다. 인정하거나 이의 제기할 수 있어요.</ResultStatusText>
                           <ResultActionsRow>
-                            <ResultButton type="button" variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
+                            <ResultButton type="button" $variant="primary" onClick={handleAcceptResult} disabled={!canAcceptResult}>
                               {resultBusy ? "처리중..." : "결과 인정"}
                             </ResultButton>
-                            <ResultButton type="button" variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
+                            <ResultButton type="button" $variant="secondary" onClick={handleDisputeResult} disabled={resultBusy}>
                               이의 제기
                             </ResultButton>
                           </ResultActionsRow>

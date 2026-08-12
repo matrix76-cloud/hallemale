@@ -1108,14 +1108,11 @@ export default function TeamManagePage() {
           </TeamInfo>
         </HeaderTop>
 
+        {/* 팀 삭제는 실수 방지를 위해 팀정보 탭 맨 아래로 내렸다 */}
         <TopActions>
           <TopGhost type="button" onClick={() => nav(`/team/${clubId}`)}>
             팀 프로필 보기
           </TopGhost>
-
-          <TopDanger type="button" onClick={onDeleteTeam} disabled={deleteBusy}>
-            {deleteBusy ? "삭제 중..." : "팀 삭제"}
-          </TopDanger>
         </TopActions>
       </TeamRowTop>
 
@@ -1158,18 +1155,15 @@ export default function TeamManagePage() {
               </LogoPreview>
 
               <LogoEditorRight>
-          
-
-                <BtnRow>
-                  <BtnPrimary  style={{flex:"0.5"}}type="button" onClick={onClickPickLogo} disabled={logoBusy}>
-                    {logoBusy ? "업로드 중..." : (
-                      <BtnInline>
-                        <FiCamera size={16} />
-                        로고 선택
-                      </BtnInline>
-                    )}
-                  </BtnPrimary>
-                </BtnRow>
+                <LogoBtn type="button" onClick={onClickPickLogo} disabled={logoBusy}>
+                  {logoBusy ? "업로드 중..." : (
+                    <BtnInline>
+                      <FiCamera size={16} />
+                      로고 선택
+                    </BtnInline>
+                  )}
+                </LogoBtn>
+                <HintText>정사각형 이미지를 권장해요. 고르면 바로 저장돼요.</HintText>
               </LogoEditorRight>
             </LogoEditorRow>
           </Field>
@@ -1178,9 +1172,10 @@ export default function TeamManagePage() {
 
           <Field>
             <Label>팀 이름</Label>
+            {/* 좁은 화면에서 3개가 한 줄에 밀려 들어가던 것을 입력+확인 / 변경 두 줄로 분리 */}
             <NameEditRow>
               <ModalInput
-                style={{ flex: "1 1 140px", minWidth: 0 }}
+                style={{ flex: 1, minWidth: 0 }}
                 value={nameDraft}
                 onChange={(e) => onChangeNameDraft(e.target.value)}
                 placeholder="팀 이름"
@@ -1199,8 +1194,27 @@ export default function TeamManagePage() {
               >
                 {nameCheckStatus === "checking" ? "확인 중..." : "중복체크"}
               </NameCheckBtn>
+            </NameEditRow>
+
+            {/* 안내는 항상 한 줄만 — 상황에 맞는 것 하나 */}
+            {nameLock.locked ? (
+              <NameStatusText>
+                팀 이름은 {nameLock.remainingDays}일 후에 변경할 수 있어요.
+              </NameStatusText>
+            ) : nameCheckStatus === "available" ? (
+              <NameStatusText $tone="ok">사용할 수 있는 팀 이름이에요.</NameStatusText>
+            ) : nameCheckStatus === "taken" ? (
+              <NameStatusText $tone="error">이미 사용 중인 팀 이름이에요.</NameStatusText>
+            ) : nameCheckStatus === "error" ? (
+              <NameStatusText $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatusText>
+            ) : nameChanged ? (
+              <NameStatusText>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatusText>
+            ) : (
+              <NameStatusText>팀 이름은 한번 정하면 90일 후에 변경할 수 있어요.</NameStatusText>
+            )}
+
+            <BtnRow>
               <BtnPrimary
-                style={{ flex: "0 0 auto", height: 46, borderRadius: 12, padding: "0 16px" }}
                 type="button"
                 onClick={handleSaveName}
                 disabled={
@@ -1210,31 +1224,9 @@ export default function TeamManagePage() {
                   nameCheckStatus !== "available"
                 }
               >
-                {savingName ? "변경 중..." : "변경"}
+                {savingName ? "변경 중..." : "팀 이름 변경"}
               </BtnPrimary>
-            </NameEditRow>
-
-            {nameLock.locked ? (
-              <NameStatusText>
-                팀 이름은 {nameLock.remainingDays}일 후에 변경할 수 있어요.
-              </NameStatusText>
-            ) : (
-              <>
-                {nameChanged && nameCheckStatus === "idle" && (
-                  <NameStatusText>중복체크 버튼을 눌러 사용 가능한지 확인해 주세요.</NameStatusText>
-                )}
-                {nameCheckStatus === "available" && (
-                  <NameStatusText $tone="ok">사용할 수 있는 팀 이름이에요.</NameStatusText>
-                )}
-                {nameCheckStatus === "taken" && (
-                  <NameStatusText $tone="error">이미 사용 중인 팀 이름이에요.</NameStatusText>
-                )}
-                {nameCheckStatus === "error" && (
-                  <NameStatusText $tone="error">중복 확인에 실패했어요. 잠시 후 다시 시도해 주세요.</NameStatusText>
-                )}
-                <NameStatusText>팀 이름은 한번 정하면 90일 후에 변경할 수 있어요.</NameStatusText>
-              </>
-            )}
+            </BtnRow>
           </Field>
 
           <Divider />
@@ -1265,6 +1257,17 @@ export default function TeamManagePage() {
             />
           </Field>
 
+          <Divider />
+
+          <DangerZone>
+            <DangerTitle>팀 삭제</DangerTitle>
+            <DangerDesc>
+              팀 프로필과 멤버 연결이 모두 사라지고 되돌릴 수 없어요.
+            </DangerDesc>
+            <DangerBtn type="button" onClick={onDeleteTeam} disabled={deleteBusy}>
+              {deleteBusy ? "삭제 중..." : "팀 삭제하기"}
+            </DangerBtn>
+          </DangerZone>
         </Section>
       ) : null}
 
@@ -1832,8 +1835,28 @@ const TopGhost = styled.button`
   }
 `;
 
-const TopDanger = styled.button`
-  flex: 0 0 auto;
+/* ===== 위험 구역(팀 삭제) — 팀정보 탭 맨 아래 ===== */
+const DangerZone = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+`;
+
+const DangerTitle = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.textStrong};
+`;
+
+const DangerDesc = styled.div`
+  font-size: 12px;
+  line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
+
+const DangerBtn = styled.button`
+  margin-top: 4px;
   height: 40px;
   padding: 0 16px;
   border-radius: 12px;
@@ -2043,11 +2066,9 @@ const NameEditRow = styled.div`
 const NameCheckBtn = styled.button`
   flex-shrink: 0;
   border-radius: 12px;
-  border: 1px solid ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) =>
-    theme.mode === "dark" ? "rgba(99,102,241,0.18)" : "#eef2ff"};
-  color: ${({ theme }) =>
-    theme.mode === "dark" ? "#a5b4fc" : theme.colors.primary};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
   padding: 0 14px;
   font-size: 12px;
   font-weight: 600;
@@ -2121,6 +2142,25 @@ const LogoEditorRight = styled.div`
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+`;
+
+/* 로고 선택은 보조 액션 — 아웃라인으로 낮춘다 */
+const LogoBtn = styled.button`
+  align-self: flex-start;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${({ theme }) => theme.colors.card};
+  color: ${({ theme }) => theme.colors.textStrong};
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 const BtnInline = styled.div`

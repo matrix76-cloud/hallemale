@@ -15,6 +15,7 @@ import {
   isMatchChatClosed,
 } from "../../services/chatService";
 import { getUserPublicMeta, getOtherUidFromRoom } from "../../services/counterpartService";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
@@ -64,6 +65,12 @@ const AvatarMini = styled.img`
   object-fit: cover;
   background: ${({ theme }) =>
     theme.mode === "dark" ? theme.colors.surface : "#e5e7eb"};
+`;
+
+/* 프로필 사진 없을 때: 사람 실루엣 아이콘 (빈 src 로 img 를 그리면 브라우저가 현재 페이지를 다시 받는다) */
+const AvatarMiniFallback = styled(AvatarPlaceholder)`
+  width: 36px !important;
+  height: 36px !important;
 `;
 
 const OpponentName = styled.div`
@@ -509,7 +516,11 @@ export default function ChatRoomPage() {
           ) : row.fromUid && row.fromUid !== myUid ? (
             <OpponentRow key={row.id}>
               <OpponentAvatarCol>
-                <AvatarMini src={opponentMeta.avatar} alt={opponentMeta.name} />
+                {opponentMeta.avatar ? (
+                  <AvatarMini src={opponentMeta.avatar} alt={opponentMeta.name} />
+                ) : (
+                  <AvatarMiniFallback />
+                )}
                 <OpponentName>{opponentMeta.name}</OpponentName>
               </OpponentAvatarCol>
 

@@ -9,6 +9,7 @@ import { listMyChatRooms } from "../../services/chatService";
 import { getUserPublicMeta, getOtherUidFromRoom } from "../../services/counterpartService";
 import Spinner from "../../components/common/Spinner";
 import EmptyState from "../../components/common/EmptyState";
+import AvatarPlaceholder from "../../components/common/AvatarPlaceholder";
 
 const PageWrap = styled.div`
   min-height: calc(100vh - 56px);
@@ -72,6 +73,12 @@ const AvatarImg = styled.img.attrs({ loading: "lazy", decoding: "async" })`
   width: 100%;
   height: 100%;
   object-fit: cover;
+`;
+
+/* 프로필 사진 없을 때: 사람 실루엣 아이콘 (빈 src 로 img 를 그리면 브라우저가 현재 페이지를 다시 받는다) */
+const AvatarFallback = styled(AvatarPlaceholder)`
+  width: 100% !important;
+  height: 100% !important;
 `;
 
 const RoomText = styled.div`
@@ -377,7 +384,11 @@ export default function ChatListPage() {
         {rooms.map((room) => (
           <RoomRow key={room.id} type="button" onClick={() => handleClickRoom(room.id)}>
             <AvatarWrap>
-              <AvatarImg src={room.avatar} alt={room.counterpartName || "상대"} />
+              {room.avatar ? (
+                <AvatarImg src={room.avatar} alt={room.counterpartName || "상대"} />
+              ) : (
+                <AvatarFallback />
+              )}
             </AvatarWrap>
 
             <RoomText>
