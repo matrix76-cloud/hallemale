@@ -1,9 +1,5 @@
-const {crawlKblInitOnce, crawlKblDaily, crawlKblTick } = require("./jobs/crawlKblGames");
 const { resetPasswordViaProxy } = require("./password/resetPasswordViaProxy");
 
-exports.crawlKblInitOnce = crawlKblInitOnce;
-exports.crawlKblDaily = crawlKblDaily;
-exports.crawlKblTick = crawlKblTick;
 exports.resetPasswordViaProxy = resetPasswordViaProxy;
 
 // ✅ SMS Proxy export 추가

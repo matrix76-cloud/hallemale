@@ -126,7 +126,7 @@ export default function SplashPage() {
     // - schema dump: 서비스에서 env로 on/off 처리 (REACT_APP_SCHEMA_DUMP=1일 때만 실제 실행)
     Promise.all([
       runSchemaDumpFront({
-        rootCollections: ["chatRooms", "clubs","community_posts","games","match_requests","notifications","users","users_by_phone"],
+        rootCollections: ["chatRooms", "clubs","community_posts","match_requests","notifications","users","users_by_phone"],
         sampleCount: 2,
         maxDepth: 2,
         schemaDepth: 6,

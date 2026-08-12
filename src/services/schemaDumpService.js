@@ -29,7 +29,6 @@ export const DEFAULT_ROOT_COLLECTIONS = [
   "chatRooms",
   "clubs",
   "community_posts",
-  "games",
   "match_requests",
   "notifications",
   "users",
