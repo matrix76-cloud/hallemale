@@ -206,7 +206,8 @@ const StatusBadge = styled.span`
         color: ${theme?.mode === "dark" ? "#fcd34d" : "#b45309"};
       `;
     }
-    if ($kind === "accepted") {
+    // 수락~구장확정은 "진행 중"이라 한 색으로 묶는다
+    if ($kind === "accepted" || $kind === "proposed" || $kind === "awaiting_venue_approval" || $kind === "confirmed") {
       return `
         background: ${
           theme?.mode === "dark" ? "rgba(99,102,241,0.18)" : "rgba(37, 99, 235, 0.10)"
@@ -259,6 +260,9 @@ const STATUS_OPTIONS = [
   { value: "all", label: "전체 상태" },
   { value: "pending", label: "신청 대기" },
   { value: "accepted", label: "수락됨" },
+  { value: "proposed", label: "일정 조율" },
+  { value: "awaiting_venue_approval", label: "구장 승인 대기" },
+  { value: "confirmed", label: "구장 확정" },
   { value: "rejected", label: "거절됨" },
   { value: "cancelled", label: "취소됨" },
   { value: "finished", label: "완료" },

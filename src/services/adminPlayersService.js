@@ -14,6 +14,21 @@ import {
   documentId,
 } from "firebase/firestore";
 
+// 앱이 users.skillLevel·mainPosition 에 저장하는 값 그대로 (services/playerService.js 와 같은 표)
+const SKILL_LEVEL_LABEL_MAP = {
+  beginner: "입문",
+  amateur: "아마추어",
+  intermediate: "중급",
+  advanced: "상급",
+  pro: "프로",
+};
+
+const POSITION_LABEL_MAP = {
+  guard: "가드",
+  forward: "포워드",
+  center: "센터",
+};
+
 function toDate(v) {
   if (!v) return null;
   if (v?.toDate && typeof v.toDate === "function") return v.toDate();
@@ -97,10 +112,14 @@ function mapUserRow(docSnap) {
   const regionGu = safeString(v?.regionGu);
 
   const mainPosition = safeString(v?.mainPosition);
-  const mainPositionLabel = safeString(v?.mainPositionLabel);
+  // 라벨은 users 문서에 저장되지 않는다(앱이 화면에서 만들어 쓰는 값이다).
+  // 문서에서 그대로 읽으면 항상 비어서 관리자 목록에만 영문 원문이 뜬다.
+  const mainPositionLabel =
+    safeString(v?.mainPositionLabel) || POSITION_LABEL_MAP[mainPosition] || "";
 
   const skillLevel = safeString(v?.skillLevel);
-  const skillLevelLabel = safeString(v?.skillLevelLabel);
+  const skillLevelLabel =
+    safeString(v?.skillLevelLabel) || SKILL_LEVEL_LABEL_MAP[skillLevel] || "";
 
   const clubId = safeString(v?.clubId);
 

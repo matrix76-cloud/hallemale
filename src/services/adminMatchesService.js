@@ -132,9 +132,14 @@ function mapDoc(d) {
   };
 }
 
+// 수락 이후 구장 일정을 잡는 동안 거치는 상태들(proposed·awaiting_venue_approval·confirmed)이
+// 빠져 있어 그 상태의 매칭은 골라볼 수도, 라벨을 읽을 수도 없었다.
 const ALLOWED_STATUS = [
   "pending",
   "accepted",
+  "proposed",
+  "awaiting_venue_approval",
+  "confirmed",
   "rejected",
   "cancelled",
   "finished",
@@ -265,6 +270,9 @@ export async function fetchMatchIssues({ limitCount = 300 } = {}) {
 export const STATUS_LABEL = {
   pending: "신청 대기",
   accepted: "수락됨",
+  proposed: "일정 조율",
+  awaiting_venue_approval: "구장 승인 대기",
+  confirmed: "구장 확정",
   rejected: "거절됨",
   cancelled: "취소됨",
   finished: "완료",

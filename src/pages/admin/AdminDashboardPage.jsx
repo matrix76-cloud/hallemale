@@ -141,7 +141,9 @@ const CardBody = styled.div`
 /* ===================== KPI Cards ===================== */
 
 const StatCard = styled(Card)`
-  grid-column: span 3;
+  /* 카드 6장 → 12칸을 3장씩 두 줄로 딱 채운다(4칸씩). 8장이던 시절의 span 3 을 그대로 두면
+     둘째 줄에 카드 2장만 남아 오른쪽 절반이 빈다. */
+  grid-column: span 4;
   min-height: 104px; /* ✅ 높이 통일 */
 
   @media (max-width: 1100px) {
@@ -416,19 +418,11 @@ const Item = styled.div`
   }
 `;
 
-const fmtKRW = (n) => {
-  const v = Number(n || 0);
-  if (!Number.isFinite(v)) return "0원";
-  return `${v.toLocaleString()}원`;
-};
-
 export default function AdminDashboardPage() {
   // ✅ KPI 실데이터 (Firestore 집계)
   const [stats, setStats] = useState({
     todaySignups: 0,
     todayMatches: 0,
-    pendingTeamApprovals: 0,
-    pendingPlayerApprovals: 0,
     totalW: 0,
     totalD: 0,
     totalL: 0,
@@ -473,10 +467,6 @@ export default function AdminDashboardPage() {
   }, []);
 
   const [regionKey, setRegionKey] = useState("서울");
-
-  // ✅ 3번째 라인: 총득점 + 누적기부금 (더미)
-  const scoreTotal = 32840;
-  const donationTotal = scoreTotal * 10;
 
   const [tab, setTab] = useState("reports");
   const [matchTab, setMatchTab] = useState("today");
@@ -574,7 +564,8 @@ export default function AdminDashboardPage() {
         <Pill>오늘</Pill>
       </TitleRow>
 
-      {/* ✅ 2번째 라인: 지역 버튼 */}
+      {/* 지역별 등록 팀 분포. 고른 지역은 옆의 문구에만 쓰인다 —
+          아래 지표들은 전국 기준이므로 지역 필터로 오해하지 않게 문구로 못을 박는다. */}
       <Row2>
         <Chips>
           {regionCounts.map((r) => {
@@ -598,25 +589,7 @@ export default function AdminDashboardPage() {
         </Chips>
 
         <Pill>
-          선택 지역: {activeRegion.label} · 등록 팀 {activeRegion.count}개
-        </Pill>
-      </Row2>
-
-      {/* ✅ 3번째 라인: 총득점 + 누적기부금 */}
-      <Row2>
-        <Chips>
-          <Chip type="button" $active={false} onClick={() => {}}>
-            총득점 현황{" "}
-            <ChipCountOff>{scoreTotal.toLocaleString()}</ChipCountOff>
-          </Chip>
-          <Chip type="button" $active={false} onClick={() => {}}>
-            누적기부금{" "}
-            <ChipCountOff>{fmtKRW(donationTotal)}</ChipCountOff>
-          </Chip>
-        </Chips>
-
-        <Pill>
-          득점당 10원 · 누적기부금 {fmtKRW(donationTotal)}
+          {activeRegion.label} 등록 팀 {activeRegion.count}개 · 아래 지표는 전국 기준
         </Pill>
       </Row2>
 
@@ -642,27 +615,7 @@ export default function AdminDashboardPage() {
           </CardBody>
         </StatCard>
 
-        <StatCard>
-          <CardBody>
-            <StatTop>
-              <StatTitle>팀 등록 </StatTitle>
-              <StatValue>{stats.pendingTeamApprovals}</StatValue>
-            </StatTop>
-            <StatSub></StatSub>
-          </CardBody>
-        </StatCard>
-
-        <StatCard>
-          <CardBody>
-            <StatTop>
-              <StatTitle>선수 등록 </StatTitle>
-              <StatValue>{stats.pendingPlayerApprovals}</StatValue>
-            </StatTop>
-            <StatSub></StatSub>
-          </CardBody>
-        </StatCard>
-
-        {/* 2줄 (4개) */}
+        {/* 2줄 */}
         <StatCard>
           <CardBody>
             <StatTop>
@@ -782,12 +735,6 @@ export default function AdminDashboardPage() {
                 onClick={() => setTab("reports")}
               >
                 신고
-              </button>
-              <button
-                className={tab === "approvals" ? "on" : ""}
-                onClick={() => setTab("approvals")}
-              >
-                승인
               </button>
               <button
                 className={tab === "notify" ? "on" : ""}

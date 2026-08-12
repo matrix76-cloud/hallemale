@@ -839,10 +839,15 @@ export default function AdminPlayersListPage() {
           background: "#fff",
         }}
       >
+        {/* 앱이 실제로 저장하는 5단계 (src/pages/my/MyProfileSkillsEditPage.jsx 의 선택지).
+            3단계만 두면 아마추어·프로 회원은 어떤 필터로도 못 찾고, beginner 를
+            앱은 "입문"이라 부르는데 여기서만 "초급"이 된다. */}
         <option value="all">전체 레벨</option>
-        <option value="beginner">초급</option>
+        <option value="beginner">입문</option>
+        <option value="amateur">아마추어</option>
         <option value="intermediate">중급</option>
         <option value="advanced">상급</option>
+        <option value="pro">프로</option>
       </select>
 
       <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#111827" }}>

@@ -111,6 +111,28 @@ function buildTeamsText(data) {
 /**
  * 대시보드 매치 카드 — 오늘 예정 / 지난 7일 / 앞으로 7일
  */
+/**
+ * "예정된 경기"로 볼 상태들.
+ * accepted 하나만 보면 구장 일정까지 잡아 확정된 경기(confirmed)가 오히려 빠진다 —
+ * 매칭 성사 후 상태가 accepted → proposed → awaiting_venue_approval → confirmed 로 나아가기 때문.
+ * (matchRoomService.js normalizeRoomStatus 와 같은 목록)
+ */
+export const UPCOMING_MATCH_STATUSES = [
+  "accepted",
+  "proposed",
+  "awaiting_venue_approval",
+  "confirmed",
+];
+
+/** 예정 경기의 진행 단계를 한 단어로. 전부 "예정"이면 구장이 잡혔는지를 알 수 없다. */
+export function upcomingLabel(status) {
+  const s = String(status || "");
+  if (s === "confirmed") return "구장확정";
+  if (s === "awaiting_venue_approval") return "구장승인대기";
+  if (s === "proposed") return "일정조율";
+  return "상대확정";
+}
+
 export async function fetchAdminDashboardMatches() {
   const now = Date.now();
   const startToday = startOfDayKstFor(now);
@@ -123,11 +145,13 @@ export async function fetchAdminDashboardMatches() {
   const mockDocs = hasMock("myMatchDocs") ? mockData("myMatchDocs") : null;
   const [acceptedSnap, finishedSnap] = mockDocs
     ? [
-        mockQuerySnap(mockDocs.filter((r) => String(r.status) === "accepted")),
+        mockQuerySnap(
+          mockDocs.filter((r) => UPCOMING_MATCH_STATUSES.includes(String(r.status)))
+        ),
         mockQuerySnap(mockDocs.filter((r) => String(r.status) === "finished")),
       ]
     : await Promise.all([
-    getDocs(query(col, where("status", "==", "accepted"), limit(200))).catch(
+    getDocs(query(col, where("status", "in", UPCOMING_MATCH_STATUSES), limit(200))).catch(
       () => null
     ),
     getDocs(
@@ -153,7 +177,8 @@ export async function fetchAdminDashboardMatches() {
         teams: buildTeamsText(data),
         meta: buildMeta(data),
         status: "scheduled",
-        statusLabel: "예정",
+        // 같은 "예정"이라도 구장이 잡혔는지에 따라 운영이 손댈 일이 다르다.
+        statusLabel: upcomingLabel(data?.status),
       };
       if (t >= startToday.getTime() && t < endToday.getTime()) {
         row.time = fmtHm(sched);
@@ -249,7 +274,6 @@ async function loadReports(colName, kindLabel) {
 /**
  * 우측 액티비티 패널
  * - reports: user_reports + team_reports + community_reports 병합 (최신 5건)
- * - approvals: 승인 시스템 미구현 → 빈 배열
  * - 기본(공지/푸시): notices 최근 등록
  */
 export async function fetchAdminDashboardActivity(tab = "reports") {
@@ -261,11 +285,6 @@ export async function fetchAdminDashboardActivity(tab = "reports") {
     ]);
     const merged = [...u, ...t, ...c].sort((a, b) => b.ts - a.ts).slice(0, 5);
     return merged.map(({ left, right }) => ({ left, right }));
-  }
-
-  if (tab === "approvals") {
-    // 승인 시스템 미구현
-    return [];
   }
 
   // 공지/푸시 액티비티 — notices 최근
@@ -471,8 +490,5 @@ export async function fetchAdminDashboardKpi() {
     totalW,
     totalD,
     totalL,
-    // 승인 시스템 미구현 → 0 고정
-    pendingTeamApprovals: 0,
-    pendingPlayerApprovals: 0,
   };
 }

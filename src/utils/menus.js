@@ -104,6 +104,14 @@ export const MENUS = [
     icon: IoMailOutline,
     label: "1:1 문의",
   },
+  {
+    // 화면·라우트(/chat/list)는 계속 있었는데 메뉴에만 빠져 있어 URL 을 직접 쳐야 들어갔다.
+    // 신고를 처리하려면 대화를 봐야 하므로 신고 화면들과 같은 "운영" 섹션에 둔다.
+    key: "chat",
+    to: `${A}/chat/list`,
+    icon: IoChatbubblesOutline,
+    label: "채팅 열람",
+  },
 
   // ━━━ 커뮤니티 ━━━
   { section: "커뮤니티" },

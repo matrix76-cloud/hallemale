@@ -253,7 +253,7 @@ export default function AdminGamesUpcomingPage() {
       <TitleRow>
         <div>
           <H1>예정된 경기</H1>
-          <Sub>수락된 매칭 (match_requests · status=accepted)</Sub>
+          <Sub>성사됐고 아직 끝나지 않은 경기 (수락 · 일정 조율 · 구장 승인 대기 · 구장 확정)</Sub>
         </div>
         <Sub>{filtered.length}건</Sub>
       </TitleRow>

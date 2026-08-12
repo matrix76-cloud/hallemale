@@ -68,8 +68,8 @@ const LogoutBtn = styled.button`
   }
 `;
 
-function formatNow() {
-  const d = new Date();
+function formatAt(ms) {
+  const d = ms ? new Date(ms) : new Date();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   const hh = String(d.getHours()).padStart(2, "0");
@@ -89,8 +89,10 @@ function readAdminUser() {
 
 export default function AdminTopbar() {
   const nav = useNavigate();
-  const [loginTime] = React.useState(() => formatNow());
   const [user] = React.useState(() => readAdminUser());
+  // 로그인할 때 찍어 둔 시각. 예전에는 화면이 그려진 시각을 보여줘서 새로고침마다 값이 바뀌었다.
+  // (loginAt 이 없는 예전 세션은 로그인 시각을 알 길이 없으므로 빈칸으로 둔다)
+  const loginTime = user?.loginAt ? formatAt(user.loginAt) : "";
 
   const handleLogout = async () => {
     await adminSignOut();
@@ -102,8 +104,12 @@ export default function AdminTopbar() {
   return (
     <Bar>
       <Left>
-        <IoTimeOutline />
-        접속: {loginTime}
+        {loginTime ? (
+          <>
+            <IoTimeOutline />
+            로그인: {loginTime}
+          </>
+        ) : null}
       </Left>
       <Right>
         <AdminName>{displayName}님</AdminName>

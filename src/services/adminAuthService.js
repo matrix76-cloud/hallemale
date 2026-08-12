@@ -56,7 +56,9 @@ export async function adminSignIn({ id, password } = {}) {
   const data = await res.json();
   await signInWithCustomToken(auth, data.token);
 
-  const profile = { id: data.id, name: data.name, role: data.role };
+  // loginAt 은 상단바가 "접속 시각"으로 보여준다 — 이게 없으면 화면이 그려진 시각을 대신
+  // 찍게 되어 새로고침할 때마다 값이 바뀐다.
+  const profile = { id: data.id, name: data.name, role: data.role, loginAt: Date.now() };
   try {
     localStorage.setItem(ADMIN_SESSION_USER_KEY, JSON.stringify(profile));
   } catch (e) {}

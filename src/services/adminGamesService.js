@@ -3,6 +3,7 @@
 // 어드민 - 예정된 경기 / 지난 경기 목록 (match_requests 기반)
 import { db } from "./firebase";
 import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
+import { UPCOMING_MATCH_STATUSES } from "./adminDashboardService";
 import {
   collection,
   getDocs,
@@ -175,7 +176,8 @@ function matchRegion(row, regionSido) {
 /* ================= public API ================= */
 
 /**
- * 예정된 경기: status === "accepted" 이고 결과 미등록
+ * 예정된 경기: 아직 끝나지 않은 성사 경기 (결과 미등록)
+ * - accepted 만 보면 구장까지 잡아 확정된 경기(confirmed)가 빠진다 → UPCOMING_MATCH_STATUSES 전부 본다
  * - 정렬: scheduledAt asc (가까운 순), 없으면 acceptedAt 기준
  */
 export async function fetchAdminUpcomingGames({
@@ -184,9 +186,9 @@ export async function fetchAdminUpcomingGames({
   limitCount = 200,
 } = {}) {
   const col = collection(db, "match_requests");
-  const q1 = query(col, where("status", "==", "accepted"), limit(limitCount));
+  const q1 = query(col, where("status", "in", UPCOMING_MATCH_STATUSES), limit(limitCount));
   const snap = hasMock("myMatchDocs")
-    ? mockQuerySnap(mockData("myMatchDocs").filter((r) => ["accepted", "proposed", "awaiting_venue_approval", "confirmed"].includes(String(r.status))))
+    ? mockQuerySnap(mockData("myMatchDocs").filter((r) => UPCOMING_MATCH_STATUSES.includes(String(r.status))))
     : await getDocs(q1);
   const docs = snap?.docs || [];
 
