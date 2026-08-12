@@ -18,6 +18,7 @@
 
 import { db } from "./firebase";
 import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
+import { splitVat } from "../constants/payments";
 import {
   collection, getDocs, doc, updateDoc, writeBatch, serverTimestamp,
 } from "firebase/firestore";
@@ -49,10 +50,23 @@ function row(d) {
     date: s(x.reservationDate),       // 이용일 YYYY-MM-DD
     amount: n(x.amount),              // 사용자 결제액
     venueAmount,                      // 구장 몫(정가)
-    platformFee: n(x.platformFee),    // 회사 몫
+    platformFee: n(x.platformFee),    // 회사 몫(부가세 포함)
     // 구버전 결제 문서엔 netVenueAmount 가 없다 → 취소 여부로 보수적으로 판단.
     netVenueAmount: x.netVenueAmount != null ? n(x.netVenueAmount) : (x.cancelled === true ? 0 : venueAmount),
     refundedVenueAmount: n(x.refundedVenueAmount),
+    // 환불 반영 후 회사 몫과 그 부가세 — 우리 매출·부가세 신고의 단위다.
+    // 부가세 필드가 붙기 전 문서엔 없다 → 같은 식으로 역산한다.
+    ...(() => {
+      const netFee = x.netPlatformFee != null
+        ? n(x.netPlatformFee)
+        : Math.max(0, n(x.platformFee) - Math.max(0, n(x.refundedAmount) - n(x.refundedVenueAmount)));
+      const { supply, vat } = splitVat(netFee);
+      return {
+        netPlatformFee: netFee,
+        netFeeSupply: x.netFeeSupply != null ? n(x.netFeeSupply) : supply,
+        netFeeVat: x.netFeeVat != null ? n(x.netFeeVat) : vat,
+      };
+    })(),
     cancelled: x.cancelled === true,
     method: s(x.method),
     payoutId: s(x.payoutId),
@@ -95,6 +109,8 @@ export function groupByVenue(rows) {
       map.set(key, {
         venueId: r.venueId, venueName: r.venueName, ownerUid: r.ownerUid,
         count: 0, gross: 0, platformFee: 0, refunded: 0,
+        // 이 구장에서 나온 우리 매출 — 환불 반영 후 기준. 수수료 세금계산서의 근거다.
+        netFee: 0, netFeeSupply: 0, netFeeVat: 0,
         settledCount: 0, settledGross: 0, items: [],
       });
     }
@@ -103,6 +119,9 @@ export function groupByVenue(rows) {
     g.gross += r.netVenueAmount;
     g.platformFee += r.platformFee;
     g.refunded += r.refundedVenueAmount;
+    g.netFee += r.netPlatformFee;
+    g.netFeeSupply += r.netFeeSupply;
+    g.netFeeVat += r.netFeeVat;
     if (r.settled) { g.settledCount += 1; g.settledGross += r.netVenueAmount; }
     g.items.push(r);
   }

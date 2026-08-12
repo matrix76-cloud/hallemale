@@ -450,6 +450,36 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data)
                         .affectedKeys().hasOnly(['settled', 'settledAt']);
     }
+    // 지급대행 셀러 — 구장 = 토스 셀러. 상태(본인인증·KYC)는 서버·웹훅만 쓴다.
+    // 구장주는 자기 구장의 등록 상태를 읽을 수 있어야 "왜 아직 지급이 안 되는지"를 안다.
+    match /payoutSellers/{venueId} {
+      allow read: if signedIn()
+                  && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow write: if false; // 셀러 등록·상태 갱신은 Functions 전용
+    }
+
+    // 지급대행 요청 원장 — 돈이 나가는 기록이라 클라 쓰기를 전부 막는다.
+    // 요청·취소는 어드민이 Functions(requestVenuePayout/cancelVenuePayout)로만 한다.
+    match /payouts/{id} {
+      allow read: if signedIn()
+                  && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // 수수료 세금계산서 — 공급자가 우리라 구장주는 읽기만 한다(자기 것만).
+    // 발행 상태는 어드민이 손으로 바꾼다(실제 발행은 홈택스/대행사에서 하고 번호를 옮겨 적는 구조).
+    // 금액(supply/vat/total)은 원장에서 산출된 값이라 발행 이후에는 못 바꾸게 막는다.
+    match /taxInvoices/{id} {
+      allow read: if signedIn()
+                  && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+                    && (resource.data.status != 'issued'
+                        || request.resource.data.diff(resource.data)
+                            .affectedKeys().hasOnly(['status', 'cancelReason', 'memo', 'issueNo', 'updatedAt']));
+      allow delete: if false;
+    }
+
     match /password_reset_logs/{id}       { allow read, write: if false; }
     match /_system/{id}                   { allow read, write: if false; }
 

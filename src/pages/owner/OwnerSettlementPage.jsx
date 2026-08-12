@@ -233,7 +233,7 @@ export default function OwnerSettlementPage() {
 
   const ownerType = resolveOwnerType(userDoc, venue);
   const mode = vatMode({ ownerType, taxType: venue?.business?.taxType });
-  const vat = splitVat(sum.net);
+  const vat = splitVat(sum.netSales); // 과세 매출 = 손님 결제액(환불 반영 후). 정산액이 아니다.
 
   const onCsv = async () => {
     if (!periodRows.length || busyCsv) return;
@@ -357,7 +357,9 @@ export default function OwnerSettlementPage() {
                 <b>{won(sum.amount)}</b>
               </LRow>
               <LRow $minus>
-                <span>플랫폼 이용료{effRate != null ? ` (${effRate.toFixed(effRate % 1 === 0 ? 0 : 1)}%)` : ""}</span>
+                {/* 이용료는 부가세 포함가다 — 여기서 뗀 금액 말고 따로 더 나가는 세금이 없다는 뜻이라
+                    구장주가 정산액을 계산할 때 반드시 알아야 한다. */}
+                <span>플랫폼 이용료{effRate != null ? ` (${effRate.toFixed(effRate % 1 === 0 ? 0 : 1)}%)` : ""} <small>부가세 포함</small></span>
                 <b>− {won(sum.platformFee)}</b>
               </LRow>
               <LRule />
@@ -378,20 +380,26 @@ export default function OwnerSettlementPage() {
               <b>{won(sum.net)}</b>
             </LTotal>
 
+            {/* ⚠️ 과세 매출은 정산액이 아니라 손님이 실제로 낸 돈(netSales)이다.
+                플랫폼 이용료는 구장 입장에서 매입(비용)이라 매출에서 빠지지 않는다 —
+                정산액으로 분해해 보여주면 이용료만큼 매출을 적게 신고하게 만든다.
+                (예전엔 sum.net 을 나눠 보여주고 있었다) */}
             {mode === "general" ? (
               <VatBox>
+                <LRow><span>과세 매출 <small>(손님 결제액)</small></span><b>{won(sum.netSales)}</b></LRow>
                 <LRow><span>공급가액</span><b>{won(vat.supply)}</b></LRow>
                 <LRow><span>부가세 (10%)</span><b>{won(vat.vat)}</b></LRow>
                 <Caption>
-                  일반과세자 기준으로 정산액을 부가세 포함가로 보고 나눈 참고값이에요.
-                  실제 신고 금액은 세무 대리인과 확인해 주세요.
+                  일반과세자 기준 참고값이에요. 신고 대상 매출은 정산액이 아니라 손님이 낸 금액이고,
+                  플랫폼 이용료({won(sum.netFee)})는 매출에서 빼는 게 아니라 매입(비용)으로 잡고
+                  아래 세금계산서로 매입세액 공제를 받으시면 돼요. 실제 신고 금액은 세무 대리인과 확인해 주세요.
                 </Caption>
               </VatBox>
             ) : (
               <Caption>
                 {mode === "simple"
-                  ? "간이과세자는 업종별 부가율에 따라 세액이 달라져 공급가액·부가세를 나눠 보여드리지 않아요. 위 정산액(총액)으로 신고해 주세요."
-                  : "학교·기관은 과세 구조가 달라 공급가액·부가세를 나눠 보여드리지 않아요. 위 정산액(총액) 기준으로 확인해 주세요."}
+                  ? `간이과세자는 업종별 부가율에 따라 세액이 달라져 공급가액·부가세를 나눠 보여드리지 않아요. 신고 대상 매출은 정산액이 아니라 손님이 낸 금액(${won(sum.netSales)})이에요.`
+                  : `학교·기관은 과세 구조가 달라 공급가액·부가세를 나눠 보여드리지 않아요. 손님이 낸 금액은 ${won(sum.netSales)}, 실제 수령액은 위 정산액이에요.`}
               </Caption>
             )}
           </>
@@ -404,14 +412,30 @@ export default function OwnerSettlementPage() {
       {ownerType === "business" && (
         <Card>
           <SecTitle><LuFileText size={16} /> 세금계산서</SecTitle>
+          {/* 계산서 금액은 환불 반영 후(netFee)여야 한다 — platformFee 를 쓰면 전액 환불된 건의
+              이용료까지 청구액에 들어가, 받지도 않은 돈에 세금계산서를 끊게 된다.
+              플랫폼 이용료는 부가세 포함가라(구장은 결제액에서 이 금액만큼만 덜 받는다)
+              공급가액·부가세를 쪼개 보여줘야 매입세액 공제 금액이 읽힌다. */}
           <Ledger>
+            <LRow>
+              <span>공급가액</span>
+              <b>{won(sum.netFeeSupply)}</b>
+            </LRow>
+            <LRow>
+              <span>부가세 (10%)</span>
+              <b>{won(sum.netFeeVat)}</b>
+            </LRow>
+            <LRule />
             <LRow $strong>
-              <span>{periodLabel(period)} 플랫폼 이용료</span>
-              <b>{won(sum.platformFee)}</b>
+              <span>{periodLabel(period)} 합계</span>
+              <b>{won(sum.netFee)}</b>
             </LRow>
           </Ledger>
           <Caption>
             구장이 부담한 플랫폼 이용료예요. 이 금액에 대한 세금계산서를 아래 정보로 발행해 드려요.
+            {sum.netFee !== sum.platformFee
+              ? ` 환불된 예약의 이용료(${won(sum.platformFee - sum.netFee)})는 빠져 있어요.`
+              : ""}
           </Caption>
 
           <AcctRow><span>상호</span><b>{venue?.business?.bizName || "-"}</b></AcctRow>

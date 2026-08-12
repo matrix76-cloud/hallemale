@@ -748,6 +748,17 @@ const payRaw = (over = {}) => {
     : fullyCancelled
       ? venueAmount
       : Math.round((venueAmount * refundedAmount) / amount);
+  // 이용료의 공급가액·부가세 — 우리 매출분. 환불되면 이용료도 그만큼 사라지므로
+  // 세금계산서·부가세는 platformFee 가 아니라 net 기준이다. 비율로 따로 반올림하지 않고
+  // 뺄셈으로 구해 netVenueAmount + netPlatformFee === amount - refundedAmount 를 지킨다.
+  const vat = (taxIncluded) => {
+    const t = Math.max(0, taxIncluded);
+    const v = Math.round((t * 0.1) / 1.1);
+    return { supply: t - v, vat: v };
+  };
+  const refundedFee = Math.max(0, Math.min(platformFee, refundedAmount - refundedVenueAmount));
+  const netPlatformFee = platformFee - refundedFee;
+  const netFee = vat(netPlatformFee);
   return {
     venueId: "mock_venue",
     venueName: "용산 더베이스 농구장",
@@ -761,9 +772,15 @@ const payRaw = (over = {}) => {
     amount,
     platformFee,
     venueAmount,
+    vatRate: 0.1,
+    ...(() => { const f = vat(platformFee); return { feeSupply: f.supply, feeVat: f.vat }; })(),
     refundedAmount,
     refundedVenueAmount,
+    refundedFee,
     netVenueAmount: Math.max(0, venueAmount - refundedVenueAmount),
+    netPlatformFee,
+    netFeeSupply: netFee.supply,
+    netFeeVat: netFee.vat,
     cancelled: fullyCancelled,
     payoutId: "",
     settled: false,

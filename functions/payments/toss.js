@@ -408,9 +408,23 @@ exports.confirmTossPayment = onRequest(
       venueAmount: n(order.venueAmount),
       platformFee: n(order.platformFee),
       feeRate: n(order.feeRate),
+      // 이용료의 공급가액·부가세(우리 매출분). 주문에 없으면(구버전 주문) 여기서 역산한다.
+      ...(() => {
+        const fee = n(order.platformFee);
+        const has = order.feeVat != null;
+        const { supply, vat } = has ? { supply: n(order.feeSupply), vat: n(order.feeVat) } : splitVat(fee);
+        return { feeSupply: supply, feeVat: vat, vatRate: has ? n(order.vatRate) || VAT_RATE : VAT_RATE };
+      })(),
       // 정산 대상 금액. 환불이 나면 cancelTossPayment 가 깎아서 다시 쓴다.
       // 정산 집계는 venueAmount 가 아니라 항상 이 필드를 더한다.
       netVenueAmount: n(order.venueAmount),
+      // 환불하고 남은 이용료(= 우리 실매출)와 그 부가세. 환불 전이므로 전액이 살아 있다.
+      // 세금계산서·부가세 신고는 platformFee 가 아니라 항상 이 net 값을 더해야 한다 —
+      // 전액 환불된 건의 이용료까지 매출로 잡으면 안 낸 돈에 세금을 매기게 된다.
+      refundedFee: 0,
+      netPlatformFee: n(order.platformFee),
+      netFeeSupply: n(order.feeSupply) || splitVat(n(order.platformFee)).supply,
+      netFeeVat: n(order.feeVat) || splitVat(n(order.platformFee)).vat,
       status: s(payment.status) || "DONE",
       method: s(payment.method),
       approvedAt: s(payment.approvedAt),
@@ -540,11 +554,25 @@ function computeRefundLedger(prev, requested) {
       : venueAmount;
   const totalRefundedVenue = Math.min(venueAmount, prevRefundedVenue + thisRefundVenue);
 
+  // 이용료도 환불된 만큼 사라진다 — 돌려준 돈에서 구장 몫을 뺀 나머지가 곧 되돌린 이용료다.
+  // 비율로 따로 반올림하지 않고 뺄셈으로 구한다: 그래야
+  //   netVenueAmount + netPlatformFee === amount - refundedAmount
+  // 가 1원도 안 어긋난다(정산·세무 검증이 이 항등식을 쓴다).
+  const platformFee = Math.max(0, paidTotal - venueAmount);
+  const totalRefundedFee = Math.max(0, Math.min(platformFee, totalRefunded - totalRefundedVenue));
+  const netPlatformFee = Math.max(0, platformFee - totalRefundedFee);
+  const netFee = splitVat(netPlatformFee);
+
   return {
     thisRefund,
     totalRefunded,
     totalRefundedVenue,
     netVenueAmount: Math.max(0, venueAmount - totalRefundedVenue),
+    // 환불하고 남은 이용료(우리 실매출)와 그 공급가액·부가세
+    totalRefundedFee,
+    netPlatformFee,
+    netFeeSupply: netFee.supply,
+    netFeeVat: netFee.vat,
     fullyCancelled,
   };
 }
@@ -595,6 +623,12 @@ async function cancelTossPayment(paymentKey, reason, amount) {
     refundedVenueAmount: led.totalRefundedVenue,
     // 정산 대상 금액 = 환불하고 남은 구장 몫. 전액취소면 0.
     netVenueAmount: led.netVenueAmount,
+    // 우리 매출도 같이 깎는다 — 이게 없으면 전액 환불된 건의 이용료가 매출로 남아
+    // 부가세를 안 받은 돈에 매기게 된다.
+    refundedFee: led.totalRefundedFee,
+    netPlatformFee: led.netPlatformFee,
+    netFeeSupply: led.netFeeSupply,
+    netFeeVat: led.netFeeVat,
   };
   if (!led.fullyCancelled) log.cancelAmount = led.thisRefund; // 부분취소일 때만 기록
   await ref.set(log, { merge: true });

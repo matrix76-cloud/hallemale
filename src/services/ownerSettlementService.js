@@ -21,6 +21,7 @@
 import { ownerDb as db } from "./firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { hasMock, mockData, mockQuerySnap } from "../dev/mockBus";
+import { splitVat } from "../constants/payments";
 
 const n = (v) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
 const s = (v) => String(v ?? "").trim();
@@ -51,6 +52,20 @@ function row(d) {
     netVenueAmount: x.netVenueAmount != null ? n(x.netVenueAmount) : (x.cancelled === true ? 0 : venueAmount),
     cancelled: x.cancelled === true,
     refundedVenueAmount: n(x.refundedVenueAmount),
+    // 이용료의 부가세 — 구장주에게 나가는 수수료 세금계산서의 근거다.
+    // 부가세 필드가 붙기 전 결제 문서엔 없다 → 남은 이용료에서 같은 식으로 역산한다
+    // (netPlatformFee 도 없으면 환불분을 뺀 값으로 되짚는다).
+    ...(() => {
+      const netFee = x.netPlatformFee != null
+        ? n(x.netPlatformFee)
+        : Math.max(0, n(x.platformFee) - Math.max(0, n(x.refundedAmount) - n(x.refundedVenueAmount)));
+      const { supply, vat } = splitVat(netFee);
+      return {
+        netPlatformFee: netFee,
+        netFeeSupply: x.netFeeSupply != null ? n(x.netFeeSupply) : supply,
+        netFeeVat: x.netFeeVat != null ? n(x.netFeeVat) : vat,
+      };
+    })(),
     approvedAt: s(x.approvedAt),
     payoutId: s(x.payoutId),
     // 지급 완료 판단 — 지급대행이 채우는 payoutId 와, 그 전 수동 이체를 어드민이 체크한 settled.
@@ -129,6 +144,16 @@ export function summarize(rows = [], today = todayKst()) {
     net: 0,           // 환불 반영 후 구장 몫 (= gross + 전액환불건 0원)
     refundCount: 0,
 
+    // 이용료의 세금계산서 근거 — 환불 반영 후 기준이다.
+    // 청구액(netFee) = 공급가액(netFeeSupply) + 부가세(netFeeVat).
+    netFee: 0, netFeeSupply: 0, netFeeVat: 0,
+
+    // 구장의 과세 매출 = 손님이 실제로 낸 돈(환불 반영 후) = net + netFee.
+    // ⚠️ 정산액(net)이 아니다. 정산액은 여기서 우리 이용료를 뺀 "받은 돈"이고,
+    //    이용료는 구장 입장에서 매입(비용)이라 매출에서 빠지지 않는다. 정산액으로 신고하면
+    //    이용료만큼 매출을 적게 신고하게 된다.
+    netSales: 0,
+
     // 지급 단계별 — 전액 환불 건은 여기서 제외된다
     gross: 0, upcoming: 0, payable: 0, paid: 0, count: 0,
   };
@@ -138,6 +163,10 @@ export function summarize(rows = [], today = todayKst()) {
     out.venueAmount += r.venueAmount;
     out.refunded += r.refundedVenueAmount;
     out.net += r.netVenueAmount;
+    out.netFee += r.netPlatformFee;
+    out.netFeeSupply += r.netFeeSupply;
+    out.netFeeVat += r.netFeeVat;
+    out.netSales += r.netVenueAmount + r.netPlatformFee;
     if (r.refundedVenueAmount > 0) out.refundCount += 1;
 
     if (r.netVenueAmount <= 0) continue; // 전액 환불 — 정산에서 제외
@@ -222,13 +251,11 @@ export function vatMode({ ownerType = "", taxType = "" } = {}) {
   return taxType === "general" ? "general" : "simple";
 }
 
-/** 부가세 포함 금액 → { supply 공급가액, vat 부가세 } (10% 포함가 기준) */
-export function splitVat(amount) {
-  const total = n(amount);
-  if (total <= 0) return { supply: 0, vat: 0 };
-  const supply = Math.round(total / 1.1);
-  return { supply, vat: total - supply };
-}
+/* 부가세 분해는 constants/payments.js 하나가 단일 출처다.
+   여기에도 같은 함수가 따로 있었는데(공급가액을 반올림 vs 부가세를 반올림) 두 벌을 두면
+   언젠가 한쪽만 바뀌어 화면마다 1원이 달라진다. 기존 호출부(OwnerSettlementPage)가
+   이 모듈에서 가져다 쓰고 있어 이름만 그대로 내보낸다. */
+export { splitVat };
 
 /* ============================================================
  * 지급 이력 — "언제 얼마 입금됐는지". 누적 총액만으로는 대사(對査)가 안 된다.

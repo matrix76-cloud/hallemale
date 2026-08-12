@@ -85,6 +85,18 @@ exports.confirmTossPayment = confirmTossPayment;
 const { tossWebhook } = require("./payments/tossWebhook");
 exports.tossWebhook = tossWebhook;
 
+// ✅ 토스 지급대행(payouts) — 셀러 등록·상태동기화·잔액조회·구장 지급요청/취소 + 웹훅.
+//    ⚠️ TOSS_PAYOUTS_ENABLED=true + 시크릿 2종(TOSS_PAYOUT_SECRET_KEY / TOSS_PAYOUT_SECURITY_KEY)이
+//       모두 있어야 동작한다. PG 계약이 선행조건이라 그전까지는 503 으로 닫혀 있다.
+//    payout.changed / seller.changed 웹훅 URL 을 토스 개발자센터에 등록해야 최종 상태가 들어온다.
+const payouts = require("./payments/payouts");
+exports.registerPayoutSeller = payouts.registerPayoutSeller;
+exports.syncPayoutSeller = payouts.syncPayoutSeller;
+exports.getPayoutBalance = payouts.getPayoutBalance;
+exports.requestVenuePayout = payouts.requestVenuePayout;
+exports.cancelVenuePayout = payouts.cancelVenuePayout;
+exports.payoutsWebhook = payouts.payoutsWebhook;
+
 // ✅ 카카오톡 채널 챗봇 스킬 서버 — CS 1차 응대(csFaq 자동응답)
 //    챗봇 관리자센터 > 스킬 에 이 함수 URL 을 등록하고 폴백 블록에 연결한 뒤 "배포"해야 동작한다.
 //    구장주 블록에는 ?audience=owner 를 붙인 URL 로 스킬을 하나 더 등록한다.
