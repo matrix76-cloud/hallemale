@@ -244,7 +244,9 @@ const MOCK_VENUE = {
   regionGu: "용산구",
   phone: "02-1234-5678",
   defaultOwnerNote: "주차는 지하 1층을 이용해 주세요.",
-  photos: [],
+  // 사진 없는 구장은 목록·상세가 "No image" 판으로만 보여서 레이아웃 확인이 안 된다.
+  // 랜딩에 이미 들어있는 코트 사진을 재사용한다(개발 서버에서 /landing/ 으로 서빙됨).
+  photos: ["/landing/assets/story-venue.jpg"],
   courts: [
     { id: "court_a", name: "A코트", type: "indoor", pricePerHour: 40000, slotMinutes: 60, openTime: "08:00", closeTime: "23:00", hours: courtHours(), priceBands: [], priceOverrides: [], notices: [], cautions: [] },
     { id: "court_b", name: "B코트", type: "indoor", pricePerHour: 35000, slotMinutes: 60, openTime: "08:00", closeTime: "23:00", hours: courtHours(), priceBands: [], priceOverrides: [], notices: [], cautions: [] },
@@ -470,7 +472,9 @@ const VENUE_RAW = {
   lat: 37.5298,
   lng: 126.9648,
   phone: "02-1234-5678",
-  photos: [],
+  // 사진 없는 구장은 목록·상세가 "No image" 판으로만 보여서 레이아웃 확인이 안 된다.
+  // 랜딩에 이미 들어있는 코트 사진을 재사용한다(개발 서버에서 /landing/ 으로 서빙됨).
+  photos: ["/landing/assets/story-venue.jpg", "/landing/assets/story-match.jpg"],
   facilities: ["샤워실", "주차장", "탈의실", "정수기"],
   sportTypes: ["농구"],
   parking: { available: true, fee: "free", info: "지하 1층 20대" },
@@ -533,7 +537,22 @@ const VENUE2_RAW = {
   lng: 126.9236,
   type: "outdoor",
   description: "야외 하프코트 2면. 무료 개방 시간대 있음.",
-  courts: [{ id: "court_a", name: "1번 코트", type: "outdoor", surface: "아스팔트", pricePerHour: 25000, slotMinutes: 60, openTime: "06:00", closeTime: "22:00" }],
+  // 코트마다 사진·소개가 다른 구장 — 사용자 상세에서 "A와 B가 뭐가 다른지" 카드로 비교되는지 본다.
+  // (운영 DB의 코트 26개는 전부 사진 0장이라, 이 경우의 수는 목업으로만 볼 수 있다)
+  courts: [
+    {
+      id: "court_a", name: "1번 코트", type: "outdoor", surface: "아스팔트",
+      description: "정규 코트 1면. 야간 조명이 밝아 밤 경기에 좋아요.",
+      pricePerHour: 25000, slotMinutes: 60, openTime: "06:00", closeTime: "22:00",
+      photos: ["/landing/assets/story-match.jpg", "/landing/assets/story-level.jpg"],
+    },
+    {
+      id: "court_b", name: "2번 코트", type: "outdoor", surface: "우레탄",
+      description: "3대3 하프코트. 바닥이 새로 깔려 무릎 부담이 적어요.",
+      pricePerHour: 18000, slotMinutes: 60, openTime: "06:00", closeTime: "22:00",
+      photos: ["/landing/assets/story-record.jpg"],
+    },
+  ],
 };
 
 const MOCK_VENUE_DOCS = { mock_venue: VENUE_RAW, mock_venue2: VENUE2_RAW };

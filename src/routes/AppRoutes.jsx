@@ -564,6 +564,8 @@ export default function AppRoutes() {
 
           <Route path="/venues" element={<VenueListPage />} />
           <Route path="/venue-book/:id" element={<VenueBookingPage />} />
+          {/* 코트가 여러 개인 구장 — 코트를 고르면 그 코트만 놓고 보는 상세로 넘어간다 */}
+          <Route path="/venue-book/:id/court/:courtId" element={<VenueBookingPage />} />
 
           {/* 토스 결제 — /pay/success·/pay/fail 은 결제창이 돌아오는 지점(경로 고정) */}
           <Route path="/pay/success" element={<PaymentResultPage />} />

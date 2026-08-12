@@ -276,6 +276,9 @@ function normalizeCourt(c, idx = 0) {
     name: safeStr(o.name) || `${idx + 1}코트`,
     type: o.type === "outdoor" ? "outdoor" : "indoor",
     surface: safeStr(o.surface), // 바닥재질 (마루/우레탄/인조잔디 등)
+    // 이 코트만의 소개 — 구장 소개(venues.description)와 별개다.
+    // 코트가 여러 개인 구장에서 "A와 B가 뭐가 다른지"를 사진 말고 글로 설명하는 자리.
+    description: safeStr(o.description),
     pricePerHour: toNum(o.pricePerHour) ?? 0, // 기본요금(통일)
     // 과금 방식 — "hourly"(코트 대관, 기본) | "perPerson"(1인 요금).
     // 필드가 없는 기존 코트는 전부 hourly 다. 새 값이 들어와야만 인원제로 바뀐다.

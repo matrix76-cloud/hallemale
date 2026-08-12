@@ -32,7 +32,7 @@ import { calcDisplayPrice, PAYMENTS_ENABLED } from "../../constants/payments";
 import { openDirections, openMapView, copyText, fullAddress } from "../../utils/venueLink";
 import Spinner from "../../components/common/Spinner";
 import VenueMiniMap from "../../components/matchRoom/VenueMiniMap";
-import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome, FiMap, FiNavigation, FiUsers, FiHeart, FiZap, FiTag } from "react-icons/fi";
+import { FiMapPin, FiGrid, FiCalendar, FiClock, FiInfo, FiFileText, FiCreditCard, FiCheckCircle, FiPhone, FiCopy, FiStar, FiImage, FiHome, FiMap, FiNavigation, FiUsers, FiHeart, FiZap, FiTag, FiChevronRight } from "react-icons/fi";
 import { FacilityIcon } from "./facilityIcons";
 import CourtNotices from "./CourtNotices";
 import { listVenueReviews } from "../../services/venueReviewService";
@@ -120,7 +120,11 @@ function buildPriceSummary(court) {
 }
 
 export default function VenueBookingPage() {
-  const { id } = useParams();
+  // /venue-book/:id            → 구장 페이지 (코트가 여러 개면 코트 목록만 보여주고 예약은 코트 페이지에서)
+  // /venue-book/:id/court/:cid → 코트 상세 페이지 (그 코트만 놓고 소개·요금·공지·예약까지)
+  // 예약 로직(슬롯·결제 시트·매칭 제안)은 한 벌뿐이라 컴포넌트를 나누지 않고 모드로 가른다.
+  const { id, courtId: courtParam } = useParams();
+  const courtView = !!courtParam;
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const matchId = params.get("match") || ""; // 매칭룸에서 들어온 경우
@@ -147,6 +151,7 @@ export default function VenueBookingPage() {
   useBackInterceptor(!!viewer, () => setViewer(null)); // 사진 모달: HW 뒤로 시 페이지 이탈 대신 모달 닫기
   useBackInterceptor(payOpen, () => setPayOpen(false)); // 예약 확정 시트: HW 뒤로 시 시트 닫기
   const heroRef = useRef(null);
+  const bookRef = useRef(null); // 하단 바 "시간 고르기" 가 예약 섹션으로 스크롤할 대상
   const [heroIdx, setHeroIdx] = useState(0); // 상단 구장 사진 캐러셀 현재 인덱스
 
   // 찜 — 목록(VenueListPage)과 같은 users.favVenueIds 를 쓴다. 상세에서도 바로 담을 수 있게.
@@ -217,12 +222,14 @@ export default function VenueBookingPage() {
     getVenue(id).then((v) => {
       if (cancelled) return;
       setVenue(v);
-      setCourtId(v?.courts?.[0]?.id || "");
+      // 코트 페이지면 URL 이 코트를 정한다 — 없는 코트 id 로 들어오면 첫 코트로 떨어뜨린다.
+      const wanted = courtParam && v?.courts?.some((c) => c.id === courtParam) ? courtParam : "";
+      setCourtId(wanted || v?.courts?.[0]?.id || "");
       setDate(dates[0]?.date || "");
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line
-  }, [id]);
+  }, [id, courtParam]);
 
   const court = venue?.courts?.find((c) => c.id === courtId) || venue?.courts?.[0] || null;
   const dayKey = useMemo(() => {
@@ -383,6 +390,26 @@ export default function VenueBookingPage() {
   const photos = (venue.photos?.length ? venue.photos : venue.imageUrl ? [venue.imageUrl] : []).filter(Boolean);
   const courtPhotos = (court?.photos || []).filter(Boolean); // 선택한 코트의 사진
   const hasLatLng = venue.lat != null && venue.lng != null;
+  // 보유 항목은 표준 목록 순서로 세우되, 목록에 없는 이름으로 등록된 것도 빠뜨리지 않는다
+  // (표준 목록으로만 걸러내면 구장주가 등록한 "정수기" 같은 항목이 화면에서 사라진다.
+  //  FacilityIcon 은 모르는 이름이면 기본 아이콘을 준다).
+  const facAll = (venue.facilities || []).filter(Boolean);
+  const facOwned = [
+    ...FACILITY_OPTIONS.filter((f) => facAll.includes(f)),
+    ...facAll.filter((f) => !FACILITY_OPTIONS.includes(f)),
+  ];
+  const facMissing = FACILITY_OPTIONS.filter((f) => !facAll.includes(f));
+  // 구장 페이지인데 코트가 여러 개인 상태 = "코트 목록" 모드.
+  // 이때는 특정 코트의 요금·운영시간·예약을 그리지 않는다(어느 코트 것인지 알 수 없으므로).
+  const multiCourtIndex = !courtView && (venue.courts || []).length > 1;
+  // 코트 페이지는 그 코트 사진을 머리에 세운다(없으면 구장 사진).
+  const heroPhotos = courtView && courtPhotos.length > 0 ? courtPhotos : photos;
+  const heroLabel = courtView && courtPhotos.length > 0 ? `${court?.name} 사진` : "구장 사진";
+  // 코트 목록 모드의 하단 바에 쓸 "얼마부터" — 목록·지도와 같은 기준(가장 싼 코트 단가).
+  const minCourtPrice = (venue.courts || [])
+    .map((c) => courtUnitPrice(c))
+    .filter((p) => p > 0)
+    .reduce((m, p) => (m === 0 || p < m ? p : m), 0);
   const hoursSummary = buildHoursSummary(court);
   const priceSummary = buildPriceSummary(court);
   // 즉시예약 구장은 구장주 승인 단계가 없다 — 안내문·버튼 문구가 흐름과 어긋나면 안 된다.
@@ -403,20 +430,32 @@ export default function VenueBookingPage() {
 
   return (
     <Wrap>
-      {photos.length > 0 && (
+      {/* 코트 페이지의 히어로는 그 코트 사진이다. 코트 사진이 없으면 구장 사진으로 내려간다
+          (여기서는 대체해도 오해가 없다 — 비교 대상이 한 화면에 같이 있지 않으므로). */}
+      {heroPhotos.length > 0 && (
         <Hero>
           <HeroTrack ref={heroRef} onScroll={onHeroScroll}>
-            {photos.map((u, i) => (
-              <HeroSlide key={i} src={u} alt={`구장 사진 ${i + 1}`} />
+            {heroPhotos.map((u, i) => (
+              <HeroSlide key={i} src={u} alt={`${heroLabel} ${i + 1}`} />
             ))}
           </HeroTrack>
-          {photos.length > 1 && <HeroCount>{heroIdx + 1}/{photos.length}</HeroCount>}
+          {heroPhotos.length > 1 && <HeroCount>{heroIdx + 1}/{heroPhotos.length}</HeroCount>}
+          {/* 사진은 여기 한 곳에서만 본다 — 예전엔 아래에 "시설 사진" 그리드가 따로 있어
+              같은 사진을 한 페이지에서 두 번 보여주고 있었다. */}
+          <HeroAll type="button" onClick={() => setViewer({ title: heroLabel, photos: heroPhotos })}>
+            <FiImage size={13} /> 사진 {heroPhotos.length}장
+          </HeroAll>
         </Hero>
       )}
 
       <Head>
+        {courtView ? (
+          <CourtCrumb type="button" onClick={() => navigate(`/venue-book/${id}${window.location.search}`)}>
+            {venue.name} <FiChevronRight size={13} />
+          </CourtCrumb>
+        ) : null}
         <TitleRow>
-          <VName>{venue.name}</VName>
+          <VName>{courtView && court ? court.name : venue.name}</VName>
           <FavBtn type="button" onClick={toggleFav} $on={fav} aria-label={fav ? "찜 해제" : "찜하기"}>
             <FiHeart size={19} fill={fav ? "#ef4444" : "none"} />
           </FavBtn>
@@ -473,8 +512,6 @@ export default function VenueBookingPage() {
         </KeyFacts>
       ) : null}
 
-      <CourtNotices court={court} />
-
       <Notice>
         <FiInfo size={15} />
         <span>
@@ -497,28 +534,125 @@ export default function VenueBookingPage() {
         </Section>
       )}
 
+      {/* 보유한 것만 아이콘으로 세우고, 없는 건 한 줄 텍스트로 내린다.
+          예전엔 전체 목록을 다 그려서 12칸 중 8칸이 회색 아이콘이었다 — 없다는 정보를
+          아이콘 8개 자리로 말하고 있었다. */}
       <Section>
         <SecTitle><FiCheckCircle size={17} />편의시설</SecTitle>
-        <FacGrid>
-          {FACILITY_OPTIONS.map((f) => {
-            const on = (venue.facilities || []).includes(f);
-            return (
-              <FacCell key={f} $on={on}>
-                <FacIconWrap $on={on}><FacilityIcon name={f} size={22} /></FacIconWrap>
+        {facOwned.length > 0 ? (
+          <FacGrid>
+            {facOwned.map((f) => (
+              <FacCell key={f} $on>
+                <FacIconWrap $on><FacilityIcon name={f} size={22} /></FacIconWrap>
                 <FacLabel>{f}</FacLabel>
               </FacCell>
-            );
-          })}
-        </FacGrid>
+            ))}
+          </FacGrid>
+        ) : (
+          <InfoPre>등록된 편의시설 정보가 없어요.</InfoPre>
+        )}
+        {facMissing.length > 0 && <FacNone>미보유 · {facMissing.join(" · ")}</FacNone>}
       </Section>
 
-      {/* 요금·코트 스펙 — 슬롯을 눌러보기 전에 "얼마짜리 어떤 코트인지"가 먼저 보여야 한다. */}
+      {/* 코트에 딸린 정보는 전부 이 한 블록에 모은다 — 코트 고르기 → 사진 → 요금 → 스펙 →
+          운영 시간 → 그 코트의 공지. 예전엔 이 다섯이 페이지 위아래로 흩어져 있어서,
+          코트를 바꾸면 화면 곳곳이 같이 바뀌는데 사용자는 그걸 볼 수 없었다.
+          슬롯을 눌러보기 전에 "얼마짜리 어떤 코트인지"가 먼저 보여야 하므로 예약 섹션보다 앞에 둔다. */}
       {court && (
-        <Section>
+        <Section ref={multiCourtIndex ? bookRef : undefined}>
           <SecTitle>
-            <FiTag size={17} />요금·코트 정보
-            {venue.courts?.length > 1 && court.name ? <SecSub>· {court.name}</SecSub> : null}
+            <FiTag size={17} />
+            {multiCourtIndex ? `코트 ${venue.courts.length}개` : "코트·요금"}
+            {courtView && court.name ? <SecSub>· {court.name}</SecSub> : null}
           </SecTitle>
+          {multiCourtIndex ? (
+            <SecLead>코트마다 사진·요금·운영시간이 달라요. 눌러서 코트 상세를 보고 예약하세요.</SecLead>
+          ) : null}
+
+          {/* 코트 카드는 "고르는 버튼"이 아니라 "비교표"다 — 코트마다 제 사진을 카드 안에 깔아,
+              A를 눌러 A를 보고 B를 눌러 B를 보는 왕복 없이 한 화면에서 차이를 본다.
+              사진이 없으면 구장 대표 사진으로 때우지 않는다: 그러면 모든 코트가 같은 그림이 돼
+              "차이가 없다"고 잘못 알려주게 된다. 없으면 없다고 적는다. */}
+          {multiCourtIndex && (
+            <CourtList>
+              {venue.courts.map((c) => {
+                const cp = (c.photos || []).filter(Boolean);
+                const cUnit = courtUnitPrice(c);
+                return (
+                  <CourtCard
+                    key={c.id}
+                    type="button"
+                    onClick={() => navigate(`/venue-book/${id}/court/${c.id}${window.location.search}`)}
+                  >
+                    <CourtHeadRow>
+                      <CourtBody>
+                        <CourtCName>{c.name}</CourtCName>
+                        <CourtCSub>
+                          {c.type === "outdoor" ? "실외" : "실내"}
+                          {c.surface ? ` · ${c.surface}` : ""}
+                          {` · ${c.slotMinutes || 60}분 단위`}
+                        </CourtCSub>
+                      </CourtBody>
+                      <CourtRight>
+                        <CourtCPrice>
+                          {cUnit > 0 ? `${cUnit.toLocaleString()}원` : "문의"}
+                          <small>{isPerPerson(c) ? " /1인·시간" : " /시간"}</small>
+                        </CourtCPrice>
+                        <CourtGo>상세·예약 <FiChevronRight size={14} /></CourtGo>
+                      </CourtRight>
+                    </CourtHeadRow>
+
+                    {c.description ? <CourtCDesc>{c.description}</CourtCDesc> : null}
+
+                    {cp.length > 0 ? (
+                      <CourtCardStrip>
+                        {cp.map((u, i) => (
+                          <CourtCardImg
+                            key={i}
+                            src={u}
+                            alt={`${c.name} 사진 ${i + 1}`}
+                            onClick={(e) => { e.stopPropagation(); setViewer({ title: `${c.name} 사진`, photos: cp }); }}
+                          />
+                        ))}
+                      </CourtCardStrip>
+                    ) : (
+                      <CourtNoPhoto><FiImage size={14} /> 코트 사진 미등록</CourtNoPhoto>
+                    )}
+                  </CourtCard>
+                );
+              })}
+            </CourtList>
+          )}
+
+          {/* 아래는 "이 코트 하나"의 상세 — 코트 목록을 보여주는 구장 페이지에서는 그리지 않는다.
+              (목록에서 특정 코트의 요금·운영시간을 같이 띄우면 어느 코트 것인지 알 수 없다) */}
+          {!multiCourtIndex && (
+          <>
+          {court.description ? <InfoPre>{court.description}</InfoPre> : null}
+
+          {/* 코트 페이지는 히어로가 이미 코트 사진이다 — 여기서 또 그리면 같은 사진이 두 번 나온다.
+              구장 페이지(코트 1개)에서는 히어로가 구장 사진이라 이 스트립이 코트 사진의 유일한 자리다. */}
+          {!courtView && courtPhotos.length > 0 && (
+            <CourtPhotos>
+              <SecTitleRow>
+                <CourtPhotoLabel>{court?.name} 사진 {courtPhotos.length}장</CourtPhotoLabel>
+                <SeeAll type="button" onClick={() => setViewer({ title: `${court?.name} 사진`, photos: courtPhotos })}>
+                  전체보기
+                </SeeAll>
+              </SecTitleRow>
+              <CourtPhotoStrip>
+                {courtPhotos.map((u, i) => (
+                  <CourtPhotoImg
+                    key={i}
+                    src={u}
+                    alt={`${court?.name} 사진 ${i + 1}`}
+                    onClick={() => setViewer({ title: `${court?.name} 사진`, photos: courtPhotos })}
+                  />
+                ))}
+              </CourtPhotoStrip>
+            </CourtPhotos>
+          )}
+
           <HoursTable>
             <HoursRow>
               <span>기본 요금</span>
@@ -551,63 +685,37 @@ export default function VenueBookingPage() {
               </SpecCell>
             ))}
           </SpecGrid>
+
+          {hoursSummary.length > 0 && (
+            <>
+              <SubHead><FiClock size={15} />운영 시간</SubHead>
+              <HoursTable>
+                {hoursSummary.map(([label, val]) => (
+                  <HoursRow key={label} $off={val === "휴무"}>
+                    <span>{label}</span>
+                    <b>{val}</b>
+                  </HoursRow>
+                ))}
+              </HoursTable>
+            </>
+          )}
+
+          {/* 이 코트의 공지·주의사항 — 코트를 고른 자리 바로 아래여야 어느 코트 얘기인지 통한다. */}
+          <CourtNotices court={court} />
+          </>
+          )}
         </Section>
       )}
 
-      <Section>
+      {/* 코트 목록을 보여주는 구장 페이지에서는 예약을 받지 않는다 — 코트를 고른 뒤 코트 페이지에서 잡는다. */}
+      {!multiCourtIndex && (
+      <Section ref={bookRef}>
         <SecTitle><FiGrid size={17} />{viewOnly ? "예약 현황" : "예약"}</SecTitle>
         {(venue.courts || []).length === 0 ? (
           <CourtEmpty>아직 등록된 코트가 없어요. 구장에 문의해 주세요.</CourtEmpty>
         ) : (
           <>
-            {/* 코트 선택 — 코트마다 생김새가 다르므로 사진을 함께 보여준다(코트 사진이 없으면 구장 대표 사진). */}
-            {(venue.courts || []).length > 1 && (
-              <CourtList>
-                {venue.courts.map((c) => {
-                  const cp = (c.photos || []).filter(Boolean);
-                  const thumb = cp[0] || photos[0] || "";
-                  return (
-                    <CourtCard key={c.id} type="button" $on={c.id === courtId} onClick={() => setCourtId(c.id)}>
-                      <CourtThumb>
-                        {thumb ? <CourtThumbImg src={thumb} alt={c.name} /> : <FiImage size={22} />}
-                        {cp.length > 1 ? <ThumbCount>{cp.length}</ThumbCount> : null}
-                      </CourtThumb>
-                      <CourtBody>
-                        <CourtCName>{c.name}</CourtCName>
-                        <CourtCSub>
-                          {c.type === "outdoor" ? "실외" : "실내"}
-                          {c.surface ? ` · ${c.surface}` : ""}
-                          {cp.length ? ` · 사진 ${cp.length}장` : ""}
-                        </CourtCSub>
-                      </CourtBody>
-                      {c.id === courtId ? <CourtBadge>선택됨</CourtBadge> : null}
-                    </CourtCard>
-                  );
-                })}
-              </CourtList>
-            )}
-
-            {courtPhotos.length > 0 && (
-              <CourtPhotos>
-                <SecTitleRow>
-                  <CourtPhotoLabel>{court?.name} 사진 {courtPhotos.length}장</CourtPhotoLabel>
-                  <SeeAll type="button" onClick={() => setViewer({ title: `${court?.name} 사진`, photos: courtPhotos })}>
-                    전체보기
-                  </SeeAll>
-                </SecTitleRow>
-                <CourtPhotoStrip>
-                  {courtPhotos.map((u, i) => (
-                    <CourtPhotoImg
-                      key={i}
-                      src={u}
-                      alt={`${court?.name} 사진 ${i + 1}`}
-                      onClick={() => setViewer({ title: `${court?.name} 사진`, photos: courtPhotos })}
-                    />
-                  ))}
-                </CourtPhotoStrip>
-              </CourtPhotos>
-            )}
-
+            {/* 코트 선택·사진은 위 "코트·요금" 블록으로 옮겼다 — 여기서는 날짜와 시간만 고른다. */}
             <DateStrip>
               {dates.map((d) => (
                 <DateCell key={d.date} $on={d.date === date} $dow={d.dow} onClick={() => setDate(d.date)}>
@@ -676,19 +784,6 @@ export default function VenueBookingPage() {
           </>
         )}
       </Section>
-
-      {photos.length > 0 && (
-        <Section>
-          <SecTitleRow>
-            <SecTitle><FiImage size={17} />시설 사진</SecTitle>
-            <SeeAll type="button" onClick={() => setViewer({ title: "시설 사진", photos })}>전체보기</SeeAll>
-          </SecTitleRow>
-          <PhotoGrid>
-            {photos.map((u, i) => (
-              <PhotoThumb key={i} src={u} alt={`시설 사진 ${i + 1}`} onClick={() => setViewer({ title: "시설 사진", photos })} />
-            ))}
-          </PhotoGrid>
-        </Section>
       )}
 
       <Section>
@@ -722,23 +817,6 @@ export default function VenueBookingPage() {
           </MapBtnRow>
         ) : null}
       </Section>
-
-      {hoursSummary.length > 0 && (
-        <Section>
-          <SecTitle>
-            <FiClock size={17} />운영 시간
-            {venue.courts?.length > 1 && court?.name ? <SecSub>· {court.name}</SecSub> : null}
-          </SecTitle>
-          <HoursTable>
-            {hoursSummary.map(([label, val]) => (
-              <HoursRow key={label} $off={val === "휴무"}>
-                <span>{label}</span>
-                <b>{val}</b>
-              </HoursRow>
-            ))}
-          </HoursTable>
-        </Section>
-      )}
 
       {venue.rules && (
         <Section>
@@ -834,6 +912,28 @@ export default function VenueBookingPage() {
             </PhotosScroll>
           </PhotosModal>
         </Sheet>
+      )}
+
+      {/* 시간을 고르기 전에도 하단 바를 띄운다 — 예전엔 selected 가 있어야만 바가 나타나서,
+          들어오자마자는 예약 버튼이 화면 어디에도 없고 직접 스크롤해 찾아야 했다. */}
+      {!viewOnly && !selected && (venue.courts || []).length > 0 && (
+        <BottomBar>
+          <div>
+            {/* 구장 페이지(코트 목록)에서는 아직 코트가 안 정해졌다 — 특정 코트 이름·요금을 적으면 거짓말이 된다. */}
+            <BbDate>{multiCourtIndex ? "예약할 코트를 골라 주세요" : `${court?.name ? `${court.name} · ` : ""}시간을 선택해 주세요`}</BbDate>
+            <BbPrice>
+              {multiCourtIndex
+                ? `코트 ${venue.courts.length}개`
+                : unitPrice > 0 ? `${unitPrice.toLocaleString()}원` : "요금 문의"}
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3af" }}>
+                {multiCourtIndex ? (minCourtPrice > 0 ? ` · ${minCourtPrice.toLocaleString()}원부터` : "") : ` · ${unitLabel}`}
+              </span>
+            </BbPrice>
+          </div>
+          <BookBtn type="button" onClick={() => bookRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+            {multiCourtIndex ? "코트 고르기" : "시간 고르기"}
+          </BookBtn>
+        </BottomBar>
       )}
 
       {!viewOnly && selected && (
@@ -951,36 +1051,35 @@ const HeroCount = styled.div`
   font-size: 12px; font-weight: 700;
   padding: 3px 10px; border-radius: 999px;
 `;
+const HeroAll = styled.button`
+  position: absolute;
+  left: 12px; bottom: 12px;
+  display: inline-flex; align-items: center; gap: 5px;
+  border: none; cursor: pointer;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px; font-weight: 700;
+  padding: 4px 11px; border-radius: 999px;
+`;
 
 /* 섹션 제목 + 우측 전체보기 */
 const SecTitleRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 10px;`;
+const SecLead = styled.div`
+  font-size: 12.5px; line-height: 1.5; margin-top: -4px;
+  color: ${({ theme }) => theme.colors.textWeak};
+`;
 const SeeAll = styled.button`
   border: none; background: transparent; cursor: pointer;
   font-size: 12.5px; font-weight: 700;
   color: ${({ theme }) => theme.colors.primary};
 `;
 
-/* 시설 사진: 2행 가로 스크롤 그리드 (한 화면 2열×2행=4개, 오른쪽으로 계속 스와이프) */
-const PhotoGrid = styled.div`
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(2, 1fr);
-  grid-auto-columns: calc((100% - 8px) / 2);
-  gap: 8px;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; -ms-overflow-style: none;
-  &::-webkit-scrollbar { display: none; }
-`;
-const PhotoThumb = styled.img`
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 10px;
-  cursor: pointer;
-  scroll-snap-align: start;
-  background: ${({ theme }) => theme.colors.surface};
+/* 한 섹션 안에서 묶음을 가르는 소제목 (코트·요금 안의 "운영 시간" 등) */
+const SubHead = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13.5px; font-weight: 800;
+  color: ${({ theme }) => theme.colors.textStrong};
+  & > svg { color: ${({ theme }) => theme.colors.textWeak}; flex-shrink: 0; }
 `;
 
 /* 전체보기 모달 */
@@ -1007,7 +1106,7 @@ const PhotoFull = styled.img`
   width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px;
   background: ${({ theme }) => theme.colors.surface};
 `;
-/* 편의시설: 전체 카테고리 그리드 (보유=활성, 미보유=흐림). 아이콘은 기존 FacilityIcon 유지 */
+/* 편의시설: 보유 항목만 그리드로. 아이콘은 기존 FacilityIcon 유지 */
 const FacGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1027,6 +1126,10 @@ const FacIconWrap = styled.div`
 const FacLabel = styled.div`
   font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.2;
   color: ${({ theme }) => theme.colors.textNormal};
+`;
+const FacNone = styled.div`
+  font-size: 12px; line-height: 1.5;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
 const InfoPre = styled.div`
   font-size: 13.5px; line-height: 1.65; white-space: pre-wrap;
@@ -1268,34 +1371,52 @@ const CourtEmpty = styled.div`
 `;
 const CourtCard = styled.button`
   width: 100%; text-align: left; cursor: pointer;
-  display: flex; align-items: center; gap: 12px; padding: 10px;
+  display: flex; flex-direction: column; gap: 9px; padding: 12px;
   border-radius: 14px;
-  border: 1px solid ${({ $on, theme }) => ($on ? theme.colors.primary : theme.colors.border)};
+  border: 1px solid ${({ theme }) => theme.colors.border};
   background: ${({ theme }) => theme.colors.card};
   &:active { transform: translateY(1px); }
 `;
-const CourtThumb = styled.div`
-  position: relative;
-  width: 64px; height: 64px; flex-shrink: 0; border-radius: 12px; overflow: hidden;
-  background: #1b1f27; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.45);
+const CourtHeadRow = styled.div`display: flex; align-items: flex-start; gap: 10px; width: 100%;`;
+const CourtRight = styled.div`display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0;`;
+/* 코트 페이지 상단 — 어느 구장의 코트인지, 눌러서 구장으로 */
+const CourtCrumb = styled.button`
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 2px;
+  border: none; background: transparent; padding: 0; cursor: pointer;
+  font-size: 12.5px; font-weight: 700;
+  color: ${({ theme }) => theme.colors.textWeak};
 `;
-const ThumbCount = styled.span`
-  position: absolute; right: 4px; bottom: 4px;
-  padding: 1px 6px; border-radius: 999px;
-  background: rgba(0,0,0,0.6); color: #fff;
-  font-size: 10.5px; font-weight: 700;
+const CourtGo = styled.span`
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+  color: ${({ theme }) => theme.colors.primary};
 `;
-const CourtThumbImg = styled.img`width: 100%; height: 100%; object-fit: cover;`;
+const CourtCDesc = styled.div`
+  font-size: 12.5px; line-height: 1.5; white-space: pre-wrap;
+  color: ${({ theme }) => theme.colors.textNormal};
+`;
+/* 카드 안 사진 스트립 — 코트끼리 나란히 놓고 비교하는 자리 */
+const CourtCardStrip = styled.div`
+  display: flex; gap: 6px; overflow-x: auto; width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+`;
+const CourtCardImg = styled.img`
+  flex: 0 0 auto; width: 38%; aspect-ratio: 4 / 3; object-fit: cover;
+  border-radius: 9px; background: ${({ theme }) => theme.colors.surface};
+`;
+const CourtNoPhoto = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 11px; border-radius: 9px;
+  border: 1px dashed ${({ theme }) => theme.colors.border};
+  font-size: 12px; color: ${({ theme }) => theme.colors.textWeak};
+`;
 const CourtBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
 const CourtCName = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.textStrong};`;
 const CourtCSub = styled.div`font-size: 12px; color: ${({ theme }) => theme.colors.textWeak};`;
 const CourtCPrice = styled.div`font-size: 15px; font-weight: 800; color: ${({ theme }) => theme.colors.primary}; & small { font-size: 11.5px; font-weight: 600; color: ${({ theme }) => theme.colors.textWeak}; }`;
-const CourtBadge = styled.span`
-  flex-shrink: 0; align-self: center; padding: 7px 12px; border-radius: 999px;
-  font-size: 12px; font-weight: 800; white-space: nowrap;
-  background: ${({ theme }) => (theme.mode === "dark" ? "rgba(124,92,201,0.22)" : "#efe9ff")};
-  color: ${({ theme }) => theme.colors.primary};
-`;
 /* 선택한 코트의 사진 — 가로 스크롤 스트립(탭하면 전체보기) */
 const CourtPhotos = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const CourtPhotoLabel = styled.div`

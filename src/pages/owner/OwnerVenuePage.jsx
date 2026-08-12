@@ -138,6 +138,7 @@ function courtForm(c, i) {
   return {
     id: c?.id, name: c?.name || `${i + 1}코트`, type: c?.type || "indoor",
     surface: c?.surface || "",
+    description: c?.description || "",
     pricePerHour: String(c?.pricePerHour ?? ""), slotMinutes: c?.slotMinutes || 60,
     priceMode: c?.priceMode === "perPerson" ? "perPerson" : "hourly",
     pricePerPerson: String(c?.pricePerPerson ?? ""),
@@ -525,6 +526,25 @@ export default function OwnerVenuePage() {
               <Field><Lbl>바닥재질</Lbl><Sel value={court.surface} onChange={(e) => setCourt({ surface: e.target.value })}><option value="">선택 안 함</option>{SURFACE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}</Sel></Field>
             </Row>
             <Field><Lbl>예약 시간 단위</Lbl><Sel value={court.slotMinutes} onChange={(e) => setCourt({ slotMinutes: Number(e.target.value) })}><option value={30}>30분</option><option value={60}>60분</option><option value={90}>90분</option><option value={120}>120분</option></Sel></Field>
+            {/* 코트가 여러 개면 사용자는 "뭐가 다른지"로 고른다. 사진이 그 답의 절반, 이 글이 나머지다. */}
+            <Field>
+              <Lbl>코트 소개 {courts.length > 1 ? "" : <span style={{ fontWeight: 600, color: C.slate400 }}>(선택)</span>}</Lbl>
+              <Textarea
+                rows={3}
+                value={court.description || ""}
+                onChange={(e) => setCourt({ description: e.target.value })}
+                placeholder={courts.length > 1
+                  ? "다른 코트와 뭐가 다른지 적어주세요. 예: 정규 코트 1면. 천장이 높아 3점 슛 연습에 좋아요. 전광판·벤치 있음."
+                  : "예: 정규 코트 1면. 천장고 7m, 전광판·벤치 있음."}
+              />
+              <Caption>사용자 화면의 코트 정보에 그대로 보여요.</Caption>
+              {courts.length > 1 && (court.photos || []).length === 0 && (
+                <Caption style={{ color: C.amber500 }}>
+                  코트가 여러 개인데 이 코트 사진이 없어요. 사진이 없으면 사용자에게는 다른 코트와
+                  똑같은 구장 대표 사진이 보여서 무엇이 다른지 알 수 없어요.
+                </Caption>
+              )}
+            </Field>
             {courts.length > 1 && <GhostBtn type="button" onClick={removeCourt} style={{ color: C.red500, borderColor: C.red200 }}>이 코트 삭제</GhostBtn>}
           </Card>
 
