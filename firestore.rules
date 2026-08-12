@@ -369,6 +369,9 @@ service cloud.firestore {
     match /app_updates/{id}               { allow read: if true; allow write: if isAdmin(); }
     match /legal_documents/{id}           { allow read: if true; allow write: if isAdmin(); }
     match /games/{id}                     { allow read: if true; allow write: if isAdmin(); }
+    // CS 답변 원본(FAQ). 앱 FAQ 화면·구장주 앱·카카오톡 챗봇 스킬 서버가 공유하는 단일 출처.
+    // 비로그인 상태의 FAQ 열람이 있으므로 읽기는 공개. (스킬 서버는 Admin SDK 라 규칙 밖)
+    match /csFaq/{id}                     { allow read: if true; allow write: if isAdmin(); }
 
     // ───── 문의 / 신고 / 차단 (비공개 읽기, 로그인 쓰기) ─────
     match /inquiries/{id}                 { allow read: if signedIn(); allow write: if signedIn(); }

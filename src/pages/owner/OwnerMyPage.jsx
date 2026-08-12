@@ -9,6 +9,7 @@ import { useOwner } from "../../context/OwnerContext";
 import { Page, Card, SectionTitle, SectionDesc, GhostBtn, PrimaryBtn, Badge } from "./components/ownerUi";
 import BusinessSection from "./components/BusinessSection";
 import { ownerTypeOption, resolveOwnerType } from "../../constants/ownerType";
+import { hasKakaoChannel, openKakaoChannelChat } from "../../constants/kakaoChannel";
 import { LuStore } from "react-icons/lu";
 
 // 스토어 배포 버전과 함께 올린다.
@@ -161,6 +162,12 @@ export default function OwnerMyPage() {
 
       <Card>
         <SectionTitle>고객지원</SectionTitle>
+        {/* 챗봇이 1차로 걸러주는 창구라 1:1 문의보다 위에 둔다. */}
+        {hasKakaoChannel() && (
+          <NavRow type="button" onClick={openKakaoChannelChat}>
+            카카오톡 문의 <span>›</span>
+          </NavRow>
+        )}
         <NavRow type="button" onClick={() => navigate("/owner/inquiry")}>
           1:1 문의 <span>›</span>
         </NavRow>

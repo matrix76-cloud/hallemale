@@ -113,6 +113,7 @@ const AdminNotifyHistoryPage = lazy(() => import("../pages/admin/AdminNotifyHist
 const AdminInquiriesPage = lazy(() => import("../pages/admin/AdminInquiriesPage"));
 const AdminSettingsAdminsPage = lazy(() => import("../pages/admin/AdminSettingsAdminsPage"));
 const AdminSettingsPolicyPage = lazy(() => import("../pages/admin/AdminSettingsPolicyPage"));
+const AdminCsFaqPage = lazy(() => import("../pages/admin/AdminCsFaqPage"));
 const AdminGamesUpcomingPage = lazy(() => import("../pages/admin/AdminGamesUpcomingPage"));
 const AdminGamesPastPage = lazy(() => import("../pages/admin/AdminGamesPastPage"));
 const AdminPlayersListPage = lazy(() => import("../pages/admin/AdminPlayersListPage"));
@@ -510,6 +511,7 @@ export default function AppRoutes() {
 
           <Route path="settings/admins" element={<AdminSettingsAdminsPage />} />
           <Route path="settings/policy" element={<AdminSettingsPolicyPage />} />
+          <Route path="settings/csfaq" element={<AdminCsFaqPage />} />
 
           <Route path="games" element={<Navigate to={`${ADMIN_BASE}/games/upcoming`} replace />} />
           <Route path="games/upcoming" element={<AdminGamesUpcomingPage />} />

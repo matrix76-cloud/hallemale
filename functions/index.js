@@ -82,6 +82,12 @@ exports.confirmTossPayment = confirmTossPayment;
 const { tossWebhook } = require("./payments/tossWebhook");
 exports.tossWebhook = tossWebhook;
 
+// ✅ 카카오톡 채널 챗봇 스킬 서버 — CS 1차 응대(csFaq 자동응답)
+//    챗봇 관리자센터 > 스킬 에 이 함수 URL 을 등록하고 폴백 블록에 연결한 뒤 "배포"해야 동작한다.
+//    구장주 블록에는 ?audience=owner 를 붙인 URL 로 스킬을 하나 더 등록한다.
+const { kakaoSkill } = require("./kakao/kakaoSkill");
+exports.kakaoSkill = kakaoSkill;
+
 // ✅ 결제 예약 뒤처리 — 결제완료 시 확정 동기화(트리거) + 결제마감 만료 환불(10분마다)
 const { venuePaidConfirmTrigger, venuePaymentExpireTick } = require("./jobs/venuePaymentJobs");
 exports.venuePaidConfirmTrigger = venuePaidConfirmTrigger;

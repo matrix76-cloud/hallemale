@@ -154,6 +154,7 @@ export const MENUS = [
     sub: [
       { to: `${A}/settings/admins`, label: "운영자 계정" },
       { to: `${A}/settings/policy`, label: "약관/정책" },
+      { to: `${A}/settings/csfaq`, label: "CS 답변(FAQ)" },
     ],
   },
 ];
