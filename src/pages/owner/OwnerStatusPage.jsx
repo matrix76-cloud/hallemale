@@ -8,6 +8,7 @@ import { useOwner } from "../../context/OwnerContext";
 import OwnerSpinner from "./components/OwnerSpinner";
 import { LuFileText, LuHourglass } from "react-icons/lu";
 import { Page, Card, PrimaryBtn, GhostBtn, Badge, C } from "./components/ownerUi";
+import { registerFlow, resolveOwnerType } from "../../constants/ownerType";
 
 const Hero = styled.div`
   display: flex;
@@ -45,6 +46,54 @@ const InfoRow = styled.div`
   & > span:last-child { color: ${({ theme }) => theme.colors.textStrong}; font-weight: 600; text-align: right; }
 `;
 
+/* 등록 절차 순서도 — 온보딩 인트로와 같은 표(constants/ownerType.registerFlow)를 쓴다.
+   여기서는 "지금 3단계(심사)"를 칠해, 신청자가 남은 절차를 다시 물어보지 않게 한다. */
+const Flow = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+const FlowItem = styled.div`
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding-bottom: ${({ $last }) => ($last ? 0 : "14px")};
+  opacity: ${({ $done }) => ($done ? 0.55 : 1)};
+
+  &::before {
+    content: "";
+    display: ${({ $last }) => ($last ? "none" : "block")};
+    position: absolute;
+    left: 13px;
+    top: 26px;
+    bottom: 2px;
+    width: 1px;
+    background: ${C.slate200};
+  }
+`;
+const FlowNo = styled.div`
+  flex-shrink: 0;
+  width: 27px;
+  height: 27px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 800;
+  border: 1px solid ${({ $on }) => ($on ? C.violet600 : C.slate200)};
+  background: ${({ $on }) => ($on ? C.violet600 : "transparent")};
+  color: ${({ $on }) => ($on ? "#fff" : C.slate400)};
+`;
+const FlowBody = styled.div`display: flex; flex-direction: column; gap: 2px; padding-top: 3px;`;
+const FlowTitle = styled.div`font-size: 14px; font-weight: 700; color: ${C.slate800};`;
+const FlowDesc = styled.div`font-size: 12.5px; color: ${C.slate500}; line-height: 1.5; word-break: keep-all;`;
+const FlowHead = styled.div`
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: ${C.slate400};
+`;
+
 const RejectBox = styled.div`
   background: #fef2f2;
   border: 1px solid #fecaca;
@@ -57,13 +106,16 @@ const RejectBox = styled.div`
 
 export default function OwnerStatusPage() {
   const navigate = useNavigate();
-  const { loading, venue, refresh } = useOwner();
+  const { loading, venue, userDoc, refresh } = useOwner();
 
   if (loading) return <OwnerSpinner label="심사 현황을 불러오는 중…" />;
   if (!venue) return <Navigate to="/owner/onboarding" replace />;
   if (venue.status === "approved") return <Navigate to="/owner/home" replace />;
 
   const isRejected = venue.status === "rejected";
+  // 반려면 1단계(정보 입력)로 되돌아온 상태, 심사중이면 3단계에 있다.
+  const flow = registerFlow(resolveOwnerType(userDoc, venue));
+  const currentIdx = isRejected ? 0 : 2;
 
   return (
     <Page>
@@ -98,6 +150,21 @@ export default function OwnerStatusPage() {
             </Badge>
           </span>
         </InfoRow>
+      </Card>
+
+      <Card>
+        <FlowHead>등록 절차</FlowHead>
+        <Flow>
+          {flow.map((f, i) => (
+            <FlowItem key={i} $last={i === flow.length - 1} $done={i < currentIdx}>
+              <FlowNo $on={i === currentIdx}>{i + 1}</FlowNo>
+              <FlowBody>
+                <FlowTitle>{f.title}</FlowTitle>
+                <FlowDesc>{f.desc}</FlowDesc>
+              </FlowBody>
+            </FlowItem>
+          ))}
+        </Flow>
       </Card>
 
       {isRejected && venue.rejectReason && (

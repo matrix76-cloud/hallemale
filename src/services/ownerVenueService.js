@@ -399,6 +399,9 @@ export function venueRow(d) {
     bizNo: safeStr(data.bizNo),
     deptName: safeStr(data.deptName),
     ownerName: safeStr(data.ownerName),
+    // 실제로 연락할 담당자. 사업자는 대표자(ownerName)와 다를 수 있어 따로 받는다.
+    // 레거시 구장은 이 필드가 없으므로 대표자명으로 폴백한다.
+    contactName: safeStr(data.contactName) || safeStr(data.ownerName),
     contactPhone: safeStr(data.contactPhone),
 
     courts: arr(data.courts).map((c, i) => normalizeCourt(c, i)),
@@ -477,6 +480,7 @@ export async function registerVenue({
   bizNo,
   deptName,
   ownerName,
+  contactName,
   contactPhone,
   courts = [],
   displayMode,
@@ -533,6 +537,7 @@ export async function registerVenue({
     bizNo: safeStr(bizNo),
     deptName: safeStr(deptName),
     ownerName: safeStr(ownerName),
+    contactName: safeStr(contactName) || safeStr(ownerName),
     contactPhone: safeStr(contactPhone),
 
     courts: cleanCourts,
@@ -638,6 +643,7 @@ export async function updateMyVenue(id, patch = {}, { asOwner = false } = {}) {
   if (patch.bizNo !== undefined) update.bizNo = safeStr(patch.bizNo);
   if (patch.deptName !== undefined) update.deptName = safeStr(patch.deptName);
   if (patch.ownerName !== undefined) update.ownerName = safeStr(patch.ownerName);
+  if (patch.contactName !== undefined) update.contactName = safeStr(patch.contactName);
   if (patch.contactPhone !== undefined) update.contactPhone = safeStr(patch.contactPhone);
   if (patch.courts !== undefined) {
     const cleanCourts = arr(patch.courts).map((c, i) => normalizeCourt(c, i));
@@ -1970,7 +1976,9 @@ export async function bookVenue({ venue, court, date, startTime, endTime, user, 
       ownerUid,
       courtName: safeStr(court?.name),
       venueName: safeStr(venue?.name),
-      venuePhone: safeStr(venue?.phone || venue?.contactPhone),
+      // 예약자에게 보이는 번호 — 구장 대표번호만. contactPhone(담당자 개인 연락처)은
+      // 온보딩에서 "비공개"로 안내하고 받은 값이라 폴백으로도 새면 안 된다.
+      venuePhone: safeStr(venue?.phone),
       reservationCode: genReservationCode(date),
       date: safeStr(date),
       startTime: safeStr(startTime),
@@ -2091,7 +2099,7 @@ export async function writePartnerBooking({ matchId, venue, court, date, startTi
       venueId: safeStr(venue.id),
       venueName: safeStr(venue.name),
       venueImageUrl: safeStr(venue.imageUrl) || safeStr(arr(venue.photos)[0]) || "",
-      venuePhone: safeStr(venue.phone || venue.contactPhone),
+      venuePhone: safeStr(venue.phone), // 담당자 개인 연락처(contactPhone)로 폴백하지 않는다
       ownerUid: safeStr(venue.ownerUid),
       courtId: safeStr(court.id),
       courtName: safeStr(court.name),

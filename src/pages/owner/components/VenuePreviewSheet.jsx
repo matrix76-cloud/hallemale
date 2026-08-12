@@ -47,7 +47,9 @@ export default function VenuePreviewSheet({ venue, onClose }) {
   const court = courts[0] || null;
   const hasLatLng = venue.lat != null && venue.lng != null;
   const hoursSummary = buildHoursSummary(court);
-  const phone = venue.phone || venue.contactPhone || "";
+  // 회원에게 보이는 화면 그대로를 미리 보는 시트다 — 비공개인 담당자 연락처로 폴백하면
+  // 실제 노출과 달라진다(회원 화면은 구장 대표번호만 쓴다).
+  const phone = venue.phone || "";
   const biz = venue.business || {};
 
   const onHeroScroll = (e) => {

@@ -14,15 +14,29 @@ export const OWNER_TYPE_OPTIONS = [
     // 온보딩 연락처 단계
     orgLabel: "상호(사업자명)",
     orgPlaceholder: "예: ○○스포츠",
+    // personLabel = 자격 확인에 쓰는 이름(국세청 대조 대상). managerLabel = 실제로 연락할 담당자.
+    // 법인은 이 둘이 다르다 — 담당 매니저 이름을 대표자명 칸에 적으면 국세청 대조가 실패한다.
     personLabel: "대표자명",
     personPlaceholder: "예: 홍길동",
+    managerLabel: "담당자명",
+    managerPlaceholder: "예: 홍길동",
     needsBizNo: true,
-    contactTitle: "연락처와 대표자님을 알려주세요",
+    contactTitle: "연락받을 곳을 알려주세요",
     // ⚠️ 전자상거래법상 판매자 정보라 상호·대표자명·사업장 주소·구장 연락처는 구장 상세에 표시된다.
     //    "전부 비공개"라고 안내하면 사실과 다르다 — 공개/비공개를 갈라 적는다.
-    contactSub: "상호·대표자명·구장 연락처는 판매자 정보로 구장 상세에 표시돼요. 담당자 연락처는 심사 확인용이라 공개되지 않아요.",
-    contactHead: "🧾 사업자 / 관리자 정보",
+    contactSub: "구장 대표번호는 예약자에게 안내되고, 담당자 정보는 심사 확인용이라 공개되지 않아요.",
+    contactHead: "사업자 / 관리자 정보",
     verifySub: "국세청에 등록된 사업자 정보와 바로 대조해 인증해요.",
+    sellerNote: "전자상거래법에 따라 상호·대표자명·사업장 주소·구장 대표번호는 판매자 정보로 구장 상세에 표시돼요.",
+
+    // 등록 전 준비물 · 심사 방식 (인트로 순서도)
+    prep: [
+      "사업자등록번호와 개업일자",
+      "사업자등록증 사본 (사진 파일)",
+      "구장 사진 3장 이상",
+      "코트별 이용요금과 운영시간",
+    ],
+    reviewDesc: "국세청 진위확인을 거쳐 관리자가 승인해요",
 
     // 온보딩 기타
     venueNamePlaceholder: "예: 용산 더베이스 농구장",
@@ -47,11 +61,23 @@ export const OWNER_TYPE_OPTIONS = [
     orgPlaceholder: "예: ○○고등학교",
     personLabel: "담당 선생님",
     personPlaceholder: "예: 홍길동 선생님",
+    // 학교·기관은 자격 확인 대상이 곧 담당자 본인이라 이름을 한 번만 받는다.
+    managerLabel: "담당 선생님",
+    managerPlaceholder: "예: 홍길동 선생님",
     needsBizNo: false,
-    contactTitle: "연락처와 담당 선생님을 알려주세요",
-    contactSub: "학교명·구장 연락처는 구장 상세에 표시돼요. 담당 선생님 연락처는 심사 확인용이라 공개되지 않아요.",
-    contactHead: "🏫 학교 / 담당자 정보",
+    contactTitle: "연락받을 곳을 알려주세요",
+    contactSub: "구장 대표번호는 예약자에게 안내되고, 담당 선생님 정보는 심사 확인용이라 공개되지 않아요.",
+    contactHead: "학교 / 담당자 정보",
     verifySub: "실재하는 학교인지 확인하고, 학교 대표번호로 담당자 확인 연락을 드려요.",
+    sellerNote: "학교명·주소·구장 대표번호는 구장 상세에 표시돼요.",
+
+    prep: [
+      "학교명 (NEIS에 등록된 이름)",
+      "시설 대여 담당 확인 서류 또는 고유번호증",
+      "구장 사진 3장 이상",
+      "코트별 대여료와 운영시간",
+    ],
+    reviewDesc: "학교 대표번호로 담당자를 확인한 뒤 승인해요",
 
     venueNamePlaceholder: "예: ○○고등학교 체육관",
     introSub: "사진·위치·코트·대여료를 차근차근 입력해 주세요.",
@@ -73,11 +99,22 @@ export const OWNER_TYPE_OPTIONS = [
     orgPlaceholder: "예: ○○시설관리공단",
     personLabel: "담당자명",
     personPlaceholder: "예: 홍길동",
+    managerLabel: "담당자명",
+    managerPlaceholder: "예: 홍길동",
     needsBizNo: false,
-    contactTitle: "연락처와 담당자를 알려주세요",
-    contactSub: "기관명·구장 연락처는 구장 상세에 표시돼요. 담당자 연락처는 심사 확인용이라 공개되지 않아요.",
-    contactHead: "🏛️ 기관 / 담당자 정보",
+    contactTitle: "연락받을 곳을 알려주세요",
+    contactSub: "구장 대표번호는 예약자에게 안내되고, 담당자 정보는 심사 확인용이라 공개되지 않아요.",
+    contactHead: "기관 / 담당자 정보",
     verifySub: "제출하신 서류와 담당자 확인 연락으로 심사해요.",
+    sellerNote: "기관·단체명·주소·구장 대표번호는 구장 상세에 표시돼요.",
+
+    prep: [
+      "기관·단체명 (고유번호는 선택)",
+      "시설 운영 위임 서류 또는 고유번호증",
+      "구장 사진 3장 이상",
+      "코트별 대여료와 운영시간",
+    ],
+    reviewDesc: "제출 서류와 담당자 확인 연락을 거쳐 승인해요",
 
     venueNamePlaceholder: "예: ○○시민체육관",
     introSub: "사진·위치·코트·대여료를 차근차근 입력해 주세요.",
@@ -103,6 +140,22 @@ export const ownerTypeOption = (key) =>
  * 계정 값이 우선이고, 계정 값이 없는 레거시 구장주는 구장 문서에 남은 값으로 폴백한다.
  * (계정 게이트는 구장이 없는 신규 가입자에게만 뜨므로 기존 구장주는 폴백 경로로 들어온다)
  */
+/**
+ * 구장 등록 전체 절차(순서도). 온보딩 인트로와 심사 현황 화면이 같은 표를 그린다 —
+ * 두 화면이 다른 단계 수를 말하면 "지금 어디쯤인지"를 알 수 없다.
+ * stage: 신청 전(before) → 심사(review) → 승인 후(after). 화면이 현재 위치를 칠할 때 쓴다.
+ */
+export const registerFlow = (ownerType) => {
+  const opt = ownerTypeOption(ownerType);
+  return [
+    { stage: "before", title: "구장 정보 입력", desc: "이름·위치·사진·코트와 요금 (약 5분)" },
+    { stage: "before", title: `${opt.verifyTitle} 제출`, desc: `${opt.docLabel} 등 자격 확인 자료` },
+    { stage: "review", title: "심사", desc: `${opt.reviewDesc} (보통 영업일 1~2일)` },
+    { stage: "after", title: "정산 계좌 등록", desc: "승인 후 내정보에서 등록해요" },
+    { stage: "after", title: "예약 오픈", desc: "회원 앱에 노출되고 예약을 받아요" },
+  ];
+};
+
 export const resolveOwnerType = (userDoc, venue) => {
   const fromUser = userDoc?.ownerType;
   if (OWNER_TYPES.includes(fromUser)) return fromUser;

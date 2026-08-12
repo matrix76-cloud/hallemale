@@ -4,6 +4,7 @@
 // - violet 포인트 + slate 베이스, 고정색(앱 다크/라이트 테마와 무관)
 // - 원칙: 텍스트 뒤 배경색 지양. 강조는 테두리·아이콘·텍스트 색으로.
 import styled from "styled-components";
+import { lightTheme } from "../../../theme/theme";
 
 export const C = {
   violet600: "#7C3AED",
@@ -22,6 +23,39 @@ export const C = {
   green600: "#16A34A",
   red500: "#EF4444",
   red200: "#FECACA",
+};
+
+/**
+ * 로그인·가입처럼 워크스페이스 밖에 있는 구장주 화면용 테마.
+ *
+ * 이 화면들은 앱 공용 컴포넌트(SignupWizard)를 쓰기 때문에 theme 토큰으로 색을 읽는다.
+ * 그대로 두면 사용자가 앱을 다크로 켜둔 경우 로그인·가입만 어둡게 뜨고, 바로 다음 화면인
+ * 운영주체 게이트·동의 게이트·구장 등록(고정 팔레트)에서 흰 배경으로 튄다.
+ * → 공용 컴포넌트는 그대로 쓰되 테마만 이 값으로 덮어 구장주 팔레트에 맞춘다.
+ */
+export const ownerAuthTheme = {
+  ...lightTheme,
+  mode: "light",
+  layout: { ...lightTheme.layout, maxWidth: 448 }, // 워크스페이스(OwnerLayout)와 같은 폭
+  colors: {
+    ...lightTheme.colors,
+    primary: C.violet600,
+    primaryWeak: C.violet300,
+    bg: C.white,
+    card: C.white,
+    surface: C.slate100,
+    textStrong: C.slate800,
+    textNormal: C.slate500,
+    textWeak: C.slate400,
+    text: C.slate800,
+    textSub: C.slate500,
+    muted: C.slate400,
+    accent: C.green600,
+    danger: C.red500,
+    border: C.slate200,
+    divider: C.slate100,
+  },
+  shadows: { card: "0 6px 16px rgba(15, 23, 42, 0.08)" },
 };
 
 // 구장주는 사무실 PC로도 쓴다 — 넓은 화면에서는 본문 폭을 넓혀 시간표·목록이 숨 쉬게 한다.

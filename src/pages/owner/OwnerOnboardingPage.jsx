@@ -1,7 +1,7 @@
 /* eslint-disable */
 // src/pages/owner/OwnerOnboardingPage.jsx
-// 구장 등록 온보딩 — 에어비앤비식 단계별 위저드.
-// 페이지마다 한 주제씩(종목→이름→위치→사진→편의/주차→코트→안내→키워드→연락처→검토).
+// 구장 등록 온보딩 — 단계별 위저드.
+// 페이지마다 한 주제씩(이름→위치→사진→코트→담당자→자격확인→검토).
 // 네이버 플레이스 상세정보(종목·주차·찾아오는길·바닥재질·대표키워드) 반영.
 import { showAlert } from "../../utils/appDialog";
 import React, { useEffect, useRef, useState } from "react";
@@ -22,9 +22,9 @@ import {
   submitBusinessVerification,
   verifyBusinessOnline,
 } from "../../services/ownerVenueService";
-import { ownerTypeOption, resolveOwnerType } from "../../constants/ownerType";
+import { ownerTypeOption, resolveOwnerType, registerFlow } from "../../constants/ownerType";
 import {
-  Field, Label, Input, Textarea, Select, Row, Chip, ChipWrap, GhostBtn, FieldHint,
+  Field, Label, Input, Textarea, Select, Row, Chip, ChipWrap, GhostBtn, FieldHint, C,
 } from "./components/ownerUi";
 import { payoutHint, PLATFORM_FEE_LABEL } from "../../constants/payments";
 import OwnerSpinner from "./components/OwnerSpinner";
@@ -39,10 +39,12 @@ import { useExitConfirm } from "../../hooks/useExitConfirm";
 const DEFAULT_REFUND =
   "• 당일 취소·노쇼는 삼가주세요. 반복 시 예약이 제한될 수 있어요.\n• 우천/천재지변 시 협의 후 일정 변경 가능";
 
+const PHOTO_RECOMMEND = 3; // 권장 장수(막지는 않는다) — 승인·예약 전환이 눈에 띄게 갈린다
+
 function makeCourt(idx) {
   // photos 는 편집 중 {url, storagePath} 형태 — 제출할 때 photos/storagePaths 두 배열로 쪼갠다.
   return {
-    name: `${idx + 1}코트`, type: "indoor", surface: "", pricePerHour: "", slotMinutes: 60,
+    name: `${idx + 1}코트`, type: "indoor", surface: "", description: "", pricePerHour: "", slotMinutes: 60,
     priceMode: "hourly", pricePerPerson: "", minHeadcount: "", maxHeadcount: "",
     hours: defaultCourtHours(), photos: [],
   };
@@ -51,9 +53,9 @@ function makeCourt(idx) {
 // 단계 정의 — 농구 전용이라 종목 선택 단계 없음.
 // 운영 주체(개인·사업자/학교/기관)는 가입 직후 계정 단위로 이미 받았으므로(OwnerTypeGate)
 // 여기서 다시 묻지 않고, 그 값에 맞춰 질문과 질문 자체를 바꾼다.
-//  · contact = "사람" (담당자·연락처)
-//  · verify  = "소속 증빙" — 주체별로 받는 것이 완전히 다르다.
-//      사업자 → 상호·사업자등록번호·개업일자·과세유형 + 등록증 → 국세청 진위확인(자동)
+//  · contact = "연락받을 곳" — 공개(구장 대표번호) / 비공개(담당자) 를 갈라서 받는다.
+//  · verify  = "자격 확인" — 주체별로 받는 것이 완전히 다르다.
+//      사업자 → 상호·대표자명·사업자등록번호·개업일자·과세유형 + 등록증 → 국세청 진위확인(자동)
 //      학교   → NEIS 검색으로 실재 학교 확정(대표번호 서버 고정) + 확인 서류 → 담당자 확인(수동)
 //      기관   → 기관명·고유번호(선택) + 위임 서류 → 담당자 확인(수동)
 //  · 정산 계좌는 여기서 받지 않는다 — 심사 통과 여부도 모르는 사람에게 계좌·예금주를
@@ -62,9 +64,22 @@ function makeCourt(idx) {
 //  · 편의시설·주차·이용안내·키워드는 여기서 묻지 않는다 — 승인 심사에 필요 없는 값인데
 //      필수 구간 한가운데 있어서, 여기서 이탈하면 심사 자체가 시작되지 않았다.
 //      승인 후 구장정보(OwnerVenuePage)에서 언제든 채울 수 있다.
+//
+// 순서 근거: 쉽고 이미 알고 있는 값(이름·위치·사진) → 판단이 필요한 값(코트·요금) →
+// 남에게 물어봐야 할 수도 있는 값(담당자·서류) 순. 서류를 앞에 두면 준비 안 된 사람이
+// 첫 화면에서 끊긴다. 대신 인트로에서 준비물을 먼저 고지해 "끝에서야 알게 되는" 문제를 막는다.
 const STEPS = ["intro", "name", "location", "photos", "courts", "contact", "verify", "review"];
 const LEAD_STEPS = 1; // intro — 진행바에서 제외
 const CONTENT_TOTAL = STEPS.length - LEAD_STEPS;
+// 진행 헤더에 쓰는 국면 이름 — "7단계 중 5단계"보다 "지금 무슨 성격의 질문인지"가 먼저 읽혀야 한다.
+const STEP_GROUP = {
+  name: "구장 소개", location: "구장 소개", photos: "구장 소개",
+  courts: "운영 · 요금",
+  contact: "연락처", verify: "자격 확인",
+  review: "최종 확인",
+};
+
+const won = (v) => (Number(v) > 0 ? Number(v).toLocaleString() : "");
 
 export default function OwnerOnboardingPage() {
   const navigate = useNavigate();
@@ -87,7 +102,7 @@ export default function OwnerOnboardingPage() {
   const [form, setForm] = useState({
     name: "", address: "", addressDetail: "", region: "", lat: "", lng: "",
     phone: "", directions: "", description: "", rules: "", refundPolicy: DEFAULT_REFUND,
-    bizName: "", bizNo: "", deptName: "", ownerName: "", contactPhone: "",
+    bizName: "", bizNo: "", deptName: "", ownerName: "", contactName: "", contactPhone: "",
   });
   const [sportTypes, setSportTypes] = useState(["농구"]); // 농구 전용
   const [photos, setPhotos] = useState([]); // [{url, storagePath}]
@@ -101,7 +116,7 @@ export default function OwnerOnboardingPage() {
   const [busy, setBusy] = useState(false);
 
   // ── 주체 증빙(verify 단계) ──
-  // 상호·담당자명은 form 에 있고, 여기엔 주체 확인에만 쓰는 값만 둔다.
+  // 상호·대표자명은 form 에 있고, 여기엔 주체 확인에만 쓰는 값만 둔다.
   const [biz, setBiz] = useState({ openDate: "", taxType: "simple", licenseUrl: "" });
   const licRef = useRef(null);
   // 학교는 사업자등록번호가 없어 국세청 대조를 못 한다. 실재 학교를 골라 대표번호를
@@ -131,7 +146,10 @@ export default function OwnerOnboardingPage() {
       phone: venue.phone || "", directions: venue.directions || "",
       description: venue.description || "", rules: venue.rules || "", refundPolicy: venue.refundPolicy || DEFAULT_REFUND,
       bizName: venue.bizName || "", bizNo: venue.bizNo || "", deptName: venue.deptName || "",
-      ownerName: venue.ownerName || "", contactPhone: venue.contactPhone || "",
+      ownerName: venue.ownerName || "",
+      // 담당자명은 최근에 생긴 필드다 — 없던 시절 구장은 대표자명 하나로 겸했다.
+      contactName: venue.contactName || venue.ownerName || "",
+      contactPhone: venue.contactPhone || "",
     });
     setSportTypes(venue.sportTypes?.length ? venue.sportTypes : ["농구"]);
     setPhotos((venue.photos || []).map((url, i) => ({ url, storagePath: venue.storagePaths?.[i] || "" })));
@@ -178,6 +196,7 @@ export default function OwnerOnboardingPage() {
       bizName: p.bizName || b.bizName || src.bizName || "",
       bizNo: p.bizNo || b.bizNo || src.bizNo || "",
       ownerName: p.ownerName || b.ownerName || src.ownerName || "",
+      contactName: p.contactName || src.contactName || src.ownerName || "",
       contactPhone: p.contactPhone || src.contactPhone || "",
       deptName: p.deptName || src.deptName || "",
     }));
@@ -306,9 +325,13 @@ export default function OwnerOnboardingPage() {
   const ownerType = resolveOwnerType(userDoc, venue);
   const typeOpt = ownerTypeOption(ownerType);
   const isSchool = ownerType === "school";
+  const flow = registerFlow(ownerType);
   // 주체별로 갈리는 단계 제목·안내 — 문구의 단일 출처는 constants/ownerType.js 표.
   const STEP_TITLE = { contact: typeOpt.contactTitle, verify: typeOpt.verifyTitle };
   const STEP_SUB = { contact: typeOpt.contactSub, verify: typeOpt.verifySub };
+  // 자격 확인에 쓰는 이름. 사업자는 등록증상 대표자명(국세청 대조 대상),
+  // 학교·기관은 담당자 본인이라 담당자명을 그대로 쓴다.
+  const verifyPersonName = typeOpt.needsBizNo ? form.ownerName : form.contactName;
 
   // 운영시간이 명시적으로 전부 휴무면 예약 불가한 유령 구장이 됨 → 최소 1개 요일 운영 필요.
   // (미설정 hours는 에디터 기본값이 적용되므로 통과)
@@ -325,13 +348,17 @@ export default function OwnerOnboardingPage() {
     if (id === "location") return !!form.address.trim();
     if (id === "photos") return photos.length > 0;
     // 1인 요금제 코트는 최소 인원이 하한가 역할이라 반드시 정하고 넘어가야 한다.
+    // 코트가 2개 이상이면 코트당 사진 1장은 받아야 한다 — 없으면 사용자 화면에서 모든 코트가
+    // 같은 구장 대표 사진으로 대체돼, 무엇이 다른지 볼 방법이 사라진다(운영 구장 26개 코트 전부가
+    // 사진 0장이었던 원인이 "선택" 항목이라서였다). 코트가 하나면 구장 사진으로 충분하다.
     if (id === "courts") return courts.length > 0 && courts.every(
       (c) => c.name.trim() && hasAnyOpenDay(c.hours) && (c.priceMode !== "perPerson" || Number(c.minHeadcount) >= 1)
+        && (courts.length < 2 || (c.photos || []).length > 0)
     );
     // 심사는 담당자 연락으로 이뤄지므로 이름·연락처가 없으면 승인 자체가 불가능하다.
     // 구장 연락처도 필수 — 예약자에게 공개할 번호가 없으면 담당자 개인 휴대폰이 대신
     // 노출되던 문제가 있었다(지금은 폴백을 끊었으므로 여기서 반드시 받아야 한다).
-    if (id === "contact") return !!form.phone.trim() && !!form.ownerName.trim() && !!form.contactPhone.trim();
+    if (id === "contact") return !!form.phone.trim() && !!form.contactName.trim() && !!form.contactPhone.trim();
     if (id === "verify") return !verifyError();
     return true;
   })();
@@ -340,6 +367,7 @@ export default function OwnerOnboardingPage() {
   function verifyError() {
     if (!form.bizName.trim()) return `${typeOpt.orgLabel}을 입력해주세요.`;
     if (typeOpt.needsBizNo) {
+      if (!form.ownerName.trim()) return "사업자등록증에 적힌 대표자명을 입력해주세요.";
       if (!form.bizNo.trim()) return "사업자등록번호를 입력해주세요.";
       if (!isValidBizNo(form.bizNo)) return "올바른 사업자등록번호가 아니에요.\n번호를 다시 확인해주세요.";
       if (!biz.openDate) return "개업일자를 입력해주세요.";
@@ -350,6 +378,11 @@ export default function OwnerOnboardingPage() {
     if (!biz.licenseUrl) return `${typeOpt.docLabel}을 첨부해주세요.`;
     return "";
   }
+
+  const goStep = (key) => {
+    const i = STEPS.indexOf(key);
+    if (i >= 0) setStep(i);
+  };
 
   const goNext = () => {
     if (!canNext) {
@@ -362,7 +395,7 @@ export default function OwnerOnboardingPage() {
           ? "1인 요금제 코트는 최소 인원을 정해주세요.\n정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓰게 돼요."
           : "코트 이름과 운영시간(최소 1개 요일)을 확인해주세요.");
       }
-      if (id === "contact") return showAlert(`구장 연락처와 ${typeOpt.personLabel}, 담당자 연락처를 입력해주세요.\n구장 연락처는 예약자에게 안내되고, 담당자 연락처로는 심사 확인 연락을 드려요.`);
+      if (id === "contact") return showAlert(`구장 대표번호와 ${typeOpt.managerLabel}, 담당자 연락처를 입력해주세요.\n대표번호는 예약자에게 안내되고, 담당자 연락처로는 심사 확인 연락을 드려요.`);
       if (id === "verify") return showAlert(verifyError());
       return;
     }
@@ -381,20 +414,26 @@ export default function OwnerOnboardingPage() {
   useBackInterceptor(true, goBack);
 
   const handleSubmit = async () => {
-    if (!form.name.trim()) { setStep(STEPS.indexOf("name")); return showAlert("구장명을 입력해주세요."); }
-    if (!form.address.trim()) { setStep(STEPS.indexOf("location")); return showAlert("주소를 입력해주세요."); }
-    if (photos.length === 0) { setStep(STEPS.indexOf("photos")); return showAlert("구장 사진을 최소 1장 등록해주세요."); }
+    if (!form.name.trim()) { goStep("name"); return showAlert("구장명을 입력해주세요."); }
+    if (!form.address.trim()) { goStep("location"); return showAlert("주소를 입력해주세요."); }
+    if (photos.length === 0) { goStep("photos"); return showAlert("구장 사진을 최소 1장 등록해주세요."); }
     if (courts.some((c) => c.priceMode === "perPerson" && !(Number(c.minHeadcount) >= 1))) {
-      setStep(STEPS.indexOf("courts"));
+      goStep("courts");
       return showAlert("1인 요금제 코트는 최소 인원을 정해주세요.\n정하지 않으면 1명이 1인 요금만 내고 그 시간을 통째로 쓰게 돼요.");
     }
-    if (!form.phone.trim()) { setStep(STEPS.indexOf("contact")); return showAlert("구장 연락처를 입력해주세요. 예약자에게 안내되는 번호예요."); }
+    if (!form.phone.trim()) { goStep("contact"); return showAlert("구장 대표번호를 입력해주세요. 예약자에게 안내되는 번호예요."); }
+    if (!form.contactName.trim() || !form.contactPhone.trim()) {
+      goStep("contact");
+      return showAlert(`${typeOpt.managerLabel}과 담당자 연락처를 입력해주세요. 심사 확인 연락을 드릴 곳이에요.`);
+    }
     const vErr = verifyError();
-    if (vErr) { setStep(STEPS.indexOf("verify")); return showAlert(vErr); }
+    if (vErr) { goStep("verify"); return showAlert(vErr); }
     setBusy(true);
     try {
       const payload = {
         ownerUid: uid, ...form, ownerType,
+        // 자격 확인에 쓰는 이름 — 학교·기관은 담당자 본인이 확인 대상이라 담당자명을 그대로 쓴다.
+        ownerName: verifyPersonName,
         // 주체에 해당하지 않는 값은 올리지 않는다 — 계정 주체가 바뀐 뒤 재신청할 때
         // 예전 사업자등록번호(또는 담당 부서)가 심사에 남아 올라가는 것 방지.
         bizNo: typeOpt.needsBizNo ? form.bizNo : "",
@@ -424,7 +463,7 @@ export default function OwnerOnboardingPage() {
       if (vid) {
         await submitBusinessVerification(vid, {
           ownerType,
-          bizNo: form.bizNo, bizName: form.bizName, ownerName: form.ownerName,
+          bizNo: form.bizNo, bizName: form.bizName, ownerName: verifyPersonName,
           openDate: biz.openDate, taxType: biz.taxType, licenseUrl: biz.licenseUrl,
           school: pickedSchool,
         });
@@ -455,21 +494,45 @@ export default function OwnerOnboardingPage() {
   if (ownerLoading) return <OwnerSpinner label="불러오는 중…" />;
 
   // ── 인트로 ──
+  // 여기서 "무엇을 준비해야 하는지 / 제출 뒤 무슨 일이 일어나는지"를 다 보여준다.
+  // 서류를 마지막 단계에 두는 대신, 시작 전에 준비물을 알려 헛걸음을 막는 자리다.
   if (id === "intro") {
     return (
       <Shell>
-        <Intro>
-          <IntroLogo src={images.logo} alt="할래말래" />
-          {/* 가입 때 고른 주체를 다시 보여준다 — 잘못 고른 걸 여기서 알아차릴 수 있게. */}
-          <TypeTag>{typeOpt.label}</TypeTag>
-          <IntroTitle>{editingId ? "구장 정보를 다시 등록해요" : "구장 등록을 시작해요"}</IntroTitle>
-          <IntroSub>
-            몇 단계만 거치면 예약을 받을 수 있어요.{"\n"}
-            {typeOpt.introSub}{"\n\n"}
+        <Scroll>
+          <IntroHead>
+            <IntroLogo src={images.logo} alt="할래말래" />
+            <TypeTag>{typeOpt.label}</TypeTag>
+            <IntroTitle>{editingId ? "구장 정보를 다시 등록해요" : "구장 등록을 시작해요"}</IntroTitle>
+            <IntroSub>{typeOpt.introSub}</IntroSub>
+          </IntroHead>
+
+          <SecHead>등록 절차</SecHead>
+          <Flow>
+            {flow.map((f, i) => (
+              <FlowItem key={i} $last={i === flow.length - 1}>
+                <FlowNo $on={i === 0}>{i + 1}</FlowNo>
+                <FlowBody>
+                  <FlowTitle>{f.title}</FlowTitle>
+                  <FlowDesc>{f.desc}</FlowDesc>
+                </FlowBody>
+              </FlowItem>
+            ))}
+          </Flow>
+
+          <SecHead>미리 준비해두면 좋아요</SecHead>
+          <PrepList>
+            {typeOpt.prep.map((t, i) => (
+              <PrepItem key={i}><PrepDot /><span>{t}</span></PrepItem>
+            ))}
+          </PrepList>
+
+          <NoteBox>
             회원이 예약을 요청하면 승인하시고, 이용요금은 앱에서 결제돼요.{"\n"}
             결제 대금은 플랫폼 이용료 {PLATFORM_FEE_LABEL}를 뺀 금액으로 정산 계좌에 지급돼요.
-          </IntroSub>
-        </Intro>
+          </NoteBox>
+          <StepHint>입력한 내용은 자동으로 저장돼요. 중간에 나가도 이어서 할 수 있어요.</StepHint>
+        </Scroll>
         <Footer>
           <NextBtn type="button" onClick={goNext}>시작하기</NextBtn>
         </Footer>
@@ -480,16 +543,23 @@ export default function OwnerOnboardingPage() {
   return (
     <Shell>
       <Progress><Bar style={{ width: `${((step - LEAD_STEPS + 1) / CONTENT_TOTAL) * 100}%` }} /></Progress>
+      <StepMeta>
+        <StepGroup>{STEP_GROUP[id]}</StepGroup>
+        <StepCount>{step - LEAD_STEPS + 1} / {CONTENT_TOTAL}</StepCount>
+      </StepMeta>
 
       <Scroll>
         <StepTitle>{STEP_TITLE[id] || TITLES[id]}</StepTitle>
         {(STEP_SUB[id] || SUBS[id]) && <StepSub>{STEP_SUB[id] || SUBS[id]}</StepSub>}
 
         {id === "name" && (
-          <Field>
-            <Label>구장명</Label>
-            <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder={typeOpt.venueNamePlaceholder} autoFocus />
-          </Field>
+          <>
+            <Field>
+              <Label>구장명</Label>
+              <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder={typeOpt.venueNamePlaceholder} autoFocus />
+            </Field>
+            <StepHint>지도 앱(네이버·카카오)에 올라간 이름과 같게 적으면 회원이 찾기 쉬워요.</StepHint>
+          </>
         )}
 
         {id === "location" && (
@@ -515,6 +585,7 @@ export default function OwnerOnboardingPage() {
               <Label>찾아오는 길 <Opt>(선택)</Opt></Label>
               <Textarea value={form.directions} onChange={(e) => set({ directions: e.target.value })} placeholder="예: 6호선 이태원역 3번 출구 도보 5분, 건물 뒤편 입구로 들어오세요" />
             </Field>
+            <StepHint>핀 위치가 회원 앱의 길찾기 목적지가 돼요. 건물 입구에 맞춰주세요.</StepHint>
           </>
         )}
 
@@ -533,6 +604,15 @@ export default function OwnerOnboardingPage() {
               </AddPhoto>
             </PhotoGrid>
             <HiddenFile ref={fileRef} type="file" accept="image/*" onChange={handleFile} />
+            <CountLine $warn={photos.length < PHOTO_RECOMMEND}>
+              {photos.length}장 등록됨 · {PHOTO_RECOMMEND}장 이상 권장
+            </CountLine>
+            <GuideBox>
+              <GuideTitle>이렇게 찍으면 예약이 잘 들어와요</GuideTitle>
+              <GuideItem>코트 전체가 들어간 전경 (가로로)</GuideItem>
+              <GuideItem>바닥·골대 상태를 알 수 있는 사진</GuideItem>
+              <GuideItem>출입구·주차장 등 처음 오는 사람이 헤매는 곳</GuideItem>
+            </GuideBox>
             <StepHint>첫 번째 사진이 대표 사진으로 사용돼요.</StepHint>
           </>
         )}
@@ -626,7 +706,20 @@ export default function OwnerOnboardingPage() {
                   <CourtHoursEditor hours={c.hours} onChange={(hours) => setCourt(i, { hours })} />
                 </Field>
                 <Field>
-                  <Label>코트 사진 <Opt>(선택)</Opt></Label>
+                  <Label>코트 소개 <Opt>{courts.length > 1 ? "(권장)" : "(선택)"}</Opt></Label>
+                  <Textarea
+                    rows={3}
+                    value={c.description || ""}
+                    onChange={(e) => setCourt(i, { description: e.target.value })}
+                    placeholder={courts.length > 1
+                      ? "다른 코트와 뭐가 다른지 적어주세요. 예: 천장이 높아 3점 슛 연습에 좋아요."
+                      : "예: 정규 코트 1면. 천장고 7m, 전광판·벤치 있음."}
+                  />
+                  <FieldHint>회원이 보는 코트 정보에 그대로 나와요.</FieldHint>
+                </Field>
+                <Field>
+                  {/* 코트가 여러 개면 필수 — 사진이 없으면 회원 화면에서 전부 같은 구장 사진으로 보인다. */}
+                  <Label>코트 사진 <Opt>{courts.length > 1 ? "(필수)" : "(선택)"}</Opt></Label>
                   <PhotoGrid>
                     {(c.photos || []).map((p, pi) => (
                       <PhotoBox key={pi}>
@@ -639,12 +732,18 @@ export default function OwnerOnboardingPage() {
                       {uploading ? "업로드 중…" : <><span style={{ fontSize: 22 }}>＋</span><span>사진 추가</span></>}
                     </AddPhoto>
                   </PhotoGrid>
-                  <FieldHint>이 코트만 찍은 사진이에요. 회원이 코트를 고를 때 보여요.</FieldHint>
+                  <FieldHint>
+                    이 코트만 찍은 사진이에요. 회원이 코트를 고를 때 보여요.
+                    {courts.length > 1 && (c.photos || []).length === 0
+                      ? " 코트가 여러 개라 코트마다 1장은 필요해요 — 없으면 회원에게는 전부 같은 사진으로 보여요."
+                      : ""}
+                  </FieldHint>
                 </Field>
               </CourtCard>
             ))}
             <HiddenFile ref={courtFileRef} type="file" accept="image/*" onChange={handleCourtFile} />
             <GhostBtn type="button" onClick={addCourt}>＋ 코트 추가</GhostBtn>
+            <StepHint>예약은 코트 단위로 들어와요. 동시에 따로 빌려줄 수 있는 만큼 나눠서 등록해주세요.</StepHint>
 
             {courts.length > 1 && (
               <>
@@ -666,35 +765,61 @@ export default function OwnerOnboardingPage() {
           </>
         )}
 
+        {/* 공개되는 번호와 비공개인 담당자 정보를 한 화면에 섞어 받던 자리다.
+            어느 쪽이 회원에게 보이는지 헷갈려 개인 휴대폰을 대표번호에 적는 일이 있어 블록을 갈랐다. */}
         {id === "contact" && (
           <>
-            <Field><Label>구장 연락처</Label><Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" />
-              <StepHint>예약자에게 안내되는 번호예요. 개인 휴대폰 대신 구장 대표번호를 적어주세요.</StepHint>
-            </Field>
-            <SubHead>{typeOpt.contactHead} <Opt>(연락처는 심사용 · 비공개)</Opt></SubHead>
-            <Row>
-              <Field><Label>{typeOpt.personLabel}</Label><Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder={typeOpt.personPlaceholder} /></Field>
-              <Field><Label>담당자 연락처</Label><Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" /></Field>
-            </Row>
-            {!typeOpt.needsBizNo && (
-              <Field><Label>담당 부서 <Opt>(선택)</Opt></Label><Input value={form.deptName} onChange={(e) => set({ deptName: e.target.value })} placeholder={isSchool ? "예: 체육부" : "예: 시설운영팀"} /></Field>
-            )}
-            <StepHint>{typeOpt.contactSub}</StepHint>
+            <Block>
+              <BlockHead>
+                <BlockTitle>구장 대표번호</BlockTitle>
+                <Tag $tone="open">예약자에게 공개</Tag>
+              </BlockHead>
+              <Field>
+                <Input value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="예: 02-1234-5678" inputMode="tel" />
+              </Field>
+              <StepHint>예약 확정 안내에 함께 나가는 번호예요. 개인 휴대폰 대신 구장 대표번호를 적어주세요.</StepHint>
+            </Block>
+
+            <Block>
+              <BlockHead>
+                <BlockTitle>{typeOpt.contactHead}</BlockTitle>
+                <Tag $tone="closed">비공개 · 심사 확인용</Tag>
+              </BlockHead>
+              <Row>
+                <Field><Label>{typeOpt.managerLabel}</Label><Input value={form.contactName} onChange={(e) => set({ contactName: e.target.value })} placeholder={typeOpt.managerPlaceholder} /></Field>
+                <Field><Label>담당자 연락처</Label><Input value={form.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="예: 010-1234-5678" inputMode="tel" /></Field>
+              </Row>
+              {!typeOpt.needsBizNo && (
+                <Field><Label>담당 부서 <Opt>(선택)</Opt></Label><Input value={form.deptName} onChange={(e) => set({ deptName: e.target.value })} placeholder={isSchool ? "예: 체육부" : "예: 시설운영팀"} /></Field>
+              )}
+              <StepHint>
+                심사 중 확인할 게 있으면 이 번호로 연락드려요. 회원에게는 보이지 않아요.
+                {typeOpt.needsBizNo ? " 사업자등록증상 대표자명은 다음 단계에서 따로 받아요." : ""}
+              </StepHint>
+            </Block>
           </>
         )}
 
         {id === "verify" && (
           <>
+            <NoteBox>{typeOpt.sellerNote}</NoteBox>
+
             {/* 사업자 — 국세청 진위확인으로 자동 승인까지 이어진다 */}
             {typeOpt.needsBizNo && (
               <>
                 <Field><Label>{typeOpt.orgLabel}</Label>
                   <Input value={form.bizName} onChange={(e) => set({ bizName: e.target.value })} placeholder={typeOpt.orgPlaceholder} />
+                  <FieldHint>사업자등록증에 적힌 상호 그대로 입력해주세요.</FieldHint>
+                </Field>
+                {/* 대표자명은 국세청 대조 값이라 담당자명과 같은 화면에 두면 매니저 이름이 들어와 자동 반려된다. */}
+                <Field><Label>{typeOpt.personLabel}</Label>
+                  <Input value={form.ownerName} onChange={(e) => set({ ownerName: e.target.value })} placeholder={typeOpt.personPlaceholder} />
+                  <FieldHint>등록증상 대표자 이름이에요. 담당자가 달라도 여기는 대표자명을 적어야 확인이 통과돼요.</FieldHint>
                 </Field>
                 <Field><Label>사업자등록번호</Label>
                   <Input value={form.bizNo} onChange={(e) => set({ bizNo: formatBizNo(e.target.value) })} placeholder="123-45-67890" inputMode="numeric" />
                   {form.bizNo.trim() && !isValidBizNo(form.bizNo) && (
-                    <StepHint style={{ color: "#EF4444", fontWeight: 600 }}>사업자등록번호 10자리를 정확히 입력해주세요.</StepHint>
+                    <ErrHint>사업자등록번호 10자리를 정확히 입력해주세요.</ErrHint>
                   )}
                 </Field>
                 <Row>
@@ -780,6 +905,7 @@ export default function OwnerOnboardingPage() {
               )}
               <HiddenFile ref={licRef} type="file" accept="image/*"
                 onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadLicense(f); }} />
+              <FieldHint>글자가 또렷하게 보이는 사진이면 돼요. 심사 용도로만 쓰고 회원에게 공개하지 않아요.</FieldHint>
             </Field>
 
             {!typeOpt.needsBizNo && (
@@ -788,33 +914,69 @@ export default function OwnerOnboardingPage() {
           </>
         )}
 
+        {/* 최종 확인 — 항목별로 그 값을 입력한 단계로 되돌아갈 수 있어야 한다.
+            "뒤로 5번"으로 고치게 하면 오타 하나에도 제출을 미룬다. */}
         {id === "review" && (
-          <ReviewList>
-            <ReviewRow><b>운영 주체</b><span>{typeOpt.label}</span></ReviewRow>
-            <ReviewRow><b>구장명</b><span>{form.name || "-"}</span></ReviewRow>
-            <ReviewRow><b>주소</b><span>{form.address || "-"}{form.addressDetail ? ` ${form.addressDetail}` : ""}</span></ReviewRow>
-            <ReviewRow><b>사진</b><span>{photos.length}장</span></ReviewRow>
-            <ReviewRow><b>코트</b><span>{courts.length}면</span></ReviewRow>
-            <ReviewRow><b>{typeOpt.personLabel}</b><span>{form.ownerName || "-"} · {form.contactPhone || "-"}</span></ReviewRow>
-            <ReviewRow><b>{typeOpt.orgLabel}</b><span>{form.bizName || "-"}</span></ReviewRow>
-            {typeOpt.needsBizNo ? (
-              <>
-                <ReviewRow><b>사업자번호</b><span>{form.bizNo || "-"}</span></ReviewRow>
-                <ReviewRow><b>개업일자</b><span>{biz.openDate || "-"} · {biz.taxType === "general" ? "일반과세자" : "간이과세자"}</span></ReviewRow>
-              </>
-            ) : isSchool && pickedSchool ? (
-              <ReviewRow><b>학교 대표번호</b><span>{pickedSchool.tel || "-"}</span></ReviewRow>
-            ) : null}
-            <ReviewRow><b>{typeOpt.docLabel}</b><span>{biz.licenseUrl ? "첨부됨" : "없음"}</span></ReviewRow>
-            <ReviewRow><b>정산 계좌</b><span>승인 후 등록</span></ReviewRow>
-            <ReviewRow><b>편의시설·소개·키워드</b><span>승인 후 구장정보에서</span></ReviewRow>
-            <StepHint style={{ marginTop: 4 }}>
-              {typeOpt.needsBizNo
-                ? "제출하면 국세청 진위확인을 거쳐 관리자가 승인해요(보통 영업일 1~2일)."
-                : "제출하면 서류 확인과 담당자 확인 연락을 거쳐 관리자가 승인해요(보통 영업일 1~2일)."}
-            </StepHint>
-            <StepHint>승인이 나면 내정보에서 정산 계좌를 등록해주세요. 계좌가 있어야 결제 대금을 지급해 드릴 수 있어요.</StepHint>
-          </ReviewList>
+          <>
+            <RSec>
+              <RHead><RTitle>구장 소개</RTitle><REdit type="button" onClick={() => goStep("name")}>수정</REdit></RHead>
+              <RRow><b>운영 주체</b><span>{typeOpt.label}</span></RRow>
+              <RRow><b>구장명</b><span>{form.name || "-"}</span></RRow>
+              <RRow><b>주소</b><span>{form.address || "-"}{form.addressDetail ? ` ${form.addressDetail}` : ""}</span></RRow>
+              <RRow><b>사진</b><span>{photos.length}장</span></RRow>
+            </RSec>
+
+            <RSec>
+              <RHead><RTitle>운영 · 요금</RTitle><REdit type="button" onClick={() => goStep("courts")}>수정</REdit></RHead>
+              {courts.map((c, i) => (
+                <RRow key={i}>
+                  <b>{c.name || `코트 ${i + 1}`}</b>
+                  <span>
+                    {c.priceMode === "perPerson"
+                      ? `1인 ${won(c.pricePerPerson) || "-"}원 · 최소 ${c.minHeadcount || "-"}명`
+                      : `시간당 ${won(c.pricePerHour) || "-"}원`}
+                    {" · "}{c.slotMinutes || 60}분 단위
+                  </span>
+                </RRow>
+              ))}
+            </RSec>
+
+            <RSec>
+              <RHead><RTitle>연락처</RTitle><REdit type="button" onClick={() => goStep("contact")}>수정</REdit></RHead>
+              <RRow><b>구장 대표번호</b><span>{form.phone || "-"}</span></RRow>
+              <RRow><b>{typeOpt.managerLabel}</b><span>{form.contactName || "-"} · {form.contactPhone || "-"}</span></RRow>
+              {!typeOpt.needsBizNo && form.deptName && <RRow><b>담당 부서</b><span>{form.deptName}</span></RRow>}
+            </RSec>
+
+            <RSec>
+              <RHead><RTitle>{typeOpt.verifyTitle}</RTitle><REdit type="button" onClick={() => goStep("verify")}>수정</REdit></RHead>
+              <RRow><b>{typeOpt.orgLabel}</b><span>{form.bizName || "-"}</span></RRow>
+              {typeOpt.needsBizNo ? (
+                <>
+                  <RRow><b>{typeOpt.personLabel}</b><span>{form.ownerName || "-"}</span></RRow>
+                  <RRow><b>사업자번호</b><span>{form.bizNo || "-"}</span></RRow>
+                  <RRow><b>개업일자</b><span>{biz.openDate || "-"} · {biz.taxType === "general" ? "일반과세자" : "간이과세자"}</span></RRow>
+                </>
+              ) : isSchool && pickedSchool ? (
+                <RRow><b>학교 대표번호</b><span>{pickedSchool.tel || "-"}</span></RRow>
+              ) : null}
+              <RRow><b>{typeOpt.docLabel}</b><span>{biz.licenseUrl ? "첨부됨" : "없음"}</span></RRow>
+            </RSec>
+
+            <SecHead>제출하면 이렇게 진행돼요</SecHead>
+            <Flow>
+              {flow.slice(2).map((f, i) => (
+                <FlowItem key={i} $last={i === flow.length - 3}>
+                  <FlowNo $on={i === 0}>{i + 3}</FlowNo>
+                  <FlowBody>
+                    <FlowTitle>{f.title}</FlowTitle>
+                    <FlowDesc>{f.desc}</FlowDesc>
+                  </FlowBody>
+                </FlowItem>
+              ))}
+            </Flow>
+            <StepHint>편의시설·이용안내·키워드는 승인 후 구장정보에서 언제든 채울 수 있어요.</StepHint>
+          </>
         )}
       </Scroll>
 
@@ -846,31 +1008,50 @@ const SUBS = {
   courts: "코트마다 종류·바닥·가격·운영시간을 따로 설정해요.",
 };
 
+/* 구장주 앱은 고정 팔레트(od.js C)로 통일돼 있다 — 이 화면만 앱 테마를 따르면
+   다크모드에서 워크스페이스와 배경·글자색이 어긋난다. */
 const Shell = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   width: 100%;
-  max-width: ${({ theme }) => theme.layout.maxWidth}px;
-  margin: 0 auto;
+  background: ${C.white};
 `;
 const Progress = styled.div`
   height: 4px;
-  background: ${({ theme }) => theme.colors.border};
+  background: ${C.slate200};
   flex-shrink: 0;
 `;
 const Bar = styled.div`
   height: 100%;
-  background: ${({ theme }) => theme.colors.primary};
+  background: ${C.violet600};
   border-radius: 0 4px 4px 0;
   transition: width 0.3s ease;
+`;
+const StepMeta = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px max(18px, env(safe-area-inset-left)) 0 max(18px, env(safe-area-inset-right));
+`;
+const StepGroup = styled.span`
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: ${C.violet600};
+`;
+const StepCount = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  color: ${C.slate400};
 `;
 const Scroll = styled.div`
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px max(18px, env(safe-area-inset-left)) 20px max(18px, env(safe-area-inset-right));
+  padding: 18px max(18px, env(safe-area-inset-left)) 24px max(18px, env(safe-area-inset-right));
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -880,30 +1061,46 @@ const StepTitle = styled.h2`
   font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${C.slate800};
   line-height: 1.35;
+  word-break: keep-all;
 `;
 const StepSub = styled.div`
   font-size: 14px;
-  color: ${({ theme }) => theme.colors.textWeak};
+  color: ${C.slate500};
   line-height: 1.5;
   margin-top: -6px;
+  word-break: keep-all;
 `;
 const StepHint = styled.div`
   font-size: 12.5px;
-  color: ${({ theme }) => theme.colors.textWeak};
+  color: ${C.slate500};
+  line-height: 1.5;
+  word-break: keep-all;
+`;
+const ErrHint = styled.div`
+  font-size: 12.5px;
+  font-weight: 600;
+  color: ${C.red500};
   line-height: 1.5;
 `;
 const SubHead = styled.div`
   font-size: 14px;
   font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${C.slate800};
+  margin-top: 6px;
+`;
+const SecHead = styled.div`
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: ${C.slate400};
   margin-top: 6px;
 `;
 const Opt = styled.span`
   font-size: 12px;
   font-weight: 500;
-  color: ${({ theme }) => theme.colors.textWeak};
+  color: ${C.slate400};
 `;
 const Footer = styled.div`
   flex-shrink: 0;
@@ -911,13 +1108,13 @@ const Footer = styled.div`
   align-items: center;
   gap: 12px;
   padding: 12px max(18px, env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-right));
-  border-top: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.bg};
+  border-top: 1px solid ${C.slate200};
+  background: ${C.white};
 `;
 const BackText = styled.button`
   background: none;
   border: none;
-  color: ${({ theme }) => theme.colors.textNormal};
+  color: ${C.slate500};
   font-size: 15px;
   font-weight: 700;
   text-decoration: underline;
@@ -931,48 +1128,137 @@ const NextBtn = styled.button`
   height: 52px;
   border: none;
   border-radius: 12px;
-  background: ${({ theme }) => theme.colors.primary};
+  background: ${C.violet600};
   color: #fff;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
+  &:hover { background: ${C.violet700}; }
   &:active { transform: translateY(1px); }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
-// 인트로에서 가입 때 고른 운영 주체를 되짚어 보여주는 태그
-const TypeTag = styled.div`
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.surface};
-  color: ${({ theme }) => theme.colors.textNormal};
-  font-size: 12.5px;
-  font-weight: 700;
-`;
-
-const Intro = styled.div`
-  flex: 1;
+/* ── 인트로: 준비물 · 등록 절차 순서도 ── */
+const IntroHead = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   text-align: center;
-  gap: 14px;
-  padding: 24px;
+  gap: 8px;
+  padding: 12px 0 6px;
 `;
-const IntroLogo = styled.img`width: 84px; height: 84px; object-fit: contain;`;
+const IntroLogo = styled.img`width: 64px; height: 64px; object-fit: contain;`;
+const TypeTag = styled.div`
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid ${C.slate200};
+  background: ${C.slate100};
+  color: ${C.slate500};
+  font-size: 12.5px;
+  font-weight: 700;
+`;
 const IntroTitle = styled.div`
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${C.slate800};
 `;
 const IntroSub = styled.div`
-  font-size: 15px;
-  color: ${({ theme }) => theme.colors.textWeak};
+  font-size: 14px;
+  color: ${C.slate500};
+  line-height: 1.55;
+  word-break: keep-all;
+`;
+const Flow = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+const FlowItem = styled.div`
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding-bottom: ${({ $last }) => ($last ? 0 : "16px")};
+
+  /* 단계를 잇는 세로선 — 순서가 있는 절차라는 걸 모양만으로 읽히게 한다 */
+  &::before {
+    content: "";
+    display: ${({ $last }) => ($last ? "none" : "block")};
+    position: absolute;
+    left: 13px;
+    top: 26px;
+    bottom: 4px;
+    width: 1px;
+    background: ${C.slate200};
+  }
+`;
+const FlowNo = styled.div`
+  flex-shrink: 0;
+  width: 27px;
+  height: 27px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 800;
+  border: 1px solid ${({ $on }) => ($on ? C.violet600 : C.slate200)};
+  background: ${({ $on }) => ($on ? C.violet600 : C.white)};
+  color: ${({ $on }) => ($on ? "#fff" : C.slate400)};
+`;
+const FlowBody = styled.div`display: flex; flex-direction: column; gap: 2px; padding-top: 3px;`;
+const FlowTitle = styled.div`font-size: 14.5px; font-weight: 700; color: ${C.slate800};`;
+const FlowDesc = styled.div`font-size: 12.5px; color: ${C.slate500}; line-height: 1.5; word-break: keep-all;`;
+
+const PrepList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const PrepItem = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13.5px;
+  color: ${C.slate800};
+  line-height: 1.45;
+  word-break: keep-all;
+`;
+const PrepDot = styled.span`
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: ${C.violet600};
+`;
+const NoteBox = styled.div`
+  border: 1px solid ${C.slate200};
+  background: ${C.slate100};
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: ${C.slate500};
   line-height: 1.6;
   white-space: pre-line;
+  word-break: keep-all;
+`;
+
+/* ── 연락처 단계: 공개/비공개 블록 ── */
+const Block = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid ${C.slate200};
+  border-radius: 12px;
+  padding: 14px;
+`;
+const BlockHead = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px;`;
+const BlockTitle = styled.div`font-size: 14.5px; font-weight: 700; color: ${C.slate800};`;
+const Tag = styled.span`
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1px solid ${({ $tone }) => ($tone === "open" ? C.violet200 : C.slate200)};
+  color: ${({ $tone }) => ($tone === "open" ? C.violet600 : C.slate400)};
+  background: ${({ $tone }) => ($tone === "open" ? C.violet50 : C.white)};
 `;
 
 const AutoAddr = styled.div`
@@ -998,14 +1284,14 @@ const PhotoBox = styled.div`
   aspect-ratio: 4 / 3;
   border-radius: 12px;
   overflow: hidden;
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: ${C.slate100};
+  border: 1px solid ${C.slate200};
 `;
 const PhotoImg = styled.img`width: 100%; height: 100%; object-fit: cover;`;
 const MainTag = styled.span`
   position: absolute; left: 6px; bottom: 6px;
   padding: 2px 8px; border-radius: 999px;
-  background: ${({ theme }) => theme.colors.primary}; color: #fff;
+  background: ${C.violet600}; color: #fff;
   font-size: 11px; font-weight: 700;
 `;
 const RemovePhoto = styled.button`
@@ -1016,16 +1302,39 @@ const RemovePhoto = styled.button`
 const AddPhoto = styled.button`
   aspect-ratio: 4 / 3;
   border-radius: 12px;
-  border: 1.5px dashed ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.surface};
-  color: ${({ theme }) => theme.colors.textWeak};
+  border: 1.5px dashed ${C.slate200};
+  background: ${C.white};
+  color: ${C.slate400};
   font-size: 13px; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
 `;
 const HiddenFile = styled.input`display: none;`;
+const CountLine = styled.div`
+  font-size: 12.5px;
+  font-weight: 600;
+  color: ${({ $warn }) => ($warn ? C.amber500 : C.green600)};
+`;
+const GuideBox = styled.div`
+  border: 1px solid ${C.slate200};
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+const GuideTitle = styled.div`font-size: 13px; font-weight: 700; color: ${C.slate800};`;
+const GuideItem = styled.div`
+  font-size: 12.5px;
+  color: ${C.slate500};
+  line-height: 1.45;
+  padding-left: 10px;
+  position: relative;
+  word-break: keep-all;
+  &::before { content: "·"; position: absolute; left: 2px; }
+`;
 
 const CourtCard = styled.div`
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${C.slate200};
   border-radius: 12px;
   padding: 12px;
   display: flex;
@@ -1034,7 +1343,7 @@ const CourtCard = styled.div`
 `;
 const CourtHead = styled.div`display: flex; align-items: center; justify-content: space-between;`;
 const DelLink = styled.button`
-  border: none; background: transparent; color: ${({ theme }) => theme.colors.danger};
+  border: none; background: transparent; color: ${C.red500};
   font-size: 12.5px; font-weight: 600; cursor: pointer;
 `;
 
@@ -1049,8 +1358,8 @@ const SchoolList = styled.div`
 const SchoolItem = styled.button`
   width: 100%;
   text-align: left;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.bg};
+  border: 1px solid ${C.slate200};
+  background: ${C.white};
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
@@ -1060,8 +1369,8 @@ const SchoolItem = styled.button`
   &:active { transform: translateY(1px); }
 `;
 const PickedBox = styled.div`
-  border: 1px solid ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${C.violet600};
+  background: ${C.violet50};
   border-radius: 10px;
   padding: 10px 12px;
   display: flex;
@@ -1071,12 +1380,12 @@ const PickedBox = styled.div`
 const PickedName = styled.div`
   font-size: 13.5px;
   font-weight: 700;
-  color: ${({ theme }) => theme.colors.textStrong};
+  color: ${C.slate800};
 `;
 const PickedMeta = styled.div`
   font-size: 12px;
   line-height: 1.45;
-  color: ${({ theme }) => theme.colors.textWeak};
+  color: ${C.slate500};
 `;
 /* 서류 첨부 — 가로 꽉 찬 버튼이 아니라 정사각 슬롯.
    "여기에 사진 한 장이 들어간다"가 모양만으로 읽히고, 첨부 전/후가 같은 자리에서 바뀐다. */
@@ -1084,9 +1393,9 @@ const DocUpload = styled.button`
   width: 92px;
   height: 92px;
   flex-shrink: 0;
-  border: 1px dashed ${({ theme }) => theme.colors.primary};
+  border: 1px dashed ${C.violet300};
   background: transparent;
-  color: ${({ theme }) => theme.colors.primary};
+  color: ${C.violet600};
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -1104,7 +1413,7 @@ const DocDone = styled.div`
   width: 92px;
   height: 92px;
   flex-shrink: 0;
-  border: 1px solid ${({ theme }) => theme.colors.primary};
+  border: 1px solid ${C.violet600};
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -1113,29 +1422,43 @@ const DocDone = styled.div`
   gap: 5px;
   font-size: 11.5px;
   font-weight: 700;
-  color: ${({ theme }) => theme.colors.primary};
+  color: ${C.violet600};
 `;
 
 const KeywordRow = styled.div`display: flex; gap: 8px; & > *:first-child { flex: 1; }`;
 const AddKw = styled.button`
   flex-shrink: 0;
   height: 44px; padding: 0 18px; border-radius: 10px; border: none;
-  background: ${({ theme }) => theme.colors.primary}; color: #fff;
+  background: ${C.violet600}; color: #fff;
   font-size: 14px; font-weight: 700; cursor: pointer;
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 
-const ReviewList = styled.div`
+/* 최종 확인 — 섹션마다 그 값을 입력한 단계로 되돌아가는 수정 버튼 */
+const RSec = styled.div`
   display: flex; flex-direction: column;
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${C.slate200};
   border-radius: 12px;
   overflow: hidden;
 `;
-const ReviewRow = styled.div`
+const RHead = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  background: ${C.slate100};
+  border-bottom: 1px solid ${C.slate200};
+`;
+const RTitle = styled.div`font-size: 13px; font-weight: 800; color: ${C.slate800};`;
+const REdit = styled.button`
+  border: none; background: transparent; color: ${C.violet600};
+  font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 2px 4px;
+  text-decoration: underline; text-underline-offset: 3px;
+`;
+const RRow = styled.div`
   display: flex; justify-content: space-between; gap: 12px;
-  padding: 12px 14px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  padding: 11px 14px;
+  border-bottom: 1px solid ${C.slate200};
   font-size: 13.5px;
   &:last-of-type { border-bottom: none; }
-  & b { color: ${({ theme }) => theme.colors.textWeak}; font-weight: 600; flex-shrink: 0; }
-  & span { color: ${({ theme }) => theme.colors.textStrong}; font-weight: 600; text-align: right; word-break: break-all; }
+  & b { color: ${C.slate500}; font-weight: 600; flex-shrink: 0; }
+  & span { color: ${C.slate800}; font-weight: 600; text-align: right; word-break: break-all; }
 `;

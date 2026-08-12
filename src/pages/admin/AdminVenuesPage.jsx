@@ -942,7 +942,8 @@ export default function AdminVenuesPage() {
                 <SecTitle>{dOpt.adminInfoTitle}</SecTitle>
                 <DRow><b>운영 주체</b><span>{dOpt.label}</span></DRow>
                 <DRow><b>{dOpt.personLabel}</b><span>{detail.ownerName || biz?.ownerName || "-"}</span></DRow>
-                <DRow><b>관리자 연락처</b><span>{detail.contactPhone || "-"}</span></DRow>
+                {/* 확인 연락을 걸 상대 — 사업자는 대표자와 다를 수 있어 이름을 따로 받는다. */}
+                <DRow><b>담당자</b><span>{detail.contactName || detail.ownerName || "-"} · {detail.contactPhone || "-"}</span></DRow>
                 <DRow><b>{dOpt.orgLabel}</b><span>{detail.bizName || biz?.bizName || "-"}</span></DRow>
                 {dOpt.needsBizNo && <DRow><b>사업자번호</b><span>{detail.bizNo || biz?.bizNo || "-"}</span></DRow>}
                 {biz && (
