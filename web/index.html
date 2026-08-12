@@ -279,17 +279,13 @@ header.scrolled .nav-menu a{color:var(--ink-2)}
 .show-pill{display:inline-flex;align-items:center;gap:10px;font-size:14px;font-weight:800;color:var(--brand);margin-bottom:16px}
 .show-num{font-family:'Archivo';font-size:13px;color:var(--brand-soft);font-weight:800;letter-spacing:1px}
 .show-txt h3{font-size:clamp(28px,3.9vw,42px);font-weight:800;letter-spacing:-.03em;line-height:1.3;color:var(--ink)}
-.show-txt .st-sub{font-size:19px;color:var(--ink-2);margin:18px 0 26px;line-height:1.65;font-weight:500;word-break:keep-all}
-.feat-bullets{display:flex;flex-direction:column;gap:14px}
-.feat-bullets li{list-style:none;display:flex;align-items:flex-start;gap:12px;font-size:15.5px;color:var(--ink);font-weight:500}
-/* 핵심 기능 섹션만 키운다 — .feat-bullets 는 구장 카드도 함께 쓰므로 전역으로 올리지 않는다. */
+/* 기능마다 달았던 체크리스트 3줄은 걷어냈다 — 랜딩에서 읽히는 건 큰 문장 하나뿐이고,
+   세부 항목은 앱을 켜면 바로 보이는 것들이었다. 대신 제목·한 줄 설명을 키운다. */
+.show-txt .st-sub{font-size:clamp(17px,2vw,21px);color:var(--ink-2);margin:18px 0 0;line-height:1.6;font-weight:500;word-break:keep-all;max-width:26em}
 .feat .show-pill{font-size:16px}
 .feat .show-num{font-size:15px}
-.feat .feat-bullets{gap:16px}
-.feat .feat-bullets li{font-size:18px}
-.feat .feat-bullets .bk{width:18px;font-size:16px}
-.feat-bullets .bk{flex:0 0 auto;width:16px;color:var(--win);font-size:14px;font-weight:900;line-height:1.5}
 .show-media{display:flex;justify-content:center}
+.feat .device{width:288px}
 
 .season-note{display:block;color:var(--ink-3);font-size:12.5px;font-weight:500;margin-top:18px;text-align:center}
 
@@ -298,32 +294,23 @@ header.scrolled .nav-menu a{color:var(--ink-2)}
 .ven-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:52px}
 .ven-card{background:#fff;border-radius:24px;padding:30px 22px;box-shadow:0 14px 40px rgba(26,16,48,.06);
   display:flex;flex-direction:column;align-items:center;text-align:center}
-/* 목업은 카드 폭 가득 키워 앱 UI가 읽히게 한다. 세 스크린샷은 모두 625×985로 맞춰 두었으므로
-   따로 높이를 보정하지 않아도 카드 본문이 같은 선에서 시작한다. */
+/* 목업은 카드 폭 가득 키워 앱 UI가 읽히게 한다. 세 스크린샷은 scripts/capture-mockups.mjs 가
+   같은 폰 크기(390×844@2x)로 찍으므로 높이가 저절로 맞아 카드 본문이 같은 선에서 시작한다. */
 .ven-media{margin-bottom:30px}
 .ven-media .device{width:100%;max-width:312px}
 .ven-tag{display:inline-block;font-size:13px;font-weight:800;color:var(--ink-3);margin-bottom:10px}
 .ven-tag.on{color:var(--brand)}
 .ven-card h3{font-size:clamp(20px,2.6vw,26px);font-weight:800;letter-spacing:-.03em;line-height:1.32;color:var(--ink)}
-.ven-card p{font-size:15px;color:var(--ink-2);margin:14px 0 24px;line-height:1.65;font-weight:500;word-break:keep-all}
-.ven-card .feat-bullets{align-self:stretch;text-align:left}
+.ven-card p{font-size:15.5px;color:var(--ink-2);margin:14px 0 0;line-height:1.6;font-weight:500;word-break:keep-all}
 .ven-steps{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:32px}
 .ven-steps li{list-style:none;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;color:var(--ink-2);
   background:#fff;border-radius:100px;padding:11px 18px;box-shadow:0 4px 14px rgba(26,16,48,.05)}
 .ven-steps li i{font-family:'Archivo';font-style:normal;font-size:12px;font-weight:800;color:var(--brand)}
 .ven-steps .arw{background:none;box-shadow:none;padding:0;color:var(--ink-3)}
 /* 이용 요금 안내 — 비로그인 방문자도 "무엇을 얼마에" 파는지 볼 수 있게 (결제 심사 필수 표시) */
-.ven-price{margin-top:32px;border:1px solid var(--line);border-radius:22px;padding:28px 32px;background:#fff}
-.ven-price h3{font-size:18px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
-.ven-price>p{margin-top:8px;font-size:14px;line-height:1.65;color:var(--ink-2)}
-.vp-rows{margin-top:20px;display:grid;gap:12px}
-.vp-row{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
-.vp-row:last-child{border-bottom:0;padding-bottom:0}
-.vp-row dt{font-size:14px;font-weight:700;color:var(--ink);flex:none}
-.vp-row dd{margin:0;font-size:14px;line-height:1.6;color:var(--ink-2);text-align:right}
-.vp-note{margin-top:18px;font-size:13px;line-height:1.6;color:var(--ink-3)}
-.vp-note a{color:var(--ink-2);text-decoration:underline}
-@media(max-width:640px){.ven-price{padding:24px 20px}.vp-row{flex-direction:column;gap:4px}.vp-row dd{text-align:left}}
+/* 요금·거래조건 표는 pricing.html 로 옮겼다 — 여기엔 그리로 보내는 한 줄만 남는다. */
+.ven-pricelink{margin-top:28px;text-align:center;font-size:14px;color:var(--ink-3);font-weight:500}
+.ven-pricelink a{color:var(--ink-2);font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .ven-cta{margin-top:32px;background:var(--dark);border-radius:22px;padding:28px 32px;display:flex;
   align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .ven-cta b{display:block;font-size:18px;font-weight:800;color:#fff;letter-spacing:-.02em}
@@ -501,7 +488,7 @@ section[id]{scroll-margin-top:88px}
   <div class="wrap hero-inner">
     <div class="hero-text">
       <h1>이번 주, 경기 한판<br><span class="pt">할래말래?</span></h1>
-      <p class="hero-sub">우리 동네 농구팀끼리 연습경기 상대를 찾고, 경기하고, 전적을 쌓아요.<br>단톡방 수소문은 이제 그만.</p>
+      <p class="hero-sub">동네 농구팀 매칭. 상대도, 구장도, 전적도 앱 하나로.</p>
       <div class="store-row">
         <a class="store store-ios" href="#" aria-label="App Store에서 할래말래 다운로드">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.05 12.04c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.79-3.32.79-.69 0-1.74-.77-2.86-.75-1.47.02-2.83.85-3.58 2.17-1.53 2.65-.39 6.57 1.1 8.72.73 1.05 1.6 2.23 2.74 2.19 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.69.71 2.85.69 1.18-.02 1.92-1.07 2.64-2.13.83-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.32-3.49zM15.1 5.36c.6-.73 1.01-1.74.9-2.75-.87.04-1.92.58-2.55 1.3-.56.64-1.05 1.67-.92 2.65.97.08 1.96-.49 2.57-1.2z"/></svg>
@@ -546,19 +533,19 @@ section[id]{scroll-margin-top:88px}
     <div class="pain-grid">
       <div class="pain-card">
         <img class="pain-photo" src="assets/story-match.jpg" alt="야외 농구 코트에서 두 사람이 공을 주고받는 모습" loading="lazy" width="1200" height="800">
-        <div class="pain-body"><h3>붙어볼 만한 상대를 찾아드려요</h3><p>단톡방에 수소문할 필요 없이, 우리 팀 지역과 실력에 맞는 상대팀을 앱이 먼저 추천해요.</p></div>
+        <div class="pain-body"><h3>상대를 찾아드려요</h3><p>단톡방 수소문 없이, 지역과 실력에 맞는 팀을 먼저 추천해요.</p></div>
       </div>
       <div class="pain-card">
         <img class="pain-photo" src="assets/story-level.jpg" alt="해질녘 코트에서 1대1로 맞선 두 선수의 실루엣" loading="lazy" width="1200" height="800">
-        <div class="pain-body"><h3>실력이 맞는 경기만 남겨요</h3><p>전적으로 쌓인 실력 데이터를 기준으로 매칭해, 한쪽이 일방적으로 이기는 경기를 줄여요.</p></div>
+        <div class="pain-body"><h3>실력이 맞는 경기만</h3><p>쌓인 전적을 기준으로 매칭해 일방적인 경기를 줄여요.</p></div>
       </div>
       <div class="pain-card">
         <img class="pain-photo" src="assets/story-venue.jpg" alt="공원 안에 나란히 놓인 야외 농구 코트를 위에서 내려다본 모습" loading="lazy" width="1200" height="800">
-        <div class="pain-body"><h3>검증된 구장에서 경기해요</h3><p>제휴 구장의 위치·요금·예약 정보를 앱에서 바로 확인하고, 매칭룸에서 일정까지 한 번에 확정해요.</p></div>
+        <div class="pain-body"><h3>구장까지 한 번에</h3><p>제휴 구장 위치·요금을 확인하고 매칭룸에서 바로 확정해요.</p></div>
       </div>
       <div class="pain-card">
         <img class="pain-photo" src="assets/story-record.jpg" alt="공중에 뜬 농구공과 야외 코트의 골대" loading="lazy" width="1200" height="800">
-        <div class="pain-body"><h3>뛴 만큼 전적으로 남아요</h3><p>경기가 끝나면 승·무·패가 자동으로 쌓여 팀 프로필이 되고, 지역 랭킹에 그대로 반영돼요.</p></div>
+        <div class="pain-body"><h3>뛴 만큼 남아요</h3><p>승·무·패가 자동으로 쌓여 팀 전적과 지역 랭킹이 돼요.</p></div>
       </div>
     </div>
   </div>
@@ -575,70 +562,36 @@ section[id]{scroll-margin-top:88px}
         <div class="show-txt">
           <span class="show-pill"><span class="show-num">01</span> 추천 매칭</span>
           <h3>해볼 만한 상대를<br>골라줘요</h3>
-          <p class="st-sub">우리 팀 실력과 지역을 분석해 붙어볼 만한 상대팀을 추천해요.</p>
-          <ul class="feat-bullets">
-            <li><span class="bk">✓</span>지역·실력 기반 상대팀 추천</li>
-            <li><span class="bk">✓</span>"예상 승률 63%" 매칭 정보 제공</li>
-            <li><span class="bk">✓</span>전체 팀 리스트에서 직접 신청</li>
-          </ul>
+          <p class="st-sub">지역·전력·활동량을 계산해 승률까지 붙여서 추천해요.</p>
         </div>
-        <div class="show-media"><div class="device"><img src="assets/매칭%20목업2.jpg" alt="상대 추천 매칭 화면"></div></div>
+        <div class="show-media"><div class="device"><img src="assets/shots/app-matching.png" alt="상대 추천 매칭 화면" loading="lazy" width="780" height="1688"></div></div>
       </div>
 
       <div class="show-row reveal">
         <div class="show-txt">
           <span class="show-pill"><span class="show-num">02</span> 매칭룸</span>
-          <h3>매칭이 수락되면<br>매칭룸에서 확정</h3>
-          <p class="st-sub">전용 매칭룸에서 날짜·장소·시간을 깔끔하게 정해요.</p>
-          <ul class="feat-bullets">
-            <li><span class="bk">✓</span>매칭 성사 시 전용 채팅방 자동 개설</li>
-            <li><span class="bk">✓</span>일정·장소·시간 한 곳에서 확정</li>
-            <li><span class="bk">✓</span>누가 언제 어디서, 헷갈릴 일 없음</li>
-          </ul>
+          <h3>수락되면<br>매칭룸에서 확정</h3>
+          <p class="st-sub">전용 채팅방에서 라인업·구장·일정을 한 번에 정해요.</p>
         </div>
-        <div class="show-media"><div class="device"><img src="assets/매칭룸%20목%20업3.jpg" alt="매칭룸 화면"></div></div>
+        <div class="show-media"><div class="device"><img src="assets/shots/app-matchroom.png" alt="매칭룸 채팅 화면" loading="lazy" width="780" height="1688"></div></div>
       </div>
 
       <div class="show-row reveal">
         <div class="show-txt">
           <span class="show-pill"><span class="show-num">03</span> 전적·기록</span>
           <h3>경기 결과가<br>전적이 돼요</h3>
-          <p class="st-sub">경기마다 승·무·패가 팀 프로필에 자동으로 쌓여요.</p>
-          <ul class="feat-bullets">
-            <li><span class="bk">✓</span>승률·연승·최근 전적 자동 기록</li>
-            <li><span class="bk">✓</span>상대 전적(H2H)까지 한눈에</li>
-            <li><span class="bk">✓</span>뛸수록 성장하는 우리 팀 데이터</li>
-          </ul>
+          <p class="st-sub">승률·연승·평균 득실까지 팀 프로필에 자동으로 쌓여요.</p>
         </div>
-        <div class="show-media"><div class="device"><img src="assets/팀%20전적목업.jpg" alt="팀 전적 화면"></div></div>
+        <div class="show-media"><div class="device"><img src="assets/shots/app-team.png" alt="팀 프로필 전적 화면" loading="lazy" width="780" height="1688"></div></div>
       </div>
 
       <div class="show-row reveal">
         <div class="show-txt">
           <span class="show-pill"><span class="show-num">04</span> 지역 랭킹</span>
           <h3>우리 동네 1등,<br>누가 될까?</h3>
-          <p class="st-sub">경기할 때마다 지역 랭킹이 실시간으로 바뀌어요.</p>
-          <ul class="feat-bullets">
-            <li><span class="bk">✓</span>승리 +5 · 무승부 +2 · 패배도 +1점</li>
-            <li><span class="bk">✓</span>실시간 지역·전국 랭킹</li>
-            <li><span class="bk">✓</span>시즌 상위 팀엔 보상까지</li>
-          </ul>
+          <p class="st-sub">승리 +5 · 무승부 +2 · 패배 +1. 경기할 때마다 순위가 바뀌어요.</p>
         </div>
-        <div class="show-media"><div class="device"><img src="assets/팀랭킹목업.jpg" alt="팀 랭킹 화면"></div></div>
-      </div>
-
-      <div class="show-row reveal">
-        <div class="show-txt">
-          <span class="show-pill"><span class="show-num">05</span> 팀장 일괄결제 <span class="ex-tag">준비 중</span></span>
-          <h3>구장비, 팀장이<br>한 번에 결제</h3>
-          <p class="st-sub">지금은 구장에서 현장 정산해요. 앱에서 바로 결제하는 기능을 준비하고 있어요.</p>
-          <ul class="feat-bullets">
-            <li><span class="bk">✓</span>현재: 앱에서 예약 요청 → 구장 승인 → 현장 정산</li>
-            <li><span class="bk">✓</span>준비 중: 팀장 일괄결제로 송금 걷을 필요 없이 한 번에</li>
-            <li><span class="bk">✓</span>결제 기능 오픈 시점은 앱 공지로 안내드려요</li>
-          </ul>
-        </div>
-        <div class="show-media"><div class="device"><img src="assets/경기%20확정%20카드%20목업.jpg" alt="경기 확정 카드 화면"></div></div>
+        <div class="show-media"><div class="device"><img src="assets/shots/app-ranking.png" alt="팀 랭킹 화면" loading="lazy" width="780" height="1688"></div></div>
       </div>
     </div>
   </div>
@@ -649,49 +602,34 @@ section[id]{scroll-margin-top:88px}
   <div class="wrap center">
     <div class="eyebrow">구장</div>
     <h2 class="sec-h">구장 잡는 것까지<br>앱 안에서 끝나요.</h2>
-    <p class="sec-p">제휴 구장은 앱에서 바로 예약하고, 이미 쓰는 구장이 있으면 직접 입력해서 그대로 경기해요.</p>
+    <p class="sec-p">제휴 구장은 앱에서 바로, 쓰던 구장은 그대로.</p>
   </div>
 
   <div class="wrap ven-grid">
     <article class="ven-card reveal">
-      <div class="ven-media"><div class="device"><img src="assets/venue-list.jpg" alt="제휴 구장 지도·목록 화면"></div></div>
+      <div class="ven-media"><div class="device"><img src="assets/shots/app-venues.png" alt="제휴 구장 지도·목록 화면" loading="lazy" width="780" height="1688"></div></div>
       <div class="ven-txt">
         <span class="ven-tag on">제휴 구장 찾기</span>
         <h3>지도에서 근처 구장을<br>한눈에</h3>
-        <p>지역과 일정으로 근처 제휴 구장을 찾고, 요금과 시설을 비교해요.</p>
-        <ul class="feat-bullets">
-          <li><span class="bk">✓</span>지도·목록으로 근처 제휴 구장 탐색</li>
-          <li><span class="bk">✓</span>실내·실외, 코트 수, 시간당 요금 비교</li>
-          <li><span class="bk">✓</span>주차·샤워실 등 편의시설까지 확인</li>
-        </ul>
+        <p>지도 위 가격표로 근처 구장을 비교해요.</p>
       </div>
     </article>
 
     <article class="ven-card reveal">
-      <div class="ven-media"><div class="device"><img src="assets/venue-book.jpg" alt="코트·시간 선택 후 예약 요청하는 화면"></div></div>
+      <div class="ven-media"><div class="device"><img src="assets/shots/app-venue-book.png" alt="구장 상세·요금·편의시설 화면" loading="lazy" width="780" height="1688"></div></div>
       <div class="ven-txt">
         <span class="ven-tag on">코트·시간 예약</span>
-        <h3>날짜와 시간을 고르면<br>예약 요청 끝</h3>
-        <p>비어 있는 시간대를 눌러 예약을 요청하고, 구장이 승인하면 확정돼요.</p>
-        <ul class="feat-bullets">
-          <li><span class="bk">✓</span>날짜별 빈 시간대를 눌러서 바로 선택</li>
-          <li><span class="bk">✓</span>연속된 시간대는 원하는 만큼 이어서 예약</li>
-          <li><span class="bk">✓</span>구장 승인 후 확정 · 이용료는 현장 정산</li>
-        </ul>
+        <h3>빈 시간을 고르면<br>예약 요청 끝</h3>
+        <p>요금·편의시설을 확인하고, 구장이 승인하면 확정돼요.</p>
       </div>
     </article>
 
     <article class="ven-card reveal">
-      <div class="ven-media"><div class="device"><img src="assets/venue-direct.jpg" alt="매칭룸에서 구장 위치를 지도로 직접 입력하는 화면"></div></div>
+      <div class="ven-media"><div class="device"><img src="assets/shots/app-roomvenue.png" alt="매칭룸에서 구장 정하는 방식을 고르는 화면" loading="lazy" width="780" height="1688"></div></div>
       <div class="ven-txt">
         <span class="ven-tag">직접 입력</span>
         <h3>쓰던 구장이 있다면<br>그대로 쓰세요</h3>
-        <p>이미 잡아둔 체육관이 있다면 매칭룸에서 지도로 위치를 직접 잡으면 끝이에요.</p>
-        <ul class="feat-bullets">
-          <li><span class="bk">✓</span>지도에서 위치를 잡으면 주소가 자동 입력</li>
-          <li><span class="bk">✓</span>정한 위치는 상대팀에게 지도로 공유</li>
-          <li><span class="bk">✓</span>제휴 구장이 아니어도 매칭·전적·랭킹 그대로</li>
-        </ul>
+        <p>두 팀이 정한 장소·시간으로 그대로 진행할 수 있어요.</p>
       </div>
     </article>
   </div>
@@ -709,34 +647,11 @@ section[id]{scroll-margin-top:88px}
       <li><i>05</i> 경기 확정</li>
     </ul>
 
-    <section class="ven-price" aria-labelledby="ven-price-h">
-      <h3 id="ven-price-h">이용 요금 안내</h3>
-      <p>할래말래는 제휴 구장의 코트·시간 예약을 중개합니다. 이용요금은 각 구장이 책정하며, 앱의 구장 상세 화면에서 코트별·시간대별 요금을 예약 전에 확인할 수 있습니다.</p>
-      <dl class="vp-rows">
-        <div class="vp-row">
-          <dt>판매 상품</dt>
-          <dd>제휴 구장의 코트 시간 예약 (1시간 단위)</dd>
-        </div>
-        <div class="vp-row">
-          <dt>이용 요금</dt>
-          <dd>구장·코트·시간대에 따라 다름 · 현재 등록 구장 기준 <b>시간당 35,000원 ~ 50,000원</b></dd>
-        </div>
-        <div class="vp-row">
-          <dt>예약 확정</dt>
-          <dd>예약 요청 → 구장 승인 → 결제 완료 시 확정<br><span style="color:var(--ink-3)">(인앱 결제 개시 전까지는 이용 당일 구장에서 현장 정산)</span></dd>
-        </div>
-        <div class="vp-row">
-          <dt>비용 분담</dt>
-          <dd>매칭 경기는 양 팀이 요금을 절반씩 나누어 각자 결제</dd>
-        </div>
-        <div class="vp-row">
-          <dt>취소·환불</dt>
-          <dd>이용 2일 전까지 100% · 전일 50% · 당일 이후 환불 불가<br><span style="color:var(--ink-3)">구장 사정 취소·상대 팀 미결제로 인한 취소는 전액 환불</span></dd>
-        </div>
-      </dl>
-      <p class="vp-note">전 구장에 동일한 취소·환불 기준을 적용합니다. 자세한 내용은 <a href="refund.html">취소 및 환불 정책</a>을 확인해 주세요.</p>
-    </section>
+    <!-- 요금·거래조건 표시(전자상거래법·PG 심사 항목)는 랜딩 본문에서 빼고 pricing.html 로 옮겼다.
+         표시 의무는 그대로 지키되, 마케팅 스크롤 한가운데에 표를 놓지 않는다. -->
+    <p class="ven-pricelink">이용요금은 구장이 정하고, 앱에 표시된 금액이 결제 금액이에요. <a href="pricing.html">이용 요금·취소 환불 기준 자세히 보기 →</a></p>
 
+    <!-- 구장 등록 안내 페이지(owner.html)는 PG·지급대행 조건 확정 전까지 감춰 둠 → 문의로 받는다 -->
     <div class="ven-cta">
       <div>
         <b>구장을 운영하고 계신가요?</b>
@@ -789,7 +704,7 @@ section[id]{scroll-margin-top:88px}
     <div class="sports-l">
       <div class="eyebrow">종목</div>
       <h2 class="sec-h">지금은 농구부터.</h2>
-      <p class="sec-p">할래말래는 농구로 먼저 시작해요. 동네 농구인들의 반응을 보며, 풋살·배구·테니스로 종목을 하나씩 넓혀갈 거예요.</p>
+      <p class="sec-p">농구로 먼저 시작해요. 풋살·배구·테니스로 하나씩 넓혀갑니다.</p>
       <div class="sports-tags">
         <span class="s-tag on">농구</span>
         <span class="s-tag soon">풋살 준비 중</span>
@@ -798,7 +713,7 @@ section[id]{scroll-margin-top:88px}
       </div>
     </div>
     <div class="sports-media">
-      <div class="device"><img src="assets/phone-promo.png" alt="이번 주 농구 한판, 할래말래"></div>
+      <div class="device"><img src="assets/shots/app-home.png" alt="할래말래 앱 홈 화면" loading="lazy" width="780" height="1688"></div>
     </div>
   </div>
 </section>
@@ -814,7 +729,7 @@ section[id]{scroll-margin-top:88px}
     <div class="ct-grid">
       <div class="ct-card reveal">
         <h3>구장 입점</h3>
-        <p>제휴 구장으로 등록하면 비어 있는 시간대를 팀들이 채웁니다. 예약 요청·승인·정산을 구장 관리자 화면에서 관리해요.</p>
+        <p>비어 있는 시간대를 팀들이 채웁니다. 예약 승인·정산은 구장 관리자 앱에서.</p>
         <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=hallae@ilsaeng.com&amp;su=%5B%EA%B5%AC%EC%9E%A5%20%EC%9E%85%EC%A0%90%5D%20%EB%AC%B8%EC%9D%98" target="_blank" rel="noopener">구장 입점 문의하기 →</a>
       </div>
       <div class="ct-card reveal">
@@ -880,6 +795,7 @@ section[id]{scroll-margin-top:88px}
     </div>
     <div class="foot-col">
       <h4>정책</h4>
+      <a href="pricing.html">이용 요금 안내</a>
       <a href="terms.html">이용약관</a>
       <a href="privacy.html">개인정보처리방침</a>
       <a href="operation.html">운영정책</a>
@@ -906,6 +822,7 @@ section[id]{scroll-margin-top:88px}
   <div class="af-inner">
     <div class="af-brand">할래말래</div>
     <div class="af-links">
+      <a href="pricing.html">이용 요금 안내</a>
       <a href="terms.html">이용약관</a>
       <a href="privacy.html">개인정보처리방침</a>
       <a href="operation.html">운영정책</a>

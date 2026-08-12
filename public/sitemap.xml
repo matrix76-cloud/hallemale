@@ -31,4 +31,13 @@
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
+  <!-- 구장주 유치 페이지(owner.html)는 PG·지급대행 조건 확정 전까지 비공개 → 색인 대상에서 뺐다.
+       공개할 때 아래 형태로 되살릴 것:
+       <url><loc>https://hallaemallae.com/landing/owner.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url> -->
+  <url>
+    <loc>https://hallaemallae.com/landing/pricing.html</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
 </urlset>
